@@ -54,4 +54,4 @@ COPY --from=pruner /app/package.json ./
 EXPOSE 8080
 
 # 啟動後端服務
-CMD node -e "const fs = require('fs'); fs.writeFileSync('.env', 'NODE_ENV=production\nSUPABASE_URL=' + (process.env.SUPABASE_URL || '') + '\nSUPABASE_SERVICE_ROLE_KEY=' + (process.env.SUPABASE_SERVICE_ROLE_KEY || '')); console.log('【GCP 注入檢查】.env 檔案已動態生成完成');" && node dist/apps/backend/main.js
+CMD node -e "const fs = require('fs'); fs.writeFileSync('.env', 'NODE_ENV=production\nSUPABASE_URL=' + (process.env.SUPABASE_URL || '') + '\nSUPABASE_SERVICE_ROLE_KEY=' + (process.env.SUPABASE_SERVICE_ROLE_KEY || '')); console.log('【GCP 注入檢查】.env 檔案已動態生成完成');" && cat .env && node dist/apps/backend/main.js
