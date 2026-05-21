@@ -4,21 +4,37 @@ steps:
     args:
       - '-c'
       - |
+        docker pull ${_IMAGE}-builder || true
         docker pull $_IMAGE || true
 
   - name: 'gcr.io/cloud-builders/docker'
+    entrypoint: 'bash'
     args:
-      - build
-      - '--build-arg'
-      - 'VER=$SHORT_SHA'
-      - '-t'
-      - '$_IMAGE'
-      - '-f'
-      - 'Dockerfile.cloudrun'
-      - '.'
+      - '-c'
+      - |
+        DOCKER_BUILDKIT=1 docker build \
+          --build-arg VER=$SHORT_SHA \
+          --build-arg BUILDKIT_INLINE_CACHE=1 \
+          --cache-from ${_IMAGE}-builder \
+          --cache-from $_IMAGE \
+          --target builder \
+          -t ${_IMAGE}-builder \
+          -f Dockerfile.cloudrun . \
+        && DOCKER_BUILDKIT=1 docker build \
+          --build-arg VER=$SHORT_SHA \
+          --build-arg BUILDKIT_INLINE_CACHE=1 \
+          --cache-from ${_IMAGE}-builder \
+          --cache-from $_IMAGE \
+          -t $_IMAGE \
+          -f Dockerfile.cloudrun .
 
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', '$_IMAGE']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        docker push ${_IMAGE}-builder
+        docker push $_IMAGE
 
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
