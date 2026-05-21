@@ -1,26 +1,27 @@
 # -------- Build Stage --------
-FROM node:22-alpine AS builder
+# 修正 1：將 alpine 改為 slim，修正 apt-get 找不到的問題
+FROM node:22-slim AS builder
 
 ARG VER=0.0.0
 ENV VITE_APP_VER=${VER}
+# 構建時也跳過下載，加速構建
 ENV PUPPETEER_SKIP_DOWNLOAD=true
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
-ENV PORT=8080
-
-RUN apt-get update && apt-get install -y wget gnupg curl \
-    && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/googlechrome-keyring.gpg \
-    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/googlechrome-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
-    && apt-get update && apt-get install -y google-chrome-stable \
-    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+
+# 安裝 pnpm
 RUN npm install --global pnpm@9
+
+# 複製設定檔並安裝所有依賴
 COPY package.json .npmrc pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
+
+# 複製 Monorepo 原始碼
 COPY apps/ ./apps
 COPY libs/ ./libs
 COPY nx.json tsconfig.base.json env.d.ts ./
 
+# 執行 Nx 編譯
 RUN pnpm nx build frontend
 RUN pnpm nx build backend
 RUN pnpm nx compile crawler
@@ -30,12 +31,29 @@ FROM builder AS pruner
 RUN pnpm prune --prod
 
 # -------- Runtime Stage --------
-FROM node:22-alpine AS runtime
+# 修正 2：運行環境同樣改為 slim，這樣才能安裝和運行官方版本的 Google Chrome
+FROM node:22-slim AS runtime
+
+# 修正 3：將 Chrome 的安裝與環境變數移到最終的 Runtime 階段
+ENV PUPPETEER_SKIP_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
+ENV PORT=8080
+
+# 在最終會被部署到 Cloud Run 的環境裡安裝 Chrome
+RUN apt-get update && apt-get install -y wget gnupg curl \
+    && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/googlechrome-keyring.gpg \
+    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/googlechrome-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
+    && apt-get update && apt-get install -y google-chrome-stable \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+
+# 從 pruner 階段複製編譯後的產物與生產環境的 node_modules
 COPY --from=pruner /app/dist ./dist
 COPY --from=pruner /app/node_modules ./node_modules
 COPY --from=pruner /app/package.json ./
 
 EXPOSE 8080
+
+# 啟動後端服務
 CMD ["node", "dist/apps/backend/main.js"]
