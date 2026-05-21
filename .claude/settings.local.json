@@ -1,0 +1,45 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm add:*)",
+      "Bash(pnpm exec:*)",
+      "Bash(npm update:*)",
+      "Bash(claude:*)",
+      "Bash(find:*)",
+      "Bash(grep -E \"\\(^|/\\)package\\\\.json$\")",
+      "Bash(xargs grep:*)",
+      "Bash(Select-Object FullName, PSIsContainer)",
+      "Bash(Sort-Object FullName)",
+      "Bash(Format-Table -AutoSize)",
+      "Bash(npx tsc:*)",
+      "Bash(Select-Object Name, LastWriteTime)",
+      "mcp__claude_ai_Supabase__list_projects",
+      "mcp__claude_ai_Supabase__list_tables",
+      "mcp__claude_ai_Supabase__execute_sql",
+      "mcp__claude_ai_Supabase__apply_migration",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(npx nx *)",
+      "Bash(NX_NO_CLOUD=true npx nx typecheck backend)",
+      "Bash(NX_NO_CLOUD=true npx nx typecheck service-cache)",
+      "Bash(NX_NO_CLOUD=true npx nx lint service-cache)",
+      "mcp__636d4cd7-6cb9-44d6-9dbe-a35141597a2d__list_projects",
+      "mcp__636d4cd7-6cb9-44d6-9dbe-a35141597a2d__list_tables",
+      "mcp__636d4cd7-6cb9-44d6-9dbe-a35141597a2d__apply_migration"
+    ],
+    "additionalDirectories": [
+    ]
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "The user just submitted this prompt: $ARGUMENTS.prompt Before starting your work, suggest a better version of the prompt in this format: 💡 Better prompt: \"[rewritten prompt]\" Why: [one sentence explanation] Then continue with the original task."
+          }
+        ]
+      }
+    ]
+  }
+}

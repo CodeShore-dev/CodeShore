@@ -1,0 +1,74 @@
+@import 'tailwindcss';
+@config "../tailwind.config.js";
+
+@layer base {
+  h1 {
+    @apply mb-4 text-4xl leading-tight font-bold;
+  }
+  h2 {
+    @apply mb-3 text-3xl leading-tight font-semibold;
+  }
+  h3 {
+    @apply mb-3 text-2xl leading-snug font-semibold;
+  }
+  h4 {
+    @apply mb-2 text-xl leading-snug font-semibold;
+  }
+  h5 {
+    @apply mb-2 text-lg leading-snug font-semibold;
+  }
+  p {
+    @apply mb-3 text-base leading-relaxed;
+  }
+  ul {
+    @apply mb-3 list-outside list-disc pl-5;
+  }
+  ol {
+    @apply mb-3 list-outside list-decimal pl-5;
+  }
+  li {
+    @apply mb-1;
+  }
+  strong {
+    @apply font-semibold;
+  }
+  em {
+    @apply italic;
+  }
+  a {
+    @apply underline underline-offset-2;
+  }
+}
+
+.material-symbols-outlined {
+  font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24;
+}
+.glass-nav {
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+}
+.text-gradient {
+  background: linear-gradient(
+    135deg,
+    #8e4e00 0%,
+    #ff9100 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.button-gradient {
+  background: linear-gradient(
+    135deg,
+    #ff9100 0%,
+    #8e4e00 100%
+  );
+}
+
+a {
+  text-decoration-line: none;
+}

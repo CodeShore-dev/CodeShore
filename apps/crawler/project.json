@@ -1,0 +1,106 @@
+{
+  "name": "crawler",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/crawler/src",
+  "projectType": "application",
+  "targets": {
+    "compile": {
+      "executor": "@nx/esbuild:esbuild",
+      "outputs": ["{options.outputPath}"],
+      "defaultConfiguration": "production",
+      "options": {
+        "platform": "node",
+        "outputPath": "dist/apps/crawler",
+        "format": ["cjs"],
+        "bundle": false,
+        "main": "apps/crawler/src/main.ts",
+        "tsConfig": "apps/crawler/tsconfig.app.json",
+        "assets": [
+          "apps/crawler/src/assets"
+        ],
+        "generatePackageJson": true,
+        "esbuildOptions": {
+          "sourcemap": true,
+          "outExtension": {
+            ".js": ".js"
+          }
+        }
+      },
+      "configurations": {
+        "development": {},
+        "production": {
+          "esbuildOptions": {
+            "sourcemap": false,
+            "outExtension": {
+              ".js": ".js"
+            }
+          }
+        }
+      }
+    },
+    "build": {
+      "dependsOn": ["compile"],
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "powershell -Command \"if (Test-Path _dist) { Remove-Item -Recurse -Force _dist }; New-Item -ItemType Directory _dist | Out-Null; Get-ChildItem dist | Copy-Item -Destination _dist -Recurse\""
+      }
+    },
+    "prune-lockfile": {
+      "dependsOn": ["compile"],
+      "cache": true,
+      "executor": "@nx/js:prune-lockfile",
+      "outputs": [
+        "{workspaceRoot}/dist/apps/crawler/package.json",
+        "{workspaceRoot}/dist/apps/crawler/pnpm-lock.yaml"
+      ],
+      "options": {
+        "buildTarget": "compile"
+      }
+    },
+    "copy-workspace-modules": {
+      "dependsOn": ["compile"],
+      "cache": true,
+      "outputs": [
+        "{workspaceRoot}/dist/apps/crawler/workspace_modules"
+      ],
+      "executor": "@nx/js:copy-workspace-modules",
+      "options": {
+        "buildTarget": "compile"
+      }
+    },
+    "prune": {
+      "dependsOn": [
+        "prune-lockfile",
+        "copy-workspace-modules"
+      ],
+      "executor": "nx:noop"
+    },
+    "serve": {
+      "continuous": true,
+      "executor": "@nx/js:node",
+      "defaultConfiguration": "development",
+      "dependsOn": ["compile"],
+      "options": {
+        "buildTarget": "crawler:compile",
+        "runBuildTargetDependencies": false
+      },
+      "configurations": {
+        "development": {
+          "buildTarget": "crawler:compile:development"
+        },
+        "production": {
+          "buildTarget": "crawler:compile:production"
+        },
+        "104": {
+          "buildTarget": "crawler:compile:development",
+          "args": ["104"]
+        },
+        "cake": {
+          "buildTarget": "crawler:compile:development",
+          "args": ["cake"]
+        }
+      }
+    }
+  },
+  "tags": []
+}

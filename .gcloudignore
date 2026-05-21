@@ -1,0 +1,11 @@
+.gcloudignore
+.git
+.gitignore
+node_modules
+dist
+_dist
+tmp
+.nx/cache
+~/.nx
+.vscode
+*.log

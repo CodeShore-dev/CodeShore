@@ -1,0 +1,63 @@
+{
+  "compileOnSave": false,
+  "compilerOptions": {
+    "strict": true,
+    "rootDir": ".",
+    "sourceMap": true,
+    "declaration": false,
+    "moduleResolution": "node",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "importHelpers": true,
+    "target": "es2015",
+    "module": "esnext",
+    "lib": [
+      "es2020",
+      "dom"
+    ],
+    "skipLibCheck": true,
+    "skipDefaultLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@codeshore/service-cache": [
+        "libs/service-cache/src/index.ts"
+      ],
+      "@codeshore/backend": [
+        "apps/backend/src/index.ts"
+      ],
+      "@codeshore/service-config": [
+        "libs/service-config/src/index.ts"
+      ],
+      "@codeshore/service-logger": [
+        "libs/service-logger/src/index.ts"
+      ],
+      "@codeshore/service-serve-static": [
+        "libs/service-serve-static/src/index.ts"
+      ],
+      "@codeshore/service-utils": [
+        "libs/service-utils/src/index.ts"
+      ],
+      "@codeshore/supabase": [
+        "libs/supabase/src/index.ts"
+      ],
+      "@codeshore/data-utils": [
+        "libs/data-utils/src/index.ts"
+      ],
+      "@codeshore/data-types": [
+        "libs/data-types/src/index.ts"
+      ],
+      "@codeshore/shared-utils": [
+        "libs/shared-utils/src/index.ts"
+      ],
+      "@codeshore/crawler": [
+        "apps/crawler/src/index.ts"
+      ]
+    }
+  },
+  "exclude": [
+    "node_modules",
+    "tmp",
+    "dist",
+    ".nx"
+  ]
+}

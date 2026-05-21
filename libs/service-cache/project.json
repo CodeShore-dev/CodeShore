@@ -1,0 +1,19 @@
+{
+  "name": "service-cache",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/service-cache/src",
+  "projectType": "library",
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/service-cache",
+        "main": "libs/service-cache/src/index.ts",
+        "tsConfig": "libs/service-cache/tsconfig.lib.json",
+        "assets": ["libs/service-cache/*.md"]
+      }
+    }
+  }
+}

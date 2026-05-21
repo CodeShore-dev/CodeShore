@@ -1,0 +1,21 @@
+{
+  "cSpell.words": [
+    "crawlee",
+    "cust",
+    "domcontentloaded",
+    "ilike",
+    "inclusivity",
+    "langchain",
+    "langgraph",
+    "networkidle",
+    "openrouter",
+    "Preferenced",
+    "Supabase",
+    "unpreferenced",
+    "unreviewed"
+  ],
+  "typescript.tsserver.experimental.enableProjectDiagnostics": false,
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "claudeCodeChat.permissions.yoloMode": false,
+  "js/ts.tsdk.path": "node_modules\\typescript\\lib"
+}

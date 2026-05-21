@@ -1,0 +1,19 @@
+{
+  "name": "service-serve-static",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/service-serve-static/src",
+  "projectType": "library",
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/service-serve-static",
+        "main": "libs/service-serve-static/src/index.ts",
+        "tsConfig": "libs/service-serve-static/tsconfig.lib.json",
+        "assets": ["libs/service-serve-static/*.md"]
+      }
+    }
+  }
+}
