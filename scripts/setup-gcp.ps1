@@ -286,8 +286,10 @@ Write-Host "  Step 5 / 7: Cloud Build Permissions" -ForegroundColor White
 Write-Host "------------------------------------------------------------" -ForegroundColor DarkGray
 
 $PROJECT_NUMBER = Get-GcloudOutput @("projects", "describe", $PROJECT_ID, "--format=value(projectNumber)")
-$CB_SA = "${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com"
-Write-Info "Cloud Build Service Account: $CB_SA"
+$CB_SA      = "${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com"
+$COMPUTE_SA = "${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+Write-Info "Cloud Build Service Account : $CB_SA"
+Write-Info "Cloud Run (Compute) SA      : $COMPUTE_SA"
 
 $ROLES = @(
     "roles/run.admin",
@@ -298,7 +300,7 @@ $ROLES = @(
 )
 
 # Check which roles the CB_SA already has.
-Write-Info "Checking existing IAM bindings..."
+Write-Info "Checking existing IAM bindings for Cloud Build SA..."
 $old = $ErrorActionPreference; $ErrorActionPreference = "SilentlyContinue"
 $GRANTED = (gcloud projects get-iam-policy $PROJECT_ID `
     --flatten="bindings[].members" `
@@ -309,10 +311,10 @@ $ErrorActionPreference = $old
 $MISSING = $ROLES | Where-Object { $GRANTED -notmatch [regex]::Escape($_) }
 
 if (-not $MISSING) {
-    Write-Warn "All roles already granted, skipping"
+    Write-Warn "All Cloud Build roles already granted, skipping"
 } else {
     foreach ($ROLE in $MISSING) {
-        Write-Info "Granting $ROLE..."
+        Write-Info "Granting $ROLE to Cloud Build SA..."
         Invoke-Gcloud @(
             "projects", "add-iam-policy-binding", $PROJECT_ID,
             "--member=serviceAccount:$CB_SA",
@@ -321,6 +323,29 @@ if (-not $MISSING) {
         )
     }
     Write-Success "All Cloud Build permissions granted"
+}
+
+# Cloud Run uses the Compute SA at runtime to read secrets via --set-secrets.
+# Without secretAccessor, the injected env vars will be empty even if --set-secrets is set.
+Write-Info "Checking secretAccessor for Cloud Run (Compute) SA..."
+$old = $ErrorActionPreference; $ErrorActionPreference = "SilentlyContinue"
+$COMPUTE_GRANTED = (gcloud projects get-iam-policy $PROJECT_ID `
+    --flatten="bindings[].members" `
+    "--filter=bindings.members=serviceAccount:$COMPUTE_SA" `
+    --format="value(bindings.role)" 2>$null) -join ","
+$ErrorActionPreference = $old
+
+if ($COMPUTE_GRANTED -match [regex]::Escape("roles/secretmanager.secretAccessor")) {
+    Write-Warn "Compute SA already has secretAccessor, skipping"
+} else {
+    Write-Info "Granting roles/secretmanager.secretAccessor to Compute SA..."
+    Invoke-Gcloud @(
+        "projects", "add-iam-policy-binding", $PROJECT_ID,
+        "--member=serviceAccount:$COMPUTE_SA",
+        "--role=roles/secretmanager.secretAccessor",
+        "--quiet"
+    )
+    Write-Success "Compute SA can now read secrets at Cloud Run runtime"
 }
 
 # =============================================================================
@@ -370,9 +395,10 @@ function Set-GcpSecret {
 }
 
 Write-Host ""
-$SKIP_SECRETS = Read-Host "  Configure Supabase secrets now? (Y/n)"
+Write-Host "  --- Backend secrets (Supabase server-side) ---" -ForegroundColor Gray
+$SKIP_SECRETS = Read-Host "  Configure Supabase backend secrets now? (Y/n)"
 if ($SKIP_SECRETS -match "^[Nn]$") {
-    Write-Warn "Skipping Secret Manager -- Cloud Run will fail until secrets are set."
+    Write-Warn "Skipping backend secrets -- Cloud Run will crash until they are set."
     Write-Host "  Set them later with:" -ForegroundColor Gray
     Write-Host "  gcloud secrets create supabase-url --data-file=- --project=$PROJECT_ID" -ForegroundColor DarkCyan
     Write-Host "  gcloud secrets create supabase-service-role-key --data-file=- --project=$PROJECT_ID" -ForegroundColor DarkCyan
@@ -382,6 +408,53 @@ if ($SKIP_SECRETS -match "^[Nn]$") {
     Write-Host ""
     Set-GcpSecret -SecretName "supabase-url"              -PromptMsg "  SUPABASE_URL"
     Set-GcpSecret -SecretName "supabase-service-role-key" -PromptMsg "  SUPABASE_SERVICE_ROLE_KEY"
+}
+
+# Frontend VITE_* secrets -- baked into the JS bundle at Docker build time.
+# apps/frontend/.env is in .gitignore, so Cloud Build must recreate it from Secret Manager
+# before running `pnpm nx build frontend`. Without these, all VITE_* vars are undefined.
+Write-Host ""
+Write-Host "  --- Frontend secrets (Vite build-time, baked into JS bundle) ---" -ForegroundColor Gray
+$FRONTEND_ENV = "$PROJECT_ROOT\apps\frontend\.env"
+if (Test-Path $FRONTEND_ENV) {
+    Write-Info "Found apps/frontend/.env -- reading values from file..."
+    $envLines = Get-Content $FRONTEND_ENV
+    $envVals  = @{}
+    foreach ($line in $envLines) {
+        if ($line -match '^([^#][^=]+)=(.+)$') { $envVals[$matches[1].Trim()] = $matches[2].Trim() }
+    }
+
+    $FRONTEND_SECRETS = @{
+        "vite-app-title"       = $envVals["VITE_APP_TITLE"]
+        "vite-supabase-url"    = $envVals["VITE_SUPABASE_URL"]
+        "vite-supabase-anon-key" = $envVals["VITE_SUPABASE_ANON_KEY"]
+        "vite-admin-emails"    = $envVals["VITE_ADMIN_EMAILS"]
+    }
+
+    foreach ($entry in $FRONTEND_SECRETS.GetEnumerator()) {
+        if (-not $entry.Value) { Write-Warn "  $($entry.Key): empty in .env, skipping"; continue }
+        $tmpFile = [System.IO.Path]::GetTempFileName()
+        try {
+            [System.IO.File]::WriteAllText($tmpFile, $entry.Value, [System.Text.Encoding]::UTF8)
+            if (Test-Gcloud @("secrets", "describe", $entry.Key, "--project=$PROJECT_ID")) {
+                Write-Warn "Secret '$($entry.Key)' exists, adding new version..."
+                Invoke-Gcloud @("secrets", "versions", "add", $entry.Key, "--data-file=$tmpFile", "--project=$PROJECT_ID")
+            } else {
+                Invoke-Gcloud @("secrets", "create", $entry.Key, "--data-file=$tmpFile", "--replication-policy=automatic", "--project=$PROJECT_ID")
+            }
+            Write-Success "Secret '$($entry.Key)' saved"
+        } finally {
+            Remove-Item $tmpFile -Force -ErrorAction SilentlyContinue
+        }
+    }
+} else {
+    Write-Warn "apps/frontend/.env not found -- enter values manually (or skip and set later)."
+    Write-Host "  Characters will not be shown while typing" -ForegroundColor Gray
+    Write-Host ""
+    Set-GcpSecret -SecretName "vite-app-title"         -PromptMsg "  VITE_APP_TITLE"
+    Set-GcpSecret -SecretName "vite-supabase-url"      -PromptMsg "  VITE_SUPABASE_URL"
+    Set-GcpSecret -SecretName "vite-supabase-anon-key" -PromptMsg "  VITE_SUPABASE_ANON_KEY"
+    Set-GcpSecret -SecretName "vite-admin-emails"      -PromptMsg "  VITE_ADMIN_EMAILS"
 }
 
 # =============================================================================
@@ -527,6 +600,7 @@ Write-Host "  Region            : $REGION"
 Write-Host "  Cloud Run service : $SERVICE"
 Write-Host "  Artifact Registry : ${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}"
 Write-Host "  Cloud Build SA    : $CB_SA"
+Write-Host "  Cloud Run SA      : $COMPUTE_SA"
 Write-Host ""
 Write-Host "  Next steps:" -ForegroundColor Yellow
 Write-Host "  1. Verify secrets:"

@@ -224,7 +224,9 @@ echo "------------------------------------------------------------"
 
 PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format="value(projectNumber)")
 CB_SA="${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com"
-info "Cloud Build Service Account: $CB_SA"
+COMPUTE_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+info "Cloud Build Service Account : $CB_SA"
+info "Cloud Run (Compute) SA      : $COMPUTE_SA"
 
 ROLES=(
   "roles/run.admin"
@@ -235,7 +237,7 @@ ROLES=(
 )
 
 # Check which roles the CB_SA already has.
-info "Checking existing IAM bindings..."
+info "Checking existing IAM bindings for Cloud Build SA..."
 GRANTED=$(gcloud projects get-iam-policy "$PROJECT_ID" \
   --flatten="bindings[].members" \
   --filter="bindings.members=serviceAccount:$CB_SA" \
@@ -250,11 +252,11 @@ for ROLE in "${ROLES[@]}"; do
 done
 
 if [[ "$ALL_GRANTED" == "true" ]]; then
-  warn "All roles already granted, skipping"
+  warn "All Cloud Build roles already granted, skipping"
 else
   for ROLE in "${ROLES[@]}"; do
     if ! echo "$GRANTED" | grep -qx "$ROLE"; then
-      info "Granting $ROLE..."
+      info "Granting $ROLE to Cloud Build SA..."
       gcloud projects add-iam-policy-binding "$PROJECT_ID" \
         --member="serviceAccount:$CB_SA" \
         --role="$ROLE" \
@@ -262,6 +264,25 @@ else
     fi
   done
   success "All Cloud Build permissions granted"
+fi
+
+# Cloud Run uses the Compute SA at runtime to read secrets via --set-secrets.
+# Without secretAccessor, the injected env vars will be empty even if --set-secrets is set.
+info "Checking secretAccessor for Cloud Run (Compute) SA..."
+COMPUTE_GRANTED=$(gcloud projects get-iam-policy "$PROJECT_ID" \
+  --flatten="bindings[].members" \
+  --filter="bindings.members=serviceAccount:$COMPUTE_SA" \
+  --format="value(bindings.role)" 2>/dev/null || true)
+
+if echo "$COMPUTE_GRANTED" | grep -qx "roles/secretmanager.secretAccessor"; then
+  warn "Compute SA already has secretAccessor, skipping"
+else
+  info "Granting roles/secretmanager.secretAccessor to Compute SA..."
+  gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+    --member="serviceAccount:$COMPUTE_SA" \
+    --role="roles/secretmanager.secretAccessor" \
+    --quiet
+  success "Compute SA can now read secrets at Cloud Run runtime"
 fi
 
 # =============================================================================
@@ -298,9 +319,10 @@ create_or_update_secret() {
 }
 
 echo ""
-read -rp "  Configure Supabase secrets now? (Y/n): " SKIP_SECRETS
+echo "  --- Backend secrets (Supabase server-side) ---"
+read -rp "  Configure Supabase backend secrets now? (Y/n): " SKIP_SECRETS
 if [[ "$SKIP_SECRETS" =~ ^[Nn]$ ]]; then
-  warn "Skipping Secret Manager -- Cloud Run will fail until secrets are set."
+  warn "Skipping backend secrets -- Cloud Run will crash until they are set."
   echo "  Set them later with:"
   echo "  gcloud secrets create supabase-url --data-file=- --project=$PROJECT_ID"
   echo "  gcloud secrets create supabase-service-role-key --data-file=- --project=$PROJECT_ID"
@@ -310,6 +332,50 @@ else
   echo ""
   create_or_update_secret "supabase-url"              "  SUPABASE_URL"
   create_or_update_secret "supabase-service-role-key" "  SUPABASE_SERVICE_ROLE_KEY"
+fi
+
+# Frontend VITE_* secrets -- baked into the JS bundle at Docker build time.
+# apps/frontend/.env is in .gitignore, so Cloud Build must recreate it from Secret Manager
+# before running `pnpm nx build frontend`. Without these, all VITE_* vars are undefined.
+echo ""
+echo "  --- Frontend secrets (Vite build-time, baked into JS bundle) ---"
+FRONTEND_ENV="$PROJECT_ROOT/apps/frontend/.env"
+
+save_frontend_secret() {
+  local SECRET_NAME="$1" VALUE="$2"
+  if [[ -z "$VALUE" ]]; then warn "  $SECRET_NAME: empty, skipping"; return; fi
+  if gcloud secrets describe "$SECRET_NAME" --project="$PROJECT_ID" &>/dev/null; then
+    warn "Secret '$SECRET_NAME' exists, adding new version..."
+    echo -n "$VALUE" | gcloud secrets versions add "$SECRET_NAME" \
+      --data-file=- --project="$PROJECT_ID"
+  else
+    echo -n "$VALUE" | gcloud secrets create "$SECRET_NAME" \
+      --data-file=- --replication-policy=automatic --project="$PROJECT_ID"
+  fi
+  success "Secret '$SECRET_NAME' saved"
+}
+
+if [[ -f "$FRONTEND_ENV" ]]; then
+  info "Found apps/frontend/.env -- reading values from file..."
+  # Parse key=value lines (skip comments and blanks)
+  declare -A ENV_VALS
+  while IFS='=' read -r key val; do
+    [[ -z "$key" || "$key" == \#* ]] && continue
+    ENV_VALS["$key"]="$val"
+  done < <(grep -v '^#' "$FRONTEND_ENV" | grep '=')
+
+  save_frontend_secret "vite-app-title"         "${ENV_VALS[VITE_APP_TITLE]:-}"
+  save_frontend_secret "vite-supabase-url"       "${ENV_VALS[VITE_SUPABASE_URL]:-}"
+  save_frontend_secret "vite-supabase-anon-key"  "${ENV_VALS[VITE_SUPABASE_ANON_KEY]:-}"
+  save_frontend_secret "vite-admin-emails"       "${ENV_VALS[VITE_ADMIN_EMAILS]:-}"
+else
+  warn "apps/frontend/.env not found -- enter values manually (or skip and set later)."
+  echo "  Characters will not be shown while typing"
+  echo ""
+  create_or_update_secret "vite-app-title"         "  VITE_APP_TITLE"
+  create_or_update_secret "vite-supabase-url"      "  VITE_SUPABASE_URL"
+  create_or_update_secret "vite-supabase-anon-key" "  VITE_SUPABASE_ANON_KEY"
+  create_or_update_secret "vite-admin-emails"      "  VITE_ADMIN_EMAILS"
 fi
 
 # =============================================================================
@@ -448,6 +514,7 @@ echo "  Region            : $REGION"
 echo "  Cloud Run service : $SERVICE"
 echo "  Artifact Registry : ${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}"
 echo "  Cloud Build SA    : $CB_SA"
+echo "  Cloud Run SA      : $COMPUTE_SA"
 echo ""
 echo "  Next steps:"
 echo "  1. Verify secrets:"

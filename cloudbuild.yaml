@@ -1,4 +1,30 @@
+availableSecrets:
+  secretManager:
+  - versionName: projects/$PROJECT_ID/secrets/vite-app-title/versions/latest
+    env: VITE_APP_TITLE
+  - versionName: projects/$PROJECT_ID/secrets/vite-supabase-url/versions/latest
+    env: VITE_SUPABASE_URL
+  - versionName: projects/$PROJECT_ID/secrets/vite-supabase-anon-key/versions/latest
+    env: VITE_SUPABASE_ANON_KEY
+  - versionName: projects/$PROJECT_ID/secrets/vite-admin-emails/versions/latest
+    env: VITE_ADMIN_EMAILS
+
 steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    id: CreateFrontendEnv
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        printf "VITE_APP_TITLE=%s\nVITE_SUPABASE_URL=%s\nVITE_SUPABASE_ANON_KEY=%s\nVITE_ADMIN_EMAILS=%s\n" \
+          "$$VITE_APP_TITLE" "$$VITE_SUPABASE_URL" "$$VITE_SUPABASE_ANON_KEY" "$$VITE_ADMIN_EMAILS" \
+          > apps/frontend/.env
+    secretEnv:
+      - VITE_APP_TITLE
+      - VITE_SUPABASE_URL
+      - VITE_SUPABASE_ANON_KEY
+      - VITE_ADMIN_EMAILS
+
   - name: 'gcr.io/cloud-builders/docker'
     entrypoint: 'bash'
     args:
