@@ -56,4 +56,5 @@ COPY --from=pruner /app/package.json ./
 EXPOSE 8080
 
 # 啟動後端服務
+CMD printf "NODE_ENV=production\nSUPABASE_URL=%s\nSUPABASE_SERVICE_ROLE_KEY=%s\n" "$SUPABASE_URL" "$SUPABASE_SERVICE_ROLE_KEY"
 CMD printf "NODE_ENV=production\nSUPABASE_URL=%s\nSUPABASE_SERVICE_ROLE_KEY=%s\n" "$SUPABASE_URL" "$SUPABASE_SERVICE_ROLE_KEY" > .env && node dist/apps/backend/main.js
