@@ -3,6 +3,7 @@ FROM node:22-alpine AS builder
 
 ARG VER=0.0.0
 ENV VITE_APP_VER=${VER}
+ENV PUPPETEER_SKIP_DOWNLOAD=true
 
 WORKDIR /app
 RUN npm install --global pnpm@9
