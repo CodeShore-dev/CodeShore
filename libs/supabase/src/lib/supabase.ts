@@ -22,14 +22,17 @@ dotenv.config({
 
 export let supabase: SupabaseClient | null = null;
 
+function stripBOM(str: string): string {
+  return str.charCodeAt(0) === 0xfeff ? str.slice(1) : str;
+}
+
 export function getSupabaseClient() {
   if (!supabase) {
-    const SUPABASE_URL = process.env['SUPABASE_URL'];
-    const SERVICE_KEY =
-      process.env['SUPABASE_SERVICE_ROLE_KEY'];
+    const SUPABASE_URL = stripBOM(process.env['SUPABASE_URL'] ?? '');
+    const SERVICE_KEY = stripBOM(
+      process.env['SUPABASE_SERVICE_ROLE_KEY'] ?? '',
+    );
 
-    console.log('Supabase URL:', SUPABASE_URL);
-    console.log('Supabase Service Key:', SERVICE_KEY);
     if (!SUPABASE_URL || !SERVICE_KEY) {
       throw new Error('Missing Supabase credentials');
     }

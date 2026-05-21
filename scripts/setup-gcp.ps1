@@ -374,7 +374,7 @@ function Set-GcpSecret {
 
     $tmpFile = [System.IO.Path]::GetTempFileName()
     try {
-        [System.IO.File]::WriteAllText($tmpFile, $plain, [System.Text.Encoding]::UTF8)
+        [System.IO.File]::WriteAllBytes($tmpFile, [System.Text.Encoding]::UTF8.GetBytes($plain))
 
         if (Test-Gcloud @("secrets", "describe", $SecretName, "--project=$PROJECT_ID")) {
             Write-Warn "Secret '$SecretName' exists, adding new version..."
@@ -435,7 +435,7 @@ if (Test-Path $FRONTEND_ENV) {
         if (-not $entry.Value) { Write-Warn "  $($entry.Key): empty in .env, skipping"; continue }
         $tmpFile = [System.IO.Path]::GetTempFileName()
         try {
-            [System.IO.File]::WriteAllText($tmpFile, $entry.Value, [System.Text.Encoding]::UTF8)
+            [System.IO.File]::WriteAllBytes($tmpFile, [System.Text.Encoding]::UTF8.GetBytes($entry.Value))
             if (Test-Gcloud @("secrets", "describe", $entry.Key, "--project=$PROJECT_ID")) {
                 Write-Warn "Secret '$($entry.Key)' exists, adding new version..."
                 Invoke-Gcloud @("secrets", "versions", "add", $entry.Key, "--data-file=$tmpFile", "--project=$PROJECT_ID")

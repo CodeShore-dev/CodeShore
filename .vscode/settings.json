@@ -13,7 +13,8 @@
     "Preferenced",
     "Supabase",
     "unpreferenced",
-    "unreviewed"
+    "unreviewed",
+    "VITE"
   ],
   "typescript.tsserver.experimental.enableProjectDiagnostics": false,
   "typescript.tsdk": "node_modules/typescript/lib",

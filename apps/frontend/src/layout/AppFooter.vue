@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+const version = import.meta.env.VITE_APP_VER
 </script>
 
 <template>
@@ -15,7 +16,7 @@
         <a
           class="transition-colors hover:text-[#fd7700]"
           href="#"
-        ></a>
+        >{{version}}</a>
       </div>
     </div>
   </footer>
