@@ -21,10 +21,8 @@ COPY apps/ ./apps
 COPY libs/ ./libs
 COPY nx.json tsconfig.base.json env.d.ts ./
 
-# 執行 Nx 編譯
-RUN pnpm nx build frontend
-RUN pnpm nx build backend
-RUN pnpm nx compile crawler
+# 執行 Nx 編譯（frontend + backend + crawler 並行跑）
+RUN pnpm nx run-many --target=build --projects=frontend,backend,crawler --parallel=3
 
 # -------- Prune Stage --------
 FROM builder AS pruner

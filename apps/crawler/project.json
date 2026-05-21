@@ -4,7 +4,7 @@
   "sourceRoot": "apps/crawler/src",
   "projectType": "application",
   "targets": {
-    "compile": {
+    "build": {
       "executor": "@nx/esbuild:esbuild",
       "outputs": ["{options.outputPath}"],
       "defaultConfiguration": "production",
@@ -38,15 +38,15 @@
         }
       }
     },
-    "build": {
-      "dependsOn": ["compile"],
+    "build-x": {
+      "dependsOn": ["build"],
       "executor": "nx:run-commands",
       "options": {
         "command": "powershell -Command \"if (Test-Path _dist) { Remove-Item -Recurse -Force _dist }; New-Item -ItemType Directory _dist | Out-Null; Get-ChildItem dist | Copy-Item -Destination _dist -Recurse\""
       }
     },
     "prune-lockfile": {
-      "dependsOn": ["compile"],
+      "dependsOn": ["build"],
       "cache": true,
       "executor": "@nx/js:prune-lockfile",
       "outputs": [
@@ -54,18 +54,18 @@
         "{workspaceRoot}/dist/apps/crawler/pnpm-lock.yaml"
       ],
       "options": {
-        "buildTarget": "compile"
+        "buildTarget": "build"
       }
     },
     "copy-workspace-modules": {
-      "dependsOn": ["compile"],
+      "dependsOn": ["build"],
       "cache": true,
       "outputs": [
         "{workspaceRoot}/dist/apps/crawler/workspace_modules"
       ],
       "executor": "@nx/js:copy-workspace-modules",
       "options": {
-        "buildTarget": "compile"
+        "buildTarget": "build"
       }
     },
     "prune": {
@@ -79,24 +79,24 @@
       "continuous": true,
       "executor": "@nx/js:node",
       "defaultConfiguration": "development",
-      "dependsOn": ["compile"],
+      "dependsOn": ["build"],
       "options": {
-        "buildTarget": "crawler:compile",
+        "buildTarget": "crawler:build",
         "runBuildTargetDependencies": false
       },
       "configurations": {
         "development": {
-          "buildTarget": "crawler:compile:development"
+          "buildTarget": "crawler:build:development"
         },
         "production": {
-          "buildTarget": "crawler:compile:production"
+          "buildTarget": "crawler:build:production"
         },
         "104": {
-          "buildTarget": "crawler:compile:development",
+          "buildTarget": "crawler:build:development",
           "args": ["104"]
         },
         "cake": {
-          "buildTarget": "crawler:compile:development",
+          "buildTarget": "crawler:build:development",
           "args": ["cake"]
         }
       }
