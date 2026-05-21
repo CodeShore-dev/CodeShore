@@ -25,6 +25,8 @@ steps:
       - '--allow-unauthenticated'
       - '--port=8080'
       - '--memory=2Gi'
+      - '--cpu=2'
+      - '--timeout=300'
       - '--set-env-vars=NODE_ENV=production'
       - '--set-secrets=SUPABASE_URL=supabase-url:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest'
 
