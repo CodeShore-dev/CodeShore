@@ -39,9 +39,9 @@ steps:
 
 substitutions:
   _REGION: asia-east1
-  _SERVICE: backend
-  _REPO: codeshore
-  _IMAGE: '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA'
+  _SERVICE: codeshore
+  _REPO: cloud-run-source-deploy
+  _IMAGE: '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/$REPO_NAME/${_SERVICE}:$SHORT_SHA'
 
 options:
   logging: CLOUD_LOGGING_ONLY
