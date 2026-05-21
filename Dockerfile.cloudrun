@@ -1,6 +1,6 @@
 # -------- Build Stage --------
 # 修正 1：將 alpine 改為 slim，修正 apt-get 找不到的問題
-FROM node:22-slim AS builder
+FROM node:22.14.0-slim AS builder
 
 ARG VER=0.0.0
 ENV VITE_APP_VER=${VER}
@@ -10,7 +10,7 @@ ENV PUPPETEER_SKIP_DOWNLOAD=true
 WORKDIR /app
 
 # 安裝 pnpm
-RUN npm install --global pnpm@9
+RUN npm install --global pnpm@10.7.1
 
 # 複製設定檔並安裝所有依賴
 COPY package.json .npmrc pnpm-lock.yaml ./
@@ -30,7 +30,7 @@ RUN pnpm prune --prod
 
 # -------- Runtime Stage --------
 # 修正 2：運行環境同樣改為 slim，這樣才能安裝和運行官方版本的 Google Chrome
-FROM node:22-slim AS runtime
+FROM node:22.14.0-slim AS runtime
 
 # 修正 3：將 Chrome 的安裝與環境變數移到最終的 Runtime 階段
 ENV PUPPETEER_SKIP_DOWNLOAD=true
