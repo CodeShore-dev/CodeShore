@@ -1,8 +1,7 @@
 import { getSupabaseClient } from '@codeshore/supabase';
 
-const supabase = getSupabaseClient();
-
 export async function createKeywordBin(keyword: string) {
+  const supabase = getSupabaseClient();
   const { error } = await supabase
     .from('keyword_bin')
     .insert({

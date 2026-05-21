@@ -6,9 +6,8 @@ import { getSupabaseClient } from '@codeshore/supabase';
 
 import { fetchList } from './utils';
 
-const supabase = getSupabaseClient();
-
 export async function fetchJobKeywords(query: ListQuery) {
+  const supabase = getSupabaseClient();
   const builder = supabase.from('job_keyword').select(
     `
       id,
@@ -29,6 +28,7 @@ export async function fetchJobKeywords(query: ListQuery) {
 export async function upsertJobKeywords(
   jobKeywords: Omit<SupabaseTable.JobKeyword, 'job'>[],
 ) {
+  const supabase = getSupabaseClient();
   const { error } = await supabase
     .from('job_keyword')
     .upsert(jobKeywords);

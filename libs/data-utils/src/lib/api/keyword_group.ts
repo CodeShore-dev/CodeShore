@@ -2,11 +2,10 @@ import { ListQuery, SupabaseTable } from '@codeshore/data-types';
 import { getSupabaseClient } from '@codeshore/supabase';
 import { fetchList } from './utils';
 
-const supabase = getSupabaseClient();
-
 export async function fetchKeywordGroups(
   query: ListQuery,
 ) {
+  const supabase = getSupabaseClient();
   const builder = supabase
     .from('keyword_group')
     .select('*', { count: 'exact' });
@@ -23,6 +22,7 @@ export async function createKeywordGroup(
   category: string | null = null,
   parent: string | null = null,
 ): Promise<void> {
+  const supabase = getSupabaseClient();
   const { error } = await supabase
     .from('keyword_group')
     .insert({ id, category, parent });
@@ -44,6 +44,7 @@ export async function updateKeywordGroup(
   category: string | null,
   parent: string | null
 ): Promise<void> {
+  const supabase = getSupabaseClient();
   const { error } = await supabase
     .from('keyword_group')
     .update({ category, parent })
@@ -64,6 +65,7 @@ export async function updateKeywordGroup(
 export async function upsertKeywordGroups(
   keywordGroups: SupabaseTable.KeywordGroup[],
 ) {
+  const supabase = getSupabaseClient();
   const { error } = await supabase
     .from('keyword_group')
     .upsert(keywordGroups);
@@ -83,6 +85,7 @@ export async function upsertKeywordGroups(
 export async function resetKeywordGroups(
   keywordGroups: SupabaseTable.KeywordGroup[],
 ) {
+  const supabase = getSupabaseClient();
   const { error: deleteError } = await supabase
     .from('keyword_group')
     .delete()
@@ -118,6 +121,7 @@ export async function resetKeywordGroups(
 export async function deleteKeywordGroup(
   id: string,
 ): Promise<void> {
+  const supabase = getSupabaseClient();
   const { error } = await supabase
     .from('keyword_group')
     .delete()

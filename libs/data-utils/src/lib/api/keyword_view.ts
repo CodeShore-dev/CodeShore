@@ -4,22 +4,20 @@ import {
 } from '@codeshore/data-types';
 import { getSupabaseClient } from '@codeshore/supabase';
 
-import { extractKeywords } from '../format.keyword';
-import { fetchJobKeywords } from './job_keyword';
 import { fetchList } from './utils';
-import { fetchKeywordGroupJoinKeywords } from './keyword_group_keyword';
 
-const supabase = getSupabaseClient();
 
 export async function fetchKeywords(query: ListQuery) {
+  const supabase = getSupabaseClient();
   const builder = supabase
-    .from('keyword_view')
-    .select(query.select, { count: 'exact' });
+  .from('keyword_view')
+  .select(query.select, { count: 'exact' });
 
   return fetchList<SupabaseTable.Keyword>(builder, query);
 }
 
 export async function resetKeywords() {
+  const supabase = getSupabaseClient();
   const { error } = await supabase.rpc('reset_keywords');
 
   if (error) {

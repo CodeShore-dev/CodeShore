@@ -6,9 +6,8 @@ import { getSupabaseClient } from '@codeshore/supabase';
 
 import { fetchList } from './utils';
 
-const supabase = getSupabaseClient();
-
 export async function fetchKeywordGroupJoinKeywords(query: ListQuery) {
+  const supabase = getSupabaseClient();
   const builder = supabase
     .from('keyword_group_keyword')
     .select(query.select, { count: 'exact' });
@@ -20,6 +19,7 @@ export async function createKeywordGroupJoinKeyword(
   keyword_group: string,
   keywords: string[],
 ): Promise<void> {
+  const supabase = getSupabaseClient();
   const { error } = await supabase
     .from('keyword_group_keyword')
     .insert(
@@ -52,6 +52,7 @@ export async function updateKeywordGroupJoinKeyword(
 export async function deleteKeywordGroupJoinKeyword(
   keyword_group: string,
 ): Promise<void> {
+  const supabase = getSupabaseClient();
   const { error } = await supabase
     .from('keyword_group_keyword')
     .delete()

@@ -22,7 +22,6 @@ import {
   refreshMvKeywordGroup,
 } from './api/mv_keyword_group';
 
-const supabase = getSupabaseClient();
 
 export async function addKeywordToKeywordGroup(
   groupId: string,
@@ -30,6 +29,7 @@ export async function addKeywordToKeywordGroup(
   category: string | null = null,
   parent: string | null = null,
 ): Promise<void> {
+  const supabase = getSupabaseClient();
   const lowerKeyword = keyword.toLowerCase();
   const { data: existing, error: fetchError } =
     await supabase

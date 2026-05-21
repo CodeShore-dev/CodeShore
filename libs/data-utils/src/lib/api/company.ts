@@ -1,13 +1,12 @@
 import { SupabaseTable } from '@codeshore/data-types';
 import { getSupabaseClient } from '@codeshore/supabase';
 
-const supabase = getSupabaseClient();
-
 export async function upsertCompanies(
   companies: SupabaseTable.Company[],
 ) {
   if (!companies || companies.length === 0) return;
-  const { error } = await supabase
+    const supabase = getSupabaseClient();
+    const { error } = await supabase
     .from('company')
     .upsert(companies, {
       onConflict: 'id',

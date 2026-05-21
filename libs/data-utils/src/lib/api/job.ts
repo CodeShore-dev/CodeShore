@@ -6,9 +6,8 @@ import { getSupabaseClient } from '@codeshore/supabase';
 
 import { fetchList } from './utils';
 
-const supabase = getSupabaseClient();
-
 export async function fetchJobs(query: ListQuery) {
+  const supabase = getSupabaseClient();
   const builder = supabase
     .from('job')
     .select(query.select, { count: 'exact' });
@@ -19,6 +18,7 @@ export async function fetchJobs(query: ListQuery) {
 export async function upsertJobs(
   jobs: SupabaseTable.Job[],
 ) {
+  const supabase = getSupabaseClient();
   const { error } = await supabase
     .from('job')
     .upsert(jobs, { onConflict: 'id' });

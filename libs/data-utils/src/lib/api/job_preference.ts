@@ -6,11 +6,10 @@ import { getSupabaseClient } from '@codeshore/supabase';
 
 import { fetchList } from './utils';
 
-const supabase = getSupabaseClient();
-
 export async function fetchJobPreferences(
   query: ListQuery,
 ) {
+  const supabase = getSupabaseClient();
   const builder = supabase
     .from('job_preference')
     .select('*', { count: 'exact' });
@@ -26,6 +25,7 @@ export async function upsertJobPreference(
   preference: string,
   userId: string
 ) {
+  const supabase = getSupabaseClient();
   const { error } = await supabase
     .from('job_preference')
     .upsert({

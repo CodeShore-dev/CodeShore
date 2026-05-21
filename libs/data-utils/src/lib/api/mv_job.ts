@@ -6,12 +6,12 @@ import { getSupabaseClient } from '@codeshore/supabase';
 
 import { fetchList } from './utils';
 
-const supabase = getSupabaseClient();
 
 export async function fetchJobsView(
   query: ListQuery,
   userId: string,
 ) {
+  const supabase = getSupabaseClient();
   const wherePreference = query.where?.['preference'];
   const preference = wherePreference?.eq;
 

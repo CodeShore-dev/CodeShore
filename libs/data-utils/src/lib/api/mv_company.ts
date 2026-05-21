@@ -2,19 +2,20 @@ import { ListQuery, SupabaseView } from '@codeshore/data-types';
 import { getSupabaseClient } from '@codeshore/supabase';
 import { fetchList } from './utils';
 
-const supabase = getSupabaseClient();
 
 export async function fetchMvCompany(
   query: ListQuery,
 ) {
+  const supabase = getSupabaseClient();
   const builder = supabase
-    .from('mv_company')
-    .select('*', { count: 'exact' });
+  .from('mv_company')
+  .select('*', { count: 'exact' });
 
   return fetchList<SupabaseView.CompanyView>(builder, query);
 }
 
 export async function refreshMvCompany() {
+  const supabase = getSupabaseClient();
   const { error } = await supabase.rpc('refresh_mv_company');
 
   if (error) {

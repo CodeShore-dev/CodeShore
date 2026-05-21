@@ -6,11 +6,11 @@ import { getSupabaseClient } from '@codeshore/supabase';
 
 import { fetchList } from './utils';
 
-const supabase = getSupabaseClient();
 
 export async function fetchKeywordGroupCategories(
   query: ListQuery,
 ) {
+  const supabase = getSupabaseClient();
   const builder = supabase
     .from('mv_keyword_group_category')
     .select('*', { count: 'exact' });

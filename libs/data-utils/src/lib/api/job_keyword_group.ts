@@ -4,11 +4,10 @@ import { getSupabaseClient } from '@codeshore/supabase';
 import { fetchJobKeywords } from './job_keyword';
 import { fetchMvKeywordGroup } from './mv_keyword_group';
 
-const supabase = getSupabaseClient();
-
 export async function resetJobJoinKeywordGroups(
   jobJoinKeywordGroups: SupabaseTable.JobJoinKeywordGroup[],
 ) {
+  const supabase = getSupabaseClient();
   const { error: deleteError } = await supabase
     .from('job_keyword_group')
     .delete()
@@ -83,6 +82,7 @@ export async function resetJobJoinKeywordGroupsByJobKeywords(
 export async function deleteJobJoinKeywordGroup(
   keyword_group: string,
 ): Promise<void> {
+  const supabase = getSupabaseClient();
   const { error } = await supabase
     .from('job_keyword_group')
     .delete()
