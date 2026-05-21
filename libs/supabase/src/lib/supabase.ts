@@ -28,6 +28,8 @@ export function getSupabaseClient() {
     const SERVICE_KEY =
       process.env['SUPABASE_SERVICE_ROLE_KEY'];
 
+    console.log('Supabase URL:', SUPABASE_URL);
+    console.log('Supabase Service Key:', SERVICE_KEY);
     if (!SUPABASE_URL || !SERVICE_KEY) {
       throw new Error('Missing Supabase credentials');
     }
