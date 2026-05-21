@@ -17,7 +17,7 @@ onMounted(async () => {
   }
 
   if (data.session) {
-    await router.replace({ name: 'jobs' });
+    await router.replace({ name: 'home' });
   } else {
     error.value = '登入失敗，請再試一次。';
     setTimeout(() => router.replace({ name: 'login' }), 2000);
