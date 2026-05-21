@@ -34,7 +34,9 @@ steps:
       - '--memory=2Gi'
       - '--cpu=2'
       - '--timeout=300'
-      - '--set-env-vars=NODE_ENV=production,SUPABASE_URL=supabase-url:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest'
+      - '--set-env-vars=NODE_ENV=production'
+      - '--set-secrets=SUPABASE_URL=supabase-url:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest'
+
 substitutions:
   _REGION: asia-east1
   _SERVICE: backend
