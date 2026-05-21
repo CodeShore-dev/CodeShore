@@ -52,7 +52,7 @@ const stealthLaunchContext = {
       '--no-first-run',
       '--lang=zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7',
     ],
-    executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    executablePath: process.env['PUPPETEER_EXECUTABLE_PATH'] || undefined,
   },
 };
 
