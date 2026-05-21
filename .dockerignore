@@ -1,0 +1,7 @@
+.git/
+.nx/cache/
+node_modules/
+dist/
+.claude/
+.kiro/
+*.md
