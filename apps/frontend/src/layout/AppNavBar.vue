@@ -27,7 +27,7 @@ const navLinks = computed(() => [
         to="/"
         class="text-2xl font-black tracking-tighter text-[#003d92] dark:text-[#e6f6ff]"
       >
-        碼上岸
+        碼的上岸了
       </RouterLink>
 
       <!-- Desktop nav links -->
