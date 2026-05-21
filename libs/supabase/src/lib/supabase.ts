@@ -1,5 +1,8 @@
 import { workspaceRoot } from '@nx/devkit';
-import { createClient } from '@supabase/supabase-js';
+import {
+  SupabaseClient,
+  createClient,
+} from '@supabase/supabase-js';
 import * as dotenv from 'dotenv';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -17,30 +20,19 @@ dotenv.config({
   path: envPath,
 });
 
-const SUPABASE_URL = process.env['SUPABASE_URL'];
-const SERVICE_KEY =
-  process.env['SUPABASE_SERVICE_ROLE_KEY'];
-
-if (!SUPABASE_URL || !SERVICE_KEY) {
-  throw new Error('Missing Supabase credentials');
-}
-
-export const supabase = createClient(
-  SUPABASE_URL,
-  SERVICE_KEY,
-);
+export let supabase: SupabaseClient | null = null;
 
 export function getSupabaseClient() {
-  return supabase;
-}
+  if (!supabase) {
+    const SUPABASE_URL = process.env['SUPABASE_URL'];
+    const SERVICE_KEY =
+      process.env['SUPABASE_SERVICE_ROLE_KEY'];
 
-export function createSessionClient(userToken: string) {
-  return createClient(SUPABASE_URL!, SERVICE_KEY!, {
-    global: {
-      headers: {
-        Authorization: `Bearer ${userToken}`,
-      },
-    },
-    auth: { persistSession: false },
-  });
+    if (!SUPABASE_URL || !SERVICE_KEY) {
+      throw new Error('Missing Supabase credentials');
+    }
+
+    supabase = createClient(SUPABASE_URL, SERVICE_KEY);
+  }
+  return supabase;
 }
