@@ -8,39 +8,47 @@ const route = useRoute();
 const authStore = useAuthStore();
 
 const navLinks = computed(() => [
-  { to: '/jobs', label: '職缺', icon: 'work' },
-  { to: '/companies', label: '公司', icon: 'apartment' },
+  { to: '/', label: '首頁', exact: true },
+  { to: '/jobs', label: '職缺', exact: true },
+  { to: '/companies', label: '公司', exact: false },
   ...(authStore.canEdit
-    ? [{ to: '/keywords', label: '關鍵字', icon: 'label' }]
+    ? [{ to: '/keywords', label: '關鍵字', exact: false }]
     : []),
 ]);
+
+function isActive(link: { to: string; exact?: boolean; prefQuery?: boolean; query?: Record<string, string> }) {
+  if (link.prefQuery) return route.path === link.to && !!route.query.tab;
+  if (link.exact && link.to === '/jobs') return route.path === link.to && !route.query.tab;
+  if (link.exact) return route.path === link.to;
+  return route.path.startsWith(link.to);
+}
 </script>
 
 <template>
   <nav
-    class="fixed top-0 z-50 w-full bg-[#f4faff]/80 shadow-sm backdrop-blur-xl dark:bg-[#001f2a]/80 dark:shadow-none"
+    class="w-full bg-[#f4faff]/80 shadow-[0_1px_0_#c3c6d5] backdrop-blur-xl"
   >
     <div
       class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-4"
     >
       <RouterLink
         to="/"
-        class="text-2xl font-black tracking-tighter text-[#003d92] dark:text-[#e6f6ff]"
+        class="text-xl font-black tracking-[-0.04em] text-[#003d92] dark:text-[#e6f6ff]"
       >
-        碼的上岸了
+        Code<span class="text-[#fd7700]">Shore</span>
       </RouterLink>
 
       <!-- Desktop nav links -->
       <div class="hidden items-center gap-1 md:flex">
         <RouterLink
           v-for="link in navLinks"
-          :key="link.to"
-          :to="link.to"
-          class="rounded-lg px-3 py-1.5 text-sm font-medium transition"
+          :key="link.label"
+          :to="{ path: link.to }"
+          class="rounded-full px-4 py-2 text-sm font-bold transition"
           :class="
-            route.path === link.to
-              ? 'bg-[#003d92]/10 text-[#003d92] dark:bg-[#003d92]/30 dark:text-[#a8d4f5]'
-              : 'text-[#434653] hover:bg-[#e6f6ff] hover:text-[#003d92] dark:text-[#c3c6d5] dark:hover:bg-[#003d92]/20'
+            isActive(link)
+              ? 'bg-[#003d92]/10 text-[#003d92]'
+              : 'text-[#434653] hover:bg-[#001f2a]/4 hover:text-[#001f2a]'
           "
         >
           {{ link.label }}

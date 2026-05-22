@@ -8,10 +8,11 @@ const route = useRoute();
 const authStore = useAuthStore();
 
 const navLinks = computed(() => [
-  { to: '/jobs', label: '職缺', icon: 'work' },
-  { to: '/companies', label: '公司', icon: 'apartment' },
+  { to: '/', label: '首頁', icon: 'home', exact: true },
+  { to: '/jobs', label: '職缺', icon: 'work', exact: true },
+  { to: '/companies', label: '公司', icon: 'apartment', exact: false },
   ...(authStore.canEdit
-    ? [{ to: '/keywords', label: '關鍵字', icon: 'label' }]
+    ? [{ to: '/keywords', label: '關鍵字', icon: 'label', exact: false }]
     : []),
 ]);
 </script>
@@ -27,15 +28,15 @@ const navLinks = computed(() => [
       :to="link.to"
       class="flex flex-col items-center justify-center p-2 transition"
       :class="
-        route.path === link.to
-          ? 'text-[#003d92] dark:text-[#a8d4f5]'
-          : 'text-[#434653] hover:text-[#003d92] dark:text-[#c3c6d5]'
+        (link.exact ? route.path === link.to : route.path.startsWith(link.to))
+          ? 'text-[#003d92]'
+          : 'text-[#434653] hover:text-[#003d92]'
       "
     >
       <span
         class="material-symbols-outlined transition"
         :style="
-          route.path === link.to
+          (link.exact ? route.path === link.to : route.path.startsWith(link.to))
             ? 'font-variation-settings: \'FILL\' 1'
             : ''
         "

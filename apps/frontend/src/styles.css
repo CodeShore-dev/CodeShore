@@ -72,3 +72,15 @@
 a {
   text-decoration-line: none;
 }
+
+mark.kw {
+  background: rgba(0, 61, 146, 0.12);
+  color: #003d92;
+  padding: 0 3px;
+  border-radius: 3px;
+  font-weight: 700;
+}
+mark.kw.is-active {
+  background: #003d92;
+  color: #ffffff;
+}

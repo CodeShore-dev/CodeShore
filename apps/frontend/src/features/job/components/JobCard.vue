@@ -9,16 +9,17 @@ import { formatDateInfo } from '../../../utils/format';
 import { useAuthStore } from '../../auth/useAuthStore';
 import { useKeywordStore } from '../../keyword/useKeywordStore';
 import { useJobStore } from '../useJobStore';
+import JobCardSkeleton from './JobCardSkeleton.vue';
 import JobCrawlPanel from './JobCrawlPanel.vue';
 import JobDescriptionHighlighter, {
   type KeywordTooltipData,
 } from './JobDescriptionHighlighter.vue';
+import JobHandoffCTA from './JobHandoffCTA.vue';
+import JobKeywordChips from './JobKeywordChips.vue';
 import JobKeywordPopover from './JobKeywordPopover.vue';
 
 type Props = { job?: Partial<SupabaseView.JobView> };
-const props = withDefaults(defineProps<Props>(), {
-  job: () => ({}),
-});
+const props = withDefaults(defineProps<Props>(), { job: () => ({}) });
 
 const store = useJobStore();
 const authStore = useAuthStore();
@@ -29,211 +30,96 @@ const keywordGroupMapping = computed(
     props.job.keyword_group_mappings
       ?.filter(Boolean)
       .map(x => x.split(':'))
-      .map(([key, value]) => ({
-        key,
-        value: value.split(','),
-      })) ?? [],
+      .map(([key, value]) => {
+        const group = keywordStore.keywordGroups.find(g => g.keyword_group === key);
+        return { key, label: group?.label, value: value.split(',') };
+      }) ?? [],
 );
 
 const allKeywords = computed(() =>
   keywordGroupMapping.value
-    .filter(x =>
-      keywordStore.keywordGroups.some(
-        y => y.keyword_group === x.key,
-      ),
-    )
+    .filter(x => keywordStore.keywordGroups.some(y => y.keyword_group === x.key))
     .flatMap(m => m.value)
     .sort((a, b) => b.length - a.length),
 );
 
-const selectedKeywordsSet = computed(() => {
-  const keywords = keywordStore.selectedTags
-    .map(
-      x =>
-        keywordGroupMapping.value.find(y => y.key === x)!,
-    )
-    .filter(Boolean)
-    .flatMap(m => m.value);
-  return new Set(keywords.map(k => k.toLowerCase()));
-});
-
-const updatedAt = computed(() =>
-  dayjs(props.job.updated_at),
+const selectedKeywordsSet = computed(() =>
+  new Set(
+    keywordStore.selectedTags
+      .flatMap(x => keywordGroupMapping.value.find(y => y.key === x)?.value ?? [])
+      .map(k => k.toLowerCase()),
+  ),
 );
+
+const updatedAt = computed(() => dayjs(props.job.updated_at));
 const updatedAtInfo = computed(() =>
   formatDateInfo(
     updatedAt.value,
-    props.job.updated_at
-      ? updatedAt.value.format('MM/DD HH:mm')
-      : '--/-- --:--',
+    props.job.updated_at ? updatedAt.value.format('MM/DD HH:mm') : '--/-- --:--',
   ),
 );
 
 const keywordTooltip = ref<KeywordTooltipData | null>(null);
-const popover = ref<{
-  keyword: string;
-  x: number;
-  y: number;
-} | null>(null);
+const popover = ref<{ keyword: string; x: number; y: number } | null>(null);
 
 function handleKeywordSelect(keyword: string): void {
-  if (authStore.canEdit) {
-    const range = window.getSelection()?.getRangeAt(0);
-    if (!range) return;
-    const rect = range.getBoundingClientRect();
-    popover.value = {
-      keyword,
-      x: rect.left + rect.width / 2,
-      y: rect.top,
-    };
-  }
+  if (!authStore.canEdit) return;
+  const range = window.getSelection()?.getRangeAt(0);
+  if (!range) return;
+  const rect = range.getBoundingClientRect();
+  popover.value = { keyword, x: rect.left + rect.width / 2, y: rect.top };
 }
 
 const description = computed(() => {
   if (!props.job.description) return '';
   const $ = cheerio.load(props.job.description);
-
-  $('*').each((_, el) => {
-    (el as unknown as any).attribs = {};
-  });
-
+  $('*').each((_, el) => { (el as unknown as any).attribs = {}; });
   return $('body').html()?.trim() ?? '';
 });
 </script>
 
 <template>
   <div class="group relative w-full">
-    <div
-      class="bg-surface-container-lowest flex min-h-110 flex-col overflow-hidden rounded-xl shadow-[0_24px_40px_rgba(0,31,42,0.06)]"
-    >
-      <div
-        v-if="store.loading"
-        class="flex grow animate-pulse flex-col p-8"
-      >
-        <div class="mb-6">
-          <div
-            class="bg-surface-container-high mb-5 h-8 w-3/4 rounded"
-          ></div>
-          <div class="flex flex-wrap gap-3">
-            <div
-              class="bg-surface-container-high h-5 w-24 rounded"
-            ></div>
-            <div
-              class="bg-surface-container-high h-5 w-32 rounded"
-            ></div>
-            <div class="ml-auto flex gap-3">
-              <div
-                class="bg-surface-container-high h-5 w-28 rounded"
-              ></div>
-            </div>
-          </div>
-        </div>
-        <div class="space-y-3 py-1">
-          <div
-            v-for="(w, i) in [
-              'w-full',
-              'w-5/6',
-              'w-full',
-              'w-4/6',
-            ]"
-            :key="i"
-            class="bg-surface-container-high h-4 rounded"
-            :class="w"
-          ></div>
-        </div>
-        <div class="mt-8 flex flex-wrap gap-2">
-          <div
-            v-for="(w, i) in [
-              'w-16',
-              'w-20',
-              'w-24',
-              'w-14',
-            ]"
-            :key="i"
-            class="bg-surface-container-high h-6 rounded-full"
-            :class="w"
-          ></div>
-        </div>
-      </div>
+    <div class="flex min-h-110 flex-col overflow-hidden rounded-xl bg-white shadow-[0_24px_40px_rgba(0,31,42,0.06)]">
+      <JobCardSkeleton v-if="store.loading" />
 
       <div v-else class="flex grow flex-col p-4 lg:p-8">
+        <!-- Company + closed badge -->
         <div class="mb-6">
-          <div
-            class="flex items-center justify-between gap-2"
-          >
-            <div class="mb-4 flex items-start gap-3">
-              <h3
-                class="text-3xl leading-none font-extrabold break-all"
-                :class="
-                  job.closed
-                    ? 'text-on-surface/40'
-                    : 'text-on-surface'
-                "
-              >
-                {{ job.title }}
-              </h3>
-              <span
-                v-if="job.closed"
-                class="bg-error/15 text-error mt-1 shrink-0 rounded-full px-2.5 py-0.5 text-sm font-black tracking-widest "
-                >已關閉</span
-              >
-            </div>
-            <a :href="job.detail_link" target="_blank">
-              <button
-                class="text-primary hover:bg-primary-container flex h-fit w-fit cursor-pointer items-center justify-center rounded-md text-sm transition-all hover:text-white active:scale-90"
-              >
-                <span
-                  class="material-symbols-outlined text-sm"
-                  data-icon="open_in_new"
-                  >open_in_new</span
-                >
-              </button>
-            </a>
+          <div class="mb-2 flex items-center gap-2">
+            <span
+              v-if="job.closed"
+              class="rounded bg-[#ffdad6] px-2 py-0.5 text-[11px] font-bold text-[#93000a]"
+            >已關閉</span>
+            <span class="text-sm font-bold text-[#434653]">{{ job.company_name }}</span>
           </div>
           <h3
-            class="text-on-surface-variant mb-4 text-xl font-bold tracking-tight"
-          >
-            {{ job.company_name }}
-          </h3>
-          <div class="flex flex-wrap items-center gap-3">
-            <div
-              class="text-on-surface-variant flex items-center gap-1.5 font-medium"
-            >
-              <span
-                class="material-symbols-outlined text-lg"
-                data-icon="location_on"
-                >location_on</span
-              >{{ job.location }}
-            </div>
-            <div
-              class="text-on-surface-variant flex items-center gap-1.5 font-medium"
-            >
-              <span
-                class="material-symbols-outlined text-lg"
-                data-icon="payments"
-                >payments</span
-              >{{ job.salary }}
-            </div>
+            class="mb-4 text-[36px] font-black leading-tight tracking-[-0.02em] break-words"
+            :class="job.closed ? 'text-[#001f2a]/40' : 'text-[#001f2a]'"
+          >{{ job.title }}</h3>
+          <div class="flex flex-wrap items-center gap-4 text-sm text-[#434653]">
+            <span class="flex items-center gap-1.5 font-medium">
+              <span class="material-symbols-outlined text-lg">location_on</span>{{ job.location }}
+            </span>
+            <span class="flex items-center gap-1.5 font-bold text-[#9a4600]">
+              <span class="material-symbols-outlined text-lg">payments</span>{{ job.salary }}
+            </span>
             <div class="ml-auto flex items-center gap-3">
-              <JobCrawlPanel
-                v-if="job.id"
-                :job-id="job.id as string"
-              />
-              <div
-                class="text-on-surface-variant flex items-center gap-1.5 text-sm font-medium"
-                :title="
-                  updatedAt.format('YYYY/MM/DD HH:mm:ss')
-                "
+              <JobCrawlPanel v-if="job.id" :job-id="job.id as string" />
+              <span
+                class="flex items-center gap-1.5 font-medium"
+                :title="updatedAt.format('YYYY/MM/DD HH:mm:ss')"
               >
-                <span
-                  class="material-symbols-outlined text-lg"
-                  data-icon="update"
-                  >update</span
-                >{{ updatedAtInfo }}
-              </div>
+                <span class="material-symbols-outlined text-lg">update</span>{{ updatedAtInfo }}
+              </span>
             </div>
           </div>
         </div>
+
+        <JobKeywordChips :mapping="keywordGroupMapping" :selected-keywords-set="selectedKeywordsSet" />
+        <JobHandoffCTA :detail-link="job.detail_link" />
+
+        <div class="mb-3 text-[11px] font-bold tracking-[0.12em] text-[#434653]">職缺描述 · 來自原始 JD</div>
         <JobDescriptionHighlighter
           :html-content="description"
           :keywords="allKeywords"
@@ -246,6 +132,7 @@ const description = computed(() => {
     </div>
   </div>
 
+  <!-- Keyword tooltip overlay -->
   <Teleport to="body">
     <div
       v-if="keywordTooltip"
@@ -257,45 +144,29 @@ const description = computed(() => {
       }"
       @mouseleave="keywordTooltip = null"
     >
-      <div
-        class="bg-surface-container-lowest border-surface-container min-w-44 rounded-xl border-2 p-3 shadow-xl"
-      >
-        <p
-          class="text-primary mb-2 text-sm font-black tracking-widest "
-        >
+      <div class="min-w-44 rounded-xl border-2 border-[#c3c6d5] bg-white p-3 shadow-xl">
+        <p class="mb-2 text-sm font-black tracking-widest text-[#003d92]">
           {{ keywordTooltip.keyword }}
         </p>
-        <div
-          v-if="keywordTooltip.groups.length"
-          class="space-y-1.5"
-        >
+        <div v-if="keywordTooltip.groups.length" class="space-y-1.5">
           <div
             v-for="group in keywordTooltip.groups"
             :key="group.name"
             class="flex items-center justify-between gap-3"
           >
             <div class="flex min-w-0 flex-col">
-              <span
-                class="text-on-surface truncate text-sm font-bold"
-                >{{ group.name }}</span
-              >
+              <span class="truncate text-sm font-bold text-[#001f2a]">{{ group.name }}</span>
               <div class="mt-2 flex flex-wrap gap-1">
                 <span
                   v-if="group.category"
-                  class="bg-surface-container text-on-surface-variant rounded px-1.5 py-0.5 text-[9px] font-bold "
-                  >{{ group.category }}</span
-                >
+                  class="rounded bg-[#f4faff] px-1.5 py-0.5 text-[9px] font-bold text-[#434653]"
+                >{{ group.category }}</span>
               </div>
             </div>
-            <span
-              class="text-on-surface-variant shrink-0 text-sm font-bold"
-              >{{ group.count }}</span
-            >
+            <span class="shrink-0 text-sm font-bold text-[#434653]">{{ group.count }}</span>
           </div>
         </div>
-        <p v-else class="text-on-surface-variant text-sm">
-          尚無群組資料
-        </p>
+        <p v-else class="text-sm text-[#434653]">尚無群組資料</p>
       </div>
     </div>
   </Teleport>
@@ -308,4 +179,3 @@ const description = computed(() => {
     @close="popover = null"
   />
 </template>
-

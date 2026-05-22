@@ -69,7 +69,7 @@ const buildTooltipData = (
         .includes(keyword.toLowerCase()),
     )
     .map(g => ({
-      name: g.keyword_group,
+      name: g.label,
       count: g.count,
       category: g.category,
     }));

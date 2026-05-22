@@ -92,7 +92,7 @@ function handleCancel() { emit('cancel'); }
           <button v-for="g in editParentSuggestions" :key="g.keyword_group"
             class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-[#e6f6ff] dark:hover:bg-[#003d92]/20"
             @mousedown.prevent="pickEditParent(g.keyword_group)">
-            <span class="font-mono font-semibold text-[#003d92] dark:text-[#a8d4f5]">{{ g.keyword_group }}</span>
+            <span class="font-mono font-semibold text-[#003d92] dark:text-[#a8d4f5]">{{ g.label }}</span>
             <span class="text-[#434653]/50 dark:text-[#c3c6d5]/50">{{ g.count }} 個職缺</span>
           </button>
         </div>
@@ -128,7 +128,7 @@ function handleCancel() { emit('cancel'); }
             <button v-for="g in groupSuggestions" :key="g.keyword_group"
               class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-[#e6f6ff] dark:hover:bg-[#003d92]/20"
               @mousedown.prevent="pickGroup(g.keyword_group)">
-              <span class="font-mono font-semibold text-[#003d92] dark:text-[#a8d4f5]">{{ g.keyword_group }}</span>
+              <span class="font-mono font-semibold text-[#003d92] dark:text-[#a8d4f5]">{{ g.label }}</span>
               <span class="text-[#434653]/50 dark:text-[#c3c6d5]/50">{{ g.count }} 個職缺</span>
             </button>
             <div v-if="!groupSuggestions.length" class="px-3 py-2 text-sm text-[#434653]/50 dark:text-[#c3c6d5]/50">無符合的群組</div>

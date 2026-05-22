@@ -28,7 +28,7 @@ function handleCardClick() {
 
 async function handleDelete() {
   const isKeyword = props.group.category === null;
-  if (!confirm(`確定要刪除「${props.group.keyword_group}」群組嗎？此操作無法還原。`)) return;
+  if (!confirm(`確定要刪除「${props.group.label}」群組嗎？此操作無法還原。`)) return;
   if (isKeyword) {
     await store.removeKeyword(props.group.keyword_group);
   } else {
@@ -70,7 +70,7 @@ async function handleDelete() {
         <span
           class="rounded-lg bg-[#e6f6ff] px-3 py-1 font-mono text-sm font-bold text-[#003d92] dark:bg-[#003d92]/30 dark:text-[#a8d4f5]"
         >
-          {{ group.keyword_group }}
+          {{ group.label }}
         </span>
 
         <!-- Job count link -->

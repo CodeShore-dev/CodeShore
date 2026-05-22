@@ -51,6 +51,7 @@ export namespace SupabaseTable {
 
   export type KeywordGroup = {
     id: string;
+    label: string;
     category?: string;
     parent?: string;
   };
@@ -77,6 +78,7 @@ export namespace SupabaseFunction {
 
   export type TechStat = {
     keyword_group: string;
+    label: string;
     category: string;
     job_count: number;
     avg_min_month: number | null;
@@ -88,6 +90,8 @@ export namespace SupabaseFunction {
   export type TechComboStat = {
     tech1: string;
     tech2: string;
+    tech1_label: string;
+    tech2_label: string;
     cat1: string;
     cat2: string;
     job_count: number;
@@ -141,6 +145,7 @@ export namespace SupabaseView {
 
   export type KeywordGroupView = {
     keyword_group: string;
+    label: string;
     count: number;
     keywords: string[];
     category: string | null;

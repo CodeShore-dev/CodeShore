@@ -32,7 +32,9 @@
       "PowerShell($r = Invoke-WebRequest -Uri \"https://codeshore-2ywiyx3z4a-de.a.run.app\" -UseBasicParsing -MaximumRedirection 5 -TimeoutSec 15 -ErrorAction SilentlyContinue; Write-Output \"Status: $\\($r.StatusCode\\)\")",
       "PowerShell(\\(Get-Content \"C:\\\\Users\\\\ucnsa\\\\Repos\\\\CodeShore\\\\package.json\" | ConvertFrom-Json\\).engines)",
       "PowerShell($pkg = Get-Content \"C:\\\\Users\\\\ucnsa\\\\Repos\\\\CodeShore\\\\package.json\" | ConvertFrom-Json; $pkg.packageManager)",
-      "PowerShell(pnpm --version 2>$null)"
+      "PowerShell(pnpm --version 2>$null)",
+      "Skill(kiro-steering)",
+      "Skill(kiro-steering:*)"
     ],
     "additionalDirectories": []
   }

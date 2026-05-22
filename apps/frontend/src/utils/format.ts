@@ -1,5 +1,19 @@
 import dayjs from 'dayjs';
 
+export const toWan = (
+  n: number | null | undefined,
+): string => {
+  if (n == null) return '—';
+  return (n / 10000).toFixed(n % 10000 ? 1 : 0) + '萬';
+};
+
+export const toWanInt = (
+  n: number | null | undefined,
+): string => {
+  if (n == null) return '—';
+  return (n / 10000).toFixed(0);
+};
+
 export const formatNumber = (
   value: number | string,
 ): string => {

@@ -3,7 +3,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import { useAuthStore } from '../features/auth/useAuthStore';
 import Home from '../features/home/views/Home.vue';
 
-const PUBLIC_ROUTES = ['login', 'auth-callback'];
+const PUBLIC_ROUTES = ['login', 'auth-callback', 'home'];
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),

@@ -44,58 +44,49 @@ const showCreateModal = ref(false);
 
 <template>
   <div class="w-full">
-    <div class="mb-6 flex items-center justify-between">
-      <div>
-        <h1
-          class="text-2xl font-bold tracking-tight text-[#003d92] dark:text-[#e6f6ff]"
-        >
-          關鍵字組
-        </h1>
-        <p
-          class="mt-1 text-sm text-[#434653] dark:text-[#c3c6d5]"
-        >
-          管理關鍵字群組、群組內的關鍵字與分類標籤。
-        </p>
-      </div>
-      <div class="flex items-center gap-2">
-        <template
-          v-if="!store.selectMode && authStore.canEdit"
-        >
+    <div class="mb-8">
+      <!-- Eyebrow -->
+      <div class="mb-2 text-[11px] font-bold tracking-[0.18em] text-[#003d92]">● 關鍵字群組管理 · ADMIN</div>
+      <div class="flex items-end justify-between gap-4">
+        <div>
+          <h1 class="text-[2rem] font-black leading-tight tracking-[-0.03em] text-[#001f2a]">
+            關鍵字組
+          </h1>
+          <p class="mt-1 text-sm text-[#434653]">
+            管理關鍵字群組、群組內的關鍵字與分類標籤。
+          </p>
+        </div>
+        <div class="flex shrink-0 items-center gap-2 pb-1">
+          <template v-if="!store.selectMode && authStore.canEdit">
+            <button
+              class="flex items-center gap-2 rounded-xl border border-[#c3c6d5] bg-white px-4 py-2 text-sm font-bold text-[#434653] shadow-sm transition hover:bg-[#f4faff] active:scale-95"
+              @click="store.toggleSelectMode()"
+            >
+              <span class="material-symbols-outlined text-base">checklist</span>
+              選取
+            </button>
+            <button
+              class="flex items-center gap-2 rounded-xl bg-[#003d92] px-4 py-2 text-sm font-bold text-white shadow transition hover:bg-[#1654b9] active:scale-95"
+              @click="store.refreshMvKeywordGroup"
+            >
+              <span class="material-symbols-outlined text-base">refresh</span>
+              刷新配對
+            </button>
+          </template>
           <button
-            class="flex items-center gap-2 rounded-xl border border-[#c3c6d5]/50 px-4 py-2 text-sm font-semibold text-[#434653] shadow-sm transition hover:bg-[#e6f6ff] active:scale-95 dark:border-[#c3c6d5]/20 dark:text-[#c3c6d5] dark:hover:bg-[#003d92]/20"
+            v-else-if="authStore.canEdit"
+            class="flex items-center gap-1.5 rounded-xl border border-[#c3c6d5] bg-white px-4 py-2 text-sm font-bold text-[#434653] transition hover:bg-[#f4faff] active:scale-95"
             @click="store.toggleSelectMode()"
           >
-            <span
-              class="material-symbols-outlined text-base"
-              >checklist</span
-            >
-            選取
+            取消
           </button>
-          <button
-            class="flex items-center gap-2 rounded-xl bg-[#003d92] px-4 py-2 text-sm font-semibold text-white shadow transition hover:bg-[#002a6b] active:scale-95"
-            @click="store.refreshMvKeywordGroup"
-          >
-            <span
-              class="material-symbols-outlined text-base"
-              >refresh</span
-            >
-            刷新關鍵字組配對
-          </button>
-        </template>
-        <button
-          v-else-if="authStore.canEdit"
-          class="flex items-center gap-1.5 rounded-xl border border-[#c3c6d5]/50 px-4 py-2 text-sm font-semibold text-[#434653] transition hover:bg-[#e6f6ff] dark:text-[#c3c6d5]"
-          @click="store.toggleSelectMode()"
-        >
-          取消
-        </button>
+        </div>
       </div>
     </div>
 
-    <div class="mb-4 flex flex-wrap items-center gap-3">
-      <div
-        class="flex w-fit items-center gap-1 rounded-xl border border-[#c3c6d5]/30 bg-white p-1 dark:bg-[#001f2a]"
-      >
+    <div class="mb-5 flex flex-wrap items-center gap-3">
+      <!-- Filter tabs -->
+      <div class="flex w-fit items-center gap-1 rounded-xl border border-[#c3c6d5] bg-white p-1 shadow-sm">
         <button
           v-for="opt in [
             { value: 'all', label: '全部' },
@@ -103,11 +94,11 @@ const showCreateModal = ref(false);
             { value: 'ungrouped', label: '未入群' },
           ] as const"
           :key="opt.value"
-          class="cursor-pointer rounded-lg px-3 py-1.5 text-sm font-medium transition"
+          class="cursor-pointer rounded-lg px-3 py-1.5 text-sm font-bold transition"
           :class="
             store.groupsFilter === opt.value
               ? 'bg-[#003d92] text-white shadow'
-              : 'text-[#434653] hover:bg-[#e6f6ff] dark:text-[#c3c6d5] dark:hover:bg-[#003d92]/20'
+              : 'text-[#434653] hover:bg-[#f4faff]'
           "
           @click="store.setGroupsFilter(opt.value)"
         >
@@ -115,37 +106,30 @@ const showCreateModal = ref(false);
         </button>
       </div>
 
+      <!-- Search -->
       <div class="relative flex-1">
-        <span
-          class="material-symbols-outlined pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-sm text-[#434653]/50 dark:text-[#c3c6d5]/50"
-          >search</span
-        >
+        <span class="material-symbols-outlined pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-sm text-[#434653]/50">search</span>
         <input
           v-model="store.search"
           type="text"
           placeholder="搜尋群組名稱..."
-          class="w-full rounded-xl border border-[#c3c6d5]/30 bg-white py-2 pr-8 pl-8 text-sm font-medium focus:border-[#003d92] focus:outline-none dark:bg-[#001f2a] dark:text-[#e6f6ff]"
+          class="w-full rounded-xl border border-[#c3c6d5] bg-white py-2 pr-8 pl-8 text-sm font-bold text-[#001f2a] placeholder-[#434653]/50 focus:border-[#003d92] focus:outline-none"
         />
         <button
           v-if="store.search"
-          class="absolute top-1/2 right-2.5 -translate-y-1/2 text-[#434653]/50 hover:text-[#434653] dark:text-[#c3c6d5]/50"
+          class="absolute top-1/2 right-2.5 -translate-y-1/2 cursor-pointer text-[#434653]/50 hover:text-[#434653]"
           @click="store.search = ''"
         >
-          <span class="material-symbols-outlined text-base"
-            >close</span
-          >
+          <span class="material-symbols-outlined text-base">close</span>
         </button>
       </div>
     </div>
 
     <div
       v-if="store.loading"
-      class="flex items-center justify-center py-20 text-[#434653] dark:text-[#c3c6d5]"
+      class="flex items-center justify-center py-20 text-[#003d92]"
     >
-      <span
-        class="material-symbols-outlined animate-spin text-3xl"
-        >progress_activity</span
-      >
+      <span class="material-symbols-outlined animate-spin text-3xl">progress_activity</span>
     </div>
 
     <template v-else>
@@ -160,16 +144,13 @@ const showCreateModal = ref(false);
 
         <div
           v-if="!store.totalCount"
-          class="flex flex-col items-center justify-center py-20 text-[#434653] dark:text-[#c3c6d5]"
+          class="flex flex-col items-center justify-center py-20"
         >
-          <span
-            class="material-symbols-outlined mb-3 text-5xl"
-            >label_off</span
-          >
-          <p class="font-medium">尚無關鍵字群組。</p>
+          <span class="material-symbols-outlined mb-3 text-5xl text-[#001f2a]/20">label_off</span>
+          <p class="font-bold text-[#434653]">尚無關鍵字群組。</p>
           <button
             v-if="authStore.canEdit"
-            class="mt-4 rounded-xl bg-[#003d92] px-5 py-2 text-sm font-semibold text-white shadow transition hover:bg-[#002a6b]"
+            class="mt-4 cursor-pointer rounded-xl bg-[#003d92] px-5 py-2 text-sm font-bold text-white shadow transition hover:bg-[#1654b9] active:scale-95"
             @click="showCreateModal = true"
           >
             建立第一個群組
@@ -187,11 +168,9 @@ const showCreateModal = ref(false);
 
       <p
         v-if="store.totalCount"
-        class="mt-3 text-center text-sm text-[#434653]/60 dark:text-[#c3c6d5]/60"
+        class="mt-3 text-center text-xs font-bold text-[#434653]/50"
       >
-        第 {{ store.currentPage }} 頁，共
-        {{ store.totalPages }} 頁・總計
-        {{ store.totalCount }} 個群組
+        第 {{ store.currentPage }} 頁，共 {{ store.totalPages }} 頁・總計 {{ store.totalCount }} 個群組
       </p>
     </template>
 

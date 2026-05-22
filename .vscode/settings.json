@@ -9,6 +9,7 @@
     "langchain",
     "langgraph",
     "networkidle",
+    "nums",
     "openrouter",
     "Preferenced",
     "Supabase",

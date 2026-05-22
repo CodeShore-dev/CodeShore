@@ -20,6 +20,10 @@ const assignSearchInput = ref('');
 const showAssignDropdown = ref(false);
 const assigningToId = ref<string | null>(null);
 
+const assigningToLabel = computed(() =>
+  keywordStore.keywordGroups.find(g => g.keyword_group === assigningToId.value)?.label ?? assigningToId.value,
+);
+
 const assignGroupSuggestions = computed(() => {
   const q = assignSearchInput.value.trim().toLowerCase();
   return keywordStore.keywordGroups.filter(
@@ -62,7 +66,7 @@ function cancel() {
       正在加入
       <span
         class="font-mono font-semibold text-[#003d92] dark:text-[#a8d4f5]"
-        >{{ assigningToId }}</span
+        >{{ assigningToLabel }}</span
       >
       …
     </div>
@@ -98,7 +102,7 @@ function cancel() {
             >
               <span
                 class="font-mono font-semibold text-[#003d92] dark:text-[#a8d4f5]"
-                >{{ g.keyword_group }}</span
+                >{{ g.label }}</span
               >
               <span
                 class="text-[#434653]/50 dark:text-[#c3c6d5]/50"

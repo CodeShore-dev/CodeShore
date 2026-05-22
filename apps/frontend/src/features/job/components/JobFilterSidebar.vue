@@ -124,9 +124,8 @@ defineExpose({
 
     <!-- Salary filter: none / excluding / only -->
     <section>
-      <div
-        class="border-surface-container-highest flex overflow-hidden rounded-lg border"
-      >
+      <div class="mb-1.5 text-[10px] font-bold tracking-[0.15em] text-[#434653]">面議薪資</div>
+      <div class="flex overflow-hidden rounded-lg border border-[#c3c6d5]">
         <button
           v-for="option in [
             { value: 'none', label: '無' },
@@ -137,15 +136,10 @@ defineExpose({
           class="flex-1 cursor-pointer py-1.5 text-sm font-bold transition-colors"
           :class="
             store.salaryFilter === option.value
-              ? 'bg-primary text-on-primary'
-              : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
+              ? 'bg-[#003d92] text-white'
+              : 'bg-white text-[#434653] hover:bg-[#f4faff]'
           "
-          @click="
-            store.salaryFilter = option.value as
-              | 'none'
-              | 'excluding'
-              | 'only'
-          "
+          @click="store.salaryFilter = option.value as 'none' | 'excluding' | 'only'"
         >
           {{ option.label }}
         </button>
@@ -154,9 +148,8 @@ defineExpose({
 
     <!-- Salary amount filter: type toggle + amount input -->
     <section class="space-y-2">
-      <div
-        class="border-surface-container-highest flex overflow-hidden rounded-lg border"
-      >
+      <div class="mb-1.5 text-[10px] font-bold tracking-[0.15em] text-[#434653]">薪資下限</div>
+      <div class="flex overflow-hidden rounded-lg border border-[#c3c6d5]">
         <button
           v-for="option in [
             { value: '', label: '不限' },
@@ -167,15 +160,10 @@ defineExpose({
           class="flex-1 cursor-pointer py-1.5 text-sm font-bold transition-colors"
           :class="
             store.salaryAmountFilter.type === option.value
-              ? 'bg-primary text-on-primary'
-              : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
+              ? 'bg-[#003d92] text-white'
+              : 'bg-white text-[#434653] hover:bg-[#f4faff]'
           "
-          @click="
-            store.salaryAmountFilter.type = option.value as
-              | 'month'
-              | 'year'
-              | ''
-          "
+          @click="store.salaryAmountFilter.type = option.value as 'month' | 'year' | ''"
         >
           {{ option.label }}
         </button>
@@ -187,22 +175,19 @@ defineExpose({
           :placeholder="'最低薪資至少...'"
           :class="salaryUnitLabel ? 'pr-10' : 'pr-3'"
           :disabled="store.salaryAmountFilter.type === ''"
-          class="border-surface-container-highest text-on-surface placeholder-on-surface-variant/50 bg-surface-container w-full [appearance:textfield] rounded-lg border py-2 pl-3 text-sm font-bold focus:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+          class="w-full [appearance:textfield] rounded-lg border border-[#c3c6d5] bg-white py-2 pl-3 text-sm font-bold text-[#001f2a] placeholder-[#434653]/50 focus:border-[#003d92] focus:outline-none disabled:opacity-40 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
           @input="onSalaryAmountInput"
         />
         <span
           v-if="salaryUnitLabel"
-          class="text-on-surface-variant pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-sm font-bold"
-          >{{ salaryUnitLabel }}</span
-        >
+          class="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-sm font-bold text-[#434653]"
+        >{{ salaryUnitLabel }}</span>
         <button
           v-if="localSalaryAmount !== null"
-          class="text-on-surface-variant hover:text-on-surface absolute top-1/2 right-8 flex -translate-y-1/2 cursor-pointer"
+          class="absolute top-1/2 right-8 flex -translate-y-1/2 cursor-pointer text-[#434653]/50 hover:text-[#434653]"
           @click="clearSalaryAmount"
         >
-          <span class="material-symbols-outlined text-base"
-            >close</span
-          >
+          <span class="material-symbols-outlined text-base">close</span>
         </button>
       </div>
     </section>

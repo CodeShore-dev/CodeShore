@@ -1,0 +1,163 @@
+<script lang="ts" setup>
+import { computed, ref, watch } from 'vue';
+
+import { SupabaseView } from '@codeshore/data-types';
+
+import { useJobStore } from '../useJobStore';
+import JobCard from './JobCard.vue';
+
+type Props = {
+  job: SupabaseView.JobView | undefined;
+  isFirst: boolean;
+  isLast: boolean;
+};
+
+const props = defineProps<Props>();
+
+type Emits = {
+  (e: 'close'): void;
+  (e: 'prev'): void;
+  (e: 'next'): void;
+  (e: 'updatePreference', preference: 'like' | 'dislike'): void;
+};
+
+const emit = defineEmits<Emits>();
+
+const store = useJobStore();
+const drawerRef = ref<HTMLDivElement | null>(null);
+
+watch(
+  () => props.job,
+  () => {
+    if (drawerRef.value) drawerRef.value.scrollTop = 0;
+  },
+);
+
+const drawerTitle = computed(() =>
+  store.listViewPreference === 'like'
+    ? '● 喜歡的職缺'
+    : store.listViewPreference === 'dislike'
+      ? '● 不喜歡的職缺'
+      : '● 職缺',
+);
+</script>
+
+<template>
+  <Teleport to="body">
+    <Transition name="drawer">
+      <div v-if="job" class="fixed inset-0 z-50 flex">
+        <div class="fixed inset-0 bg-black/50" @click="emit('close')" />
+        <div
+          ref="drawerRef"
+          class="relative z-10 ml-auto flex h-full w-full max-w-3xl flex-col overflow-y-auto bg-[#f4faff] shadow-2xl"
+        >
+          <!-- Header -->
+          <div
+            class="flex shrink-0 items-center justify-between border-b border-[#001f2a]/[0.06] bg-white px-6 py-4"
+          >
+            <span class="text-[11px] font-bold tracking-[0.18em] text-[#003d92]">
+              {{ drawerTitle }}
+            </span>
+            <button
+              class="cursor-pointer text-[#434653] transition-colors hover:text-[#001f2a]"
+              @click="emit('close')"
+            >
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+
+          <!-- Job card -->
+          <div class="flex flex-1 flex-col p-4">
+            <JobCard :job="job" />
+          </div>
+
+          <!-- Navigation + preference buttons -->
+          <div
+            class="flex shrink-0 items-center justify-center gap-8 border-t border-[#001f2a]/[0.06] bg-white pt-6 pb-10"
+            :class="{ 'pointer-events-none opacity-50': store.loading }"
+          >
+            <!-- Prev -->
+            <button
+              :disabled="isFirst"
+              class="flex h-10 w-10 items-center justify-center rounded-full bg-[#c9e7f7] text-[#434653] transition-all duration-200"
+              :class="
+                isFirst
+                  ? 'cursor-not-allowed opacity-30'
+                  : 'cursor-pointer hover:bg-[#a0d2f0] active:scale-90'
+              "
+              @click="emit('prev')"
+            >
+              <span class="material-symbols-outlined">chevron_left</span>
+            </button>
+
+            <!-- Dislike -->
+            <button
+              :disabled="store.listViewPreference === 'dislike'"
+              class="group flex h-16 w-16 items-center justify-center rounded-full shadow-md transition-all duration-300"
+              :class="
+                store.listViewPreference === 'dislike'
+                  ? 'cursor-not-allowed bg-[#ba1a1a] text-white opacity-50'
+                  : 'cursor-pointer bg-[#c9e7f7] text-[#434653] hover:bg-[#ba1a1a] hover:text-white active:scale-90'
+              "
+              @click="emit('updatePreference', 'dislike')"
+            >
+              <span class="material-symbols-outlined text-3xl transition-transform group-hover:rotate-90">close</span>
+            </button>
+
+            <!-- Like -->
+            <button
+              :disabled="store.listViewPreference === 'like'"
+              class="group relative flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-[#003d92] to-[#1654b9] text-white shadow-xl transition-all duration-300"
+              :class="
+                store.listViewPreference === 'like'
+                  ? 'cursor-not-allowed opacity-50 ring-4 ring-[#003d92] ring-offset-2'
+                  : 'cursor-pointer hover:shadow-2xl active:scale-90'
+              "
+              @click="emit('updatePreference', 'like')"
+            >
+              <div class="absolute inset-0 animate-ping rounded-full bg-[#003d92] opacity-0 group-hover:opacity-20" />
+              <span
+                class="material-symbols-outlined text-4xl"
+                style="font-variation-settings: 'FILL' 1"
+              >favorite</span>
+            </button>
+
+            <!-- Next -->
+            <button
+              :disabled="isLast"
+              class="flex h-10 w-10 items-center justify-center rounded-full bg-[#c9e7f7] text-[#434653] transition-all duration-200"
+              :class="
+                isLast
+                  ? 'cursor-not-allowed opacity-30'
+                  : 'cursor-pointer hover:bg-[#a0d2f0] active:scale-90'
+              "
+              @click="emit('next')"
+            >
+              <span class="material-symbols-outlined">chevron_right</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+</template>
+
+<style scoped>
+.drawer-enter-active,
+.drawer-leave-active {
+  transition: opacity 0.25s ease;
+  .bg-black\/50 {
+    transition: opacity 0.25s ease;
+  }
+  > div:last-child {
+    transition: transform 0.25s ease;
+  }
+}
+.drawer-enter-from,
+.drawer-leave-to {
+  opacity: 0;
+  > div:last-child {
+    transform: translateX(100%);
+  }
+}
+</style>

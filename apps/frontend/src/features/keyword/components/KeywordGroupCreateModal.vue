@@ -152,7 +152,7 @@ async function submitCreate() {
           </button>
           <div v-if="showNewParentDropdown && newParentSuggestions.length" class="absolute top-full left-0 z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-xl border border-[#c3c6d5]/30 bg-white shadow-lg dark:bg-[#001f2a]">
             <button v-for="g in newParentSuggestions" :key="g.keyword_group" class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-[#e6f6ff] dark:hover:bg-[#003d92]/20" @mousedown.prevent="pickNewParent(g.keyword_group)">
-              <span class="font-mono font-semibold text-[#003d92] dark:text-[#a8d4f5]">{{ g.keyword_group }}</span>
+              <span class="font-mono font-semibold text-[#003d92] dark:text-[#a8d4f5]">{{ g.label }}</span>
               <span class="text-[#434653]/50 dark:text-[#c3c6d5]/50">{{ g.count }} 個職缺</span>
             </button>
           </div>

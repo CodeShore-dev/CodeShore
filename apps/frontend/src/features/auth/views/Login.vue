@@ -1,95 +1,92 @@
 <script lang="ts" setup>
-import { ref } from 'vue';
 import { useAuthStore } from '../useAuthStore';
 
 const authStore = useAuthStore();
-
-const email = ref('');
-const password = ref('');
-const error = ref('');
-const isSubmitting = ref(false);
-
-const loginWithEmail = async () => {
-  error.value = '';
-  isSubmitting.value = true;
-  const { error: err } = await authStore.loginWithEmail(email.value, password.value);
-  if (err) {
-    error.value = err.message;
-  }
-  isSubmitting.value = false;
-};
 </script>
 
 <template>
-  <div class="flex min-h-[80vh] items-center justify-center">
-    <div class="w-full max-w-sm rounded-2xl bg-white p-8 shadow-lg dark:bg-[#001f2a]">
-      <h1
-        class="mb-2 text-center text-2xl font-black tracking-tight text-[#003d92] dark:text-[#e6f6ff]"
+  <div
+    class="flex min-h-[80vh] items-center justify-center px-4"
+  >
+    <div class="w-full max-w-[460px]">
+      <div
+        class="rounded-[20px] bg-white p-10 shadow-[0_24px_40px_rgba(0,31,42,0.06)]"
       >
-        歡迎回來
-      </h1>
-      <p class="mb-8 text-center text-sm text-[#434653] dark:text-[#c3c6d5]">
-        登入您的帳號
-      </p>
+        <!-- Brand + heading -->
+        <div class="mb-8 text-center">
+          <div
+            class="mb-4 text-[28px] font-black tracking-[-0.04em] text-[#001f2a]"
+          >
+            <span class="text-[#003d92]">碼的</span>，
+            <span class="text-[#fd7700]">上岸</span>了
+          </div>
+          <h1
+            class="mb-2 text-[28px] font-black tracking-[-0.02em] text-[#001f2a]"
+          >
+            歡迎回來
+          </h1>
+          <p class="m-0 text-sm text-[#434653]">
+            登入您的帳號，開始加入喜歡的職缺
+          </p>
+        </div>
 
-      <!-- <form class="mb-4 flex flex-col gap-3" @submit.prevent="loginWithEmail">
-        <input
-          v-model="email"
-          autocomplete="email"
-          class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none focus:border-[#4285F4] focus:ring-1 focus:ring-[#4285F4] dark:border-gray-600 dark:bg-[#002d3d] dark:text-white"
-          placeholder="電子郵件"
-          type="email"
-          required
-        />
-        <input
-          v-model="password"
-          autocomplete="current-password"
-          class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none focus:border-[#4285F4] focus:ring-1 focus:ring-[#4285F4] dark:border-gray-600 dark:bg-[#002d3d] dark:text-white"
-          placeholder="密碼"
-          type="password"
-          required
-        />
-        <p v-if="error" class="text-sm text-red-500">{{ error }}</p>
-        <button
-          class="rounded-xl bg-[#003d92] px-6 py-3 font-semibold text-white transition hover:bg-[#0052c2] active:scale-95 disabled:opacity-60"
-          type="submit"
-          :disabled="isSubmitting"
-        >
-          {{ isSubmitting ? '登入中...' : '登入' }}
-        </button>
-      </form>
+        <!-- Auth buttons -->
+        <div class="flex flex-col gap-2.5">
+          <!-- Google -->
+          <button
+            class="flex items-center justify-center gap-2.5 rounded-xl border border-[#c3c6d5] bg-white py-3.5 text-sm font-bold text-[#001f2a] transition-colors hover:border-[#434653] hover:bg-[#f4faff] active:scale-95"
+            @click="authStore.loginWithGoogle()"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24">
+              <path
+                fill="#4285f4"
+                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+              />
+              <path
+                fill="#34a853"
+                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A10.97 10.97 0 0 0 12 23z"
+              />
+              <path
+                fill="#fbbc05"
+                d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.07H2.18A10.97 10.97 0 0 0 1 12c0 1.77.42 3.45 1.18 4.93l3.66-2.84z"
+              />
+              <path
+                fill="#ea4335"
+                d="M12 5.38c1.62 0 3.06.56 4.21 1.65l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+              />
+            </svg>
+            繼續使用 Google
+          </button>
 
-      <div class="relative mb-4 flex items-center">
-        <div class="flex-1 border-t border-gray-200 dark:border-gray-600" />
-        <span class="mx-3 text-sm text-gray-400">或使用社群帳號</span>
-        <div class="flex-1 border-t border-gray-200 dark:border-gray-600" />
-      </div> -->
-
-      <div class="flex flex-col gap-3">
-        <button
-          class="flex items-center justify-center gap-3 rounded-xl bg-[#4285F4] px-6 py-3 font-semibold text-white transition hover:bg-[#3367d6] active:scale-95"
-          @click="authStore.loginWithGoogle()"
-        >
-          <svg height="20" viewBox="0 0 48 48" width="20">
-            <path
-              d="M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z"
+          <!-- GitHub -->
+          <button
+            class="flex items-center justify-center gap-2.5 rounded-xl bg-[#24292f] py-3.5 text-sm font-bold text-white transition-colors hover:bg-[#0d1117] active:scale-95"
+            @click="authStore.loginWithGithub()"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
               fill="#fff"
-            />
-          </svg>
-          使用 Google 登入
-        </button>
-        <button
-          class="flex items-center justify-center gap-3 rounded-xl bg-[#24292F] px-6 py-3 font-semibold text-white transition hover:bg-[#444d56] active:scale-95"
-          @click="authStore.loginWithGithub()"
+            >
+              <path
+                d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.92.58.11.79-.25.79-.56v-1.95c-3.2.69-3.87-1.54-3.87-1.54-.52-1.33-1.28-1.68-1.28-1.68-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.76 2.69 1.25 3.35.96.1-.74.4-1.25.73-1.54-2.55-.29-5.23-1.27-5.23-5.66 0-1.25.45-2.27 1.18-3.07-.12-.29-.51-1.46.11-3.04 0 0 .96-.31 3.15 1.17a10.93 10.93 0 0 1 5.74 0c2.19-1.48 3.15-1.17 3.15-1.17.62 1.58.23 2.75.11 3.04.74.8 1.18 1.82 1.18 3.07 0 4.4-2.69 5.37-5.25 5.65.41.35.78 1.05.78 2.11v3.13c0 .31.21.67.79.56C20.21 21.39 23.5 17.08 23.5 12 23.5 5.65 18.35.5 12 .5z"
+              />
+            </svg>
+            繼續使用 GitHub
+          </button>
+        </div>
+
+        <!-- Disclosure notice -->
+        <div
+          class="mt-6 rounded-xl bg-[#e6f6ff] p-4 text-xs leading-relaxed text-[#434653]"
         >
-          <svg fill="white" height="20" viewBox="0 0 24 24" width="20">
-            <path
-              d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0 1 12 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.929.43.372.823 1.102.823 2.222 0 1.606-.015 2.896-.015 3.286 0 .315.216.69.825.573C20.565 21.795 24 17.298 24 12c0-6.63-5.37-12-12-12z"
-            />
-          </svg>
-          使用 GitHub 登入
-        </button>
+          <strong class="text-[#001f2a]">說明 · </strong>
+          登入只是為了讓你管理喜歡／不喜歡的職缺。我們不會碰你的履歷、不會代投職缺、也不會把你的資料賣給人力銀行。
+          投履歷的動作，永遠在 104 / Cake 上完成。
+        </div>
       </div>
     </div>
   </div>
 </template>
+

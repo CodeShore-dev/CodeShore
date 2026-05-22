@@ -25,30 +25,36 @@ function goToJobs(companyName: string): void {
 
 <template>
   <div class="w-full">
-    <div class="mb-6 flex items-center justify-between">
-      <h1 class="text-on-surface text-2xl font-black tracking-tight">公司列表</h1>
-      <div class="flex items-center gap-3">
-        <button
-          v-if="store.hasActiveFilters"
-          class="text-primary cursor-pointer text-sm font-bold"
-          @click="store.clearFilters()"
-        >清除篩選</button>
-        <span v-if="!store.loading" class="text-on-surface-variant text-sm font-semibold">
-          共 {{ store.totalCount }} 間公司
-        </span>
+    <!-- Page heading -->
+    <div class="mb-8">
+      <div class="mb-2 text-[11px] font-bold tracking-[0.18em] text-[#003d92]">● 公司列表 · COMPANIES</div>
+      <div class="flex items-end justify-between gap-4">
+        <h1 class="text-[2.25rem] font-black leading-tight tracking-[-0.03em] text-[#001f2a]">
+          誰在徵人，<br class="sm:hidden">徵什麼
+        </h1>
+        <div class="flex shrink-0 items-center gap-3 pb-1">
+          <button
+            v-if="store.hasActiveFilters"
+            class="cursor-pointer text-sm font-bold text-[#003d92]"
+            @click="store.clearFilters()"
+          >清除篩選</button>
+          <span v-if="!store.loading" class="text-sm font-semibold text-[#434653]">
+            共 {{ store.totalCount }} 間
+          </span>
+        </div>
       </div>
     </div>
 
     <div class="mb-6 flex flex-col gap-2 md:flex-row md:items-start flex-wrap">
       <div class="relative flex-1">
-        <span class="material-symbols-outlined text-on-surface-variant pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-base!">search</span>
+        <span class="material-symbols-outlined pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-base! text-[#434653]/50">search</span>
         <input
           v-model="store.search"
           type="text"
           placeholder="搜尋公司名稱..."
-          class="border-surface-container-highest text-on-surface placeholder-on-surface-variant/50 bg-surface-container w-full rounded-xl border py-2.5 pr-8 pl-9 text-sm font-bold focus:outline-none"
+          class="w-full rounded-xl border border-[#c3c6d5] bg-white py-2.5 pr-8 pl-9 text-sm font-bold text-[#001f2a] placeholder-[#434653]/50 focus:border-[#003d92] focus:outline-none"
         />
-        <button v-if="store.search" class="text-on-surface-variant hover:text-on-surface absolute top-1/2 right-3 flex -translate-y-1/2 cursor-pointer" @click="store.search = ''">
+        <button v-if="store.search" class="absolute top-1/2 right-3 flex -translate-y-1/2 cursor-pointer text-[#434653]/50 hover:text-[#001f2a]" @click="store.search = ''">
           <span class="material-symbols-outlined text-base">close</span>
         </button>
       </div>
@@ -56,11 +62,17 @@ function goToJobs(companyName: string): void {
     </div>
 
     <div v-if="store.loading" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      <div v-for="i in 9" :key="i" class="bg-surface-container-low h-40 animate-pulse rounded-2xl" />
+      <div v-for="i in 9" :key="i" class="h-44 animate-pulse rounded-[20px] bg-white shadow-[0_24px_40px_rgba(0,31,42,0.06)]" />
     </div>
 
-    <div v-else-if="store.companies.length === 0" class="text-on-surface-variant py-20 text-center text-sm font-semibold">
-      沒有符合條件的公司
+    <div v-else-if="store.companies.length === 0" class="py-24 text-center">
+      <div class="mb-3 text-5xl font-black text-[#001f2a]/10">0</div>
+      <p class="text-sm font-bold text-[#434653]">沒有符合條件的公司</p>
+      <button
+        v-if="store.hasActiveFilters"
+        class="mt-4 cursor-pointer rounded-xl bg-[#003d92] px-5 py-2 text-sm font-bold text-white transition hover:bg-[#1654b9] active:scale-95"
+        @click="store.clearFilters()"
+      >清除篩選條件</button>
     </div>
 
     <template v-else>

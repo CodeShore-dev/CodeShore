@@ -104,7 +104,7 @@ const blur = () => {
       @mousedown.self="closePopover"
     >
       <div
-        class="bg-surface-container-lowest absolute min-w-64 rounded-xl p-4 shadow-2xl"
+        class="absolute min-w-64 rounded-xl bg-white p-4 shadow-2xl"
         :style="{
           left: `${x}px`,
           top: `${y - 8}px`,
@@ -113,69 +113,48 @@ const blur = () => {
         @mousedown.stop
       >
         <div class="mb-3">
-          <span
-            class="text-on-surface-variant mb-1 block text-sm font-bold tracking-widest "
-            >選取的關鍵字</span
-          >
-          <span
-            class="bg-primary text-on-primary rounded-full px-3 py-1 text-sm font-bold "
-            >{{ keyword }}</span
-          >
+          <span class="mb-1 block text-sm font-bold tracking-widest text-[#434653]">選取的關鍵字</span>
+          <span class="rounded-full bg-[#003d92] px-3 py-1 text-sm font-bold text-white">{{ keyword }}</span>
         </div>
 
         <div class="relative mb-3">
-          <span
-            class="text-on-surface-variant mb-1 block text-sm font-bold tracking-widest "
-            >加入關鍵字組</span
-          >
+          <span class="mb-1 block text-sm font-bold tracking-widest text-[#434653]">加入關鍵字組</span>
           <input
             v-model="groupSearch"
             type="text"
             placeholder="搜尋或輸入群組名稱..."
-            class="border-surface-container-highest text-on-surface placeholder-on-surface-variant/50 bg-surface-container w-full rounded-lg border px-3 py-2 text-sm font-bold focus:outline-none"
+            class="w-full rounded-lg border border-[#c3c6d5] bg-[#f4faff] px-3 py-2 text-sm font-bold text-[#001f2a] placeholder-[#434653]/50 focus:outline-none"
             @focus="showSuggestions = true"
             @blur="blur"
           />
           <ul
-            v-if="
-              showSuggestions && groupSuggestions.length
-            "
-            class="bg-surface-container-lowest border-surface-container absolute top-full left-0 z-10 mt-1 w-full overflow-hidden rounded-lg border shadow-lg"
+            v-if="showSuggestions && groupSuggestions.length"
+            class="absolute top-full left-0 z-10 mt-1 w-full overflow-hidden rounded-lg border border-[#c3c6d5] bg-white shadow-lg"
           >
             <li
               v-for="g in groupSuggestions"
               :key="g.keyword_group"
-              class="hover:bg-surface-container cursor-pointer px-3 py-2 text-sm font-bold transition-colors"
-              @mousedown.prevent="
-                selectGroup(g.keyword_group)
-              "
+              class="cursor-pointer px-3 py-2 text-sm font-bold transition-colors hover:bg-[#f4faff]"
+              @mousedown.prevent="selectGroup(g.keyword_group)"
             >
-              {{ g.keyword_group }}
+              {{ g.label }}
             </li>
           </ul>
         </div>
 
         <div v-if="isNewGroup" class="mb-3">
-          <span
-            class="text-on-surface-variant mb-1 block text-sm font-bold tracking-widest "
-            >分類</span
-          >
+          <span class="mb-1 block text-sm font-bold tracking-widest text-[#434653]">分類</span>
           <div class="flex flex-wrap gap-1.5">
             <button
               v-for="tag in availableTags"
               :key="tag.value"
-              class="rounded-full px-3 py-1 text-sm font-bold  transition-colors"
+              class="rounded-full px-3 py-1 text-sm font-bold transition-colors"
               :class="
                 newGroupCategory === tag.value
-                  ? 'bg-primary text-on-primary'
-                  : 'bg-surface-container text-on-surface-variant hover:bg-primary-container hover:text-on-primary'
+                  ? 'bg-[#003d92] text-white'
+                  : 'bg-[#f4faff] text-[#434653] hover:bg-[#d9f2ff] hover:text-[#001f2a]'
               "
-              @mousedown.prevent="
-                newGroupCategory =
-                  newGroupCategory === tag.value
-                    ? null
-                    : tag.value
-              "
+              @mousedown.prevent="newGroupCategory = newGroupCategory === tag.value ? null : tag.value"
             >
               {{ tag.label }}
             </button>
@@ -184,18 +163,14 @@ const blur = () => {
 
         <div class="flex justify-end gap-2">
           <button
-            class="text-on-surface-variant hover:bg-surface-container cursor-pointer rounded-lg px-3 py-1.5 text-sm font-bold transition-colors"
+            class="cursor-pointer rounded-lg px-3 py-1.5 text-sm font-bold text-[#434653] transition-colors hover:bg-[#f4faff]"
             @click="closePopover"
-          >
-            取消
-          </button>
+          >取消</button>
           <button
             :disabled="!groupSearch.trim() || saving"
-            class="bg-primary text-on-primary cursor-pointer rounded-lg px-3 py-1.5 text-sm font-bold transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+            class="cursor-pointer rounded-lg bg-[#003d92] px-3 py-1.5 text-sm font-bold text-white transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
             @click="confirmSave"
-          >
-            {{ saving ? '儲存中...' : '儲存' }}
-          </button>
+          >{{ saving ? '儲存中...' : '儲存' }}</button>
         </div>
       </div>
     </div>
