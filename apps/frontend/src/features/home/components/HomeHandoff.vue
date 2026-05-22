@@ -1,7 +1,7 @@
 <template>
   <section class="mt-10">
     <div
-      class="grid items-center gap-8 rounded-3xl bg-[#003d92] p-10 text-white md:grid-cols-[1.4fr_1fr]"
+      class="grid items-center gap-6 rounded-3xl bg-[#003d92] p-6 text-white md:gap-8 md:grid-cols-[1.4fr_1fr] md:p-10"
     >
       <div>
         <div class="mb-3 text-xs font-bold tracking-[0.2em] text-white/70">
