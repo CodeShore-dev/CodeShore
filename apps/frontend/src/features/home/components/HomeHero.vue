@@ -36,10 +36,10 @@ onUnmounted(() => {
       <span class="text-[#fd7700]">上岸</span>了！
     </h1>
     <div
-      class="mt-8 grid grid-cols-1 items-end gap-12 md:grid-cols-[1.4fr_1fr]"
+      class="mt-8 grid grid-cols-1 items-end gap-6 md:gap-12 md:grid-cols-[1.4fr_1fr]"
     >
       <div
-        class="m-0 max-w-140 text-xl font-medium text-[#001f2a]"
+        class="m-0 max-w-140 text-base font-medium text-[#001f2a] md:text-xl"
       >
         <div class="flex items-center leading-snug gap-2">
           <span>我們可以讓你</span>
