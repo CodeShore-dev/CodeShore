@@ -47,21 +47,13 @@ steps:
           -f Dockerfile.cloudrun . \
         && docker build \
           --build-arg VER=$SHORT_SHA \
-          --cache-from ${_CACHE_IMAGE}-builder \
           --cache-from ${_CACHE_IMAGE} \
           -t $_IMAGE \
           -f Dockerfile.cloudrun . \
         && docker tag $_IMAGE ${_CACHE_IMAGE}
 
   - name: 'gcr.io/cloud-builders/docker'
-    entrypoint: 'bash'
-    args:
-      - '-c'
-      - |
-        docker push ${_CACHE_IMAGE}-builder &
-        docker push $_IMAGE &
-        docker push ${_CACHE_IMAGE} &
-        wait
+    args: ['push', '$_IMAGE']
 
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
@@ -79,6 +71,10 @@ steps:
       - '--timeout=300'
       - '--set-env-vars=NODE_ENV=production'
       - '--set-secrets=SUPABASE_URL=supabase-url:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest'
+
+images:
+  - '${_CACHE_IMAGE}-builder'
+  - '${_CACHE_IMAGE}'
 
 substitutions:
   _REGION: asia-east1
