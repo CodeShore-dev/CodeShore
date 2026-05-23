@@ -3,6 +3,8 @@ import { useRouter } from 'vue-router';
 
 import { useHomeStore } from '../useHomeStore';
 
+defineProps<{ loading: boolean }>();
+
 const store = useHomeStore();
 const router = useRouter();
 
@@ -37,7 +39,10 @@ function goJobs(query: Record<string, string> = {}) {
     <div class="mb-4 text-xs font-bold tracking-[0.18em] text-[#434653]">
       職缺總覽
     </div>
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+    <div v-if="loading" class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div v-for="i in 3" :key="i" class="h-32 animate-pulse rounded-xl bg-white shadow-[0_24px_40px_rgba(0,31,42,0.06)]" />
+    </div>
+    <div v-else class="grid grid-cols-1 gap-3 sm:grid-cols-3">
       <button
         v-for="(card, i) in statCards"
         :key="card.label"
@@ -64,4 +69,5 @@ function goJobs(query: Record<string, string> = {}) {
       </button>
     </div>
   </section>
+
 </template>

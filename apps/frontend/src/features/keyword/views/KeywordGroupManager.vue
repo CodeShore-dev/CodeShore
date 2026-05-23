@@ -125,11 +125,8 @@ const showCreateModal = ref(false);
       </div>
     </div>
 
-    <div
-      v-if="store.loading"
-      class="flex items-center justify-center py-20 text-[#003d92]"
-    >
-      <span class="material-symbols-outlined animate-spin text-3xl">progress_activity</span>
+    <div v-if="store.loading || store.saving" class="flex flex-col gap-3">
+      <div v-for="i in 6" :key="i" class="h-20 animate-pulse rounded-xl bg-white shadow-[0_24px_40px_rgba(0,31,42,0.06)]" />
     </div>
 
     <template v-else>

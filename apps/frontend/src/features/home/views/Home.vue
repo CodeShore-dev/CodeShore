@@ -26,8 +26,8 @@ Promise.all([
 <template>
   <div class="w-full">
     <HomeHero />
-    <HomeStatRow />
-    <HomeSalaryBenchmark />
+    <HomeStatRow :loading="loading" />
+    <HomeSalaryBenchmark :loading="loading" />
     <HomePopularTech :loading="loading" />
     <HomeHotCombos :loading="loading" />
     <HomeHandoff />
