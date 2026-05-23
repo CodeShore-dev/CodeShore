@@ -5,3 +5,17 @@ dist/
 .claude/
 .kiro/
 *.md
+.vscode/
+coverage/
+*.log
+.eslintrc.json
+.eslintignore
+.prettierrc
+.prettierignore
+.editorconfig
+.hintrc
+Dockerfile*
+LICENSE*
+**/*.spec.ts
+**/*.test.ts
+**/__tests__/
