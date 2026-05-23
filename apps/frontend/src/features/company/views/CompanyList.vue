@@ -62,7 +62,30 @@ function goToJobs(companyName: string): void {
     </div>
 
     <div v-if="store.loading" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      <div v-for="i in 9" :key="i" class="h-44 animate-pulse rounded-[20px] bg-white shadow-[0_24px_40px_rgba(0,31,42,0.06)]" />
+      <div
+        v-for="i in 9"
+        :key="i"
+        class="flex animate-pulse flex-col gap-3.5 rounded-[20px] bg-white p-6 shadow-[0_24px_40px_rgba(0,31,42,0.06)]"
+      >
+        <div class="flex items-start justify-between gap-2">
+          <div class="flex flex-1 flex-col gap-1.5">
+            <div class="h-6 w-36 rounded bg-[#001f2a]/[0.08]" />
+            <div class="h-3 w-20 rounded bg-[#001f2a]/[0.08]" />
+          </div>
+          <div class="flex shrink-0 flex-col items-end gap-1">
+            <div class="h-7 w-10 rounded bg-[#001f2a]/[0.08]" />
+            <div class="h-3 w-10 rounded bg-[#001f2a]/[0.08]" />
+          </div>
+        </div>
+        <div class="space-y-2">
+          <div class="h-3 w-12 rounded bg-[#001f2a]/[0.08]" />
+          <div class="flex gap-1">
+            <div class="h-5 w-14 rounded bg-[#001f2a]/[0.08]" />
+            <div class="h-5 w-10 rounded bg-[#001f2a]/[0.08]" />
+            <div class="h-5 w-16 rounded bg-[#001f2a]/[0.08]" />
+          </div>
+        </div>
+      </div>
     </div>
 
     <div v-else-if="store.companies.length === 0" class="py-24 text-center">

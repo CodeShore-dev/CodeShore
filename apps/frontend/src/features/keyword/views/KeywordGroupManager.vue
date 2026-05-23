@@ -126,7 +126,21 @@ const showCreateModal = ref(false);
     </div>
 
     <div v-if="store.loading || store.saving" class="flex flex-col gap-3">
-      <div v-for="i in 6" :key="i" class="h-20 animate-pulse rounded-xl bg-white shadow-[0_24px_40px_rgba(0,31,42,0.06)]" />
+      <div
+        v-for="i in 6"
+        :key="i"
+        class="flex animate-pulse flex-col gap-2 rounded-xl bg-white px-5 py-4 shadow-[0_24px_40px_rgba(0,31,42,0.06)]"
+      >
+        <div class="flex items-center justify-between">
+          <div class="h-4 w-40 rounded bg-[#001f2a]/[0.08]" />
+          <div class="h-4 w-12 rounded bg-[#001f2a]/[0.08]" />
+        </div>
+        <div class="flex gap-2">
+          <div class="h-5 w-16 rounded-full bg-[#001f2a]/[0.08]" />
+          <div class="h-5 w-12 rounded-full bg-[#001f2a]/[0.08]" />
+          <div class="h-5 w-20 rounded-full bg-[#001f2a]/[0.08]" />
+        </div>
+      </div>
     </div>
 
     <template v-else>

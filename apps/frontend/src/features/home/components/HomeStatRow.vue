@@ -40,7 +40,15 @@ function goJobs(query: Record<string, string> = {}) {
       職缺總覽
     </div>
     <div v-if="loading" class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-      <div v-for="i in 3" :key="i" class="h-32 animate-pulse rounded-xl bg-white shadow-[0_24px_40px_rgba(0,31,42,0.06)]" />
+      <div
+        v-for="i in 3"
+        :key="i"
+        class="flex animate-pulse flex-col gap-2 rounded-xl bg-white p-5 shadow-[0_24px_40px_rgba(0,31,42,0.06)]"
+      >
+        <div class="h-3 w-16 rounded bg-[#001f2a]/[0.08]" />
+        <div class="h-10 w-28 rounded bg-[#001f2a]/[0.08]" />
+        <div class="h-3 w-20 rounded bg-[#001f2a]/[0.08]" />
+      </div>
     </div>
     <div v-else class="grid grid-cols-1 gap-3 sm:grid-cols-3">
       <button
