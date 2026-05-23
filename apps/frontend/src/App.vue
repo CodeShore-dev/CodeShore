@@ -25,7 +25,7 @@ import AppFooter from './layout/AppFooter.vue';
 
     <!-- pt accounts for nav only on mobile, strip + nav on md+ -->
     <main
-      class="mx-auto flex max-w-7xl flex-col items-center px-4 pt-16 pb-24 lg:px-6 md:pt-27 md:pb-12"
+      class="mx-auto flex max-w-7xl flex-col items-center px-4 pt-20 pb-24 lg:px-6 md:pt-27 md:pb-12"
     >
       <RouterView />
     </main>
