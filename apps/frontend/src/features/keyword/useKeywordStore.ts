@@ -105,7 +105,7 @@ export const useKeywordStore = defineStore(
       const q = keywordSearch.value.trim().toLowerCase();
       if (!q) return [];
       return keywordGroups.value.filter(g =>
-        g.keyword_group.toLowerCase().includes(q),
+        g.label.toLowerCase().includes(q),
       );
     });
 

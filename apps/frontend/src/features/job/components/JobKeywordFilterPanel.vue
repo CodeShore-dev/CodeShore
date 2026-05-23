@@ -108,7 +108,7 @@ function hideTabTooltip(): void {
         @click="keywordStore.toggleLanguage(keywordGroup.keyword_group)"
       >
         <span class="flex flex-col gap-0.5">
-          <span>{{ keywordGroup.keyword_group }}</span>
+          <span>{{ keywordGroup.label }}</span>
           <span
             v-if="keywordGroup.parent"
             class="text-sm font-medium normal-case opacity-60"
