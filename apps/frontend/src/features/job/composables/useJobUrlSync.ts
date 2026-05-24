@@ -62,6 +62,14 @@ export function useJobUrlSync() {
       : null,
   );
 
+  // URL → state: react to back/forward navigation
+  watch(
+    () => route.query.jobId as string | undefined,
+    (newJobId) => {
+      selectedJobId.value = typeof newJobId === 'string' && newJobId ? newJobId : null;
+    },
+  );
+
   watch(
     () => ({
       tags: keywordStore.selectedTags.slice(),
