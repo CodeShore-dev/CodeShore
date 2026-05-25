@@ -1,5 +1,8 @@
 import { JobDetailOnHTML } from './@types';
 
+export const isTheHost = (host: string) =>
+  host === 'www.104.com.tw';
+
 export const waitFordDetailPageSelector =
   '.job-description__content';
 

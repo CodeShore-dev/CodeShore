@@ -1,22 +1,25 @@
 import {
   ListQuery,
-  SupabaseView,
+  SupabaseTable,
 } from '@codeshore/data-types';
 import { getSupabaseClient } from '@codeshore/supabase';
 
 import { fetchList } from './utils';
 
-
-export async function fetchMvKeywordGroupCategories(
-  query: ListQuery,
-) {
+export async function fetchJobSources(query: ListQuery) {
   const supabase = getSupabaseClient();
   const builder = supabase
-    .from('mv_keyword_group_category')
+    .from('job_source')
     .select('*', { count: 'exact' });
 
-  return fetchList<SupabaseView.KeywordGroupCategory>(
+  return fetchList<SupabaseTable.JobSource>(
     builder,
     query,
-  );
+  ).then(x => ({
+    ...x,
+    result: x.result.map(y => ({
+      ...y,
+      host: new URL(y.url).host,
+    })),
+  }));
 }

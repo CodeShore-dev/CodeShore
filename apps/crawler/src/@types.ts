@@ -11,5 +11,4 @@ export type RequireToCrawlJob = {
   url: string;
   existingJob: ExistingJob | undefined;
   needToCreate: boolean;
-  needToUpdate: boolean;
 };

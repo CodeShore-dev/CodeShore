@@ -6,7 +6,7 @@ import { getSupabaseClient } from '@codeshore/supabase';
 
 import { fetchList } from './utils';
 
-export async function fetchKeywordGroupJoinKeywords(query: ListQuery) {
+export async function fetchKeywordGroupKeywords(query: ListQuery) {
   const supabase = getSupabaseClient();
   const builder = supabase
     .from('keyword_group_keyword')
@@ -15,7 +15,7 @@ export async function fetchKeywordGroupJoinKeywords(query: ListQuery) {
   return fetchList<SupabaseTable.KeywordGroupJoinKeyword>(builder, query);
 }
 
-export async function createKeywordGroupJoinKeyword(
+export async function createKeywordGroupKeyword(
   keyword_group: string,
   keywords: string[],
 ): Promise<void> {
@@ -38,18 +38,18 @@ export async function createKeywordGroupJoinKeyword(
   );
 }
 
-export async function updateKeywordGroupJoinKeyword(
+export async function updateKeywordGroupKeyword(
   keyword_group: string,
   keywords: string[],
 ): Promise<void> {
-  await deleteKeywordGroupJoinKeyword(keyword_group);
-  return createKeywordGroupJoinKeyword(
+  await deleteKeywordGroupKeyword(keyword_group);
+  return createKeywordGroupKeyword(
     keyword_group,
     keywords,
   );
 }
 
-export async function deleteKeywordGroupJoinKeyword(
+export async function deleteKeywordGroupKeyword(
   keyword_group: string,
 ): Promise<void> {
   const supabase = getSupabaseClient();

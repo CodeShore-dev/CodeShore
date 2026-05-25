@@ -4,12 +4,17 @@ import * as path from 'path';
 import { addExtra } from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import rebrowserPuppeteer from 'rebrowser-puppeteer';
+import { start } from 'repl';
 
 import { SupabaseTable } from '@codeshore/data-types';
 import {
+  fetchJobSourceURLs,
+  fetchJobSources,
   fetchJobs,
   fetchMvKeywordGroup,
   resetJobKeywords_Keywords_JobJoinKeywordGroup,
+  resetJobSourceURLs,
+  updateJobSourceURL,
   upsertJobKeywords,
   upsertJobs,
 } from '@codeshore/data-utils';
@@ -21,14 +26,17 @@ import {
 import { createHandler as createHandler104 } from './104/handler';
 import {
   extractJobDetailOnHTML as extractJobDetailOn104,
+  isTheHost as is104Host,
   waitFordDetailPageSelector as waitForSelectorOn104,
 } from './104/utils';
 import { createHandler as createHandlerCake } from './cake/handler';
 import {
   extractJobDetailOnHTML as extractJobDetailOnCake,
+  isTheHost as isCakeHost,
   waitFordDetailPageSelector as waitForSelectorOnCake,
 } from './cake/utils';
 import { ids } from './ids';
+import { setPageIndex } from './utils';
 
 const puppeteer = addExtra(rebrowserPuppeteer as any);
 puppeteer.use(StealthPlugin());
@@ -52,7 +60,8 @@ const stealthLaunchContext = {
       '--no-first-run',
       '--lang=zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7',
     ],
-    executablePath: process.env['PUPPETEER_EXECUTABLE_PATH'] || undefined,
+    executablePath:
+      process.env['PUPPETEER_EXECUTABLE_PATH'] || undefined,
   },
 };
 
@@ -66,7 +75,8 @@ async function applyStealthOnNavigation({
 
   await page.setExtraHTTPHeaders({
     'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8',
-    'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124"',
+    'sec-ch-ua':
+      '"Chromium";v="124", "Google Chrome";v="124"',
     'sec-ch-ua-mobile': '?0',
     'sec-ch-ua-platform': '"Windows"',
   });
@@ -109,10 +119,10 @@ async function crawlJobByIds(
           salary: '',
         });
 
-        if (detailLinkHost === 'www.104.com.tw') {
+        if (is104Host(detailLinkHost)) {
           waitForSelector = waitForSelectorOn104;
           extractJobDetail = extractJobDetailOn104;
-        } else if (detailLinkHost === 'www.cake.me') {
+        } else if (isCakeHost(detailLinkHost)) {
           waitForSelector = waitForSelectorOnCake;
           extractJobDetail = extractJobDetailOnCake;
         } else {
@@ -194,19 +204,9 @@ async function crawlJobByIds(
  * Usage:
  *
  * pnpm nx serve crawler                                            # 抓全部 (104 + Cake)
- * pnpm nx serve crawler --args=_104                               # 只抓 104
- * pnpm nx serve crawler --args=cake                               # 只抓 Cake
- * pnpm nx serve crawler --args="page=<n>"                         # 從 URL index 0, 第 n 頁開始抓
- * pnpm nx serve crawler --args="page=<urlIndex>:<pageNum>"        # 從 URL index <urlIndex>, 第 <pageNum> 頁開始抓; index 前的 URL 跳過; index 後的 URL 從第 1 頁開始
- * pnpm nx serve crawler --args="_104 page=1:3"                    # 104 從 URL index 1 的第 3 頁開始抓
  * pnpm nx serve crawler --args="id=<id>"                          # 只更新指定 id 的 job
  *
  * node dist/apps/crawler/main.js                                  # 抓全部 (104 + Cake)
- * node dist/apps/crawler/main.js _104                             # 只抓 104
- * node dist/apps/crawler/main.js cake                             # 只抓 Cake
- * node dist/apps/crawler/main.js page=3                           # 從 URL index 0, 第 3 頁開始抓全部
- * node dist/apps/crawler/main.js page=1:3                         # 從 URL index 1, 第 3 頁開始抓全部
- * node dist/apps/crawler/main.js _104 page=1:3                    # 104 從 URL index 1, 第 3 頁開始抓
  * node dist/apps/crawler/main.js id=<id>                          # 只更新指定 id 的 job
  */
 async function main() {
@@ -263,44 +263,6 @@ async function main() {
         keywords,
       );
     } else {
-      const isCake = args.some(arg => arg.includes('cake'));
-      const is104 = args.some(arg => arg.includes('_104'));
-      const runAll = !isCake && !is104;
-
-      const pageArg = args.find(x => x.startsWith('page='));
-      let startUrlIndex = 0;
-      let startPage = 1;
-      if (pageArg) {
-        const val = pageArg.split('=')[1];
-        if (val.includes(':')) {
-          const [idxStr, pageStr] = val.split(':');
-          startUrlIndex = parseInt(idxStr, 10);
-          startPage = parseInt(pageStr, 10);
-        } else {
-          startPage = parseInt(val, 10);
-        }
-      }
-
-      const parseEnvUrls = (
-        envVar: string | undefined,
-      ): string[] =>
-        (envVar || '')
-          .split('|')
-          .map(u => u.trim())
-          .filter(Boolean);
-
-      const buildStartUrls = (baseUrls: string[]) =>
-        baseUrls
-          .filter((_, i) => i >= startUrlIndex)
-          .map((baseUrl, i) => {
-            const url = new URL(baseUrl);
-            url.searchParams.set(
-              'page',
-              (i === 0 ? startPage : 1).toString(),
-            );
-            return url.toString();
-          });
-
       const makeCrawlerOptions = (requestHandler: any) => ({
         launchContext: stealthLaunchContext as any,
         browserPoolOptions: {
@@ -314,20 +276,63 @@ async function main() {
         requestHandlerTimeoutSecs: 120,
       });
 
-      if (is104 || runAll) {
-        const startUrls104 = buildStartUrls(
-          parseEnvUrls(process.env['START_URL_104']),
-        );
+      const { result: jobSources } = await fetchJobSources({
+        from: 1,
+        to: -1,
+      });
+      let { result: jobSourceURLs } =
+        await fetchJobSourceURLs({
+          from: 1,
+          to: -1,
+        });
+
+      if (jobSourceURLs.length === 0) {
         console.log(
-          `>>> Starting 104 crawler from URL index ${startUrlIndex}, page ${startPage} (${startUrls104.length} URL(s))...`,
+          'No job source URLs found, resetting...',
+        );
+        await resetJobSourceURLs(
+          jobSources.map(x => ({
+            url: x.url,
+            page_index: 1,
+            status: 'pending',
+          })),
+        );
+      }
+
+      ({ result: jobSourceURLs } = await fetchJobSourceURLs(
+        {
+          from: 1,
+          to: -1,
+        },
+      ));
+
+      jobSourceURLs = jobSourceURLs.map(x => ({
+        ...x,
+        url_with_page_index: setPageIndex(
+          x.url,
+          x.page_index,
+        ),
+      }));
+
+      const jobSourceURLs104 = jobSourceURLs.filter(x =>
+        is104Host(x.host),
+      );
+
+      const jobSourceURLsCake = jobSourceURLs.filter(x =>
+        isCakeHost(x.host),
+      );
+
+      if (jobSourceURLs104.length > 0) {
+        console.log(
+          `>>> Starting 104 crawler from URL(${jobSourceURLs104.length} URL(s))...`,
         );
         const {
           router: requestHandler104,
           flushBatch: flushBatch104,
         } = createHandler104(keywords);
-        for (let i = 0; i < startUrls104.length; i++) {
+        for (const jobSourceURL of jobSourceURLs104) {
           console.log(
-            `>>> 104 URL [${startUrlIndex + i}]: ${startUrls104[i]}`,
+            `>>> 104 URL [${jobSourceURL.page_index}]: ${jobSourceURL.url}`,
           );
           Configuration.getGlobalConfig().set(
             'purgeOnStart',
@@ -336,25 +341,26 @@ async function main() {
           const crawler = new PuppeteerCrawler(
             makeCrawlerOptions(requestHandler104),
           );
-          await crawler.run([startUrls104[i]]);
+          if (jobSourceURL.url_with_page_index) {
+            await crawler.run([
+              jobSourceURL.url_with_page_index,
+            ]);
+          }
         }
         await flushBatch104();
       }
 
-      if (isCake || runAll) {
-        const startUrlsCake = buildStartUrls(
-          parseEnvUrls(process.env['START_URL_CAKE']),
-        );
+      if (jobSourceURLsCake.length > 0) {
         console.log(
-          `>>> Starting Cake crawler from URL index ${startUrlIndex}, page ${startPage} (${startUrlsCake.length} URL(s))...`,
+          `>>> Starting Cake crawler from URL(${jobSourceURLsCake.length} URL(s))...`,
         );
         const {
           router: requestHandlerCake,
           flushBatch: flushBatchCake,
         } = createHandlerCake(keywords);
-        for (let i = 0; i < startUrlsCake.length; i++) {
+        for (const jobSourceURL of jobSourceURLsCake) {
           console.log(
-            `>>> Cake URL [${startUrlIndex + i}]: ${startUrlsCake[i]}`,
+            `>>> Cake URL [${jobSourceURL.page_index}]: ${jobSourceURL.url}`,
           );
           Configuration.getGlobalConfig().set(
             'purgeOnStart',
@@ -363,7 +369,11 @@ async function main() {
           const crawler = new PuppeteerCrawler(
             makeCrawlerOptions(requestHandlerCake),
           );
-          await crawler.run([startUrlsCake[i]]);
+          if (jobSourceURL.url_with_page_index) {
+            await crawler.run([
+              jobSourceURL.url_with_page_index,
+            ]);
+          }
         }
         await flushBatchCake();
       }

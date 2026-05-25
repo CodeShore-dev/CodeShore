@@ -60,6 +60,18 @@ export namespace SupabaseTable {
     keyword_group: string;
     keyword: string;
   };
+
+  export type JobSource = {
+    url: string;
+    host: string;
+  };
+
+  export type JobSourceURL = {
+    url: string;
+    page_index: number;
+    status: string;
+    url_with_page_index?: string;
+  };
 }
 
 export namespace SupabaseFunction {

@@ -6,9 +6,11 @@ export * from './lib/api/job_keyword_group';
 export * from './lib/api/mv_keyword_group';
 export * from './lib/api/keyword_group';
 export * from './lib/api/mv_keyword_group_category';
-export * from './lib/api/keyword_view';
+export * from './lib/api/mv_keyword';
 export * from './lib/api/company';
 export * from './lib/api/mv_company';
 export * from './lib/api/keyword_bin';
 export * from './lib/api/job_keyword';
 export * from './lib/api/rpc';
+export * from './lib/api/job_source'
+export * from './lib/api/job_source_url'

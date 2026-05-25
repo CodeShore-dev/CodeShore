@@ -4,7 +4,7 @@ import { getSupabaseClient } from '@codeshore/supabase';
 import { fetchJobKeywords } from './job_keyword';
 import { fetchMvKeywordGroup } from './mv_keyword_group';
 
-export async function resetJobJoinKeywordGroups(
+export async function resetJobKeywordGroups(
   jobJoinKeywordGroups: SupabaseTable.JobJoinKeywordGroup[],
 ) {
   const supabase = getSupabaseClient();
@@ -40,7 +40,7 @@ export async function resetJobJoinKeywordGroups(
   }
 }
 
-export async function resetJobJoinKeywordGroupsByJobKeywords(
+export async function resetJobKeywordGroupsByJobKeywords(
   jobKeywords?: SupabaseTable.JobKeyword[],
 ) {
   const _jobKeywords =
@@ -53,7 +53,7 @@ export async function resetJobJoinKeywordGroupsByJobKeywords(
       where: { category: { 'not.is': null } },
     });
 
-  resetJobJoinKeywordGroups(
+  resetJobKeywordGroups(
     _jobKeywords
       .flatMap(jobKeyword =>
         jobKeyword.keywords.map(keyword => {

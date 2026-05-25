@@ -7,7 +7,7 @@ import { getSupabaseClient } from '@codeshore/supabase';
 import { fetchList } from './utils';
 
 
-export async function fetchJobsView(
+export async function fetchMvJobs(
   query: ListQuery,
   userId: string,
 ) {

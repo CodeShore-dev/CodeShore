@@ -1,5 +1,14 @@
 import { Page } from 'puppeteer';
 
+export function setPageIndex(
+  url: string,
+  pageIndex: number,
+) {
+  const urlObject = new URL(url);
+  urlObject.searchParams.set('page', pageIndex.toString());
+  return urlObject.toString();
+}
+
 export function getPageIndex(url: string) {
   const urlObj = new URL(url);
   return urlObj.searchParams.get('page');

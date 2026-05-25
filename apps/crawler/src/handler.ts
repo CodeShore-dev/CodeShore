@@ -2,12 +2,13 @@ import {
   RequestQueue,
   createPuppeteerRouter,
 } from 'crawlee';
-import dayjs from 'dayjs';
 import { Page } from 'puppeteer';
 
 import { SupabaseTable } from '@codeshore/data-types';
 import {
+  createJobSourceURLs,
   fetchJobs,
+  updateJobSourceURL,
   upsertCompanies,
   upsertJobKeywords,
   upsertJobs,
@@ -206,10 +207,9 @@ export const createRouter = <
       }
 
       const response = apiResponse!;
-
+      const { currentPage, totalEntries, totalPages } =
+        transformPagination(response);
       try {
-        const { currentPage, totalEntries, totalPages } =
-          transformPagination(response);
         batchSize = setUpsertBatchSize(response);
 
         log.info(
@@ -230,44 +230,18 @@ export const createRouter = <
               y => y.id === x.id,
             );
             const needToCreate = !existingJob;
-            let needToUpdate = false;
-            const mode = process.env['MODE'];
-            if (mode === 'update_all') {
-              needToUpdate = true;
-            } else if (existingJob) {
-              const todayUpdated =
-                !!existingJob.updated_at &&
-                dayjs(existingJob.updated_at).isSame(
-                  dayjs(),
-                  'day',
-                );
-              if (todayUpdated) {
-                needToUpdate = false;
-              } else {
-                if (mode === 'update_old') {
-                  needToUpdate = true;
-                } else {
-                  needToUpdate =
-                    !!existingJob.updated_at &&
-                    dayjs(existingJob.updated_at).isBefore(
-                      dayjs(getUpdatedAtField(x)),
-                    );
-                }
-              }
-            }
             return {
               title: '',
               url: '',
               ...x,
               existingJob,
               needToCreate,
-              needToUpdate,
             };
           })
           .map(transformJob);
 
         log.info(
-          `Scraped ${jobs.length} jobs, ${jobs.filter(x => x.needToCreate).length} to create, ${jobs.filter(x => x.needToUpdate).length} to update.`,
+          `Scraped ${jobs.length} jobs, ${jobs.filter(x => x.needToCreate).length} to create`,
         );
 
         const incorrectJobs = jobs.filter(
@@ -281,12 +255,7 @@ export const createRouter = <
 
         const requestsToEnqueue = jobs
           .filter(x => x.title && x.url)
-          .filter(x => {
-            if (process.env['MODE'] === 'create_only') {
-              return x.needToCreate;
-            }
-            return x.needToCreate || x.needToUpdate;
-          })
+          .filter(x => x.needToCreate)
           .map(job => {
             return {
               url: job.url,
@@ -305,6 +274,14 @@ export const createRouter = <
           );
         }
         if (currentPage < totalPages) {
+          await updateJobSourceURL(
+            request.url,
+            currentPage,
+            'completed',
+          );
+          if(currentPage === 1) {
+            await createJobSourceURLs(request.url, totalPages);
+          }
           await enqueueLinks({
             urls: generateNextUrlToEnqueue(request.url),
             transformRequestFunction: req => ({
@@ -326,6 +303,11 @@ export const createRouter = <
           `List page ${currentPage}/${totalPages} took ${formatDuration(pageElapsed)}. Est. finish: ${estimateFinishTime()}`,
         );
       } catch (error) {
+        await updateJobSourceURL(
+          request.url,
+          currentPage,
+          'failed',
+        );
         log.error(
           `Failed to extract data on ${request.url}: ${error}`,
         );

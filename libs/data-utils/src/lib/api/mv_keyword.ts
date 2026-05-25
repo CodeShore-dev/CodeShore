@@ -7,10 +7,10 @@ import { getSupabaseClient } from '@codeshore/supabase';
 import { fetchList } from './utils';
 
 
-export async function fetchKeywords(query: ListQuery) {
+export async function fetchMvKeywords(query: ListQuery) {
   const supabase = getSupabaseClient();
   const builder = supabase
-  .from('keyword_view')
+  .from('mv_keyword')
   .select(query.select, { count: 'exact' });
 
   return fetchList<SupabaseTable.Keyword>(builder, query);

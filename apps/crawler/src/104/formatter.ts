@@ -1,10 +1,8 @@
+import { Entry } from '@codeshore/data-types';
 import {
   parseKeywordsOut,
   parseSalary,
 } from '@codeshore/shared-utils';
-import {
-  Entry,
-} from '@codeshore/data-types';
 
 import { RequireToCrawlJob } from '../@types';
 import { getIdFromUrl } from '../utils';
@@ -27,10 +25,9 @@ export function cookRawJob(
       created_at: job.needToCreate
         ? now
         : job.existingJob?.created_at,
-      updated_at:
-        job.needToCreate || job.needToUpdate
-          ? now
-          : job.existingJob?.updated_at,
+      updated_at: job.needToCreate
+        ? now
+        : job.existingJob?.updated_at,
       location: job.jobAddrNoDesc,
       description: detail.description,
       company_id,

@@ -1,5 +1,8 @@
 import { JobDetailOnHTML } from './@types';
 
+export const isTheHost = (host: string) =>
+  host === 'www.cake.me';
+
 export const waitFordDetailPageSelector =
   '[class^=ContentSection-module-scss-module__][class$=__content]';
 
