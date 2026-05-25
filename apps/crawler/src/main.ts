@@ -4,8 +4,6 @@ import * as path from 'path';
 import { addExtra } from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import rebrowserPuppeteer from 'rebrowser-puppeteer';
-import { start } from 'repl';
-
 import { SupabaseTable } from '@codeshore/data-types';
 import {
   fetchJobSourceURLs,
@@ -13,8 +11,6 @@ import {
   fetchJobs,
   fetchMvKeywordGroup,
   resetJobKeywords_Keywords_JobJoinKeywordGroup,
-  resetJobSourceURLs,
-  updateJobSourceURL,
   upsertJobKeywords,
   upsertJobs,
 } from '@codeshore/data-utils';
@@ -276,44 +272,48 @@ async function main() {
         requestHandlerTimeoutSecs: 120,
       });
 
-      const { result: jobSources } = await fetchJobSources({
-        from: 1,
-        to: -1,
-      });
-      let { result: jobSourceURLs } =
+      // 1. Check for pending job_source_url entries
+      const { result: pendingJobSourceURLs } =
         await fetchJobSourceURLs({
-          from: 1,
+          from: 0,
           to: -1,
+          where: { status: { eq: 'pending' } },
         });
 
-      if (jobSourceURLs.length === 0) {
+      // 2. Build starting URLs based on mode
+      let jobSourceURLs: (SupabaseTable.JobSourceURL & {
+        host: string;
+        url_with_page_index: string;
+      })[];
+
+      if (pendingJobSourceURLs.length > 0) {
+        // Resume mode (Req 1.1): use pending entries
         console.log(
-          'No job source URLs found, resetting...',
+          `>>> Resume mode: ${pendingJobSourceURLs.length} pending URL(s)`,
         );
-        await resetJobSourceURLs(
-          jobSources.map(x => ({
-            url: x.url,
-            page_index: 1,
-            status: 'pending',
-          })),
+        jobSourceURLs = pendingJobSourceURLs.map(x => ({
+          ...x,
+          url_with_page_index: setPageIndex(
+            x.url,
+            x.page_index,
+          ),
+        }));
+      } else {
+        // Fresh mode (Req 1.2, 1.3, 1.4): use job_source URLs at page=1
+        console.log('>>> Fresh mode: starting from page=1');
+        const { result: jobSources } = await fetchJobSources(
+          { from: 0, to: -1 },
         );
+        jobSourceURLs = jobSources.map(x => ({
+          url: x.url,
+          page_index: 1,
+          status: 'pending',
+          host: x.host,
+          url_with_page_index: setPageIndex(x.url, 1),
+        }));
       }
 
-      ({ result: jobSourceURLs } = await fetchJobSourceURLs(
-        {
-          from: 1,
-          to: -1,
-        },
-      ));
-
-      jobSourceURLs = jobSourceURLs.map(x => ({
-        ...x,
-        url_with_page_index: setPageIndex(
-          x.url,
-          x.page_index,
-        ),
-      }));
-
+      // 3. Split by platform
       const jobSourceURLs104 = jobSourceURLs.filter(x =>
         is104Host(x.host),
       );
@@ -322,6 +322,7 @@ async function main() {
         isCakeHost(x.host),
       );
 
+      // 4. ONE crawler per platform (pass ALL starting URLs)
       if (jobSourceURLs104.length > 0) {
         console.log(
           `>>> Starting 104 crawler from URL(${jobSourceURLs104.length} URL(s))...`,
@@ -330,23 +331,16 @@ async function main() {
           router: requestHandler104,
           flushBatch: flushBatch104,
         } = createHandler104(keywords);
-        for (const jobSourceURL of jobSourceURLs104) {
-          console.log(
-            `>>> 104 URL [${jobSourceURL.page_index}]: ${jobSourceURL.url}`,
-          );
-          Configuration.getGlobalConfig().set(
-            'purgeOnStart',
-            true,
-          );
-          const crawler = new PuppeteerCrawler(
-            makeCrawlerOptions(requestHandler104),
-          );
-          if (jobSourceURL.url_with_page_index) {
-            await crawler.run([
-              jobSourceURL.url_with_page_index,
-            ]);
-          }
-        }
+        Configuration.getGlobalConfig().set(
+          'purgeOnStart',
+          true,
+        );
+        const crawler = new PuppeteerCrawler(
+          makeCrawlerOptions(requestHandler104),
+        );
+        await crawler.run(
+          jobSourceURLs104.map(x => x.url_with_page_index),
+        );
         await flushBatch104();
       }
 
@@ -358,23 +352,16 @@ async function main() {
           router: requestHandlerCake,
           flushBatch: flushBatchCake,
         } = createHandlerCake(keywords);
-        for (const jobSourceURL of jobSourceURLsCake) {
-          console.log(
-            `>>> Cake URL [${jobSourceURL.page_index}]: ${jobSourceURL.url}`,
-          );
-          Configuration.getGlobalConfig().set(
-            'purgeOnStart',
-            true,
-          );
-          const crawler = new PuppeteerCrawler(
-            makeCrawlerOptions(requestHandlerCake),
-          );
-          if (jobSourceURL.url_with_page_index) {
-            await crawler.run([
-              jobSourceURL.url_with_page_index,
-            ]);
-          }
-        }
+        Configuration.getGlobalConfig().set(
+          'purgeOnStart',
+          true,
+        );
+        const crawler = new PuppeteerCrawler(
+          makeCrawlerOptions(requestHandlerCake),
+        );
+        await crawler.run(
+          jobSourceURLsCake.map(x => x.url_with_page_index),
+        );
         await flushBatchCake();
       }
     }
