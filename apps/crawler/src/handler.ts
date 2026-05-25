@@ -273,15 +273,10 @@ export const createRouter = <
             `Enqueued ${requestsToEnqueue.length} detail pages`,
           );
         }
+        if (currentPage === 1 && totalPages > 1) {
+          await createJobSourceURLs(request.url, totalPages);
+        }
         if (currentPage < totalPages) {
-          await updateJobSourceURL(
-            request.url,
-            currentPage,
-            'completed',
-          );
-          if(currentPage === 1) {
-            await createJobSourceURLs(request.url, totalPages);
-          }
           await enqueueLinks({
             urls: generateNextUrlToEnqueue(request.url),
             transformRequestFunction: req => ({
@@ -290,6 +285,11 @@ export const createRouter = <
             }),
           });
         }
+        await updateJobSourceURL(
+          request.url,
+          currentPage,
+          'completed',
+        );
 
         lastKnownListPage = currentPage;
         lastKnownTotalListPages = totalPages;
