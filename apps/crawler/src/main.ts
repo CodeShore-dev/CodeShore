@@ -10,7 +10,7 @@ import {
   fetchJobSources,
   fetchJobs,
   fetchMvKeywordGroup,
-  resetJobKeywords_Keywords_JobJoinKeywordGroup,
+  resetJobKeywords_Keywords_JobKeywordGroup,
   upsertJobKeywords,
   upsertJobs,
 } from '@codeshore/data-utils';
@@ -196,18 +196,40 @@ async function crawlJobByIds(
   );
 }
 
+async function updateAllJobs(
+  allGroupKeywords: string[],
+): Promise<void> {
+  // TODO: implement batch job update logic
+  console.log(
+    '[update] starting...',
+    `allGroupKeywords count: ${allGroupKeywords.length}`,
+  );
+}
+
 /**
  * Usage:
  *
  * pnpm nx serve crawler                                            # 抓全部 (104 + Cake)
  * pnpm nx serve crawler --args="id=<id>"                          # 只更新指定 id 的 job
+ * pnpm nx serve crawler --args="update"                           # 批次更新現有 jobs
  *
  * node dist/apps/crawler/main.js                                  # 抓全部 (104 + Cake)
  * node dist/apps/crawler/main.js id=<id>                          # 只更新指定 id 的 job
+ * node dist/apps/crawler/main.js update                           # 批次更新現有 jobs
  */
 async function main() {
   const args = process.argv.slice(2);
 
+  const updateArg = args.find(x => x === 'update');
+  if (updateArg) {
+    const { result: keywordGroups } = await fetchMvKeywordGroup({
+      from: 0,
+      to: -1,
+      where: { category: { 'not.is': null } },
+    });
+    const keywords = keywordGroups.flatMap(m => m.keywords);
+    await updateAllJobs(keywords);
+  } else {
   const idArg = args.find(x => x.startsWith('id='));
   const keywordArg = args.find(x => x.startsWith('k'));
   const salaryArg = args.find(x => x.startsWith('salary'));
@@ -272,7 +294,6 @@ async function main() {
         requestHandlerTimeoutSecs: 120,
       });
 
-      // 1. Check for pending job_source_url entries
       const { result: pendingJobSourceURLs } =
         await fetchJobSourceURLs({
           from: 0,
@@ -280,14 +301,12 @@ async function main() {
           where: { status: { eq: 'pending' } },
         });
 
-      // 2. Build starting URLs based on mode
       let jobSourceURLs: (SupabaseTable.JobSourceURL & {
         host: string;
         url_with_page_index: string;
       })[];
 
       if (pendingJobSourceURLs.length > 0) {
-        // Resume mode (Req 1.1): use pending entries
         console.log(
           `>>> Resume mode: ${pendingJobSourceURLs.length} pending URL(s)`,
         );
@@ -299,7 +318,6 @@ async function main() {
           ),
         }));
       } else {
-        // Fresh mode (Req 1.2, 1.3, 1.4): use job_source URLs at page=1
         console.log('>>> Fresh mode: starting from page=1');
         const { result: jobSources } = await fetchJobSources(
           { from: 0, to: -1 },
@@ -313,7 +331,6 @@ async function main() {
         }));
       }
 
-      // 3. Split by platform
       const jobSourceURLs104 = jobSourceURLs.filter(x =>
         is104Host(x.host),
       );
@@ -322,7 +339,6 @@ async function main() {
         isCakeHost(x.host),
       );
 
-      // 4. ONE crawler per platform (pass ALL starting URLs)
       if (jobSourceURLs104.length > 0) {
         console.log(
           `>>> Starting 104 crawler from URL(${jobSourceURLs104.length} URL(s))...`,
@@ -367,7 +383,8 @@ async function main() {
     }
   }
 
-  await resetJobKeywords_Keywords_JobJoinKeywordGroup();
+  await resetJobKeywords_Keywords_JobKeywordGroup();
+  } // end else (non-update mode)
 }
 
 main().catch(error => {
