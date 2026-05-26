@@ -32,7 +32,7 @@ import {
   waitFordDetailPageSelector as waitForSelectorOnCake,
 } from './cake/utils';
 import { ids } from './ids';
-import { setPageIndex } from './utils';
+import { formatDuration, setPageIndex } from './utils';
 
 const puppeteer = addExtra(rebrowserPuppeteer as any);
 puppeteer.use(StealthPlugin());
@@ -241,7 +241,90 @@ async function updateAllJobs(
   const crawler = new PuppeteerCrawler({
     launchContext: stealthLaunchContext as any,
     preNavigationHooks: [applyStealthOnNavigation as any],
-    async requestHandler() {},
+    async requestHandler({ request, page, log }) {
+      const job = request.userData['job'] as SupabaseTable.Job;
+      const detailStart = Date.now();
+      const detailLinkHost = new URL(request.url).hostname;
+
+      try {
+        let waitForSelector: string;
+        let extractJobDetail: () => {
+          description: string;
+          salary: string;
+        };
+
+        if (is104Host(detailLinkHost)) {
+          waitForSelector = waitForSelectorOn104;
+          extractJobDetail = extractJobDetailOn104;
+        } else if (isCakeHost(detailLinkHost)) {
+          waitForSelector = waitForSelectorOnCake;
+          extractJobDetail = extractJobDetailOnCake;
+        } else {
+          throw new Error(
+            `Unknown detail link host: ${detailLinkHost}`,
+          );
+        }
+
+        await page
+          .waitForSelector(waitForSelector, { timeout: 10000 })
+          .catch(() => {});
+
+        const detail = await page.evaluate(extractJobDetail);
+
+        if (detail.description.trim()) {
+          const descriptionChanged =
+            detail.description !== job.description;
+          if (descriptionChanged) {
+            const salary = detail.salary ?? '';
+            pending.jobs.push({
+              ...job,
+              description: detail.description,
+              salary,
+              ...parseSalary(salary),
+              updated_at: new Date(),
+              closed: false,
+            });
+            pending.jobKeywords.push({
+              id: job.id,
+              ...parseKeywordsOut(
+                detail.description,
+                allGroupKeywords,
+              ),
+            });
+          } else {
+            pending.jobs.push({
+              ...job,
+              updated_at: new Date(),
+              closed: false,
+            });
+          }
+        } else {
+          pending.jobs.push({
+            ...job,
+            updated_at: new Date(),
+            closed: true,
+          });
+        }
+
+        if (pending.jobs.length >= BATCH_SIZE) {
+          await flushPendingBatch(pending, log);
+        }
+      } catch (error) {
+        log.error(
+          `Failed to update job ${job.id} (${request.url}): ${error}`,
+        );
+      }
+
+      // 進度追蹤（不論 try/catch 結果都執行）
+      const elapsed = Date.now() - detailStart;
+      processedCount++;
+      rollingAvgMs =
+        (rollingAvgMs * (processedCount - 1) + elapsed) / processedCount;
+      const eta = rollingAvgMs * (totalCount - processedCount);
+      log.info(
+        `[update] ${processedCount} / ${totalCount} | avg: ${formatDuration(Math.round(rollingAvgMs))} | eta: ${formatDuration(Math.round(eta))}`,
+      );
+    },
     maxConcurrency: 1,
     requestHandlerTimeoutSecs: 60,
   });
