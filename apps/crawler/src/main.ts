@@ -196,6 +196,11 @@ async function crawlJobByIds(
   );
 }
 
+interface PendingBatch {
+  jobs: SupabaseTable.Job[];
+  jobKeywords: Omit<SupabaseTable.JobKeyword, 'job'>[];
+}
+
 async function updateAllJobs(
   allGroupKeywords: string[],
 ): Promise<void> {
@@ -212,6 +217,25 @@ async function updateAllJobs(
   const totalCount = jobs.length;
   const BATCH_SIZE = 20;
 
+  const pending: PendingBatch = {
+    jobs: [],
+    jobKeywords: [],
+  };
+
+  async function flushPendingBatch(
+    pending: PendingBatch,
+    log: { info: (msg: string) => void },
+  ): Promise<void> {
+    if (pending.jobs.length === 0) return;
+    await upsertJobs([...pending.jobs]);
+    if (pending.jobKeywords.length > 0) {
+      await upsertJobKeywords([...pending.jobKeywords]);
+    }
+    log.info(`[update] Flushed ${pending.jobs.length} jobs`);
+    pending.jobs.length = 0;
+    pending.jobKeywords.length = 0;
+  }
+
   Configuration.getGlobalConfig().set('purgeOnStart', true);
 
   const crawler = new PuppeteerCrawler({
@@ -225,6 +249,9 @@ async function updateAllJobs(
   await crawler.run(
     jobs.map(job => ({ url: job.detail_link, userData: { job } })),
   );
+
+  const log = { info: (msg: string) => console.log(msg) };
+  await flushPendingBatch(pending, log);
 }
 
 /**
