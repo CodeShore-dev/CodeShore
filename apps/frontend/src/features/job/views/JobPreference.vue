@@ -147,7 +147,7 @@ function clearAllFilters(): void {
             :class="store.listViewPreference === tab.pref ? 'text-white/60' : 'text-[#434653]'"
           >{{ tab.label }}</span>
           <span class="tabular-nums text-2xl font-black">
-            {{ store.listViewPreference === tab.pref && !store.loading ? store.listTotalCount : tab.count }}
+            {{ store.listViewPreference === tab.pref && !store.loading ? store.listTotalCountText : tab.count }}
             <span
               v-if="store.listViewPreference === tab.pref"
               class="whitespace-nowrap text-sm"

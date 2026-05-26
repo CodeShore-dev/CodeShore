@@ -90,14 +90,6 @@
         },
         "production": {
           "buildTarget": "crawler:build:production"
-        },
-        "104": {
-          "buildTarget": "crawler:build:development",
-          "args": ["104"]
-        },
-        "cake": {
-          "buildTarget": "crawler:build:development",
-          "args": ["cake"]
         }
       }
     }

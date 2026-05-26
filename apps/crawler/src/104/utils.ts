@@ -48,12 +48,6 @@ export function extractJobDetailOnHTML(): JobDetailOnHTML {
       : '';
   }
 
-  const titleElement =
-    document.querySelector('hgroup > h1');
-  const title = titleElement
-    ? (titleElement.textContent?.trim() ?? '')
-    : '';
-
   let salary = '',
     tools = '';
 
@@ -80,10 +74,17 @@ export function extractJobDetailOnHTML(): JobDetailOnHTML {
     }
   });
 
+  const locationElement =
+    document.querySelector('.job-address');
+  const location = locationElement
+    ? (locationElement.textContent?.trim() ?? '')
+    : '';
+
   return {
     description: [description, requirement, tools].join(
       '\n',
     ),
     salary,
+    location,
   };
 }

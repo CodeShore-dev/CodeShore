@@ -107,7 +107,7 @@ export async function resetJobKeywords(
   return upsertJobKeywords(jobKeywords);
 }
 
-export async function resetJobKeywords_Keywords_JobJoinKeywordGroup(
+export async function resetJobKeywords_Keywords_JobKeywordGroup(
   keywordGroup?: string,
   keyword?: string,
 ) {
@@ -123,7 +123,7 @@ export async function resetJobKeywords_Keywords_JobJoinKeywordGroup(
   );
 }
 
-export async function createKeywordGroup_KeywordGroupJoinKeyword(
+export async function createKeywordGroup_KeywordGroupKeyword(
   keywordGroup: string,
   keywords: string[],
   category: string | null = null,
@@ -136,7 +136,7 @@ export async function createKeywordGroup_KeywordGroupJoinKeyword(
   );
 }
 
-export async function updateKeywordGroup_KeywordGroupJoinKeyword(
+export async function updateKeywordGroup_KeywordGroupKeyword(
   keywordGroup: string,
   keywords: string[],
   category: string | null = null,

@@ -33,7 +33,11 @@ export const useJobStore = defineStore('job', () => {
     disliked: ref(0),
   };
   const countText = computed(() => ({
-    total: formatNumber(count.total.value),
+    total: formatNumber(
+      homeStore.jobCount.jobs -
+        count.liked.value -
+        count.disliked.value,
+    ),
     liked: formatNumber(count.liked.value),
     disliked: formatNumber(count.disliked.value),
   }));
@@ -154,10 +158,6 @@ export const useJobStore = defineStore('job', () => {
           liked_count: likedCount,
           disliked_count: dislikedCount,
         } = preferencedCount;
-        count.total.value =
-          homeStore.jobCount.jobs -
-          likedCount -
-          dislikedCount;
         count.liked.value = likedCount;
         count.disliked.value = dislikedCount;
         countLoaded.value = true;

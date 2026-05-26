@@ -23,7 +23,7 @@ export namespace SupabaseTable {
     created_at: Date;
   };
 
-  export type JobJoinKeywordGroup = {
+  export type JobKeywordGroup = {
     job_id: string;
     keyword_group: string;
     keywords: string;
@@ -56,7 +56,7 @@ export namespace SupabaseTable {
     parent?: string;
   };
 
-  export type KeywordGroupJoinKeyword = {
+  export type KeywordGroupKeyword = {
     keyword_group: string;
     keyword: string;
   };

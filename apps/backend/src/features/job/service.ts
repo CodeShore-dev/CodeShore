@@ -4,7 +4,7 @@ import { Observable } from 'rxjs';
 
 import {
   upsertJobPreference,
-  fetchJobsView,
+  fetchMvJobs,
   getJobPreferenceCount,
 } from '@codeshore/data-utils';
 import { CacheService } from '@codeshore/service-cache';
@@ -18,7 +18,7 @@ export class Service {
   constructor(private readonly cacheService: CacheService) {}
 
   async getJobs(query: QueryDto, userId: string) {
-    return fetchJobsView(query, userId);
+    return fetchMvJobs(query, userId);
   }
 
   async getJobPreferencedCount(userId: string) {

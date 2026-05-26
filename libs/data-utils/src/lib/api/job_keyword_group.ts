@@ -5,7 +5,7 @@ import { fetchJobKeywords } from './job_keyword';
 import { fetchMvKeywordGroup } from './mv_keyword_group';
 
 export async function resetJobKeywordGroups(
-  jobJoinKeywordGroups: SupabaseTable.JobJoinKeywordGroup[],
+  jobKeywordGroups: SupabaseTable.JobKeywordGroup[],
 ) {
   const supabase = getSupabaseClient();
   const { error: deleteError } = await supabase
@@ -15,27 +15,27 @@ export async function resetJobKeywordGroups(
 
   if (deleteError) {
     console.error(
-      '[Supabase:resetJobJoinKeywordGroups] Error deleting job join keyword group:',
+      '[Supabase:resetJobKeywordGroups] Error deleting job keyword group:',
       deleteError,
     );
   } else {
     console.log(
-      `[Supabase:resetJobJoinKeywordGroups] Successfully deleted job join keyword group.`,
+      `[Supabase:resetJobKeywordGroups] Successfully deleted job keyword group.`,
     );
   }
 
   const { error } = await supabase
     .from('job_keyword_group')
-    .upsert(jobJoinKeywordGroups);
+    .upsert(jobKeywordGroups);
 
   if (error) {
     console.error(
-      '[Supabase:resetJobJoinKeywordGroups] Error inserting job join keyword group:',
+      '[Supabase:resetJobKeywordGroups] Error inserting job keyword group:',
       error,
     );
   } else {
     console.log(
-      `[Supabase:resetJobJoinKeywordGroups] Successfully inserted ${jobJoinKeywordGroups.length} job join keyword group.`,
+      `[Supabase:resetJobKeywordGroups] Successfully inserted ${jobKeywordGroups.length} job keyword group.`,
     );
   }
 }
@@ -79,7 +79,7 @@ export async function resetJobKeywordGroupsByJobKeywords(
   );
 }
 
-export async function deleteJobJoinKeywordGroup(
+export async function deleteJobKeywordGroup(
   keyword_group: string,
 ): Promise<void> {
   const supabase = getSupabaseClient();
@@ -90,12 +90,12 @@ export async function deleteJobJoinKeywordGroup(
 
   if (error) {
     console.error(
-      '[Supabase:deleteJobJoinKeywordGroup] Error deleting job join keyword group:',
+      '[Supabase:deleteJobKeywordGroup] Error deleting job keyword group:',
       error,
     );
   } else {
     console.log(
-      `[Supabase:deleteJobJoinKeywordGroup] Successfully deleted job join keyword group.`,
+      `[Supabase:deleteJobKeywordGroup] Successfully deleted job keyword group.`,
     );
   }
 }

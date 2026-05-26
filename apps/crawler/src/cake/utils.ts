@@ -31,9 +31,17 @@ export function extractJobDetailOnHTML(): JobDetailOnHTML {
     ? (companyInfoItem.textContent?.trim() ?? '')
     : '';
 
+  const locationElement = document.querySelector(
+    "a[href^='https://www.cake.me/jobs?location_list']",
+  );
+  const location = locationElement
+    ? (locationElement.textContent?.trim() ?? '')
+    : '';
+
   return {
     description,
     salary,
-    company_type,
+    location,
+    company_type
   };
 }

@@ -3,13 +3,14 @@ import { Injectable } from '@nestjs/common';
 import {
   addKeywordToKeywordGroup,
   createKeywordBin,
-  createKeywordGroup_KeywordGroupJoinKeyword,
-  deleteJobJoinKeywordGroup,
+  createKeywordGroup_KeywordGroupKeyword,
+  deleteJobKeywordGroup,
   deleteKeywordGroup,
-  fetchKeywordGroupCategories,
+  fetchMvKeywordGroupCategories,
   fetchMvKeywordGroup,
-  resetJobKeywords_Keywords_JobJoinKeywordGroup,
-  updateKeywordGroup_KeywordGroupJoinKeyword,
+  resetJobKeywords_Keywords_JobKeywordGroup,
+  updateKeywordGroup_KeywordGroupKeyword,
+  deleteKeywordGroupKeyword,
 } from '@codeshore/data-utils';
 import {
   CacheService,
@@ -18,7 +19,6 @@ import {
 } from '@codeshore/service-cache';
 
 import { QueryDto } from './../query.dto';
-import { deleteKeywordGroupJoinKeyword } from 'libs/data-utils/src/lib/api/keyword_group_keyword';
 
 const CACHE_KEY_GROUP_VIEW = 'keyword:group:view';
 const CACHE_KEY_GROUP_CATEGORIES = 'keyword:group:categories';
@@ -47,7 +47,7 @@ export class Service {
 
   @Cacheable({ key: CACHE_KEY_GROUP_CATEGORIES })
   async getKeywordGroupCategories(query: QueryDto) {
-    return fetchKeywordGroupCategories(query);
+    return fetchMvKeywordGroupCategories(query);
   }
 
   @CacheEvict({ keys: GROUP_CACHE_KEYS })
@@ -57,7 +57,7 @@ export class Service {
     category: string | null = null,
     parent: string | null = null,
   ) {
-    return createKeywordGroup_KeywordGroupJoinKeyword(
+    return createKeywordGroup_KeywordGroupKeyword(
       keywordGroup,
       keywords,
       category,
@@ -72,7 +72,7 @@ export class Service {
     category: string | null = null,
     parent: string | null = null,
   ) {
-    return updateKeywordGroup_KeywordGroupJoinKeyword(
+    return updateKeywordGroup_KeywordGroupKeyword(
       keywordGroup,
       keywords,
       category,
@@ -82,8 +82,8 @@ export class Service {
 
   @CacheEvict({ keys: GROUP_CACHE_KEYS })
   async deleteKeywordGroup(keywordGroup: string) {
-    await deleteKeywordGroupJoinKeyword(keywordGroup);
-    await deleteJobJoinKeywordGroup(keywordGroup);
+    await deleteKeywordGroupKeyword(keywordGroup);
+    await deleteJobKeywordGroup(keywordGroup);
     await deleteKeywordGroup(keywordGroup);
   }
 
@@ -105,11 +105,11 @@ export class Service {
     );
   }
 
-  resetJobKeywords_Keywords_JobJoinKeywordGroup(
+  resetJobKeywords_Keywords_JobKeywordGroup(
     keywordGroup?: string,
     keyword?: string,
   ) {
-    return resetJobKeywords_Keywords_JobJoinKeywordGroup(
+    return resetJobKeywords_Keywords_JobKeywordGroup(
       keywordGroup,
       keyword,
     );

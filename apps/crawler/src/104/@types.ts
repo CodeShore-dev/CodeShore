@@ -163,4 +163,5 @@ export type JobsAPIResponse = {
 export type JobDetailOnHTML = {
   description: string;
   salary: string;
+  location: string;
 };

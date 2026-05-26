@@ -33,13 +33,17 @@ export function getIdFromUrl(url: string) {
 
 export const formatDuration = (ms: number): string => {
   const totalSeconds = Math.round(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
-  return minutes > 0
-    ? `${minutes}m ${seconds}s`
-    : seconds > 0
-      ? `${seconds}s`
-      : `${ms}ms`;
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  } else if (minutes > 0) {
+    return `${minutes}m ${seconds}s`;
+  } else if (seconds > 0) {
+    return `${seconds}s ${ms % 1000}ms`;
+  }
+  return `${ms}ms`;
 };
 
 /** Wait a random number of milliseconds in [min, max]. */

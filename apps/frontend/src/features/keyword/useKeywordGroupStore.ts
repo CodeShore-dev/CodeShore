@@ -71,7 +71,6 @@ export const useKeywordGroupStore = defineStore(
           from,
           to,
           where: buildWhere(),
-          orders: 'count:desc;keyword_group',
         },
       );
       keywordGroups.value = result;

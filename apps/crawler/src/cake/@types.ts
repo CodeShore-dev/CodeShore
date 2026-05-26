@@ -50,4 +50,5 @@ export type JobDetailOnHTML = {
   description: string;
   salary: string;
   company_type: string;
+  location: string;
 };

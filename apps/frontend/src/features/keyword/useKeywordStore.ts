@@ -123,12 +123,18 @@ export const useKeywordStore = defineStore(
     });
 
     const relatedKeywordGroupView = computed(() => {
-      if (!selectedTags.value.length && !excludedTags.value.length) return [];
-      const allActiveTags = [...selectedTags.value, ...excludedTags.value];
-      const selectedGroups =
-        keywordGroups.value.filter(g =>
-          allActiveTags.includes(g.keyword_group),
-        );
+      if (
+        !selectedTags.value.length &&
+        !excludedTags.value.length
+      )
+        return [];
+      const allActiveTags = [
+        ...selectedTags.value,
+        ...excludedTags.value,
+      ];
+      const selectedGroups = keywordGroups.value.filter(g =>
+        allActiveTags.includes(g.keyword_group),
+      );
       const selectedParents = new Set(
         selectedGroups
           .map(g => g.parent)
@@ -137,10 +143,7 @@ export const useKeywordStore = defineStore(
       return keywordGroups.value.filter(g => {
         if (allActiveTags.includes(g.keyword_group))
           return false;
-        if (
-          !!g.parent &&
-          allActiveTags.includes(g.parent)
-        )
+        if (!!g.parent && allActiveTags.includes(g.parent))
           return true;
         if (!!g.parent && selectedParents.has(g.parent))
           return true;
@@ -151,8 +154,7 @@ export const useKeywordStore = defineStore(
     const visibleTabs = computed<Tab[]>(() => {
       const base: Tab[] = [];
       if (keywordSearch.value.trim()) {
-        const count =
-          searchedKeywordGroupView.value.length;
+        const count = searchedKeywordGroupView.value.length;
         base.push({
           label: '搜尋',
           value: SEARCH_TAB_VALUE,
@@ -160,10 +162,16 @@ export const useKeywordStore = defineStore(
           tooltip: `搜尋「${keywordSearch.value.trim()}」· ${count} 個技術`,
         });
       }
-      if (selectedTags.value.length || excludedTags.value.length) {
-        const count =
-          relatedKeywordGroupView.value.length;
-        const tagList = [...selectedTags.value, ...excludedTags.value].join('、');
+      if (
+        (selectedTags.value.length ||
+          excludedTags.value.length) &&
+        relatedKeywordGroupView.value.length > 0
+      ) {
+        const count = relatedKeywordGroupView.value.length;
+        const tagList = [
+          ...selectedTags.value,
+          ...excludedTags.value,
+        ].join('、');
         base.push({
           label: '相關',
           value: RELATED_TAB_VALUE,
@@ -174,20 +182,26 @@ export const useKeywordStore = defineStore(
       return [...base, ...tabs.value];
     });
 
-    watch([selectedTags, excludedTags], ([tags, excluded]) => {
-      if (
-        !tags.length &&
-        !excluded.length &&
-        selectedTab.value === RELATED_TAB_VALUE
-      ) {
-        selectedTab.value = tabs.value[0]?.value ?? '';
-      }
-    });
+    watch(
+      [selectedTags, excludedTags],
+      ([tags, excluded]) => {
+        if (
+          !tags.length &&
+          !excluded.length &&
+          selectedTab.value === RELATED_TAB_VALUE
+        ) {
+          selectedTab.value = tabs.value[0]?.value ?? '';
+        }
+      },
+    );
 
     const categoriesWithSelections = computed(() => {
       const result = new Set<string>();
       const allCategories = Object.keys(CATEGORY_LABEL_MAP);
-      for (const tag of [...selectedTags.value, ...excludedTags.value]) {
+      for (const tag of [
+        ...selectedTags.value,
+        ...excludedTags.value,
+      ]) {
         const group = keywordGroups.value.find(
           g => g.keyword_group === tag,
         );
@@ -228,23 +242,24 @@ export const useKeywordStore = defineStore(
       category?: string | null,
       parent?: string | null,
     ) => {
-      await updateKeywordGroup(
-        groupId,
-        {
-          keywords: [keyword],
-          category,
-          parent,
-        },
-      );
+      await updateKeywordGroup(groupId, {
+        keywords: [keyword],
+        category,
+        parent,
+      });
       await getKeywordGroupView();
     };
 
     const toggleLanguage = (language: string) => {
       if (selectedTags.value.includes(language)) {
-        selectedTags.value = selectedTags.value.filter(x => x !== language);
+        selectedTags.value = selectedTags.value.filter(
+          x => x !== language,
+        );
         excludedTags.value.push(language);
       } else if (excludedTags.value.includes(language)) {
-        excludedTags.value = excludedTags.value.filter(x => x !== language);
+        excludedTags.value = excludedTags.value.filter(
+          x => x !== language,
+        );
       } else {
         selectedTags.value.push(language);
       }

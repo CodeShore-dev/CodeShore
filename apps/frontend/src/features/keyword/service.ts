@@ -20,7 +20,12 @@ export const fetchMvKeywordGroup = async (
 ) => {
   const { data } = await httpClient.get<
     ListResponse<SupabaseView.KeywordGroupView>
-  >('/api/keyword/group', { params: query });
+  >('/api/keyword/group', {
+    params: {
+      ...query,
+      orders: 'count:desc;keyword_group',
+    },
+  });
   return data;
 };
 

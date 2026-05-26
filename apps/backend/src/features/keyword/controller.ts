@@ -81,7 +81,7 @@ export class Controller {
 
   @Post('group/reset')
   @RequirePermission()
-  resetJobKeywords_Keywords_JobJoinKeywordGroup() {
-    return this.service.resetJobKeywords_Keywords_JobJoinKeywordGroup();
+  resetJobKeywords_Keywords_JobKeywordGroup() {
+    return this.service.resetJobKeywords_Keywords_JobKeywordGroup();
   }
 }
