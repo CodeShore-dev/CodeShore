@@ -10,11 +10,13 @@ export async function fetchList<T>(
     for (const [column, conditions] of Object.entries(
       where,
     )) {
-      if (
-        column === '$or' &&
-        typeof conditions === 'string'
-      ) {
-        builder = builder.or(conditions);
+      if (column === '$or') {
+        const ors = Array.isArray(conditions)
+          ? conditions
+          : [conditions];
+        for (const or of ors) {
+          if (typeof or === 'string') builder = builder.or(or);
+        }
       } else if (
         column === '$and' &&
         typeof conditions === 'string'

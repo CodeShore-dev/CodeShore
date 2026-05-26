@@ -5,13 +5,15 @@ import { Observable } from 'rxjs';
 import {
   upsertJobPreference,
   fetchMvJobs,
+  fetchMvLocationGroup,
   getJobPreferenceCount,
 } from '@codeshore/data-utils';
-import { CacheService } from '@codeshore/service-cache';
+import { Cacheable, CacheService } from '@codeshore/service-cache';
 
 import { QueryDto } from '../query.dto';
 
 const PREFERENCE_COUNT_TTL = 60 * 1000; // 60 seconds
+const CACHE_KEY_LOCATION_GROUP = 'job:location:groups';
 
 @Injectable()
 export class Service {
@@ -19,6 +21,11 @@ export class Service {
 
   async getJobs(query: QueryDto, userId: string) {
     return fetchMvJobs(query, userId);
+  }
+
+  @Cacheable({ key: CACHE_KEY_LOCATION_GROUP })
+  async getLocationGroups(query: QueryDto) {
+    return fetchMvLocationGroup(query);
   }
 
   async getJobPreferencedCount(userId: string) {

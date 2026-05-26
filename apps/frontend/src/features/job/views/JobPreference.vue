@@ -49,7 +49,8 @@ const hasActiveFilters = computed(
     store.salaryAmountFilter.type !== '' ||
     store.salaryAmountFilter.amount !== null ||
     !!store.searchText ||
-    !!store.companySearchText,
+    !!store.companySearchText ||
+    store.selectedLocations.length > 0,
 );
 
 function clearAllFilters(): void {
@@ -63,6 +64,7 @@ function clearAllFilters(): void {
   store.salaryAmountFilter.amount = null;
   store.searchText = '';
   store.companySearchText = '';
+  store.selectedLocations = [];
   if (sidebarRef.value) {
     sidebarRef.value.localSearchText = '';
     sidebarRef.value.localCompanySearchText = '';

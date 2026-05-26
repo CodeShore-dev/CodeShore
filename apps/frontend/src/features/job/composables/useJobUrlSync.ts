@@ -49,12 +49,15 @@ export function useJobUrlSync() {
     if (!isNaN(n))
       store.salaryAmountFilter.amount = n * salaryMultiplier.value;
   }
+  if (typeof q.locations === 'string' && q.locations)
+    store.selectedLocations = q.locations.split(',');
 
   store.fetchListJobs({ preference: initialTab, page: initialPage, loadingEffect: true });
   nextTick(() => { store.initialized = true; });
 
   keywordStore.getKeywordGroupView();
   keywordStore.getKeywordGroupCategories();
+  store.getLocationGroups();
 
   const rawSalaryAmount = computed(() =>
     store.salaryAmountFilter.amount !== null && salaryMultiplier.value
@@ -81,6 +84,7 @@ export function useJobUrlSync() {
       salaryAmt: rawSalaryAmount.value,
       search: store.searchText,
       company: store.companySearchText,
+      locations: store.selectedLocations.slice(),
       tab: store.listViewPreference,
       page: store.listPage,
       jobId: selectedJobId.value,
@@ -95,6 +99,7 @@ export function useJobUrlSync() {
       if (state.salaryAmt !== null) query.salaryAmt = String(state.salaryAmt);
       if (state.search) query.search = state.search;
       if (state.company) query.company = state.company;
+      if (state.locations.length) query.locations = state.locations.join(',');
       if (state.tab) query.tab = state.tab;
       if (state.page > 1) query.page = String(state.page);
       if (state.jobId) query.jobId = state.jobId;

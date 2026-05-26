@@ -10,6 +10,7 @@ import {
   createCrawlEventSource,
   fetchJobPreferencedCount,
   fetchJobs,
+  fetchLocationGroups,
   setJobPreference,
 } from './service';
 
@@ -52,14 +53,17 @@ export const useJobStore = defineStore('job', () => {
   }>({ type: '', amount: null });
   const searchText = ref<string>('');
   const companySearchText = ref<string>('');
+  const selectedLocations = ref<string[]>([]);
+  const locationGroups = ref<SupabaseView.LocationGroupView[]>([]);
 
   const baseFilters = computed(() => {
     const where: Record<string, any> = {};
 
+    const orGroups: string[] = [];
+
     if (searchText.value.trim()) {
-      where.title = {
-        ilike: `%${searchText.value.trim()}%`,
-      };
+      const q = searchText.value.trim();
+      orGroups.push(`title.ilike.%${q}%,description.ilike.%${q}%`);
     }
 
     if (companySearchText.value.trim()) {
@@ -94,10 +98,15 @@ export const useJobStore = defineStore('job', () => {
       'and(min_salary.neq.0,max_salary.neq.9999999)',
     ].join(', ');
     if (salaryFilter.value === 'excluding') {
-      where.$or = hasSalaryWhere;
+      orGroups.push(hasSalaryWhere);
     } else if (salaryFilter.value === 'only') {
-      where.$or =
-        'and(min_salary.eq.0,max_salary.eq.9999999)';
+      orGroups.push('and(min_salary.eq.0,max_salary.eq.9999999)');
+    }
+
+    if (orGroups.length === 1) {
+      where.$or = orGroups[0];
+    } else if (orGroups.length > 1) {
+      where.$or = orGroups;
     }
 
     if (salaryAmountFilter.value.type) {
@@ -108,6 +117,12 @@ export const useJobStore = defineStore('job', () => {
     if (salaryAmountFilter.value.amount !== null) {
       where.max_salary = {
         gte: salaryAmountFilter.value.amount,
+      };
+    }
+
+    if (selectedLocations.value.length > 0) {
+      where.location = {
+        in: `(${selectedLocations.value.join(',')})`,
       };
     }
 
@@ -262,6 +277,19 @@ export const useJobStore = defineStore('job', () => {
     };
   };
 
+  const locationGroupsLoading = ref(false);
+
+  const getLocationGroups = async () => {
+    try {
+      locationGroupsLoading.value = true;
+      const { result } = await fetchLocationGroups();
+      locationGroups.value = result;
+    } catch {
+    } finally {
+      locationGroupsLoading.value = false;
+    }
+  };
+
   watch(
     baseFilters,
     async () => {
@@ -292,6 +320,9 @@ export const useJobStore = defineStore('job', () => {
     salaryAmountFilter,
     searchText,
     companySearchText,
+    selectedLocations,
+    locationGroups,
+    locationGroupsLoading,
     crawlJobId,
     crawlProgress,
     crawlDone,
@@ -300,5 +331,6 @@ export const useJobStore = defineStore('job', () => {
     fetchListJobs,
     updateListJobPreference,
     exitListView,
+    getLocationGroups,
   };
 });

@@ -509,8 +509,8 @@ async function main() {
       }
     }
 
-    await resetJobKeywords_Keywords_JobKeywordGroup();
-  } // end else (non-update mode)
+  }
+  await resetJobKeywords_Keywords_JobKeywordGroup();
 }
 
 main().catch(error => {

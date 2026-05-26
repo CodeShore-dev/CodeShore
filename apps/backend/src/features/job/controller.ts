@@ -23,6 +23,11 @@ const name = 'job';
 export class Controller {
   constructor(private readonly service: Service) {}
 
+  @Get('location')
+  async getLocationGroups(@Query() query: QueryDto) {
+    return this.service.getLocationGroups(query);
+  }
+
   @Get()
   async getJobs(
     @Query() query: QueryDto,

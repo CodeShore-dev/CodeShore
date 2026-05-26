@@ -15,3 +15,4 @@ export * from './lib/api/rpc';
 export * from './lib/api/job_source'
 export * from './lib/api/job_source_url'
 export * from './lib/api/keyword_group_keyword';
+export * from './lib/api/mv_location_group';

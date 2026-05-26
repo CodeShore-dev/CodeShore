@@ -177,4 +177,9 @@ export namespace SupabaseView {
     job_count: number;
     keyword_groups: string[];
   };
+
+  export type LocationGroupView = {
+    location: string;
+    count: number;
+  };
 }

@@ -10,7 +10,11 @@ export const fetchJobs = async (query: ListQuery) => {
   const res = await httpClient.get<
     ListResponse<SupabaseView.JobView>
   >('/api/job', {
-    params: query,
+    params: {
+      ...query,
+      orders:
+        'min_salary:desc;max_salary:desc;updated_at:desc',
+    },
   });
   return res.data;
 };
@@ -31,6 +35,19 @@ export const setJobPreference = async (
     `/api/job/preference/${jobId}/${preference}`,
     {},
   );
+  return res.data;
+};
+
+export const fetchLocationGroups = async () => {
+  const res = await httpClient.get<
+    ListResponse<SupabaseView.LocationGroupView>
+  >('/api/job/location', {
+    params: {
+      from: 0,
+      to: -1,
+      orders: 'count:desc;location',
+    },
+  });
   return res.data;
 };
 
