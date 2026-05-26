@@ -199,10 +199,31 @@ async function crawlJobByIds(
 async function updateAllJobs(
   allGroupKeywords: string[],
 ): Promise<void> {
-  // TODO: implement batch job update logic
-  console.log(
-    '[update] starting...',
-    `allGroupKeywords count: ${allGroupKeywords.length}`,
+  const { result: jobs } = await fetchJobs({
+    from: 0,
+    to: -1,
+    orders: [{ column: 'min_salary', ascending: false }],
+  });
+
+  console.log(`[update] 共 ${jobs.length} 筆 jobs 待更新`);
+
+  let processedCount = 0;
+  let rollingAvgMs = 0;
+  const totalCount = jobs.length;
+  const BATCH_SIZE = 20;
+
+  Configuration.getGlobalConfig().set('purgeOnStart', true);
+
+  const crawler = new PuppeteerCrawler({
+    launchContext: stealthLaunchContext as any,
+    preNavigationHooks: [applyStealthOnNavigation as any],
+    async requestHandler() {},
+    maxConcurrency: 1,
+    requestHandlerTimeoutSecs: 60,
+  });
+
+  await crawler.run(
+    jobs.map(job => ({ url: job.detail_link, userData: { job } })),
   );
 }
 
