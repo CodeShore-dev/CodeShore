@@ -31,20 +31,19 @@ function goJobs(query: Record<string, string> = {}) {
       同一個 JD 裡，<span class="text-[#003d92]">哪些技術常一起出現</span>
     </div>
 
-    <div v-if="loading" class="grid grid-cols-3 gap-3">
-      <div class="col-span-1 row-span-2 h-72 animate-pulse rounded-xl bg-[#d9f2ff]" />
+    <div v-if="loading" class="grid grid-cols-2 gap-3 md:[grid-template-columns:1.4fr_1fr_1fr]">
+      <div class="col-span-2 h-60 animate-pulse rounded-xl bg-[#d9f2ff] md:col-span-1 md:row-span-2 md:h-72" />
       <div v-for="i in 4" :key="i" class="h-32 animate-pulse rounded-xl bg-[#d9f2ff]" />
     </div>
 
     <div
       v-else-if="topCombo"
-      class="grid gap-3"
-      style="grid-template-columns: 1.4fr 1fr 1fr"
+      class="grid gap-3 grid-cols-2 md:[grid-template-columns:1.4fr_1fr_1fr]"
     >
       <!-- Hero combo (#1) -->
       <button
-        class="row-span-2 flex cursor-pointer flex-col justify-between rounded-xl bg-[#001f2a] p-6 text-left text-white transition-all hover:opacity-95 active:scale-[0.98]"
-        style="min-height: 280px"
+        class="col-span-2 flex cursor-pointer flex-col justify-between rounded-xl bg-[#001f2a] p-6 text-left text-white transition-all hover:opacity-95 active:scale-[0.98] md:col-span-1 md:row-span-2"
+        style="min-height: clamp(200px, 50vw, 280px)"
         @click="goJobs({ tags: `${topCombo.tech1},${topCombo.tech2}` })"
       >
         <div>
@@ -53,7 +52,7 @@ function goJobs(query: Record<string, string> = {}) {
           </div>
           <div
             class="leading-none font-black tracking-[-0.03em]"
-            style="font-size: 3.25rem"
+            style="font-size: clamp(1.75rem, 7vw, 3.25rem)"
           >
             {{ topCombo.tech1_label }}<br />
             <span class="text-[#fd7700]">+</span>
@@ -69,7 +68,7 @@ function goJobs(query: Record<string, string> = {}) {
           <div>
             <div
               class="tabular-nums leading-none font-black tracking-[-0.02em] text-[#fd7700]"
-              style="font-size: 2.5rem"
+              style="font-size: clamp(1.5rem, 5vw, 2.5rem)"
             >
               {{ topCombo.job_count.toLocaleString() }}
             </div>

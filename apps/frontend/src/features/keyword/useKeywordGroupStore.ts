@@ -83,7 +83,7 @@ export const useKeywordGroupStore = defineStore(
       loadGroups(1, true);
     };
 
-    watch(debouncedSearch, () => loadGroups(1));
+    watch(debouncedSearch, () => loadGroups(1, true));
 
     const goToPage = (page: number) => {
       if (page >= 1 && page <= totalPages.value) {

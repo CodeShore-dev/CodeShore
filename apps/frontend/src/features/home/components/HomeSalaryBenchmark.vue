@@ -4,6 +4,8 @@ import { computed, ref } from 'vue';
 import { toWanInt } from '../../../utils/format';
 import { useHomeStore } from '../useHomeStore';
 
+defineProps<{ loading: boolean }>();
+
 const store = useHomeStore();
 
 const salaryUnit = ref<'month' | 'year'>('year');
@@ -65,7 +67,23 @@ const activeBenchmarks = computed(() => {
         </button>
       </div>
     </div>
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+    <div v-if="loading" class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div
+        v-for="i in 3"
+        :key="i"
+        class="flex animate-pulse flex-col rounded-xl bg-white p-5 shadow-[0_24px_40px_rgba(0,31,42,0.06)]"
+      >
+        <div class="mb-4 flex items-center justify-between">
+          <div class="h-4 w-8 rounded bg-[#001f2a]/[0.08]" />
+          <div class="h-3 w-10 rounded bg-[#001f2a]/[0.08]" />
+        </div>
+        <div class="mb-3 h-14 w-32 rounded bg-[#001f2a]/[0.08]" />
+        <div class="mb-1.5 h-3 w-full rounded bg-[#001f2a]/[0.08]" />
+        <div class="mb-3 h-3 w-4/5 rounded bg-[#001f2a]/[0.08]" />
+        <div class="mt-auto h-1.5 w-full rounded-full bg-[#001f2a]/[0.08]" />
+      </div>
+    </div>
+    <div v-else class="grid grid-cols-1 gap-3 sm:grid-cols-3">
       <div
         v-for="bm in activeBenchmarks"
         :key="bm.label"
