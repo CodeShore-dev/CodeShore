@@ -31,7 +31,14 @@
 
 - Strict mode 開啟
 - `moduleResolution: "node"`
-- Monorepo 共用型別在 `@codeshore/data-types`（路徑別名）
+- Monorepo 共用套件別名：
+
+| 別名 | 內容 |
+|------|------|
+| `@codeshore/data-types` | 前後端共用型別（`SupabaseTable`、`SupabaseView`、`SupabaseFunction` namespace） |
+| `@codeshore/data-utils` | Supabase 資料存取層（`api/` 子模組按表分檔） |
+| `@codeshore/shared-utils` | 前後端通用工具函式（如 `parseKeywordsOut`） |
+| `@codeshore/supabase` | Supabase client（`getSupabaseClient()`） |
 
 ## Code Quality
 

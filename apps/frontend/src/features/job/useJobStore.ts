@@ -7,6 +7,7 @@ import { formatNumber } from '../../utils/format';
 import { useHomeStore } from '../home/useHomeStore';
 import { useKeywordStore } from '../keyword/useKeywordStore';
 import {
+  clearJobPreferences,
   createCrawlEventSource,
   fetchJobPreferencedCount,
   fetchJobs,
@@ -227,6 +228,19 @@ export const useJobStore = defineStore('job', () => {
     }
   };
 
+  const clearPreferences = async (preference: 'like' | 'dislike') => {
+    try {
+      await clearJobPreferences(preference);
+      countLoaded.value = false;
+      await fetchListJobs({
+        preference: listViewPreference.value,
+        loadingEffect: true,
+      });
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   const exitListView = async () => {
     listViewPreference.value = null;
     listPage.value = 1;
@@ -331,6 +345,7 @@ export const useJobStore = defineStore('job', () => {
     fetchListJobs,
     updateListJobPreference,
     exitListView,
+    clearPreferences,
     getLocationGroups,
   };
 });

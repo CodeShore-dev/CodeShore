@@ -28,7 +28,7 @@ function goJobs(query: Record<string, string> = {}) {
       熱門技術組合
     </div>
     <div class="mb-4 text-lg font-black text-[#001f2a]">
-      同一個 JD 裡，<span class="text-[#003d92]">哪些技術常一起出現</span>
+      <span class="text-[#003d92]">職缺裡最常同時出現的技術組合</span>
     </div>
 
     <div v-if="loading" class="grid grid-cols-2 gap-3 md:[grid-template-columns:1.4fr_1fr_1fr]">
@@ -48,7 +48,7 @@ function goJobs(query: Record<string, string> = {}) {
       >
         <div>
           <div class="mb-4 font-mono text-[11px] tracking-[0.15em] text-white/50">
-            #01 · 沒得選的組合
+            #01 · 市場標配
           </div>
           <div
             class="leading-none font-black tracking-[-0.03em]"
@@ -59,9 +59,7 @@ function goJobs(query: Record<string, string> = {}) {
             {{ topCombo.tech2_label }}
           </div>
           <p class="mt-4 max-w-80 text-sm leading-relaxed text-white/75">
-            台灣前端的最大公因數。如果你 JD
-            寫得出這六個字，市場上就有
-            {{ topCombo.job_count.toLocaleString() }} 個位子在等你。
+            市場上最不陌生的組合。掌握這兩個，{{ topCombo.job_count.toLocaleString() }} 個職缺都是你的舞台。
           </p>
         </div>
         <div class="mt-4 flex items-end justify-between">

@@ -72,6 +72,11 @@ export namespace SupabaseTable {
     status: string;
     url_with_page_index?: string;
   };
+
+  export type JobDescriptionBin = {
+    id: string;
+    content: string;
+  };
 }
 
 export namespace SupabaseFunction {

@@ -14,7 +14,16 @@ apps/
   backend/src/
     modules/        ← NestJS 模組
 libs/
-  data-types/       ← 前後端共用型別（@codeshore/data-types）
+  data-types/           ← 前後端共用型別（@codeshore/data-types）
+  data-utils/           ← Supabase 資料存取層（@codeshore/data-utils）
+    api/                ← 每個 Supabase 表 / 視圖各一支 {table}.ts 檔案
+  shared-utils/         ← 前後端通用工具函式（@codeshore/shared-utils）
+  supabase/             ← Supabase client 初始化（@codeshore/supabase）
+  service-logger/       ← NestJS logging 模組
+  service-utils/        ← NestJS utilities（全域例外 filter、request wrapper）
+  service-cache/        ← NestJS 快取模組（in-memory cache + interceptor）
+  service-config/       ← NestJS 設定模組
+  service-serve-static/ ← NestJS 靜態檔案服務
 ```
 
 ## Feature-First 模式

@@ -38,6 +38,15 @@ export const setJobPreference = async (
   return res.data;
 };
 
+export const clearJobPreferences = async (
+  preference: string,
+) => {
+  const res = await httpClient.delete(
+    `/api/job/preference/${preference}`,
+  );
+  return res.data;
+};
+
 export const fetchLocationGroups = async () => {
   const res = await httpClient.get<
     ListResponse<SupabaseView.LocationGroupView>

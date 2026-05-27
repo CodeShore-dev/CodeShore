@@ -12,19 +12,19 @@ const statCards = [
   {
     label: '所有職缺',
     valKey: 'total' as const,
-    hint: '全部抓進來的',
+    hint: '所有職缺都在這',
     query: {} as Record<string, string>,
   },
   {
     label: '月薪職缺',
     valKey: 'month' as const,
-    hint: 'JD 上有寫月薪數字的',
+    hint: '職缺說明有寫月薪的',
     query: { salary: 'excluding', salaryType: 'month' },
   },
   {
     label: '年薪職缺',
     valKey: 'year' as const,
-    hint: 'JD 上有寫年薪的',
+    hint: '職缺說明有寫年薪的',
     query: { salary: 'excluding', salaryType: 'year' },
   },
 ];
@@ -37,7 +37,7 @@ function goJobs(query: Record<string, string> = {}) {
 <template>
   <section class="mt-10">
     <div class="mb-4 text-xs font-bold tracking-[0.18em] text-[#434653]">
-      職缺總覽
+      現在有多少缺？
     </div>
     <div v-if="loading" class="grid grid-cols-1 gap-3 sm:grid-cols-3">
       <div
@@ -71,7 +71,7 @@ function goJobs(query: Record<string, string> = {}) {
         <span
           class="mt-1 flex items-center gap-1 text-xs font-bold text-[#003d92] opacity-0 transition-opacity group-hover:opacity-100"
         >
-          查看
+          前往查看
           <span class="material-symbols-outlined" style="font-size: 14px">arrow_forward</span>
         </span>
       </button>

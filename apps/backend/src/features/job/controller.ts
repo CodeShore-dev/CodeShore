@@ -1,5 +1,6 @@
 import {
   Controller as ControllerDecorator,
+  Delete,
   Get,
   Param,
   Patch,
@@ -12,6 +13,7 @@ import { User } from '@supabase/supabase-js';
 import { Observable } from 'rxjs';
 
 import { CurrentUser, RequirePermission } from '../auth/auth.decorator';
+import { LimitQuery } from '../query-limit.decorator';
 import { QueryDto } from '../query.dto';
 import { Service } from './service';
 
@@ -29,6 +31,7 @@ export class Controller {
   }
 
   @Get()
+  @LimitQuery(10)
   async getJobs(
     @Query() query: QueryDto,
     @CurrentUser() user: User,
@@ -39,6 +42,14 @@ export class Controller {
   @Get('/preference/count')
   async getJobPreferencedCount(@CurrentUser() user: User) {
     return this.service.getJobPreferencedCount(user.id);
+  }
+
+  @Delete('/preference/:preference')
+  async clearJobPreferences(
+    @Param('preference') preference: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.service.clearJobPreferences(preference, user.id);
   }
 
   @Patch('/preference/:jobId/:preference')

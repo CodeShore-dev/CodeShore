@@ -3,12 +3,12 @@ import { parseKeywordsOut } from '@codeshore/shared-utils';
 import { getSupabaseClient } from '@codeshore/supabase';
 
 import { fetchJobs } from './api/job';
-import { resetJobKeywordGroupsByJobKeywords } from './api/job_keyword_group';
+import { fetchJobDescriptionBins } from './api/job_description_bin';
 import {
   fetchJobKeywords,
   upsertJobKeywords,
 } from './api/job_keyword';
-import { resetKeywords } from './api/mv_keyword';
+import { resetJobKeywordGroupsByJobKeywords } from './api/job_keyword_group';
 import {
   createKeywordGroup,
   updateKeywordGroup,
@@ -17,11 +17,11 @@ import {
   createKeywordGroupKeyword,
   updateKeywordGroupKeyword,
 } from './api/keyword_group_keyword';
+import { resetKeywords } from './api/mv_keyword';
 import {
   fetchMvKeywordGroup,
   refreshMvKeywordGroup,
 } from './api/mv_keyword_group';
-
 
 export async function addKeywordToKeywordGroup(
   groupId: string,
@@ -79,6 +79,11 @@ export async function resetJobKeywords(
   keywordGroup?: string,
   keyword?: string,
 ) {
+  const { result: jobDescriptionBins } =
+    await fetchJobDescriptionBins({
+      from: 0,
+      to: -1,
+    });
   const { result: keywordGroups } =
     await fetchMvKeywordGroup({
       from: 0,
@@ -93,7 +98,9 @@ export async function resetJobKeywords(
     x => ({
       id: x.id,
       ...parseKeywordsOut(
-        x.description,
+        jobDescriptionBins.reduce((prev, curr) => {
+          return prev.replace(curr.content, '');
+        }, x.description),
         keywordGroups
           .flatMap(m => m.keywords)
           .concat(
@@ -118,9 +125,7 @@ export async function resetJobKeywords_Keywords_JobKeywordGroup(
   });
   await resetKeywords();
   await refreshMvKeywordGroup();
-  await resetJobKeywordGroupsByJobKeywords(
-    jobKeywords,
-  );
+  await resetJobKeywordGroupsByJobKeywords(jobKeywords);
 }
 
 export async function createKeywordGroup_KeywordGroupKeyword(
@@ -130,10 +135,7 @@ export async function createKeywordGroup_KeywordGroupKeyword(
   parent: string | null = null,
 ) {
   await createKeywordGroup(keywordGroup, category, parent);
-  return createKeywordGroupKeyword(
-    keywordGroup,
-    keywords,
-  );
+  return createKeywordGroupKeyword(keywordGroup, keywords);
 }
 
 export async function updateKeywordGroup_KeywordGroupKeyword(
@@ -143,8 +145,5 @@ export async function updateKeywordGroup_KeywordGroupKeyword(
   parent: string | null = null,
 ) {
   await updateKeywordGroup(keywordGroup, category, parent);
-  return updateKeywordGroupKeyword(
-    keywordGroup,
-    keywords,
-  );
+  return updateKeywordGroupKeyword(keywordGroup, keywords);
 }

@@ -5,22 +5,19 @@
     >
       <div>
         <div class="mb-3 text-xs font-bold tracking-[0.2em] text-white/70">
-          ● 我們的角色
+          ● 我們做什麼
         </div>
         <h3
           class="leading-tight font-black tracking-[-0.02em] text-white"
           style="font-size: 2.25rem; margin: 0 0 16px"
         >
-          看完數據，就<br />回去投履歷。
+          數據看完，<br />下一步交給你。
         </h3>
         <p
           class="max-w-120 text-[15px] leading-relaxed text-white/85"
           style="margin: 0"
         >
-          CodeShore 不收履歷，也不接面試媒合。我們爬
-          104、Cake 的公開職缺，讓你分析完後，<strong class="text-white"
-            >再回原平台投履歷</strong
-          >
+          CodeShore 的定位很單純：幫你看懂市場。職缺資料來自 104、Cake，分析完了，<strong class="text-white">投履歷還是要回那裡。</strong>
         </p>
       </div>
       <div class="grid grid-cols-2 gap-2">

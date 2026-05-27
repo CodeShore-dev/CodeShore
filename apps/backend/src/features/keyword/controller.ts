@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
-import { RequirePermission } from '../auth/auth.decorator';
+import { AdminOnly } from '../auth/auth.decorator';
 import { QueryDto } from '../query.dto';
 import { Service } from './service';
 
@@ -35,7 +35,7 @@ export class Controller {
   }
 
   @Post('group')
-  @RequirePermission()
+  @AdminOnly()
   async createKeywordGroup(
     @Body()
     body: {
@@ -54,7 +54,7 @@ export class Controller {
   }
 
   @Patch('group/:id')
-  @RequirePermission()
+  @AdminOnly()
   async updateKeywordGroup(
     @Param('id') id: string,
     @Body()
@@ -68,19 +68,19 @@ export class Controller {
   }
 
   @Delete('group/:id')
-  @RequirePermission()
+  @AdminOnly()
   async deleteKeywordGroup(@Param('id') id: string) {
     return this.service.deleteKeywordGroup(id);
   }
 
   @Delete(':id')
-  @RequirePermission()
+  @AdminOnly()
   async deleteKeyword(@Param('id') id: string) {
     return this.service.deleteKeyword(id);
   }
 
   @Post('group/reset')
-  @RequirePermission()
+  @AdminOnly()
   resetJobKeywords_Keywords_JobKeywordGroup() {
     return this.service.resetJobKeywords_Keywords_JobKeywordGroup();
   }

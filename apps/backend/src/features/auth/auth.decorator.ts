@@ -7,10 +7,12 @@ import { Request } from 'express';
 
 export const IS_PUBLIC_KEY = 'isPublic';
 export const REQUIRE_PERMISSION_KEY = 'requirePermission';
+export const ADMIN_ONLY_KEY = 'adminOnly';
 
 export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
 export const RequirePermission = () =>
   SetMetadata(REQUIRE_PERMISSION_KEY, true);
+export const AdminOnly = () => SetMetadata(ADMIN_ONLY_KEY, true);
 
 export const CurrentUser = createParamDecorator(
   (_data: unknown, ctx: ExecutionContext) => {

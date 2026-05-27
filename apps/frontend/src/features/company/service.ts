@@ -1,4 +1,7 @@
-import { ListResponse, SupabaseView } from '@codeshore/data-types';
+import {
+  ListResponse,
+  SupabaseView,
+} from '@codeshore/data-types';
 
 import { ListQuery } from '../../@types';
 import { httpClient } from '../../httpClient';
@@ -8,6 +11,12 @@ export const fetchCompanies = async (
 ): Promise<ListResponse<SupabaseView.CompanyView>> => {
   const { data } = await httpClient.get<
     ListResponse<SupabaseView.CompanyView>
-  >('/api/company', { params: query });
+  >('/api/company', {
+    params: {
+      ...query,
+      orders: 'job_count:desc;company_id',
+    },
+  });
   return data;
 };
+

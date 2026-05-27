@@ -6,9 +6,9 @@ import { useHomeStore } from '../useHomeStore';
 const store = useHomeStore();
 
 const cycleItems = [
-  { is: '多方位檢索職缺', isNot: '求職投履歷平台' },
-  { is: '分析薪資與技術趨勢', isNot: '人才媒合平台' },
-  { is: '一窺大頭公司的技術', isNot: '履歷優化工具' },
+  { is: '搞懂現在缺什麼技術', isNot: '投履歷的入口' },
+  { is: '抓住薪資甜蜜點', isNot: '人才媒合的地方' },
+  { is: '偷看大公司的技術清單', isNot: '履歷優化工具' },
 ];
 
 const currentIndex = ref(0);
@@ -76,8 +76,7 @@ onUnmounted(() => {
           </span>
         </div>
         <p class="mt-4 mb-0 leading-relaxed">
-          我們爬完台灣知名人力銀行的工程師職缺，告訴你哪些技術組合
-          真的有好工作、薪水範圍長什麼樣。
+          每天同步各大人力銀行職缺，讓你看清楚市場在要什麼、願意給多少。
         </p>
       </div>
       <div class="border-l-4 border-[#003d92] pl-5">
@@ -90,7 +89,7 @@ onUnmounted(() => {
         <div
           class="mt-1 text-sm font-bold tracking-widest text-[#434653]"
         >
-          個機會 · 就在今天
+          個職缺 · 現在就查
         </div>
       </div>
     </div>

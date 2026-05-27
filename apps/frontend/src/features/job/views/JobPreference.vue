@@ -25,18 +25,21 @@ const viewTabs = computed(() => [
     pref: null as null,
     count: store.countText.total,
     onClick: () => store.exitListView(),
+    onClear: null,
   },
   {
     label: '喜歡',
     pref: 'like' as const,
     count: store.countText.liked,
     onClick: () => store.fetchListJobs({ preference: 'like', loadingEffect: true }),
+    onClear: () => store.clearPreferences('like'),
   },
   {
     label: '不喜歡',
     pref: 'dislike' as const,
     count: store.countText.disliked,
     onClick: () => store.fetchListJobs({ preference: 'dislike', loadingEffect: true }),
+    onClear: () => store.clearPreferences('dislike'),
   },
 ]);
 
@@ -133,29 +136,47 @@ function clearAllFilters(): void {
 
       <!-- Tab selector -->
       <section class="mb-6 grid w-full max-w-lg grid-cols-3 gap-3">
-        <button
+        <div
           v-for="tab in viewTabs"
           :key="tab.pref ?? 'all'"
-          class="rounded-xl p-4 text-center transition-all active:scale-95"
+          class="relative rounded-xl transition-all"
           :class="
             store.listViewPreference === tab.pref
               ? 'bg-[#003d92] text-white shadow-md'
-              : 'cursor-pointer bg-white text-[#001f2a] shadow-[0_24px_40px_rgba(0,31,42,0.06)] hover:bg-[#f4faff]'
+              : 'bg-white text-[#001f2a] shadow-[0_24px_40px_rgba(0,31,42,0.06)]'
           "
-          @click="tab.onClick()"
         >
-          <span
-            class="mb-1 block text-[10px] font-bold tracking-[0.15em]"
-            :class="store.listViewPreference === tab.pref ? 'text-white/60' : 'text-[#434653]'"
-          >{{ tab.label }}</span>
-          <span class="tabular-nums text-2xl font-black">
-            {{ store.listViewPreference === tab.pref && !store.loading ? store.listTotalCountText : tab.count }}
+          <button
+            class="w-full p-4 text-center active:scale-95"
+            :class="store.listViewPreference !== tab.pref ? 'cursor-pointer hover:bg-[#f4faff] rounded-xl' : ''"
+            @click="tab.onClick()"
+          >
             <span
-              v-if="store.listViewPreference === tab.pref"
-              class="whitespace-nowrap text-sm"
-            >/ {{ tab.count }}</span>
-          </span>
-        </button>
+              class="mb-1 block text-[10px] font-bold tracking-[0.15em]"
+              :class="store.listViewPreference === tab.pref ? 'text-white/60' : 'text-[#434653]'"
+            >{{ tab.label }}</span>
+            <span class="tabular-nums text-2xl font-black">
+              {{ store.listViewPreference === tab.pref && !store.loading ? store.listTotalCountText : tab.count }}
+              <span
+                v-if="store.listViewPreference === tab.pref"
+                class="whitespace-nowrap text-sm"
+              >/ {{ tab.count }}</span>
+            </span>
+          </button>
+          <button
+            v-if="tab.onClear && tab.count !== '0'"
+            class="absolute right-1.5 top-1.5 flex size-6 cursor-pointer items-center justify-center rounded-lg transition-colors"
+            :class="
+              store.listViewPreference === tab.pref
+                ? 'text-white/50 hover:bg-white/20 hover:text-white'
+                : 'text-[#999] hover:bg-[#fee2e2] hover:text-[#dc2626]'
+            "
+            :title="`清空${tab.label}`"
+            @click.stop="tab.onClear()"
+          >
+            <span class="material-symbols-outlined text-base leading-none">delete</span>
+          </button>
+        </div>
       </section>
 
       <JobList

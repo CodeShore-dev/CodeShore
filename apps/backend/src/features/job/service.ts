@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 
 import {
   upsertJobPreference,
+  deleteJobPreferences,
   fetchMvJobs,
   fetchMvLocationGroup,
   getJobPreferenceCount,
@@ -42,6 +43,12 @@ export class Service {
     userId: string,
   ) {
     const result = await upsertJobPreference(jobId, preference, userId);
+    await this.cacheService.invalidate(`job-preference-count:${userId}`);
+    return result;
+  }
+
+  async clearJobPreferences(preference: string, userId: string) {
+    const result = await deleteJobPreferences(preference, userId);
     await this.cacheService.invalidate(`job-preference-count:${userId}`);
     return result;
   }
