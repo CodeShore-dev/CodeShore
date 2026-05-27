@@ -25,6 +25,21 @@ steps:
       - VITE_SUPABASE_ANON_KEY
       - VITE_ADMIN_EMAILS
 
+  - name: 'gcr.io/cloud-builders/git'
+    id: FetchTags
+    args: ['fetch', '--unshallow', '--tags']
+
+  - name: 'gcr.io/cloud-builders/git'
+    id: ComputeVer
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        VER=$(git describe --tags --always)
+        echo "$VER" > /workspace/_ver.txt
+        echo "APP_VER=$VER"
+    waitFor: ['FetchTags']
+
   - name: 'gcr.io/cloud-builders/docker'
     entrypoint: 'bash'
     args:
@@ -39,18 +54,20 @@ steps:
     args:
       - '-c'
       - |
+        VER=$(cat /workspace/_ver.txt)
         docker build \
-          --build-arg VER=$SHORT_SHA \
+          --build-arg VER="$VER" \
           --cache-from ${_CACHE_IMAGE}-builder \
           --target builder \
           -t ${_CACHE_IMAGE}-builder \
           -f Dockerfile.cloudrun . \
         && docker build \
-          --build-arg VER=$SHORT_SHA \
+          --build-arg VER="$VER" \
           --cache-from ${_CACHE_IMAGE} \
           -t $_IMAGE \
           -f Dockerfile.cloudrun . \
         && docker tag $_IMAGE ${_CACHE_IMAGE}
+    waitFor: ['ComputeVer']
 
   - name: 'gcr.io/cloud-builders/docker'
     args: ['push', '$_IMAGE']

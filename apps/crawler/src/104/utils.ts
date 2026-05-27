@@ -63,7 +63,7 @@ export function extractJobDetailOnHTML(): JobDetailOnHTML {
         const result =
           /(月|年)薪.*?元(以上)?/.exec(salary) ?? [];
         if (result && result[0]) {
-          salary = result[0];
+          salary = result[0].replace('取得專屬你的薪水報告', '');
         }
       }
     } else if (el.textContent?.startsWith('擅長工具')) {
@@ -74,11 +74,14 @@ export function extractJobDetailOnHTML(): JobDetailOnHTML {
     }
   });
 
-  const locationElement =
+  const addressElement =
     document.querySelector('.job-address');
-  const location = locationElement
-    ? (locationElement.textContent?.trim() ?? '')
+  let address = addressElement
+    ? (addressElement.textContent?.trim() ?? '')
     : '';
+
+  let [location] = /^.*?市.*?區/.exec(address) ?? [];
+  location = location ?? address;
 
   return {
     description: [description, requirement, tools].join(

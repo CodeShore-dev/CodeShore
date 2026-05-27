@@ -2,7 +2,17 @@
 import { nxCopyAssetsPlugin } from '@nx/vite/plugins/nx-copy-assets.plugin';
 import { nxViteTsPaths } from '@nx/vite/plugins/nx-tsconfig-paths.plugin';
 import vue from '@vitejs/plugin-vue';
+import { execSync } from 'node:child_process';
 import { defineConfig } from 'vite';
+
+function resolveAppVer(): string {
+  if (process.env.VITE_APP_VER) return process.env.VITE_APP_VER;
+  try {
+    return execSync('git describe --tags --always --dirty', { encoding: 'utf8' }).trim();
+  } catch {
+    return '0.0.0-local';
+  }
+}
 
 export default defineConfig(() => ({
   root: __dirname,
@@ -14,6 +24,9 @@ export default defineConfig(() => ({
   preview: {
     port: 4300,
     host: 'localhost',
+  },
+  define: {
+    'import.meta.env.VITE_APP_VER': JSON.stringify(resolveAppVer()),
   },
   plugins: [
     vue(),

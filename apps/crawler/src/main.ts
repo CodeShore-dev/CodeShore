@@ -233,6 +233,7 @@ async function updateJobs(
             pending.jobs.push({
               ...job,
               description: detail.description,
+              location: detail.location,
               salary,
               ...parseSalary(salary),
               updated_at: new Date(),

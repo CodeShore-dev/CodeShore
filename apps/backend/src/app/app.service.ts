@@ -26,6 +26,7 @@ export class AppService {
     return getTechStats();
   }
 
+  @Cacheable({ key: 'CACHE_KEY_TECH_COMBO_STATS'})
   async getTechComboStats(): Promise<SupabaseFunction.TechComboStat[]> {
     return getTechComboStats();
   }
