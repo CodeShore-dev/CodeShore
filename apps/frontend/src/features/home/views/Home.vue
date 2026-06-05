@@ -13,11 +13,9 @@ const store = useHomeStore();
 const loading = ref(true);
 
 Promise.all([
-  store.getSalaryRange(),
+  store.getMvSalaryTypeMedianRatio(),
   store.getJobCount(),
-  store.getMvKeywordGroupRanking(),
-  store.getTechComboStats(),
-  store.getSalaryStats(),
+  store.getMvSalaryWeightedRatio(),
 ]).finally(() => {
   loading.value = false;
 });
@@ -28,7 +26,7 @@ Promise.all([
     <HomeHero />
     <HomeStatRow :loading="loading" />
     <HomeSalaryBenchmark :loading="loading" />
-    <HomePopularTech :loading="loading" />
+    <HomePopularTech />
     <HomeHotCombos :loading="loading" />
     <HomeHandoff />
   </div>

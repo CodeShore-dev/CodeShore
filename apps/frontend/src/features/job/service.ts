@@ -8,7 +8,7 @@ import { httpClient } from '../../httpClient';
 
 export const fetchJobs = async (query: ListQuery) => {
   const res = await httpClient.get<
-    ListResponse<SupabaseView.JobView>
+    ListResponse<SupabaseView.MvJob>
   >('/api/job', {
     params: {
       ...query,
@@ -49,7 +49,7 @@ export const clearJobPreferences = async (
 
 export const fetchLocationGroups = async () => {
   const res = await httpClient.get<
-    ListResponse<SupabaseView.LocationGroupView>
+    ListResponse<SupabaseView.MvLocationGroup>
   >('/api/job/location', {
     params: {
       from: 0,

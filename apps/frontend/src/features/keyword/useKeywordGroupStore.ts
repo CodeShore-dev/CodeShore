@@ -30,7 +30,7 @@ export const useKeywordGroupStore = defineStore(
   'keyword-group',
   () => {
     const keywordGroups = ref<
-      SupabaseView.KeywordGroupView[]
+      SupabaseView.MvKeywordGroup[]
     >([]);
     const totalCount = ref(0);
     const currentPage = ref(1);

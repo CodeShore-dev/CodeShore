@@ -1,35 +1,27 @@
 <script lang="ts" setup>
-import { computed, ref, watch } from 'vue';
+import { ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { toWan } from '../../../utils/format';
 import { CATEGORY_LABEL_MAP } from '../../keyword/useKeywordStore';
 import { useHomeStore } from '../useHomeStore';
 
-defineProps<{ loading: boolean }>();
-
 const store = useHomeStore();
 const router = useRouter();
 
-const selectedCategory = ref('all');
-
-const mvKeywordGroupRanking = computed(() => {
-  const list =
-    selectedCategory.value === 'all'
-      ? store.mvKeywordGroupRanking
-      : store.mvKeywordGroupRanking.filter(
-          t => t.category === selectedCategory.value,
-        );
-  return [...list].slice(0, 15);
-});
+const selectedCategory = ref('language');
 
 function goJobs(query: Record<string, string> = {}) {
   router.push({ name: 'jobs', query });
 }
 
-watch(selectedCategory, value => {
-  store.getMvKeywordGroupRanking(value);
-});
+watch(
+  selectedCategory,
+  value => {
+    store.getMvKeywordGroupRanking(value);
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
@@ -40,21 +32,18 @@ watch(selectedCategory, value => {
       <div
         class="text-xs font-bold tracking-[0.18em] text-[#434653]"
       >
-        熱門技術
+        熱門關鍵字
       </div>
       <div
         class="flex flex-wrap overflow-hidden rounded-lg border border-[#c9e7f7] text-xs"
       >
         <button
-          v-for="opt in [
-            { value: 'all', label: '全部' },
-            ...Object.entries(CATEGORY_LABEL_MAP).map(
-              ([key, value]) => ({
-                value: key,
-                label: value,
-              }),
-            ),
-          ]"
+          v-for="opt in Object.entries(
+            CATEGORY_LABEL_MAP,
+          ).map(([key, value]) => ({
+            value: key,
+            label: value,
+          }))"
           :key="opt.value"
           class="md:h-auo h-10 w-[33.3%] cursor-pointer px-3.5 py-1.5 font-bold transition-colors md:w-auto"
           :class="
@@ -73,11 +62,11 @@ watch(selectedCategory, value => {
     </div>
 
     <div
-      v-if="loading || store.mvKeywordGroupRankingLoading"
+      v-if="store.mvKeywordGroupRankingLoading"
       class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
     >
       <div
-        v-for="i in 15"
+        v-for="i in 5"
         :key="i"
         class="h-28 animate-pulse rounded-xl bg-[#d9f2ff]"
       />
@@ -87,7 +76,7 @@ watch(selectedCategory, value => {
       class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
     >
       <button
-        v-for="item in mvKeywordGroupRanking"
+        v-for="item in store.mvKeywordGroupRanking"
         :key="item.keyword_group"
         class="group flex cursor-pointer flex-col rounded-xl bg-white p-4 text-left shadow-[0_24px_40px_rgba(0,31,42,0.06)] transition-all hover:-translate-y-0.5 active:scale-[0.98]"
         @click="goJobs({ tags: item.keyword_group })"
@@ -116,44 +105,93 @@ watch(selectedCategory, value => {
           個職缺
         </div>
         <div
-          class="mt-2.5 flex justify-between border-t border-dashed border-[#c3c6d5] pt-2.5 text-xs text-[#434653]"
+          class="mt-2.5 flex h-full justify-between border-t border-dashed border-[#c3c6d5] pt-2.5 text-xs text-[#434653]"
         >
-          <div>
-            <div
-              v-if="
-                item.avg_min_month && item.avg_min_month
-              "
-            >
-              <span class="font-bold text-[#9a4600]"
-                >月</span
+          <div class="flex">
+            <div class="flex flex-col gap-1 pr-2">
+              <div class="h-3 w-3"></div>
+              <div
+                v-if="
+                  item.month_median_avg &&
+                  item.month_pr75_avg &&
+                  item.month_pr88_avg
+                "
+                class="font-bold text-[#9a4600]"
               >
-              {{ toWan(item.avg_min_month) }}–{{
-                toWan(item.avg_max_month)
-              }}
+                月
+              </div>
+              <div
+                v-if="
+                  item.year_median_avg &&
+                  item.year_pr75_avg &&
+                  item.year_pr88_avg
+                "
+                class="font-bold text-[#9a4600]"
+              >
+                年
+              </div>
             </div>
-            <div
-              v-if="item.avg_min_year && item.avg_max_year"
-            >
-              <span class="font-bold text-[#9a4600]"
-                >年</span
+            <div class="flex flex-col gap-1">
+              <div class="grid grid-cols-3 gap-1">
+                <div
+                  v-for="item in ['PR50', 'PR75', 'PR88']"
+                  class="font-mono text-[10px] tracking-widest text-[#434653]"
+                >
+                  {{ item }}
+                </div>
+              </div>
+              <div
+                v-if="
+                  item.month_median_avg &&
+                  item.month_pr75_avg &&
+                  item.month_pr88_avg
+                "
+                class="grid grid-cols-3 gap-1"
               >
-              {{ toWan(item.avg_min_year) }}–{{
-                toWan(item.avg_max_year)
-              }}
+                <div
+                  v-for="avg in [
+                    item.month_median_avg,
+                    item.month_pr75_avg,
+                    item.month_pr88_avg,
+                  ]"
+                  class="tabular-nums"
+                >
+                  {{ toWan(avg) }}
+                </div>
+              </div>
+              <div
+                v-if="
+                  item.year_median_avg &&
+                  item.year_pr75_avg &&
+                  item.year_pr88_avg
+                "
+                class="grid grid-cols-3 gap-1"
+              >
+                <div
+                  v-for="avg in [
+                    item.year_median_avg,
+                    item.year_pr75_avg,
+                    item.year_pr88_avg,
+                  ]"
+                  class="tabular-nums"
+                >
+                  {{ toWan(avg) }}
+                </div>
+              </div>
             </div>
           </div>
-          <span
-            class="mt-1 flex items-center gap-1 text-xs font-bold text-[#003d92]"
-          >
-            前往查看
-            <span
-              class="material-symbols-outlined"
-              style="font-size: 14px"
-            >
-              arrow_forward
-            </span>
-          </span>
         </div>
+        <span
+          class="mt-1 flex items-end justify-end gap-1 text-xs font-bold text-[#003d92]"
+        >
+          前往
+          <span
+            class="material-symbols-outlined"
+            style="font-size: 14px"
+          >
+            arrow_forward
+          </span>
+        </span>
       </button>
     </div>
   </section>

@@ -21,8 +21,8 @@ export const useJobStore = defineStore('job', () => {
 
   const initialized = ref(false);
 
-  const jobs = ref<SupabaseView.JobView[]>([]);
-  const listJobs = ref<SupabaseView.JobView[]>([]);
+  const jobs = ref<SupabaseView.MvJob[]>([]);
+  const listJobs = ref<SupabaseView.MvJob[]>([]);
   const listViewPreference = ref<'like' | 'dislike' | null>(
     null,
   );
@@ -36,7 +36,7 @@ export const useJobStore = defineStore('job', () => {
   };
   const countText = computed(() => ({
     total: formatNumber(
-      homeStore.jobCount.jobs -
+      homeStore.jobCount.open_jobs -
         count.liked.value -
         count.disliked.value,
     ),
@@ -55,7 +55,7 @@ export const useJobStore = defineStore('job', () => {
   const searchText = ref<string>('');
   const companySearchText = ref<string>('');
   const selectedLocations = ref<string[]>([]);
-  const locationGroups = ref<SupabaseView.LocationGroupView[]>([]);
+  const locationGroups = ref<SupabaseView.MvLocationGroup[]>([]);
 
   const baseFilters = computed(() => {
     const where: Record<string, any> = {};
@@ -214,7 +214,7 @@ export const useJobStore = defineStore('job', () => {
         fetchJobPreferencedCount(),
       ]);
       count.total.value =
-        homeStore.jobCount.jobs -
+        homeStore.jobCount.open_jobs -
         likedCount -
         dislikedCount;
       count.liked.value = likedCount;

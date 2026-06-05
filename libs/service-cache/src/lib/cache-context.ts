@@ -4,4 +4,4 @@ export interface CacheRequestStore {
   cacheStatus?: 'HIT' | 'MISS';
 }
 
-export const cacheAls = new AsyncLocalStorage<CacheRequestStore>();
+export const cacheALS = new AsyncLocalStorage<CacheRequestStore>();

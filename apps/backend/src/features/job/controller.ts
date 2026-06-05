@@ -32,11 +32,11 @@ export class Controller {
 
   @Get()
   @LimitQuery(10)
-  async getJobs(
+  async getMvJobs(
     @Query() query: QueryDto,
     @CurrentUser() user: User,
   ) {
-    return this.service.getJobs(query, user.id);
+    return this.service.getMvJobs(query, user.id);
   }
 
   @Get('/preference/count')

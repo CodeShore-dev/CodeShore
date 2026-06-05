@@ -7,7 +7,7 @@ import { useJobStore } from '../useJobStore';
 import JobCard from './JobCard.vue';
 
 type Props = {
-  job: SupabaseView.JobView | undefined;
+  job: SupabaseView.MvJob | undefined;
   isFirst: boolean;
   isLast: boolean;
 };
@@ -53,7 +53,7 @@ const drawerTitle = computed(() =>
         >
           <!-- Header -->
           <div
-            class="flex shrink-0 items-center justify-between border-b border-[#001f2a]/[0.06] bg-white px-6 py-4"
+            class="flex shrink-0 items-center justify-between border-b border-[#001f2a]/6 bg-white px-6 py-4"
           >
             <span class="text-[11px] font-bold tracking-[0.18em] text-[#003d92]">
               {{ drawerTitle }}
@@ -73,7 +73,7 @@ const drawerTitle = computed(() =>
 
           <!-- Navigation + preference buttons -->
           <div
-            class="flex shrink-0 items-center justify-center gap-8 border-t border-[#001f2a]/[0.06] bg-white pt-6 pb-10"
+            class="flex shrink-0 items-center justify-center gap-8 border-t border-[#001f2a]/6 bg-white pt-6 pb-10"
             :class="{ 'pointer-events-none opacity-50': store.loading }"
           >
             <!-- Prev -->
@@ -107,7 +107,7 @@ const drawerTitle = computed(() =>
             <!-- Like -->
             <button
               :disabled="store.listViewPreference === 'like'"
-              class="group relative flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-[#003d92] to-[#1654b9] text-white shadow-xl transition-all duration-300"
+              class="group relative flex h-20 w-20 items-center justify-center rounded-full bg-linear-to-br from-[#003d92] to-[#1654b9] text-white shadow-xl transition-all duration-300"
               :class="
                 store.listViewPreference === 'like'
                   ? 'cursor-not-allowed opacity-50 ring-4 ring-[#003d92] ring-offset-2'

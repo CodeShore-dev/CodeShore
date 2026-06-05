@@ -8,7 +8,7 @@ import SearchInput from '../../../components/SearchInput.vue';
 import { useKeywordStore } from '../../keyword/useKeywordStore';
 import { useCompanyStore } from '../useCompanyStore';
 
-type KeywordGroupView = SupabaseView.KeywordGroupView;
+type KeywordGroup = SupabaseView.MvKeywordGroup;
 
 const companyStore = useCompanyStore();
 const keywordStore = useKeywordStore();
@@ -17,7 +17,7 @@ const kgExpanded = ref(false);
 const kgSearch = ref('');
 const selectedKgCategory = ref('');
 
-keywordStore.getKeywordGroupView();
+keywordStore.getMvKeywordGroup();
 keywordStore.getKeywordGroupCategories().then(() => {
   selectedKgCategory.value =
     keywordStore.tabs[0]?.value ?? '';
@@ -29,11 +29,11 @@ const kgMappings = computed(() => {
   const q = kgSearch.value.trim().toLowerCase();
   const all = q
     ? keywordStore.keywordGroups.filter(
-        (g: KeywordGroupView) =>
+        (g: KeywordGroup) =>
           g.keyword_group.toLowerCase().includes(q),
       )
     : keywordStore.keywordGroups.filter(
-        (g: KeywordGroupView) => {
+        (g: KeywordGroup) => {
           if (!selectedKgCategory.value) {
             const knownCategories = keywordStore.tabs
               .map((t: { value: string }) => t.value)

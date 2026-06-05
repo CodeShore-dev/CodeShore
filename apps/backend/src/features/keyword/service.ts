@@ -1,20 +1,12 @@
 import { Injectable } from '@nestjs/common';
 
 import {
-  addKeywordToKeywordGroup,
-  createKeywordBin,
-  createKeywordGroup_KeywordGroupKeyword,
-  deleteJobKeywordGroup,
-  deleteKeywordGroup,
-  deleteKeywordGroupKeyword,
-  fetchMvKeywordGroup,
-  fetchMvKeywordGroupCategories,
-  fetchMvKeywordGroupRanking,
+  MvKeywordGroupCategoryService,
+  MvKeywordGroupRankingService,
+  MvKeywordGroupService,
   resetJobKeywords_Keywords_JobKeywordGroup,
-  updateKeywordGroup_KeywordGroupKeyword,
 } from '@codeshore/data-utils';
 import {
-  CacheEvict,
   CacheService,
   Cacheable,
 } from '@codeshore/service-cache';
@@ -25,10 +17,6 @@ const CACHE_KEY_GROUP_VIEW = 'keyword:group:view';
 const CACHE_KEY_GROUP_RANKING = 'keyword:group:ranking';
 const CACHE_KEY_GROUP_CATEGORIES =
   'keyword:group:categories';
-const GROUP_CACHE_KEYS = [
-  CACHE_KEY_GROUP_VIEW,
-  CACHE_KEY_GROUP_CATEGORIES,
-];
 
 function isFetchAllQuery(query: QueryDto): boolean {
   return query.from === 0 && query.to === -1;
@@ -38,16 +26,19 @@ function isFetchAllQuery(query: QueryDto): boolean {
 export class Service {
   constructor(
     private readonly cacheService: CacheService,
+    private readonly mvKeywordGroupService: MvKeywordGroupService,
+    private readonly mvKeywordGroupCategoryService: MvKeywordGroupCategoryService,
+    private readonly mvKeywordGroupRankingService: MvKeywordGroupRankingService,
   ) {}
 
-  async getKeywordGroupView(query: QueryDto) {
+  async getMvKeywordGroup(query: QueryDto) {
     if (isFetchAllQuery(query)) {
       return this.cacheService.getOrSet(
         CACHE_KEY_GROUP_VIEW,
-        () => fetchMvKeywordGroup(query),
+        () => this.mvKeywordGroupService.fetchAll(query),
       );
     }
-    return fetchMvKeywordGroup(query);
+    return this.mvKeywordGroupService.fetchAll(query);
   }
 
   async getMvKeywordGroupRanking(query: QueryDto) {
@@ -57,70 +48,15 @@ export class Service {
         query.where?.category?.eq
           ? `${CACHE_KEY_GROUP_RANKING}:${query.where.category.eq}`
           : CACHE_KEY_GROUP_RANKING,
-        () => fetchMvKeywordGroupRanking(query),
+        () => this.mvKeywordGroupRankingService.fetchAll(query),
       );
     }
-    return fetchMvKeywordGroupRanking(query);
+    return this.mvKeywordGroupRankingService.fetchAll(query);
   }
 
   @Cacheable({ key: CACHE_KEY_GROUP_CATEGORIES })
   async getKeywordGroupCategories(query: QueryDto) {
-    return fetchMvKeywordGroupCategories(query);
-  }
-
-  @CacheEvict({ keys: GROUP_CACHE_KEYS })
-  async createKeywordGroup(
-    keywordGroup: string,
-    keywords: string[] = [],
-    category: string | null = null,
-    parent: string | null = null,
-  ) {
-    return createKeywordGroup_KeywordGroupKeyword(
-      keywordGroup,
-      keywords,
-      category,
-      parent,
-    );
-  }
-
-  @CacheEvict({ keys: GROUP_CACHE_KEYS })
-  async updateKeywordGroup(
-    keywordGroup: string,
-    keywords: string[] = [],
-    category: string | null = null,
-    parent: string | null = null,
-  ) {
-    return updateKeywordGroup_KeywordGroupKeyword(
-      keywordGroup,
-      keywords,
-      category,
-      parent,
-    );
-  }
-
-  @CacheEvict({ keys: GROUP_CACHE_KEYS })
-  async deleteKeywordGroup(keywordGroup: string) {
-    await deleteKeywordGroupKeyword(keywordGroup);
-    await deleteJobKeywordGroup(keywordGroup);
-    await deleteKeywordGroup(keywordGroup);
-  }
-
-  async deleteKeyword(keywordGroup: string) {
-    return createKeywordBin(keywordGroup);
-  }
-
-  async addKeywordToGroup(
-    keywordGroup: string,
-    keyword: string,
-    category: string | null = null,
-    parent: string | null = null,
-  ) {
-    return addKeywordToKeywordGroup(
-      keywordGroup,
-      keyword,
-      category,
-      parent,
-    );
+    return this.mvKeywordGroupCategoryService.fetchAll(query);
   }
 
   resetJobKeywords_Keywords_JobKeywordGroup(

@@ -8,7 +8,7 @@ import { formatDateInfo } from '../../../utils/format';
 import { useJobStore } from '../useJobStore';
 
 type Props = {
-  job: SupabaseView.JobView;
+  job: SupabaseView.MvJob;
   selected: boolean;
 };
 
@@ -47,8 +47,8 @@ const handleDislike = async (event: MouseEvent) => {
     :class="[
       job.closed ? 'opacity-60' : '',
       selected
-        ? 'border-l-[#003d92] bg-[#003d92]/[0.06]'
-        : 'border-l-transparent hover:bg-[#001f2a]/[0.025]',
+        ? 'border-l-[#003d92] bg-[#003d92]/6'
+        : 'border-l-transparent hover:bg-[#001f2a]/2.5',
     ]"
     @click="handleSelect"
   >
@@ -58,14 +58,14 @@ const handleDislike = async (event: MouseEvent) => {
       <div class="mb-1 flex items-center gap-2">
         <span
           v-if="job.closed"
-          class="rounded bg-[#ffdad6] px-1.5 py-0.5 text-[9px] font-black tracking-[0.05em] text-[#93000a]"
+          class="rounded bg-[#ffdad6] px-1.5 py-0.5 text-[9px] font-black tracking-wider text-[#93000a]"
         >已關閉</span>
         <span class="text-[13px] font-bold text-[#434653]">{{ job.company_name }}</span>
       </div>
 
       <!-- Job title -->
       <div
-        class="mb-2.5 text-[22px] font-black leading-tight tracking-[-0.01em] break-words"
+        class="mb-2.5 text-[22px] font-black leading-tight tracking-[-0.01em] wrap-break-word"
         :class="job.closed ? 'text-[#001f2a]/40' : 'text-[#001f2a]'"
       >
         {{ job.title }}
@@ -92,25 +92,25 @@ const handleDislike = async (event: MouseEvent) => {
     <div class="flex shrink-0 flex-col items-center gap-2 pt-1" @click.stop>
       <!-- Like -->
       <button
-        :disabled="store.listViewPreference === 'dislike' || store.loading"
+        :disabled="store.listViewPreference === 'like' || store.loading"
         class="group relative flex h-9 w-9 items-center justify-center rounded-full text-white shadow-sm transition-all"
         :class="
-          store.listViewPreference === 'dislike'
+          store.listViewPreference === 'like'
             ? 'cursor-not-allowed opacity-40 bg-[#c9e7f7]'
-            : 'cursor-pointer bg-gradient-to-br from-[#003d92] to-[#1654b9] hover:shadow-md active:scale-90'
+            : 'cursor-pointer bg-linear-to-br from-[#003d92] to-[#1654b9] hover:shadow-md active:scale-90'
         "
         @click="handleLike"
       >
-        <div v-if="store.listViewPreference !== 'dislike'" class="absolute inset-0 animate-ping rounded-full bg-[#003d92] opacity-0 group-hover:opacity-20" />
+        <div v-if="store.listViewPreference !== 'like'" class="absolute inset-0 animate-ping rounded-full bg-[#003d92] opacity-0 group-hover:opacity-20" />
         <span class="material-symbols-outlined" style="font-size:18px; font-variation-settings: 'FILL' 1">favorite</span>
       </button>
 
       <!-- Dislike -->
       <button
-        :disabled="store.listViewPreference === 'like' || store.loading"
+        :disabled="store.listViewPreference === 'dislike' || store.loading"
         class="group flex h-9 w-9 items-center justify-center rounded-full transition-all"
         :class="
-          store.listViewPreference === 'like'
+          store.listViewPreference === 'dislike'
             ? 'cursor-not-allowed bg-[#c9e7f7] text-[#434653] opacity-40'
             : 'cursor-pointer bg-[#c9e7f7] text-[#434653] hover:bg-[#ba1a1a] hover:text-white active:scale-90'
         "

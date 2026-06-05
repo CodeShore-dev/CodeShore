@@ -11,7 +11,7 @@ export const toWanInt = (
   n: number | null | undefined,
 ): string => {
   if (n == null) return '—';
-  return (n / 10000).toFixed(0);
+  return (n / 10000).toFixed(n % 10000 ? 1 : 0);
 };
 
 export const formatNumber = (

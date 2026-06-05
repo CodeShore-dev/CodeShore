@@ -3,12 +3,9 @@ import { computed } from 'vue';
 
 import { SupabaseView } from '@codeshore/data-types';
 
-type CompanyView = SupabaseView.CompanyView;
-type KeywordGroupView = SupabaseView.KeywordGroupView;
-
 interface Props {
-  company: CompanyView;
-  keywordGroups: KeywordGroupView[];
+  company: SupabaseView.MvCompany;
+  keywordGroups: SupabaseView.MvKeywordGroup[];
   categoryLabelMap: Record<string, string>;
   selectedKeywordGroups?: string[];
 }
@@ -22,12 +19,12 @@ const emit = defineEmits<{
 }>();
 
 const CATEGORY_PRIORITY: Record<string, number> = {
-  Language: 0,
-  Framework: 1,
-  Database: 2,
-  Library: 3,
-  Service: 4,
-  Tool: 5,
+  language: 0,
+  framework: 1,
+  database: 2,
+  library: 3,
+  service: 4,
+  tool: 5,
 };
 
 const kgCategoryMap = computed(() => {

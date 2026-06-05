@@ -9,7 +9,7 @@ import { fetchCompanies } from './service';
 const PAGE_SIZE = 18;
 
 export const useCompanyStore = defineStore('company', () => {
-  const companies = ref<SupabaseView.CompanyView[]>([]);
+  const companies = ref<SupabaseView.MvCompany[]>([]);
   const totalCount = ref(0);
   const currentPage = ref(1);
   const loading = ref(false);

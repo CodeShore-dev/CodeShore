@@ -10,14 +10,14 @@ import {
 } from './service';
 
 export const CATEGORY_LABEL_MAP: Record<string, string> = {
-  Language: '語言',
-  Framework: '框架',
-  Database: '資料庫',
-  Library: '程式庫',
-  Service: '服務',
-  Tool: '工具',
-  Cloud: '雲端',
-  Others: '其他',
+  language: '語言',
+  framework: '框架',
+  database: '資料庫',
+  library: '程式庫',
+  service: '服務',
+  tool: '工具',
+  cloud: '雲端',
+  others: '其他',
 };
 
 type Tab = {
@@ -31,7 +31,7 @@ export const useKeywordStore = defineStore(
   'keyword',
   () => {
     const keywordGroups = ref<
-      SupabaseView.KeywordGroupView[]
+      SupabaseView.MvKeywordGroup[]
     >([]);
     const loading = ref(false);
 
@@ -39,7 +39,7 @@ export const useKeywordStore = defineStore(
     const excludedTags = ref<string[]>([]);
     const keywordOperator = ref<'and' | 'or'>('and');
     const categories = ref<
-      SupabaseView.KeywordGroupCategory[]
+      SupabaseView.MvKeywordGroupCategory[]
     >([]);
     const tabs = ref<Tab[]>([]);
     const selectedTab = ref<string>('');
@@ -84,7 +84,7 @@ export const useKeywordStore = defineStore(
       }
     };
 
-    const getKeywordGroupView = async () => {
+    const getMvKeywordGroup = async () => {
       loading.value = true;
       ({ result: keywordGroups.value } =
         await fetchMvKeywordGroup({
@@ -248,7 +248,7 @@ export const useKeywordStore = defineStore(
         category,
         parent,
       });
-      await getKeywordGroupView();
+      await getMvKeywordGroup();
     };
 
     const toggleLanguage = (language: string) => {
@@ -280,7 +280,7 @@ export const useKeywordStore = defineStore(
       categoriesWithSelections,
       filteredKeywordGroupView,
       getKeywordGroupCategories,
-      getKeywordGroupView,
+      getMvKeywordGroup,
       saveKeywordToGroup,
       toggleLanguage,
     };

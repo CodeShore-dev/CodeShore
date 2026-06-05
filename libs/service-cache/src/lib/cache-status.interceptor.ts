@@ -7,7 +7,7 @@ import {
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 
-import { cacheAls } from './cache-context';
+import { cacheALS } from './cache-context';
 
 @Injectable()
 export class CacheStatusInterceptor implements NestInterceptor {
@@ -20,7 +20,7 @@ export class CacheStatusInterceptor implements NestInterceptor {
     const store: { cacheStatus?: 'HIT' | 'MISS' } = {};
 
     return new Observable(observer => {
-      cacheAls.run(store, () => {
+      cacheALS.run(store, () => {
         next
           .handle()
           .pipe(

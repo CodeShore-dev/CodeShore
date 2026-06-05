@@ -10,9 +10,7 @@ import { useAuthStore } from '../../auth/useAuthStore';
 import KeywordGroupEditForm from './KeywordGroupEditForm.vue';
 import KeywordGroupAssignPanel from './KeywordGroupAssignPanel.vue';
 
-type KeywordGroupView = SupabaseView.KeywordGroupView;
-
-const props = defineProps<{ group: KeywordGroupView }>();
+const props = defineProps<{ group: SupabaseView.MvKeywordGroup }>();
 
 const store = useKeywordGroupStore();
 const authStore = useAuthStore();

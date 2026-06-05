@@ -1,37 +1,8 @@
 import type { SupabaseFunction } from '@codeshore/data-types';
 import { getSupabaseClient } from '@codeshore/supabase';
 
-export async function getSalaryRange(): Promise<SupabaseFunction.SalaryRange> {
-  const supabase = getSupabaseClient();
-  const { data } = await supabase.rpc(
-    'get_job_salary_stats',
-  );
-  return data;
-}
-
-export async function getJobCount(): Promise<SupabaseFunction.JobCount> {
-  const supabase = getSupabaseClient();
-  const { data } = await supabase.rpc('get_job_count');
-  return data;
-}
-
-export async function getTechComboStats(): Promise<
-  SupabaseFunction.TechComboStat[]
-> {
-  const supabase = getSupabaseClient();
-  const { data } = await supabase.rpc(
-    'get_tech_combo_stats',
-    { p_limit: 15 },
-  );
-  return data ?? [];
-}
-
-export async function getSalaryStats(): Promise<
-  SupabaseFunction.SalaryStat[]
-> {
-  const supabase = getSupabaseClient();
-  const { data } = await supabase.rpc('get_salary_stats');
-  return data ?? [];
+export async function getJobCount() {
+  return getSupabaseClient().rpc('get_job_count');
 }
 
 export async function getJobPreferenceCount(
@@ -45,4 +16,11 @@ export async function getJobPreferenceCount(
     },
   );
   return data;
+}
+
+/**
+ * job_keyword + keyword_group => keyword
+ */
+export async function resetKeywords() {
+  return getSupabaseClient().rpc('reset_keywords');
 }

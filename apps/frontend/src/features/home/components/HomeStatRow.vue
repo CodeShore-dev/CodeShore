@@ -65,9 +65,9 @@ function goJobs(query: Record<string, string> = {}) {
           style="font-size: 2.75rem"
         >{{ store.jobCountText[card.valKey] }}</span>
         <span
-          class="mt-1 flex items-center gap-1 text-xs font-bold text-[#003d92]"
+          class="mt-1 flex self-end items-center gap-1 text-xs font-bold text-[#003d92]"
         >
-          前往查看
+          前往
           <span class="material-symbols-outlined" style="font-size: 14px">arrow_forward</span>
         </span>
       </button>

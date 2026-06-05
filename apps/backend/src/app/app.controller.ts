@@ -1,9 +1,12 @@
-import { Controller, Get, Query, Sse } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Sse,
+} from '@nestjs/common';
 import { Observable, Subject, map } from 'rxjs';
 
 import { Public } from '../features/auth/auth.decorator';
 import { AppService } from './app.service';
-import { QueryDto } from '../features/query.dto';
 
 @Public()
 @Controller()
@@ -12,24 +15,19 @@ export class AppController {
 
   constructor(private readonly appService: AppService) {}
 
-  @Get('/salary-range')
-  getSalaryRange() {
-    return this.appService.getSalaryRange();
-  }
-
   @Get('/job-count')
   getJobCount() {
     return this.appService.getJobCount();
   }
 
-  @Get('/tech-combo-stats')
-  getTechComboStats() {
-    return this.appService.getTechComboStats();
+  @Get('/salary/type/median/ratio')
+  getMvSalaryTypeMedianRatio() {
+    return this.appService.getMvSalaryTypeMedianRatio();
   }
 
-  @Get('/salary-stats')
-  getSalaryStats() {
-    return this.appService.getSalaryStats();
+  @Get('/salary/weighted/ratio')
+  getMvSalaryWeightedRatio() {
+    return this.appService.getMvSalaryWeightedRatio();
   }
 
   @Sse('/sse')

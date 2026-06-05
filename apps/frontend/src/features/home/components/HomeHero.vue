@@ -89,7 +89,7 @@ onUnmounted(() => {
         <div
           class="mt-1 text-sm font-bold tracking-widest text-[#434653]"
         >
-          個職缺 · 現在就查
+          個職缺(含關閉職缺)
         </div>
       </div>
     </div>

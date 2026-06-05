@@ -2,7 +2,7 @@ import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { Cache } from 'cache-manager';
 
-import { cacheAls } from './cache-context';
+import { cacheALS } from './cache-context';
 
 export interface CacheGetOrSetOptions {
   ttl?: number; // seconds; undefined = no expiry
@@ -29,11 +29,11 @@ export class CacheService implements OnModuleInit {
   ): Promise<T> {
     const cached = await this.cache.get<T>(key);
     if (cached !== null && cached !== undefined) {
-      const store = cacheAls.getStore();
+      const store = cacheALS.getStore();
       if (store) store.cacheStatus = 'HIT';
       return cached;
     }
-    const store = cacheAls.getStore();
+    const store = cacheALS.getStore();
     if (store) store.cacheStatus = 'MISS';
     const result = await fn();
     await this.cache.set(key, result, opts?.ttl);

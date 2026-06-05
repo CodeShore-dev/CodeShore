@@ -1,118 +1,74 @@
+import { Database } from './supabase.schema';
+import { Modify, NonNull } from './utils.@types';
+
 export namespace SupabaseTable {
-  export type Job = {
-    id: string;
-    title: string;
-    location: string;
-    detail_link: string;
-    salary: string;
-    description: string;
-    max_salary: number;
-    min_salary: number;
-    salary_type: string;
-    created_at: Date | undefined;
-    updated_at: Date | undefined;
-    company_id: string;
-    closed: boolean;
-  };
+  export type Job = Modify<
+    Database['public']['Tables']['job']['Row'],
+    {
+      updated_at: Date;
+      created_at: Date;
+    }
+  >;
 
-  export type Company = {
-    id: string;
-    name: string;
-    link: string;
-    type: string;
-    created_at: Date;
-  };
+  export namespace Job_ {
+    export type Keyword =
+      Database['public']['Tables']['job_keyword']['Row'];
+    export type KeywordGroup =
+      Database['public']['Tables']['job_keyword_group']['Row'];
+  }
 
-  export type JobKeywordGroup = {
-    job_id: string;
-    keyword_group: string;
-    keywords: string;
-  };
+  export type Company = Modify<
+    Database['public']['Tables']['company']['Row'],
+    {
+      created_at: Date;
+    }
+  >;
 
-  export type JobPreference = {
-    id: string;
-    job_id: string;
-    preference: string;
-    updated_at: Date;
-    user_id: string;
-  };
+  export type JobDescriptionBin =
+    Database['public']['Tables']['job_description_bin']['Row'];
 
-  export type JobKeyword = {
-    id: string;
-    keywords: string[];
-    description_ch_en_ratio: number;
-    job?: Pick<SupabaseTable.Job, 'company_id' | 'closed'>;
-  };
+  export type JobPreference = Modify<
+    Database['public']['Tables']['job_preference']['Row'],
+    {
+      updated_at: Date;
+    }
+  >;
 
-  export type Keyword = {
-    id: string;
-    count: number;
-  };
+  export type Keyword =
+    Database['public']['Tables']['keyword']['Row'];
 
-  export type KeywordGroup = {
-    id: string;
-    label: string;
-    category?: string;
-    parent?: string;
-  };
+  export type KeywordBin =
+    Database['public']['Tables']['keyword_bin']['Row'];
 
-  export type KeywordGroupKeyword = {
-    keyword_group: string;
-    keyword: string;
-  };
+  export type KeywordGroup =
+    Database['public']['Tables']['keyword_group']['Row'];
 
-  export type JobSource = {
-    url: string;
-    host: string;
-  };
+  export namespace KeywordGroup_ {
+    export type Keyword =
+      Database['public']['Tables']['keyword_group_keyword']['Row'];
+  }
 
-  export type JobSourceURL = {
-    url: string;
-    page_index: number;
-    status: string;
-    url_with_page_index?: string;
-  };
+  export type JobSource =
+    Database['public']['Tables']['job_source']['Row'];
 
-  export type JobDescriptionBin = {
-    id: string;
-    content: string;
-  };
+  export type JobSourceURL =
+    Database['public']['Tables']['job_source_url']['Row'];
+
+  export type LocationGroup =
+    Database['public']['Tables']['location_group']['Row'];
+
+  export namespace LocationGroup_ {
+    export type Location =
+      Database['public']['Tables']['location_group_location']['Row'];
+  }
 }
 
 export namespace SupabaseFunction {
-  export type SalaryRange = {
-    avg_min_salary_month: number;
-    avg_max_salary_month: number;
-    avg_min_salary_year: number;
-    avg_max_salary_year: number;
-  };
-
   export type JobCount = {
     jobs: number;
     open_jobs: number;
     month_salary_type_jobs: number;
     year_salary_type_jobs: number;
-  };
-
-  export type TechComboStat = {
-    tech1: string;
-    tech2: string;
-    tech1_label: string;
-    tech2_label: string;
-    cat1: string;
-    cat2: string;
-    job_count: number;
-    avg_min_month: number | null;
-    avg_max_month: number | null;
-    avg_min_year: number | null;
-    avg_max_year: number | null;
-  };
-
-  export type SalaryStat = {
-    salary_type: string;
-    avg_mark: number;
-    high_mark: number;
-    top_mark: number;
   };
 
   export type JobPreferenceCount = {
@@ -122,70 +78,95 @@ export namespace SupabaseFunction {
 }
 
 export namespace SupabaseView {
-  export type JobView = Pick<
-    SupabaseTable.Job,
-    | 'id'
-    | 'title'
-    | 'location'
-    | 'detail_link'
-    | 'salary'
-    | 'salary_type'
-    | 'min_salary'
-    | 'max_salary'
-    | 'created_at'
-    | 'updated_at'
-    | 'description'
-    | 'company_id'
-    | 'closed'
-  > &
-    Pick<
-      SupabaseTable.JobKeyword,
-      'description_ch_en_ratio'
-    > & {
-      company_name: string;
-      company_link: string;
-      company_type: string;
-      job_preference_id: string;
-      keyword_groups: string[];
-      keyword_group_mappings: string[];
-    };
+  /**
+   * company
+   * job
+   * job_keyword_group
+   */
+  export type MvCompany = NonNull<
+    Database['public']['Views']['mv_company']['Row']
+  >;
 
-  export type KeywordGroupView = {
-    keyword_group: string;
-    label: string;
-    count: number;
-    keywords: string[];
-    category: string | null;
-    parent: string | null;
-  };
+  /**
+   * job
+   * job_keyword
+   * company
+   * job_keyword_group
+   * location_group
+   * location_group_location
+   */
+  export type MvJob = Modify<
+    NonNull<Database['public']['Views']['mv_job']['Row']>,
+    {
+      updated_at: Date;
+      created_at: Date;
+    }
+  >;
 
-  export type KeywordGroupCategory = {
-    category: string;
-    count: number;
-  };
+  /**
+   * keyword
+   * keyword_group_keyword
+   * keyword_group
+   * keyword_bin
+   */
+  export type MvKeywordGroup = NonNull<
+    Database['public']['Views']['mv_keyword_group']['Row']
+  >;
 
-  export type CompanyView = {
-    company_id: string;
-    company_name: string;
-    company_link: string;
-    company_type: string;
-    job_count: number;
-    keyword_groups: string[];
-  };
+  /**
+   * keyword_group
+   */
+  export type MvKeywordGroupCategory = NonNull<
+    Database['public']['Views']['mv_keyword_group_category']['Row']
+  >;
 
-  export type LocationGroupView = {
-    location: string;
-    count: number;
-  };
+  /**
+   * job_keyword_group
+   * job
+   * keyword_group
+   */
+  export type MvKeywordGroupRanking = NonNull<
+    Database['public']['Views']['mv_keyword_group_ranking']['Row']
+  >;
 
-  export type MvKeywordGroupRanking = {
-    keyword_group: string;
-    label: string;
-    category: string;
-    job_count: number;
-    avg_min_month: number | null;
-    avg_max_month: number | null;
-    avg_min_year: number | null;
-    avg_max_year: number | null;
-  };
+  /**
+   * keyword_group
+   */
+  export type MvKeywordGroupTags = NonNull<
+    Database['public']['Views']['mv_keyword_group_tags']['Row']
+  >;
+
+  /**
+   * job_keyword_group
+   * job
+   * keyword_group
+   */
+  export type MvLanguageTechComboStats = NonNull<
+    Database['public']['Views']['mv_language_tech_combo_stats']['Row']
+  >;
+
+  /**
+   * job
+   * location_group_location
+   * location_group
+   */
+  export type MvLocationGroup = NonNull<
+    Database['public']['Views']['mv_location_group']['Row']
+  >;
+
+  /**
+   * job
+   * mv_salary_type_median_ratio
+   */
+  export type MvSalaryTypeMedianRatio = NonNull<
+    Database['public']['Views']['mv_salary_type_median_ratio']['Row']
+  >;
+
+  /**
+   * job
+   */
+  export type MvSalaryWeightedRatio = NonNull<
+    Database['public']['Views']['mv_salary_weighted_ratio']['Row']
+  >;
+
 }

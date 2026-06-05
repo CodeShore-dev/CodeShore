@@ -10,7 +10,7 @@ export const fetchKeywordGroupCategories = async (
   query?: ListQuery,
 ) => {
   const { data } = await httpClient.get<
-    ListResponse<SupabaseView.KeywordGroupCategory>
+    ListResponse<SupabaseView.MvKeywordGroupCategory>
   >('/api/keyword/group/category', { params: query });
   return data;
 };
@@ -19,7 +19,7 @@ export const fetchMvKeywordGroup = async (
   query?: ListQuery,
 ) => {
   const { data } = await httpClient.get<
-    ListResponse<SupabaseView.KeywordGroupView>
+    ListResponse<SupabaseView.MvKeywordGroup>
   >('/api/keyword/group', {
     params: {
       ...query,

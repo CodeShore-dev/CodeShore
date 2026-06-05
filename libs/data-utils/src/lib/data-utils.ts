@@ -1,101 +1,27 @@
 import { SupabaseTable } from '@codeshore/data-types';
 import { parseKeywordsOut } from '@codeshore/shared-utils';
-import { getSupabaseClient } from '@codeshore/supabase';
 
-import { fetchJobs } from './api/job';
-import { fetchJobDescriptionBins } from './api/job_description_bin';
-import {
-  fetchJobKeywords,
-  upsertJobKeywords,
-} from './api/job_keyword';
-import { resetJobKeywordGroupsByJobKeywords } from './api/job_keyword_group';
-import {
-  createKeywordGroup,
-  updateKeywordGroup,
-} from './api/keyword_group';
-import {
-  createKeywordGroupKeyword,
-  updateKeywordGroupKeyword,
-} from './api/keyword_group_keyword';
-import { resetKeywords } from './api/mv_keyword';
-import {
-  fetchMvKeywordGroup,
-  refreshMvKeywordGroup,
-} from './api/mv_keyword_group';
-
-export async function addKeywordToKeywordGroup(
-  groupId: string,
-  keyword: string,
-  category: string | null = null,
-  parent: string | null = null,
-): Promise<void> {
-  const supabase = getSupabaseClient();
-  const lowerKeyword = keyword.toLowerCase();
-  const { data: existing, error: fetchError } =
-    await supabase
-      .from('keyword_group')
-      .select('keywords')
-      .eq('id', groupId)
-      .single();
-
-  if (fetchError || !existing) {
-    const { error } = await supabase
-      .from('keyword_group')
-      .insert({
-        id: groupId,
-        keywords: [lowerKeyword],
-        category,
-        parent,
-      });
-    if (error) {
-      console.error(
-        '[Supabase:addKeywordToGroup] Error creating group:',
-        error,
-      );
-      throw error;
-    }
-  } else {
-    const updated = Array.from(
-      new Set([...existing.keywords, lowerKeyword]),
-    );
-    const { error } = await supabase
-      .from('keyword_group')
-      .update({ keywords: updated })
-      .eq('id', groupId);
-    if (error) {
-      console.error(
-        '[Supabase:addKeywordToGroup] Error updating group:',
-        error,
-      );
-      throw error;
-    }
-  }
-  console.log(
-    `[Supabase:addKeywordToGroup] Added "${lowerKeyword}" to group "${groupId}"`,
-  );
-}
+import { JobService } from './api/job.service';
+import { JobDescriptionBinService } from './api/job_description_bin.service';
+import { JobKeywordService } from './api/job_keyword.service';
+import { JobKeywordGroupService } from './api/job_keyword_group.service';
+import { MvKeywordGroupService } from './api/mv_keyword_group';
+import { resetKeywords } from './api/rpc';
 
 export async function resetJobKeywords(
   keywordGroup?: string,
   keyword?: string,
 ) {
   const { result: jobDescriptionBins } =
-    await fetchJobDescriptionBins({
-      from: 0,
-      to: -1,
-    });
+    await new JobDescriptionBinService().fetchAll();
   const { result: keywordGroups } =
-    await fetchMvKeywordGroup({
-      from: 0,
-      to: -1,
+    await new MvKeywordGroupService().fetchAll({
       where: { category: { 'not.is': null } },
     });
-  const { result: jobs } = await fetchJobs({
-    from: 0,
-    to: -1,
-  });
-  const jobKeywords: SupabaseTable.JobKeyword[] = jobs.map(
-    x => ({
+  const { result: jobs } =
+    await new JobService().fetchAll();
+  const jobKeywords: SupabaseTable.Job_.Keyword[] =
+    jobs.map(x => ({
       id: x.id,
       ...parseKeywordsOut(
         jobDescriptionBins.reduce((prev, curr) => {
@@ -109,9 +35,8 @@ export async function resetJobKeywords(
             ) as string[],
           ),
       ),
-    }),
-  );
-  return upsertJobKeywords(jobKeywords);
+    }));
+  return new JobKeywordService().upsert(jobKeywords);
 }
 
 export async function resetJobKeywords_Keywords_JobKeywordGroup(
@@ -119,31 +44,7 @@ export async function resetJobKeywords_Keywords_JobKeywordGroup(
   keyword?: string,
 ) {
   await resetJobKeywords(keywordGroup, keyword);
-  const { result: jobKeywords } = await fetchJobKeywords({
-    from: 0,
-    to: -1,
-  });
   await resetKeywords();
-  await refreshMvKeywordGroup();
-  await resetJobKeywordGroupsByJobKeywords(jobKeywords);
-}
-
-export async function createKeywordGroup_KeywordGroupKeyword(
-  keywordGroup: string,
-  keywords: string[],
-  category: string | null = null,
-  parent: string | null = null,
-) {
-  await createKeywordGroup(keywordGroup, category, parent);
-  return createKeywordGroupKeyword(keywordGroup, keywords);
-}
-
-export async function updateKeywordGroup_KeywordGroupKeyword(
-  keywordGroup: string,
-  keywords: string[],
-  category: string | null = null,
-  parent: string | null = null,
-) {
-  await updateKeywordGroup(keywordGroup, category, parent);
-  return updateKeywordGroupKeyword(keywordGroup, keywords);
+  await new MvKeywordGroupService().refresh();
+  await new JobKeywordGroupService().resetByJobKeywords();
 }

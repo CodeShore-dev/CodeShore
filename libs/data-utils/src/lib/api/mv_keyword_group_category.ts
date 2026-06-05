@@ -1,22 +1,17 @@
 import {
-  ListQuery,
   SupabaseView,
 } from '@codeshore/data-types';
+import { ServiceLogger } from '@codeshore/service-logger';
 import { getSupabaseClient } from '@codeshore/supabase';
 
-import { fetchList } from './utils';
+import { MaterializedViewService } from '../shared-services/supabase/materialized-view.service';
 
-
-export async function fetchMvKeywordGroupCategories(
-  query: ListQuery,
-) {
-  const supabase = getSupabaseClient();
-  const builder = supabase
-    .from('mv_keyword_group_category')
-    .select('*', { count: 'exact' });
-
-  return fetchList<SupabaseView.KeywordGroupCategory>(
-    builder,
-    query,
-  );
+export class MvKeywordGroupCategoryService extends MaterializedViewService<SupabaseView.MvKeywordGroupCategory> {
+  constructor(logger?: ServiceLogger) {
+    super(
+      getSupabaseClient(),
+      'mv_keyword_group_category',
+      logger,
+    );
+  }
 }

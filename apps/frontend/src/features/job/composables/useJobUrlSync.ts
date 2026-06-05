@@ -55,7 +55,7 @@ export function useJobUrlSync() {
   store.fetchListJobs({ preference: initialTab, page: initialPage, loadingEffect: true });
   nextTick(() => { store.initialized = true; });
 
-  keywordStore.getKeywordGroupView();
+  keywordStore.getMvKeywordGroup();
   keywordStore.getKeywordGroupCategories();
   store.getLocationGroups();
 

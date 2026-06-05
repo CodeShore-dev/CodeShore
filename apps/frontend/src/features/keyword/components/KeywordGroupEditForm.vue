@@ -6,7 +6,7 @@ import { SupabaseView } from '@codeshore/data-types';
 import { CATEGORY_LABEL_MAP, useKeywordStore } from '../useKeywordStore';
 import { useKeywordGroupStore } from '../useKeywordGroupStore';
 
-type KeywordGroupView = SupabaseView.KeywordGroupView;
+type KeywordGroupView = SupabaseView.MvKeywordGroup;
 
 const props = defineProps<{ group: KeywordGroupView }>();
 const emit = defineEmits<{ save: []; cancel: [] }>();

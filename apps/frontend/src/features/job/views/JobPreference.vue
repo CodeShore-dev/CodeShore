@@ -147,7 +147,7 @@ function clearAllFilters(): void {
           "
         >
           <button
-            class="w-full p-4 text-center active:scale-95"
+            class="w-full h-full p-4 text-center active:scale-95"
             :class="store.listViewPreference !== tab.pref ? 'cursor-pointer hover:bg-[#f4faff] rounded-xl' : ''"
             @click="tab.onClick()"
           >

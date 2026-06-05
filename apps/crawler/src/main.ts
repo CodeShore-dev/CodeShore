@@ -1,4 +1,5 @@
 import { Configuration, PuppeteerCrawler } from 'crawlee';
+import dayjs from 'dayjs';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import { addExtra } from 'puppeteer-extra';
@@ -7,13 +8,12 @@ import rebrowserPuppeteer from 'rebrowser-puppeteer';
 
 import { SupabaseTable } from '@codeshore/data-types';
 import {
-  fetchJobSourceURLs,
-  fetchJobSources,
-  fetchJobs,
+  JobKeywordService,
+  JobService,
+  JobSourceService,
+  JobSourceURLService,
   fetchMvKeywordGroup,
   resetJobKeywords_Keywords_JobKeywordGroup,
-  upsertJobKeywords,
-  upsertJobs,
 } from '@codeshore/data-utils';
 import {
   parseKeywordsOut,
@@ -79,7 +79,10 @@ async function applyStealthOnNavigation({
   });
 }
 
-function splitTopLevel(expr: string, sep: string): string[] {
+function splitTopLevel(
+  expr: string,
+  sep: string,
+): string[] {
   const parts: string[] = [];
   let depth = 0;
   let current = '';
@@ -117,26 +120,27 @@ function parseWhereExpr(expr: string): Record<string, any> {
 
 interface PendingBatch {
   jobs: SupabaseTable.Job[];
-  jobKeywords: Omit<SupabaseTable.JobKeyword, 'job'>[];
+  jobKeywords: Omit<SupabaseTable.Job_.Keyword, 'job'>[];
 }
 
 async function updateJobs(
   allGroupKeywords: string[],
   where?: Record<string, any>,
 ): Promise<void> {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const todayDayjs = dayjs();
+  const yesterday = todayDayjs.subtract(1, 'day').toDate();
+  yesterday.setHours(0, 0, 0, 0);
   const resolvedWhere = where ?? {
-    updated_at: { lt: today.toISOString() },
+    updated_at: { lt: yesterday.toISOString() },
   };
-  const { result: jobs } = await fetchJobs({
-    from: 0,
-    to: -1,
+  const { result: jobs } = await new JobService().fetchAll({
     where: resolvedWhere,
     orders: [{ column: 'min_salary', ascending: false }],
   });
 
-  console.log(`[update] ${jobs.length} job(s) to update`);
+  console.log(
+    `[update] ${jobs.length} job(s) to update (${JSON.stringify(resolvedWhere)})`,
+  );
 
   let processedCount = 0;
   let rollingAvgMs = 0;
@@ -153,9 +157,11 @@ async function updateJobs(
     log: { info: (msg: string) => void },
   ): Promise<void> {
     if (pending.jobs.length === 0) return;
-    await upsertJobs([...pending.jobs]);
+    await new JobService().upsert([...pending.jobs]);
     if (pending.jobKeywords.length > 0) {
-      await upsertJobKeywords([...pending.jobKeywords]);
+      await new JobKeywordService().upsert([
+        ...pending.jobKeywords,
+      ]);
     }
     log.info(
       `[update] Flushed ${pending.jobs.length} jobs`,
@@ -357,19 +363,16 @@ async function main() {
       const groupKeywords = keywordGroups.flatMap(
         m => m.keywords,
       );
-      const { result } = await fetchJobs({
-        from: 0,
-        to: -1,
-      });
+      const { result } = await new JobService().fetchAll();
       if (salaryArg) {
-        await upsertJobs(
+        await new JobService().upsert(
           result.map(x => ({
             ...x,
             ...parseSalary(x.salary),
           })),
         );
       } else if (keywordArg) {
-        await upsertJobKeywords(
+        await new JobKeywordService().upsert(
           result.map(x => ({
             id: x.id,
             ...parseKeywordsOut(
@@ -417,10 +420,12 @@ async function main() {
         });
 
         const { result: pendingJobSourceURLs } =
-          await fetchJobSourceURLs({
-            from: 0,
-            to: -1,
+          await new JobSourceURLService().fetchAll({
             where: { status: { eq: 'pending' } },
+            orders: [
+              { column: 'url', ascending: true },
+              { column: 'page_index', ascending: true },
+            ],
           });
 
         let jobSourceURLs: (SupabaseTable.JobSourceURL & {
@@ -434,6 +439,7 @@ async function main() {
           );
           jobSourceURLs = pendingJobSourceURLs.map(x => ({
             ...x,
+            host: new URL(x.url).host,
             url_with_page_index: setPageIndex(
               x.url,
               x.page_index,
@@ -444,12 +450,12 @@ async function main() {
             '>>> Fresh mode: starting from page=1',
           );
           const { result: jobSources } =
-            await fetchJobSources({ from: 0, to: -1 });
+            await new JobSourceService().fetchAll();
           jobSourceURLs = jobSources.map(x => ({
             url: x.url,
             page_index: 1,
             status: 'pending',
-            host: x.host,
+            host: new URL(x.url).host,
             url_with_page_index: setPageIndex(x.url, 1),
           }));
         }
@@ -509,7 +515,6 @@ async function main() {
         }
       }
     }
-
   }
   await resetJobKeywords_Keywords_JobKeywordGroup();
 }

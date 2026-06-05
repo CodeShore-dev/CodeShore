@@ -6,7 +6,7 @@ export type LoggerRequest = {
   headers?: Record<string, string>;
   caller?: string;
   method?: string;
-  name: string;
+  name?: string;
   host?: string;
   path?: string;
   url?: string;
@@ -18,9 +18,13 @@ export type LoggerRequest = {
 export type LogResponseFn = (
   response: LoggerResponse,
 ) => void;
-export type LogExceptionFn = (
-  error: Error,
+export type LogExceptionFn<T = Error> = (
+  error: T,
   isExpected?: boolean,
+  fromErrorToResponse?: (error: T) => {
+    status?: number;
+    data: unknown;
+  },
 ) => void;
 
 export type LoggerResponse = {
@@ -31,9 +35,9 @@ export type LoggerResponse = {
 export class OutboundLogger {
   constructor(private logger: ServiceLogger) {}
 
-  public logRequest(request: LoggerRequest): {
+  public logRequest<T>(request: LoggerRequest): {
     logResponse: LogResponseFn;
-    logException: LogExceptionFn;
+    logException: LogExceptionFn<T>;
   } {
     const request_now = new Date();
 
@@ -65,20 +69,29 @@ export class OutboundLogger {
 
     let path = request.path;
     if (!path && urlObject) {
-      path = host
-        ? urlObject.href.replace(
-            new RegExp(`https?://${host}`),
-            '',
-          )
-        : urlObject.pathname;
+      path = urlObject.pathname;
+    }
+
+    let request_query = stringifyObject(request.query);
+    if (request_query && urlObject) {
+      request_query = stringifyObject(
+        Array.from(urlObject.searchParams.entries()).reduce(
+          (prev, curr) => {
+            const [key, value] = curr;
+            prev[key] = value;
+            return prev;
+          },
+          {} as Record<string, any>,
+        ),
+      );
     }
     const msgInfo = {
-      name: request.name.replace(/^_/, ''),
+      name: request.name?.replace(/^_/, '') || undefined,
       caller: request.caller,
       method: request.method ?? 'GET',
       host,
       path,
-      request_query: stringifyObject(request.query),
+      request_query,
       request_params: stringifyObject(request.params),
       request_body: Buffer.isBuffer(request.body)
         ? `a ${request.body.length} bytes binary`
@@ -91,10 +104,10 @@ export class OutboundLogger {
       type: 'request',
     };
 
-    this.logger.log(msgInfo);
+    // this.logger.debug(msgInfo);
 
     const logBase = (
-      level: 'log' | 'error' | 'warn',
+      level: 'debug' | 'error' | 'warn',
       response: { status?: number; data: unknown },
     ) => {
       const response_now = new Date();
@@ -113,18 +126,23 @@ export class OutboundLogger {
 
     return {
       logResponse(response: LoggerResponse) {
-        logBase('log', response);
+        logBase('debug', response);
       },
-      logException(
-        error: Error,
+      logException<T>(
+        error: T,
         isExpected: boolean = false,
+        fromErrorToResponse?: (error: T) => {
+          status?: number;
+          data: unknown;
+        },
       ) {
         const axiosError = error as AxiosError;
-        const response = {
-          status: axiosError.response?.status,
-          data:
-            axiosError.response?.data ?? error.toString(),
-        };
+        const response = fromErrorToResponse
+          ? fromErrorToResponse(error)
+          : {
+              status: axiosError.response?.status,
+              data: axiosError.response?.data ?? error,
+            };
         logBase(isExpected ? 'warn' : 'error', response);
       },
     };

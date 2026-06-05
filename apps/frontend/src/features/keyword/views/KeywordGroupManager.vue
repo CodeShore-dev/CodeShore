@@ -19,7 +19,7 @@ const authStore = useAuthStore();
 const route = useRoute();
 const router = useRouter();
 
-keywordStore.getKeywordGroupView();
+keywordStore.getMvKeywordGroup();
 keywordStore.getKeywordGroupCategories();
 
 store.groupsFilter =

@@ -3,13 +3,15 @@ import { spawn } from 'child_process';
 import { Observable } from 'rxjs';
 
 import {
-  upsertJobPreference,
-  deleteJobPreferences,
-  fetchMvJobs,
-  fetchMvLocationGroup,
+  JobPreferenceService,
+  MvLocationGroupService,
+  MvJobService,
   getJobPreferenceCount,
 } from '@codeshore/data-utils';
-import { Cacheable, CacheService } from '@codeshore/service-cache';
+import {
+  CacheService,
+  Cacheable,
+} from '@codeshore/service-cache';
 
 import { QueryDto } from '../query.dto';
 
@@ -18,15 +20,20 @@ const CACHE_KEY_LOCATION_GROUP = 'job:location:groups';
 
 @Injectable()
 export class Service {
-  constructor(private readonly cacheService: CacheService) {}
+  constructor(
+    private readonly cacheService: CacheService,
+    private readonly jobPreferenceService: JobPreferenceService,
+    private readonly mvLocationGroupService: MvLocationGroupService,
+    private readonly mvJobService: MvJobService,
+  ) {}
 
-  async getJobs(query: QueryDto, userId: string) {
-    return fetchMvJobs(query, userId);
+  async getMvJobs(query: QueryDto, userId: string) {
+    return this.mvJobService.fetchMvJobsByUserAndPreference(query, userId);
   }
 
   @Cacheable({ key: CACHE_KEY_LOCATION_GROUP })
   async getLocationGroups(query: QueryDto) {
-    return fetchMvLocationGroup(query);
+    return this.mvLocationGroupService.fetch(query);
   }
 
   async getJobPreferencedCount(userId: string) {
@@ -42,14 +49,27 @@ export class Service {
     preference: string,
     userId: string,
   ) {
-    const result = await upsertJobPreference(jobId, preference, userId);
-    await this.cacheService.invalidate(`job-preference-count:${userId}`);
+    const result = await this.jobPreferenceService.upsert([
+      { job_id: jobId, preference, user_id: userId },
+    ]);
+    await this.cacheService.invalidate(
+      `job-preference-count:${userId}`,
+    );
     return result;
   }
 
-  async clearJobPreferences(preference: string, userId: string) {
-    const result = await deleteJobPreferences(preference, userId);
-    await this.cacheService.invalidate(`job-preference-count:${userId}`);
+  async clearJobPreferences(
+    preference: string,
+    userId: string,
+  ) {
+    const result =
+      await this.jobPreferenceService.deleteByUserAndPreference(
+        userId,
+        preference,
+      );
+    await this.cacheService.invalidate(
+      `job-preference-count:${userId}`,
+    );
     return result;
   }
 

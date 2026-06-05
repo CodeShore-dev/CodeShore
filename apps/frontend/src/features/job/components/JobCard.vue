@@ -18,7 +18,7 @@ import JobHandoffCTA from './JobHandoffCTA.vue';
 import JobKeywordChips from './JobKeywordChips.vue';
 import JobKeywordPopover from './JobKeywordPopover.vue';
 
-type Props = { job?: Partial<SupabaseView.JobView> };
+type Props = { job?: Partial<SupabaseView.MvJob> };
 const props = withDefaults(defineProps<Props>(), { job: () => ({}) });
 
 const store = useJobStore();
@@ -94,7 +94,7 @@ const description = computed(() => {
             <span class="text-sm font-bold text-[#434653]">{{ job.company_name }}</span>
           </div>
           <h3
-            class="mb-4 text-[36px] font-black leading-tight tracking-[-0.02em] break-words"
+            class="mb-4 text-[36px] font-black leading-tight tracking-[-0.02em] wrap-break-word"
             :class="job.closed ? 'text-[#001f2a]/40' : 'text-[#001f2a]'"
           >{{ job.title }}</h3>
           <div class="flex flex-wrap items-center gap-4 text-sm text-[#434653]">

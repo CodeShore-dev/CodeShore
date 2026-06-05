@@ -1,16 +1,12 @@
-import {
-  ListQuery,
-  SupabaseView,
-} from '@codeshore/data-types';
+import { SupabaseView } from '@codeshore/data-types';
+import { ServiceLogger } from '@codeshore/service-logger';
 import { getSupabaseClient } from '@codeshore/supabase';
 
-import { fetchList } from './utils';
+import { MaterializedViewService } from '../shared-services/supabase/materialized-view.service';
 
-export async function fetchMvLocationGroup(query: ListQuery) {
-  const supabase = getSupabaseClient();
-  const builder = supabase
-    .from('mv_location_group')
-    .select('*', { count: 'exact' });
-
-  return fetchList<SupabaseView.LocationGroupView>(builder, query);
+export class MvLocationGroupService extends MaterializedViewService<SupabaseView.MvLocationGroup> {
+  constructor(logger?: ServiceLogger) {
+    super(getSupabaseClient(), 'mv_location_group', logger);
+  }
 }
+

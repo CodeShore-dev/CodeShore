@@ -22,15 +22,18 @@ export class QueryLimitGuard implements CanActivate {
     if (maxTo === undefined) return true;
 
     const request = context.switchToHttp().getRequest<Request>();
+    const fromParam = request.query['from'];
     const toParam = request.query['to'];
 
-    if (toParam === undefined) return true;
+    if (fromParam === undefined || toParam === undefined) return true;
 
     const to = Number(toParam);
+    const from = Number(fromParam);
+    const pageSize = to - from;
 
-    if (isNaN(to) || to < 0 || to > maxTo) {
+    if (isNaN(pageSize) || pageSize < 0 || pageSize > maxTo) {
       throw new BadRequestException(
-        `Query parameter "to" must be between 0 and ${maxTo}`,
+        `The gap between query parameter "from" and "to" must be limited to between 0 and ${maxTo}`,
       );
     }
 

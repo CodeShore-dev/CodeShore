@@ -31,14 +31,14 @@ function goJobs(query: Record<string, string> = {}) {
       <span class="text-[#003d92]">職缺裡最常同時出現的技術組合</span>
     </div>
 
-    <div v-if="loading" class="grid grid-cols-2 gap-3 md:[grid-template-columns:1.4fr_1fr_1fr]">
+    <div v-if="loading" class="grid grid-cols-2 gap-3 md:grid-cols-[1.4fr_1fr_1fr]">
       <div class="col-span-2 h-60 animate-pulse rounded-xl bg-[#d9f2ff] md:col-span-1 md:row-span-2 md:h-72" />
       <div v-for="i in 4" :key="i" class="h-32 animate-pulse rounded-xl bg-[#d9f2ff]" />
     </div>
 
     <div
       v-else-if="topCombo"
-      class="grid gap-3 grid-cols-2 md:[grid-template-columns:1.4fr_1fr_1fr]"
+      class="grid gap-3 grid-cols-2 md:grid-cols-[1.4fr_1fr_1fr]"
     >
       <!-- Hero combo (#1) -->
       <button

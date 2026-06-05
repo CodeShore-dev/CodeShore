@@ -6,11 +6,9 @@ import {
 import { ListQuery } from '../../@types';
 import { httpClient } from '../../httpClient';
 
-export const fetchCompanies = async (
-  query?: ListQuery,
-): Promise<ListResponse<SupabaseView.CompanyView>> => {
+export const fetchCompanies = async (query?: ListQuery) => {
   const { data } = await httpClient.get<
-    ListResponse<SupabaseView.CompanyView>
+    ListResponse<SupabaseView.MvCompany>
   >('/api/company', {
     params: {
       ...query,

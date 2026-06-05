@@ -6,12 +6,11 @@ import { Page } from 'puppeteer';
 
 import { SupabaseTable } from '@codeshore/data-types';
 import {
+  CompanyService,
+  JobService,
   createJobSourceURLs,
-  fetchJobs,
-  updateJobSourceURL,
-  upsertCompanies,
-  upsertJobKeywords,
-  upsertJobs,
+  upsertJobSourceURL,
+  JobKeywordService,
 } from '@codeshore/data-utils';
 
 import { ExistingJob, RequireToCrawlJob } from './@types';
@@ -66,7 +65,7 @@ export const createRouter = <
   ) => {
     job: SupabaseTable.Job;
     company: SupabaseTable.Company;
-    jobKeyword: SupabaseTable.JobKeyword;
+    jobKeyword: SupabaseTable.Job_.Keyword;
   };
   allGroupKeywords: string[];
   transformJob: (
@@ -79,7 +78,8 @@ export const createRouter = <
   let batchSize = 1;
   const pendingCompanies: SupabaseTable.Company[] = [];
   const pendingJobs: SupabaseTable.Job[] = [];
-  const pendingJobKeywords: SupabaseTable.JobKeyword[] = [];
+  const pendingJobKeywords: SupabaseTable.Job_.Keyword[] =
+    [];
 
   let listPageAvgDuration = 0;
   let listPageCount = 0;
@@ -121,9 +121,11 @@ export const createRouter = <
       return;
     const companyCount = pendingCompanies.length;
     const jobCount = pendingJobs.length;
-    await upsertCompanies([...pendingCompanies]);
-    await upsertJobs([...pendingJobs]);
-    await upsertJobKeywords([...pendingJobKeywords]);
+    await new CompanyService().upsert([
+      ...pendingCompanies,
+    ]);
+    await new JobService().upsert([...pendingJobs]);
+    await new JobKeywordService().upsert([...pendingJobKeywords]);
     pendingCompanies.length = 0;
     pendingJobs.length = 0;
     log?.info(
@@ -217,11 +219,10 @@ export const createRouter = <
         );
 
         if (existingJobs.length === 0) {
-          ({ result: existingJobs } = await fetchJobs({
-            from: 0,
-            to: -1,
-            select: 'id, updated_at, created_at',
-          }));
+          ({ result: existingJobs } =
+            await new JobService().fetchAll({
+              select: 'id, updated_at, created_at',
+            }));
         }
 
         const jobs = getJobsFromResponse(response)
@@ -274,7 +275,10 @@ export const createRouter = <
           );
         }
         if (currentPage === 1 && totalPages > 1) {
-          await createJobSourceURLs(request.url, totalPages);
+          await createJobSourceURLs(
+            request.url,
+            totalPages,
+          );
         }
         if (currentPage < totalPages) {
           await enqueueLinks({
@@ -285,7 +289,7 @@ export const createRouter = <
             }),
           });
         }
-        await updateJobSourceURL(
+        await upsertJobSourceURL(
           request.url,
           currentPage,
           'completed',
@@ -303,7 +307,7 @@ export const createRouter = <
           `List page ${currentPage}/${totalPages} took ${formatDuration(pageElapsed)}. Est. finish: ${estimateFinishTime()}`,
         );
       } catch (error) {
-        await updateJobSourceURL(
+        await upsertJobSourceURL(
           request.url,
           currentPage,
           'failed',

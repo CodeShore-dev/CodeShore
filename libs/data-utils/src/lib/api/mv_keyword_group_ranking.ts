@@ -1,34 +1,17 @@
 import {
-  ListQuery,
   SupabaseView,
 } from '@codeshore/data-types';
+import { ServiceLogger } from '@codeshore/service-logger';
 import { getSupabaseClient } from '@codeshore/supabase';
 
-import { fetchList } from './utils';
+import { MaterializedViewService } from '../shared-services/supabase/materialized-view.service';
 
-export async function fetchMvKeywordGroupRanking(query: ListQuery) {
-  const supabase = getSupabaseClient();
-  const builder = supabase
-    .from('mv_keyword_group_ranking')
-    .select(query.select, { count: 'exact' });
-
-  return fetchList<SupabaseView.MvKeywordGroupRanking>(builder, query);
-}
-
-export async function refreshMvKeywordGroupRanking() {
-  const supabase = getSupabaseClient();
-  const { error } = await supabase.rpc(
-    'mv_keyword_group_ranking',
-  );
-
-  if (error) {
-    console.error(
-      '[Supabase:refreshMvKeywordGroupRanking] Error refreshing mv_keyword_group_ranking ',
-      error,
-    );
-  } else {
-    console.log(
-      `[Supabase:refreshMvKeywordGroupRanking] Successfully refreshed mv_keyword_group_ranking.`,
+export class MvKeywordGroupRankingService extends MaterializedViewService<SupabaseView.MvKeywordGroupRanking> {
+  constructor(logger?: ServiceLogger) {
+    super(
+      getSupabaseClient(),
+      'mv_keyword_group_ranking',
+      logger,
     );
   }
 }

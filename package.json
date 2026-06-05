@@ -99,6 +99,7 @@
     "react-refresh": "^0.17.0",
     "rollup-plugin-visualizer": "^6.0.3",
     "run-script-webpack-plugin": "^0.2.3",
+    "supabase": "^2.104.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "tailwindcss": "^4.2.2",

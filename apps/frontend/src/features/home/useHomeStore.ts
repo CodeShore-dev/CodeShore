@@ -10,20 +10,19 @@ import { formatNumber } from '../../utils/format';
 import {
   fetchJobCount,
   fetchMvKeywordGroupRanking,
-  fetchSalaryRange,
-  fetchSalaryStats,
-  fetchTechComboStats,
+  fetchMvSalaryTypeMedianRatio,
+  fetchMvSalaryWeightedRatio,
 } from './service';
 
 export const useHomeStore = defineStore('home', () => {
   const mvKeywordGroupRankingLoading = ref(false);
 
-  const salaryRange = ref<SupabaseFunction.SalaryRange>({
-    avg_min_salary_month: 0,
-    avg_max_salary_month: 0,
-    avg_min_salary_year: 0,
-    avg_max_salary_year: 0,
-  });
+  const salaryTypeMedianRatio = ref<
+    SupabaseView.MvSalaryTypeMedianRatio[]
+  >([]);
+  const salaryWeightedRatio = ref<
+    SupabaseView.MvSalaryWeightedRatio[]
+  >([]);
 
   const jobCount = ref<SupabaseFunction.JobCount>({
     jobs: 0,
@@ -35,16 +34,15 @@ export const useHomeStore = defineStore('home', () => {
   const mvKeywordGroupRanking = ref<
     SupabaseView.MvKeywordGroupRanking[]
   >([]);
-  const techComboStats = ref<
-    SupabaseFunction.TechComboStat[]
-  >([]);
-  const salaryStats = ref<SupabaseFunction.SalaryStat[]>(
-    [],
-  );
 
-  const getSalaryRange = async () => {
-    const res = await fetchSalaryRange();
-    salaryRange.value = res;
+  const getMvSalaryTypeMedianRatio = async () => {
+    salaryTypeMedianRatio.value =
+      await fetchMvSalaryTypeMedianRatio();
+  };
+
+  const getMvSalaryWeightedRatio = async () => {
+    salaryWeightedRatio.value =
+      await fetchMvSalaryWeightedRatio();
   };
 
   const getJobCount = async () => {
@@ -59,38 +57,30 @@ export const useHomeStore = defineStore('home', () => {
     ({ result: mvKeywordGroupRanking.value } =
       await fetchMvKeywordGroupRanking({
         from: 0,
-        to: 15,
-        where: category && category !== 'all'
-          ? JSON.stringify({ category: { eq: category } })
-          : undefined,
+        to: 4,
+        where: JSON.stringify({
+          category: { eq: category },
+        }),
         orders: 'job_count:desc',
       }));
     mvKeywordGroupRankingLoading.value = false;
   };
 
-  const getTechComboStats = async () => {
-    techComboStats.value = await fetchTechComboStats();
-  };
-
-  const getSalaryStats = async () => {
-    salaryStats.value = await fetchSalaryStats();
-  };
-
   const salaryBenchmarks = computed(() => {
-    const yearSalary = salaryStats.value.find(
+    const yearSalary = salaryTypeMedianRatio.value.find(
       stat => stat.salary_type === 'year',
     );
-    const monthSalary = salaryStats.value.find(
+    const monthSalary = salaryTypeMedianRatio.value.find(
       stat => stat.salary_type === 'month',
     );
     return {
       month: {
-        均標: monthSalary?.avg_mark,
+        均標: monthSalary?.median_mark,
         高標: monthSalary?.high_mark,
         頂標: monthSalary?.top_mark,
       },
       year: {
-        均標: yearSalary?.avg_mark,
+        均標: yearSalary?.median_mark,
         高標: yearSalary?.high_mark,
         頂標: yearSalary?.top_mark,
       },
@@ -110,16 +100,14 @@ export const useHomeStore = defineStore('home', () => {
 
   return {
     jobCount,
-    salaryRange,
+    salaryTypeMedianRatio,
     salaryBenchmarks,
     jobCountText,
     mvKeywordGroupRanking,
-    techComboStats,
     mvKeywordGroupRankingLoading,
-    getSalaryRange,
+    getMvSalaryTypeMedianRatio,
+    getMvSalaryWeightedRatio,
     getJobCount,
     getMvKeywordGroupRanking,
-    getTechComboStats,
-    getSalaryStats,
   };
 });

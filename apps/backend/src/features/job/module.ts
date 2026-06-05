@@ -1,11 +1,23 @@
 import { Module as ModuleDecorator } from '@nestjs/common';
 
+import {
+  JobPreferenceService,
+  MvJobService,
+  MvLocationGroupService,
+} from '@codeshore/data-utils';
+
+import { provideWithLogger } from '../logger-provider';
 import { Controller } from './controller';
 import { Service } from './service';
 
 @ModuleDecorator({
   imports: [],
   controllers: [Controller],
-  providers: [Service],
+  providers: [
+    Service,
+    provideWithLogger(JobPreferenceService),
+    provideWithLogger(MvLocationGroupService),
+    provideWithLogger(MvJobService),
+  ],
 })
 export class Module {}
