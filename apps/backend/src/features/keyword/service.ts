@@ -6,43 +6,61 @@ import {
   createKeywordGroup_KeywordGroupKeyword,
   deleteJobKeywordGroup,
   deleteKeywordGroup,
-  fetchMvKeywordGroupCategories,
+  deleteKeywordGroupKeyword,
   fetchMvKeywordGroup,
+  fetchMvKeywordGroupCategories,
+  fetchMvKeywordGroupRanking,
   resetJobKeywords_Keywords_JobKeywordGroup,
   updateKeywordGroup_KeywordGroupKeyword,
-  deleteKeywordGroupKeyword,
 } from '@codeshore/data-utils';
 import {
+  CacheEvict,
   CacheService,
   Cacheable,
-  CacheEvict,
 } from '@codeshore/service-cache';
 
 import { QueryDto } from './../query.dto';
 
 const CACHE_KEY_GROUP_VIEW = 'keyword:group:view';
-const CACHE_KEY_GROUP_CATEGORIES = 'keyword:group:categories';
+const CACHE_KEY_GROUP_RANKING = 'keyword:group:ranking';
+const CACHE_KEY_GROUP_CATEGORIES =
+  'keyword:group:categories';
 const GROUP_CACHE_KEYS = [
   CACHE_KEY_GROUP_VIEW,
   CACHE_KEY_GROUP_CATEGORIES,
 ];
 
-function isTheQuery(query: QueryDto): boolean {
+function isFetchAllQuery(query: QueryDto): boolean {
   return query.from === 0 && query.to === -1;
 }
 
 @Injectable()
 export class Service {
-  constructor(private readonly cacheService: CacheService) {}
+  constructor(
+    private readonly cacheService: CacheService,
+  ) {}
 
   async getKeywordGroupView(query: QueryDto) {
-    if (isTheQuery(query)) {
+    if (isFetchAllQuery(query)) {
       return this.cacheService.getOrSet(
         CACHE_KEY_GROUP_VIEW,
         () => fetchMvKeywordGroup(query),
       );
     }
     return fetchMvKeywordGroup(query);
+  }
+
+  async getMvKeywordGroupRanking(query: QueryDto) {
+    const isTheRequestFromHomePage = query.from === 0 && query.to === 15
+    if (isTheRequestFromHomePage) {
+      return this.cacheService.getOrSet(
+        query.where?.category?.eq
+          ? `${CACHE_KEY_GROUP_RANKING}:${query.where.category.eq}`
+          : CACHE_KEY_GROUP_RANKING,
+        () => fetchMvKeywordGroupRanking(query),
+      );
+    }
+    return fetchMvKeywordGroupRanking(query);
   }
 
   @Cacheable({ key: CACHE_KEY_GROUP_CATEGORIES })
@@ -115,3 +133,4 @@ export class Service {
     );
   }
 }
+

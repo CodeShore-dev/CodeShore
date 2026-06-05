@@ -11,20 +11,17 @@ const router = useRouter();
 const statCards = [
   {
     label: '所有職缺',
-    valKey: 'total' as const,
-    hint: '所有職缺都在這',
+    valKey: 'open' as const,
     query: {} as Record<string, string>,
   },
   {
     label: '月薪職缺',
     valKey: 'month' as const,
-    hint: '職缺說明有寫月薪的',
     query: { salary: 'excluding', salaryType: 'month' },
   },
   {
     label: '年薪職缺',
     valKey: 'year' as const,
-    hint: '職缺說明有寫年薪的',
     query: { salary: 'excluding', salaryType: 'year' },
   },
 ];
@@ -45,9 +42,9 @@ function goJobs(query: Record<string, string> = {}) {
         :key="i"
         class="flex animate-pulse flex-col gap-2 rounded-xl bg-white p-5 shadow-[0_24px_40px_rgba(0,31,42,0.06)]"
       >
-        <div class="h-3 w-16 rounded bg-[#001f2a]/[0.08]" />
-        <div class="h-10 w-28 rounded bg-[#001f2a]/[0.08]" />
-        <div class="h-3 w-20 rounded bg-[#001f2a]/[0.08]" />
+        <div class="h-3 w-16 rounded bg-[#001f2a]/8" />
+        <div class="h-10 w-28 rounded bg-[#001f2a]/8" />
+        <div class="h-3 w-20 rounded bg-[#001f2a]/8" />
       </div>
     </div>
     <div v-else class="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -67,9 +64,8 @@ function goJobs(query: Record<string, string> = {}) {
           class="tabular-nums leading-none font-black tracking-[-0.03em] text-[#003d92]"
           style="font-size: 2.75rem"
         >{{ store.jobCountText[card.valKey] }}</span>
-        <span class="text-xs text-[#434653]">{{ card.hint }}</span>
         <span
-          class="mt-1 flex items-center gap-1 text-xs font-bold text-[#003d92] opacity-0 transition-opacity group-hover:opacity-100"
+          class="mt-1 flex items-center gap-1 text-xs font-bold text-[#003d92]"
         >
           前往查看
           <span class="material-symbols-outlined" style="font-size: 14px">arrow_forward</span>

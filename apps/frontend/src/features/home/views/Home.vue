@@ -15,7 +15,7 @@ const loading = ref(true);
 Promise.all([
   store.getSalaryRange(),
   store.getJobCount(),
-  store.getTechStats(),
+  store.getMvKeywordGroupRanking(),
   store.getTechComboStats(),
   store.getSalaryStats(),
 ]).finally(() => {

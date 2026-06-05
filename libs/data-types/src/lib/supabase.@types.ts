@@ -89,19 +89,9 @@ export namespace SupabaseFunction {
 
   export type JobCount = {
     jobs: number;
+    open_jobs: number;
     month_salary_type_jobs: number;
     year_salary_type_jobs: number;
-  };
-
-  export type TechStat = {
-    keyword_group: string;
-    label: string;
-    category: string;
-    job_count: number;
-    avg_min_month: number | null;
-    avg_max_month: number | null;
-    avg_min_year: number | null;
-    avg_max_year: number | null;
   };
 
   export type TechComboStat = {
@@ -186,5 +176,16 @@ export namespace SupabaseView {
   export type LocationGroupView = {
     location: string;
     count: number;
+  };
+
+  export type MvKeywordGroupRanking = {
+    keyword_group: string;
+    label: string;
+    category: string;
+    job_count: number;
+    avg_min_month: number | null;
+    avg_max_month: number | null;
+    avg_min_year: number | null;
+    avg_max_year: number | null;
   };
 }

@@ -17,7 +17,7 @@ import AppFooter from './layout/AppFooter.vue';
             <span class="text-[#fd7700]">● </span>
             我們不收履歷，也不是另一個職缺平台。爬完資料、做完分析後，把你送回 104 / Cake 投履歷。
           </span>
-          <span class="font-medium text-white/50">資料每日 00:00 自動更新</span>
+          <span class="font-medium text-white/50">資料每日自動更新</span>
         </div>
       </div>
       <AppNavBar />

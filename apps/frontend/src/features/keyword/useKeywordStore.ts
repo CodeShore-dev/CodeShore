@@ -17,6 +17,7 @@ export const CATEGORY_LABEL_MAP: Record<string, string> = {
   Service: '服務',
   Tool: '工具',
   Cloud: '雲端',
+  Others: '其他',
 };
 
 type Tab = {

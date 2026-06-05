@@ -34,6 +34,13 @@ export class Controller {
     return this.service.getKeywordGroupCategories(query);
   }
 
+  @Get('group/ranking')
+  async getKeywordGroupRanking(
+    @Query() query: QueryDto,
+  ) {
+    return this.service.getMvKeywordGroupRanking(query);
+  }
+
   @Post('group')
   @AdminOnly()
   async createKeywordGroup(

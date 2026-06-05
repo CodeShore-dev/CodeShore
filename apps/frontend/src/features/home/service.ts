@@ -1,6 +1,11 @@
-import { SupabaseFunction } from '@codeshore/data-types';
+import {
+  ListResponse,
+  SupabaseFunction,
+  SupabaseView,
+} from '@codeshore/data-types';
 
 import { httpClient } from '../../httpClient';
+import { ListQuery } from '../../@types';
 
 export const fetchSalaryRange = async () => {
   const res =
@@ -17,10 +22,10 @@ export const fetchJobCount = async () => {
   return res.data;
 };
 
-export const fetchTechStats = async () => {
+export const fetchMvKeywordGroupRanking = async (query: ListQuery) => {
   const res = await httpClient.get<
-    SupabaseFunction.TechStat[]
-  >('/api/tech-stats');
+    ListResponse<SupabaseView.MvKeywordGroupRanking>
+  >('/api/keyword/group/ranking', { params: query });
   return res.data;
 };
 
