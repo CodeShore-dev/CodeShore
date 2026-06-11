@@ -9,6 +9,13 @@ export class JobSourceURLService extends TableService<SupabaseTable.JobSourceURL
   constructor(logger?: ServiceLogger) {
     super(getSupabaseClient(), 'job_source_url', logger);
   }
+
+  clearAll() {
+    return deleteAll(
+      getSupabaseClient().from('job_source_url'),
+      'url',
+    );
+  }
 }
 
 const _removePageIndexFromURL = (url: string) => {

@@ -12,8 +12,7 @@ import {
   JobService,
   JobSourceService,
   JobSourceURLService,
-  fetchMvKeywordGroup,
-  resetJobKeywords_Keywords_JobKeywordGroup,
+  MvKeywordGroupService,
 } from '@codeshore/data-utils';
 import {
   parseKeywordsOut,
@@ -32,7 +31,6 @@ import {
   isTheHost as isCakeHost,
   waitFordDetailPageSelector as waitForSelectorOnCake,
 } from './cake/utils';
-import { ids } from './ids';
 import { formatDuration, setPageIndex } from './utils';
 
 const puppeteer = addExtra(rebrowserPuppeteer as any);
@@ -123,7 +121,7 @@ interface PendingBatch {
   jobKeywords: Omit<SupabaseTable.Job_.Keyword, 'job'>[];
 }
 
-async function updateJobs(
+async function reCrawlJobs(
   allGroupKeywords: string[],
   where?: Record<string, any>,
 ): Promise<void> {
@@ -308,215 +306,203 @@ async function updateJobs(
   await flushPendingBatch(pending, log);
 }
 
-/**
- * Usage:
- *
- * pnpm nx serve crawler                                                          # 抓全部 (104 + Cake)
- * pnpm nx serve crawler --args="update"                                          # 批次更新 (updated_at < today)
- * pnpm nx serve crawler --args="update=EXPR"                                     # 批次更新，自訂 where 條件
- * pnpm nx serve crawler --args="id=<id>"                                         # 只更新指定 id 的 job
- *
- * EXPR 語法 (no spaces, single token):
- *   field.op.val                           → AND 條件
- *   (field.op.val|field.op.val)            → OR 群組
- *   (A|B),C                                → (A OR B) AND C
- *
- * 範例:
- *   update=closed.eq.true,min_salary.gt.50000
- *   update=(source.eq.104|source.eq.cake),min_salary.gt.50000
- *   update=id.in.(123,456)
- */
 async function main() {
   const args = process.argv.slice(2);
 
-  const updateArg = args.find(
-    x => x === 'update' || x.startsWith('update='),
+  const reCrawlJobsArg = args.find(
+    x => x === 're-crawl' || x.startsWith('re-crawl='),
   );
-  if (updateArg) {
-    const { result: keywordGroups } =
-      await fetchMvKeywordGroup({
-        from: 0,
-        to: -1,
-        where: { category: { 'not.is': null } },
+  const resetMinMaxSalaryArg = args.find(x =>
+    x.startsWith('job-salary'),
+  );
+  const resetJobKeywordArg = args.find(x =>
+    x.startsWith('job-keyword'),
+  );
+  const crawlArg = args.find(
+    x => x === 'crawl' || x.startsWith('crawl='),
+  );
+
+  type Mode =
+    | 're-crawl'
+    | 'job-salary'
+    | 'job-keyword'
+    | 'crawl';
+  let mode: Mode;
+  if (reCrawlJobsArg) mode = 're-crawl';
+  else if (resetMinMaxSalaryArg) mode = 'job-salary';
+  else if (resetJobKeywordArg) mode = 'job-keyword';
+  else mode = 'crawl';
+
+  const { result: keywordGroups } =
+    await new MvKeywordGroupService().fetchAll({
+      where: { category: { 'not.is': null } },
+    });
+  const keywords = keywordGroups.flatMap(m => m.keywords);
+
+  switch (mode) {
+    case 're-crawl': {
+      const whereExpr = reCrawlJobsArg!.includes('=')
+        ? reCrawlJobsArg!.slice(
+            reCrawlJobsArg!.indexOf('=') + 1,
+          )
+        : undefined;
+      await reCrawlJobs(
+        keywords,
+        whereExpr ? parseWhereExpr(whereExpr) : undefined,
+      );
+      break;
+    }
+
+    case 'job-salary': {
+      const { result } = await new JobService().fetchAll({
+        select: 'id,salary',
       });
-    const keywords = keywordGroups.flatMap(m => m.keywords);
-    const whereExpr = updateArg.includes('=')
-      ? updateArg.slice(updateArg.indexOf('=') + 1)
-      : undefined;
-    await updateJobs(
-      keywords,
-      whereExpr ? parseWhereExpr(whereExpr) : undefined,
-    );
-  } else {
-    const idArg = args.find(x => x.startsWith('id='));
-    const keywordArg = args.find(x => x.startsWith('k'));
-    const salaryArg = args.find(x =>
-      x.startsWith('salary'),
-    );
-    if (keywordArg || salaryArg) {
-      const { result: keywordGroups } =
-        await fetchMvKeywordGroup({
-          from: 0,
-          to: -1,
-          where: { category: { 'not.is': null } },
-        });
-      const groupKeywords = keywordGroups.flatMap(
-        m => m.keywords,
+      await new JobService().updateMultiple(
+        result.map(x => ({
+          id: x.id,
+          ...parseSalary(x.salary),
+        })),
       );
-      const { result } = await new JobService().fetchAll();
-      if (salaryArg) {
-        await new JobService().upsert(
-          result.map(x => ({
-            ...x,
-            ...parseSalary(x.salary),
-          })),
-        );
-      } else if (keywordArg) {
-        await new JobKeywordService().upsert(
-          result.map(x => ({
-            id: x.id,
-            ...parseKeywordsOut(
-              x.description,
-              groupKeywords,
-            ),
-          })),
-        );
-      }
-    } else {
-      const { result: keywordGroups } =
-        await fetchMvKeywordGroup({
-          from: 0,
-          to: -1,
-          where: { category: { 'not.is': null } },
-        });
-      const keywords = keywordGroups.flatMap(
-        m => m.keywords,
+      break;
+    }
+
+    case 'job-keyword': {
+      const { result } = await new JobService().fetchAll({
+        select: 'id,description',
+      });
+      await new JobKeywordService().updateMultiple(
+        result.map(x => ({
+          id: x.id,
+          ...parseKeywordsOut(x.description, keywords),
+        })),
       );
-      if (idArg) {
-        const [, id] = idArg.split('=');
-        if (!id) {
-          console.error('Usage: main.js id=<id>');
-          process.exit(1);
-        }
-        const idList =
-          id === '*' ? ids.map(x => x.id) : [id];
-        await updateJobs(keywords, {
-          id: { in: `(${idList.join(',')})` },
-        });
+      break;
+    }
+
+    case 'crawl': {
+      const crawlSubMode = crawlArg?.includes('=')
+        ? crawlArg.slice(crawlArg.indexOf('=') + 1)
+        : undefined;
+      const isFresh = crawlSubMode === 'fresh';
+
+      if (isFresh) {
+        console.log(
+          '>>> Fresh mode: clearing job_source_url...',
+        );
+        await new JobSourceURLService().clearAll();
       } else {
-        const makeCrawlerOptions = (
-          requestHandler: any,
-        ) => ({
-          launchContext: stealthLaunchContext as any,
-          browserPoolOptions: {
-            useFingerprints: false,
-          },
-          preNavigationHooks: [
-            applyStealthOnNavigation as any,
+        console.log('>>> Resume mode');
+      }
+
+      const makeCrawlerOptions = (requestHandler: any) => ({
+        launchContext: stealthLaunchContext as any,
+        browserPoolOptions: {
+          useFingerprints: false,
+        },
+        preNavigationHooks: [
+          applyStealthOnNavigation as any,
+        ],
+        requestHandler,
+        maxConcurrency: 1,
+        requestHandlerTimeoutSecs: 120,
+      });
+
+      const { result: pendingJobSourceURLs } =
+        await new JobSourceURLService().fetchAll({
+          where: { status: { eq: 'pending' } },
+          orders: [
+            { column: 'url', ascending: true },
+            { column: 'page_index', ascending: true },
           ],
-          requestHandler,
-          maxConcurrency: 1,
-          requestHandlerTimeoutSecs: 120,
         });
 
-        const { result: pendingJobSourceURLs } =
-          await new JobSourceURLService().fetchAll({
-            where: { status: { eq: 'pending' } },
-            orders: [
-              { column: 'url', ascending: true },
-              { column: 'page_index', ascending: true },
-            ],
-          });
+      let jobSourceURLs: (SupabaseTable.JobSourceURL & {
+        host: string;
+        url_with_page_index: string;
+      })[];
 
-        let jobSourceURLs: (SupabaseTable.JobSourceURL & {
-          host: string;
-          url_with_page_index: string;
-        })[];
-
-        if (pendingJobSourceURLs.length > 0) {
-          console.log(
-            `>>> Resume mode: ${pendingJobSourceURLs.length} pending URL(s)`,
-          );
-          jobSourceURLs = pendingJobSourceURLs.map(x => ({
-            ...x,
-            host: new URL(x.url).host,
-            url_with_page_index: setPageIndex(
-              x.url,
-              x.page_index,
-            ),
-          }));
-        } else {
-          console.log(
-            '>>> Fresh mode: starting from page=1',
-          );
-          const { result: jobSources } =
-            await new JobSourceService().fetchAll();
-          jobSourceURLs = jobSources.map(x => ({
-            url: x.url,
-            page_index: 1,
-            status: 'pending',
-            host: new URL(x.url).host,
-            url_with_page_index: setPageIndex(x.url, 1),
-          }));
-        }
-
-        const jobSourceURLs104 = jobSourceURLs.filter(x =>
-          is104Host(x.host),
+      if (pendingJobSourceURLs.length > 0) {
+        console.log(
+          `>>> Resume mode: ${pendingJobSourceURLs.length} pending URL(s)`,
         );
-
-        const jobSourceURLsCake = jobSourceURLs.filter(x =>
-          isCakeHost(x.host),
+        jobSourceURLs = pendingJobSourceURLs.map(x => ({
+          ...x,
+          host: new URL(x.url).host,
+          url_with_page_index: setPageIndex(
+            x.url,
+            x.page_index,
+          ),
+        }));
+      } else if (!isFresh) {
+        console.log(
+          '>>> Resume mode: no pending URL(s) to resume, nothing to do',
         );
-
-        if (jobSourceURLs104.length > 0) {
-          console.log(
-            `>>> Starting 104 crawler from URL(${jobSourceURLs104.length} URL(s))...`,
-          );
-          const {
-            router: requestHandler104,
-            flushBatch: flushBatch104,
-          } = createHandler104(keywords);
-          Configuration.getGlobalConfig().set(
-            'purgeOnStart',
-            true,
-          );
-          const crawler = new PuppeteerCrawler(
-            makeCrawlerOptions(requestHandler104),
-          );
-          await crawler.run(
-            jobSourceURLs104.map(
-              x => x.url_with_page_index,
-            ),
-          );
-          await flushBatch104();
-        }
-
-        if (jobSourceURLsCake.length > 0) {
-          console.log(
-            `>>> Starting Cake crawler from URL(${jobSourceURLsCake.length} URL(s))...`,
-          );
-          const {
-            router: requestHandlerCake,
-            flushBatch: flushBatchCake,
-          } = createHandlerCake(keywords);
-          Configuration.getGlobalConfig().set(
-            'purgeOnStart',
-            true,
-          );
-          const crawler = new PuppeteerCrawler(
-            makeCrawlerOptions(requestHandlerCake),
-          );
-          await crawler.run(
-            jobSourceURLsCake.map(
-              x => x.url_with_page_index,
-            ),
-          );
-          await flushBatchCake();
-        }
+        jobSourceURLs = [];
+      } else {
+        console.log('>>> Fresh mode: starting from page=1');
+        const { result: jobSources } =
+          await new JobSourceService().fetchAll();
+        jobSourceURLs = jobSources.map(x => ({
+          url: x.url,
+          page_index: 1,
+          status: 'pending',
+          host: new URL(x.url).host,
+          url_with_page_index: setPageIndex(x.url, 1),
+        }));
       }
+
+      const jobSourceURLs104 = jobSourceURLs.filter(x =>
+        is104Host(x.host),
+      );
+
+      const jobSourceURLsCake = jobSourceURLs.filter(x =>
+        isCakeHost(x.host),
+      );
+
+      if (jobSourceURLs104.length > 0) {
+        console.log(
+          `>>> Starting 104 crawler from URL(${jobSourceURLs104.length} URL(s))...`,
+        );
+        const {
+          router: requestHandler104,
+          flushBatch: flushBatch104,
+        } = createHandler104(keywords);
+        Configuration.getGlobalConfig().set(
+          'purgeOnStart',
+          true,
+        );
+        const crawler = new PuppeteerCrawler(
+          makeCrawlerOptions(requestHandler104),
+        );
+        await crawler.run(
+          jobSourceURLs104.map(x => x.url_with_page_index),
+        );
+        await flushBatch104();
+      }
+
+      if (jobSourceURLsCake.length > 0) {
+        console.log(
+          `>>> Starting Cake crawler from URL(${jobSourceURLsCake.length} URL(s))...`,
+        );
+        const {
+          router: requestHandlerCake,
+          flushBatch: flushBatchCake,
+        } = createHandlerCake(keywords);
+        Configuration.getGlobalConfig().set(
+          'purgeOnStart',
+          true,
+        );
+        const crawler = new PuppeteerCrawler(
+          makeCrawlerOptions(requestHandlerCake),
+        );
+        await crawler.run(
+          jobSourceURLsCake.map(x => x.url_with_page_index),
+        );
+        await flushBatchCake();
+      }
+      break;
     }
   }
-  await resetJobKeywords_Keywords_JobKeywordGroup();
 }
 
 main().catch(error => {

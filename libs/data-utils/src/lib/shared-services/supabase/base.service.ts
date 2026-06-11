@@ -27,7 +27,7 @@ export type Options = {
       | 'estimated'
       | (string & {});
   };
-  delete?: {
+  delete_update?: {
     idField?: string;
     count?:
       | 'exact'

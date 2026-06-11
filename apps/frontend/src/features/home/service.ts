@@ -8,18 +8,16 @@ import { ListQuery } from '../../@types';
 import { httpClient } from '../../httpClient';
 
 export const fetchMvSalaryTypeMedianRatio = async () => {
-  const res =
-    await httpClient.get<SupabaseView.MvSalaryTypeMedianRatio[]>(
-      '/api/salary/type/median/ratio',
-    );
+  const res = await httpClient.get<
+    ListResponse<SupabaseView.MvSalaryTypeMedianRatio>
+  >('/api/salary/type/median/ratio');
   return res.data;
 };
 
 export const fetchMvSalaryWeightedRatio = async () => {
-  const res =
-    await httpClient.get<SupabaseView.MvSalaryWeightedRatio[]>(
-      '/api/salary/weighted/ratio',
-    );
+  const res = await httpClient.get<
+    ListResponse<SupabaseView.MvSalaryWeightedRatio>
+  >('/api/salary/weighted/ratio');
   return res.data;
 };
 
@@ -39,3 +37,15 @@ export const fetchMvKeywordGroupRanking = async (
   return res.data;
 };
 
+export const fetchMvTechComboStats = async (
+  query?: ListQuery,
+) => {
+  const res = await httpClient.get<
+    ListResponse<SupabaseView.MvTechComboStats>
+  >('/api/keyword/group/tech-combo-stats', {
+    params: {
+      ...query,
+    },
+  });
+  return res.data;
+};

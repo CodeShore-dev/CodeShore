@@ -5,6 +5,6 @@
     "declaration": true,
     "types": ["node"]
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "../service-transport/src/lib/outbound.interceptor.ts", "../service-transport/src/lib/inbound.interceptor.ts"],
   "exclude": ["src/**/*.spec.ts", "src/**/*.test.ts"]
 }

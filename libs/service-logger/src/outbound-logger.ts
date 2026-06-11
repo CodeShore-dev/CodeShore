@@ -1,6 +1,12 @@
 import { AxiosError } from 'axios';
 
-import { ServiceLogger } from './service-logger';
+import { ServiceLogger } from '@codeshore/service-logger';
+
+import {
+  calcLatency,
+  stringifyBody,
+  stringifyObject,
+} from './log-format.util';
 
 export type LoggerRequest = {
   headers?: Record<string, string>;
@@ -18,6 +24,7 @@ export type LoggerRequest = {
 export type LogResponseFn = (
   response: LoggerResponse,
 ) => void;
+
 export type LogExceptionFn<T = Error> = (
   error: T,
   isExpected?: boolean,
@@ -39,23 +46,7 @@ export class OutboundLogger {
     logResponse: LogResponseFn;
     logException: LogExceptionFn<T>;
   } {
-    const request_now = new Date();
-
-    const calcLatency = (start: Date, end: Date) => {
-      const latency_sec =
-        (end.getTime() - start.getTime()) / 1000;
-      return latency_sec;
-    };
-
-    const stringifyObject = (value: unknown) => {
-      try {
-        return value && Object.keys(value).length > 0
-          ? JSON.stringify(value)
-          : undefined;
-      } catch {
-        return undefined;
-      }
-    };
+    const requestStartedAt = new Date();
 
     let urlObject;
     if (request.url) {
@@ -75,17 +66,10 @@ export class OutboundLogger {
     let request_query = stringifyObject(request.query);
     if (request_query && urlObject) {
       request_query = stringifyObject(
-        Array.from(urlObject.searchParams.entries()).reduce(
-          (prev, curr) => {
-            const [key, value] = curr;
-            prev[key] = value;
-            return prev;
-          },
-          {} as Record<string, any>,
-        ),
+        Object.fromEntries(urlObject.searchParams),
       );
     }
-    const msgInfo = {
+    const msg = {
       name: request.name?.replace(/^_/, '') || undefined,
       caller: request.caller,
       method: request.method ?? 'GET',
@@ -93,36 +77,40 @@ export class OutboundLogger {
       path,
       request_query,
       request_params: stringifyObject(request.params),
-      request_body: Buffer.isBuffer(request.body)
-        ? `a ${request.body.length} bytes binary`
-        : stringifyObject(request.body),
+      request_body: stringifyBody(request.body),
       status: undefined,
       response_body: undefined,
-      latency: undefined,
-      time: request_now.toISOString(),
+      latency_s: undefined,
+      time: requestStartedAt.toISOString(),
       direction: 'outbound',
       type: 'request',
     };
 
-    // this.logger.debug(msgInfo);
-
     const logBase = (
-      level: 'debug' | 'error' | 'warn',
+      level: 'info' | 'trace' | 'debug' | 'error' | 'warn',
       response: { status?: number; data: unknown },
     ) => {
-      const response_now = new Date();
-
-      this.logger[level]({
-        ...msgInfo,
+      const respondedAt = new Date();
+      const _msg = {
+        ...msg,
         type: 'response',
-        time: response_now.toISOString(),
-        latency: calcLatency(request_now, response_now),
+        time: respondedAt.toISOString(),
+        latency_s: calcLatency(
+          requestStartedAt,
+          respondedAt,
+        ),
         status: response.status,
-        response_body: Buffer.isBuffer(response.data)
-          ? `a ${response.data.length} bytes binary`
-          : stringifyObject(response.data),
-      });
+        response_body: stringifyBody(response.data),
+      };
+
+      if (level === 'error') {
+        this.logger.error(undefined, undefined, _msg);
+      } else {
+        this.logger[level](undefined, _msg);
+      }
     };
+
+    this.logger.debug(undefined, msg);
 
     return {
       logResponse(response: LoggerResponse) {

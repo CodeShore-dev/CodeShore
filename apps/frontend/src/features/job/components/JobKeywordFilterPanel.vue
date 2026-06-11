@@ -2,9 +2,14 @@
 import { ref } from 'vue'
 
 import OperatorToggle from '../../../components/OperatorToggle.vue'
+import { TAG_LABEL_MAP } from '../../../utils/constants'
 import { useKeywordStore } from '../../keyword/useKeywordStore'
 
 const keywordStore = useKeywordStore()
+
+function tagLabel(tag: string): string {
+  return TAG_LABEL_MAP[tag] ?? tag
+}
 
 const tabsExpanded = ref(false)
 const TABS_COLLAPSED_LIMIT = 4
@@ -97,7 +102,7 @@ function hideTabTooltip(): void {
       <span
         v-for="keywordGroup in keywordStore.filteredKeywordGroupView"
         :key="keywordGroup.keyword_group"
-        class="flex w-full cursor-pointer items-center justify-between rounded px-4 py-2 text-sm font-bold "
+        class="flex w-full cursor-pointer items-center justify-between gap-2 rounded px-4 py-2 text-sm font-bold "
         :class="
           keywordStore.selectedTags.includes(keywordGroup.keyword_group)
             ? 'bg-primary text-on-primary'
@@ -107,14 +112,35 @@ function hideTabTooltip(): void {
         "
         @click="keywordStore.toggleLanguage(keywordGroup.keyword_group)"
       >
-        <span class="flex flex-col gap-0.5">
-          <span>{{ keywordGroup.label }}</span>
+        <span class="flex min-w-0 flex-col gap-1">
+          <span class="truncate">{{ keywordGroup.label }}</span>
+
+          <!-- tags：分類標籤（中文） -->
           <span
-            v-if="keywordGroup.parent"
-            class="text-sm font-medium normal-case opacity-60"
-          >{{ keywordGroup.parent }}</span>
+            v-if="keywordGroup.tags?.length"
+            class="flex flex-wrap gap-1"
+          >
+            <span
+              v-for="tag in keywordGroup.tags"
+              :key="tag"
+              class="rounded-full bg-current/12 px-1.5 py-px text-[11px] font-medium normal-case"
+            >{{ tagLabel(tag) }}</span>
+          </span>
+
+          <!-- parents：所屬上層技術群組 -->
+          <span
+            v-if="keywordGroup.parents?.length"
+            class="flex flex-wrap items-center gap-1 normal-case opacity-70"
+          >
+            <span class="material-symbols-outlined text-[13px]! opacity-80">subdirectory_arrow_right</span>
+            <span
+              v-for="parent in keywordGroup.parents"
+              :key="parent"
+              class="rounded-full border border-current/30 px-1.5 py-px text-[11px] font-medium"
+            >{{ parent }}</span>
+          </span>
         </span>
-        <span class="flex items-center gap-1">
+        <span class="flex shrink-0 items-center gap-1">
           <span
             v-if="keywordStore.selectedTags.includes(keywordGroup.keyword_group)"
             class="material-symbols-outlined text-sm"

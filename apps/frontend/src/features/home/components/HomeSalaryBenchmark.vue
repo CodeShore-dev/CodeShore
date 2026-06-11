@@ -10,26 +10,10 @@ const store = useHomeStore();
 
 const salaryUnit = ref<'month' | 'year'>('year');
 
-const benchmarkDescriptions: Record<
-  string,
-  Record<string, string>
-> = {
-  month: {
-    均標: '市場中位數，新鮮人到資淺工程師的常見區間。',
-    高標: '前 25%，資深或外商偏多。',
-    頂標: '前 12%，頂尖資深或外商高階。',
-  },
-  year: {
-    均標: '市場中位數，多半含年終與獎金。',
-    高標: '前 25%，資深或外商偏多。',
-    頂標: '前 12%，頂尖資深或外商高階。',
-  },
-};
-
 const benchmarkTags: Record<string, string> = {
-  均標: 'PR50',
-  高標: 'PR75',
-  頂標: 'PR88',
+  median: 'PR50',
+  high: 'PR75',
+  top: 'PR88',
 };
 
 const activeBenchmarks = computed(() => {
@@ -39,18 +23,18 @@ const activeBenchmarks = computed(() => {
       : store.salaryBenchmarks.year;
   return [
     {
-      label: '均標',
-      value: benchmark['均標'],
+      label: 'median',
+      value: benchmark['median'],
       position: 50,
     },
     {
-      label: '高標',
-      value: benchmark['高標'],
+      label: 'high',
+      value: benchmark['high'],
       position: 75,
     },
     {
-      label: '頂標',
-      value: benchmark['頂標'],
+      label: 'top',
+      value: benchmark['top'],
       position: 88,
     },
   ];
@@ -125,7 +109,7 @@ const activeBenchmarks = computed(() => {
         <div
           class="mb-3 flex items-baseline justify-between"
         >
-          <span class="text-sm font-black text-[#001f2a]">{{
+          <span class="uppercase text-sm font-black text-[#001f2a]">{{
             benchmark.label
           }}</span>
           <span
@@ -144,17 +128,6 @@ const activeBenchmarks = computed(() => {
             >萬</span
           >
         </div>
-        <div
-          class="mt-3 text-xs leading-[1.55] text-[#434653]"
-          style="min-height: 38px"
-        >
-          {{
-            benchmarkDescriptions[salaryUnit][
-              benchmark.label
-            ]
-          }}
-        </div>
-        <!-- Progress bar -->
         <div
           class="mt-3 flex h-1.5 overflow-hidden rounded-full bg-[#d9f2ff]"
         >

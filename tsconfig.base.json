@@ -25,9 +25,6 @@
       "@codeshore/backend": [
         "apps/backend/src/index.ts"
       ],
-      "@codeshore/service-config": [
-        "libs/service-config/src/index.ts"
-      ],
       "@codeshore/service-logger": [
         "libs/service-logger/src/index.ts"
       ],
@@ -51,6 +48,12 @@
       ],
       "@codeshore/crawler": [
         "apps/crawler/src/index.ts"
+      ],
+      "@codeshore/service-transport": [
+        "libs/service-transport/src/index.ts"
+      ],
+      "@codeshore/codebook": [
+        "libs/codebook/src/index.ts"
       ]
     }
   },

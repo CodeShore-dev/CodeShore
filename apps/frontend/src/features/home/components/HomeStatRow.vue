@@ -33,10 +33,15 @@ function goJobs(query: Record<string, string> = {}) {
 
 <template>
   <section class="mt-10">
-    <div class="mb-4 text-xs font-bold tracking-[0.18em] text-[#434653]">
-      現在有多少缺？
+    <div
+      class="mb-4 text-xs font-bold tracking-[0.18em] text-[#434653]"
+    >
+      職缺數量
     </div>
-    <div v-if="loading" class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+    <div
+      v-if="loading"
+      class="grid grid-cols-1 gap-3 sm:grid-cols-3"
+    >
       <div
         v-for="i in 3"
         :key="i"
@@ -47,7 +52,10 @@ function goJobs(query: Record<string, string> = {}) {
         <div class="h-3 w-20 rounded bg-[#001f2a]/8" />
       </div>
     </div>
-    <div v-else class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+    <div
+      v-else
+      class="grid grid-cols-1 gap-3 sm:grid-cols-3"
+    >
       <button
         v-for="(card, i) in statCards"
         :key="card.label"
@@ -59,19 +67,29 @@ function goJobs(query: Record<string, string> = {}) {
         "
         @click="goJobs(card.query)"
       >
-        <span class="text-xs font-bold tracking-widest text-[#434653]">{{ card.label }}</span>
         <span
-          class="tabular-nums leading-none font-black tracking-[-0.03em] text-[#003d92]"
-          style="font-size: 2.75rem"
-        >{{ store.jobCountText[card.valKey] }}</span>
-        <span
-          class="mt-1 flex self-end items-center gap-1 text-xs font-bold text-[#003d92]"
+          class="text-xs font-bold tracking-widest text-[#434653]"
+          >{{ card.label }}</span
         >
-          前往
-          <span class="material-symbols-outlined" style="font-size: 14px">arrow_forward</span>
+        <span
+          class="leading-none font-black tracking-[-0.03em] text-[#003d92] tabular-nums"
+          style="font-size: 2.75rem"
+          >{{ store.jobCountText[card.valKey] }}
+        </span>
+        <div class="mt-0.5 text-[11px] text-[#434653]">
+          個職缺
+        </div>
+        <span
+          class="mt-1 flex items-center gap-1 self-end text-xs font-bold text-[#003d92]"
+        >
+          前往職缺
+          <span
+            class="material-symbols-outlined"
+            style="font-size: 14px"
+            >arrow_forward</span
+          >
         </span>
       </button>
     </div>
   </section>
-
 </template>

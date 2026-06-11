@@ -8,7 +8,7 @@ import { getSupabaseClient } from '@codeshore/supabase';
 import { TableService } from '../shared-services/supabase/table.service';
 import { distinct } from '../shared-services/supabase/utils';
 import { JobKeywordService } from './job_keyword.service';
-import { fetchMvKeywordGroup } from './mv_keyword_group';
+import { MvKeywordGroupService } from './mv_keyword_group';
 
 export class JobKeywordGroupService extends TableService<SupabaseTable.Job_.KeywordGroup> {
   constructor(logger?: ServiceLogger) {
@@ -16,7 +16,7 @@ export class JobKeywordGroupService extends TableService<SupabaseTable.Job_.Keyw
       getSupabaseClient(),
       'job_keyword_group',
       logger,
-      { delete: { idField: 'job_id' } },
+      { delete_update: { idField: 'job_id' } },
     );
   }
   async resetByJobKeywords(
@@ -28,9 +28,7 @@ export class JobKeywordGroupService extends TableService<SupabaseTable.Job_.Keyw
         .result;
 
     const keywordGroups = (
-      await fetchMvKeywordGroup({
-        from: 0,
-        to: -1,
+      await new MvKeywordGroupService().fetchAll({
         where: { category: { 'not.is': null } },
       })
     ).result;

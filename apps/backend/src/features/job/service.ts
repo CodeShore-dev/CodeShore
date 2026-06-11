@@ -16,7 +16,6 @@ import {
 import { QueryDto } from '../query.dto';
 
 const PREFERENCE_COUNT_TTL = 60 * 1000; // 60 seconds
-const CACHE_KEY_LOCATION_GROUP = 'job:location:groups';
 
 @Injectable()
 export class Service {
@@ -31,7 +30,7 @@ export class Service {
     return this.mvJobService.fetchMvJobsByUserAndPreference(query, userId);
   }
 
-  @Cacheable({ key: CACHE_KEY_LOCATION_GROUP })
+  @Cacheable({ key: MvLocationGroupService.name })
   async getLocationGroups(query: QueryDto) {
     return this.mvLocationGroupService.fetch(query);
   }
@@ -79,7 +78,7 @@ export class Service {
     return new Observable(subscriber => {
       const child = spawn(
         'node',
-        ['dist/apps/crawler/main.js', `id=${id}`],
+        ['dist/apps/crawler/main.js', `re-crawl=id.eq.${id}`],
         { shell: true, stdio: ['ignore', 'pipe', 'pipe'] },
       );
 

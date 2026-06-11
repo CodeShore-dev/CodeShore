@@ -121,11 +121,12 @@ async function _fetchList<T>(
         column === '$and' &&
         typeof conditions === 'string'
       ) {
-        builder = builder.filter(
-          '',
-          'and',
-          `(${conditions})`,
-        );
+        builder = conditions
+          .split(',')
+          .reduce((prev, curr) => {
+            const [col, op, val] = curr.split('.');
+            return prev.filter(col, op, val);
+          }, builder);
       } else if (
         typeof conditions === 'object' &&
         conditions !== null
@@ -142,6 +143,7 @@ async function _fetchList<T>(
   for (const order of orders) {
     builder = builder.order(order.column as any, {
       ascending: order.ascending,
+      nullsFirst: false,
     });
   }
 
@@ -170,11 +172,10 @@ async function _fetchList<T>(
   const { data, count, error, status } = await builder;
   if (error) {
     logException?.(error, false, error => ({
-      status: -1,
-      data: error.toJSON(),
+      data: error,
     }));
   } else {
-    logResponse?.({ status, data: `${data.length}` });
+    logResponse?.({ status, data: `${data.length} items` });
   }
 
   return {

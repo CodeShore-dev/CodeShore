@@ -4,6 +4,7 @@ import {
   MvKeywordGroupCategoryService,
   MvKeywordGroupRankingService,
   MvKeywordGroupService,
+  MvTechComboStatsService,
 } from '@codeshore/data-utils';
 
 import { provideWithLogger } from '../logger-provider';
@@ -18,6 +19,7 @@ import { Service } from './service';
     provideWithLogger(MvKeywordGroupService),
     provideWithLogger(MvKeywordGroupCategoryService),
     provideWithLogger(MvKeywordGroupRankingService),
+    provideWithLogger(MvTechComboStatsService),
   ],
 })
 export class Module {}

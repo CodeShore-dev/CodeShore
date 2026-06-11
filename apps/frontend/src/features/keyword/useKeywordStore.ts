@@ -4,21 +4,13 @@ import { computed, ref, watch } from 'vue';
 import { SupabaseView } from '@codeshore/data-types';
 
 import {
+  CATEGORY_LABEL_MAP,
+} from '../../utils/constants';
+import {
   fetchKeywordGroupCategories,
   fetchMvKeywordGroup,
   updateKeywordGroup,
 } from './service';
-
-export const CATEGORY_LABEL_MAP: Record<string, string> = {
-  language: '語言',
-  framework: '框架',
-  database: '資料庫',
-  library: '程式庫',
-  service: '服務',
-  tool: '工具',
-  cloud: '雲端',
-  others: '其他',
-};
 
 type Tab = {
   label: string;
@@ -138,15 +130,13 @@ export const useKeywordStore = defineStore(
       );
       const selectedParents = new Set(
         selectedGroups
-          .map(g => g.parent)
+          .flatMap(g => g.parents)
           .filter((p): p is string => !!p),
       );
       return keywordGroups.value.filter(g => {
         if (allActiveTags.includes(g.keyword_group))
           return false;
-        if (!!g.parent && allActiveTags.includes(g.parent))
-          return true;
-        if (!!g.parent && selectedParents.has(g.parent))
+        if (!!g.parents && allActiveTags.some(x => g.parents.includes(x)))
           return true;
         return false;
       });

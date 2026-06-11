@@ -8,7 +8,7 @@ export class MvSalaryWeightedRatioService extends MaterializedViewService<Supaba
   constructor(logger?: ServiceLogger) {
     super(
       getSupabaseClient(),
-      'refresh_mv_salary_weighted_ratio',
+      'mv_salary_weighted_ratio',
       logger,
     );
   }

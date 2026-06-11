@@ -14,6 +14,7 @@ export class QueryDto {
     type: Number,
     minimum: 0,
     description: 'Number of items to skip [default: 0]',
+    example: 0,
   })
   @IsOptional()
   @Type(() => Number)
@@ -25,7 +26,8 @@ export class QueryDto {
     type: Number,
     minimum: -1,
     description:
-      'Maximum number of items to return [default: 10]',
+      'Maximum number of items to return; -1 means no upper bound (fetch all) [default: 10]',
+    example: 10,
   })
   @IsOptional()
   @Type(() => Number)
@@ -37,6 +39,7 @@ export class QueryDto {
     type: String,
     description:
       'Field to sort by and direction in "field:asc" or "field:desc" format [default: asc], even multiple order(fieldA:asc;fieldB:desc;...)',
+    example: 'count:desc;title:asc',
   })
   @IsOptional()
   @IsArray()
@@ -65,6 +68,7 @@ export class QueryDto {
     type: String,
     description:
       'JSON string for Supabase filter conditions. Keys are column names (or $or/$and), values are operator-value pairs. Example: {"title": {"ilike": "%codeshore%"}, "salary": {"gte": 50000}, "$or": "title.eq.Manager,description.ilike.%Manager%", "$and": "tags.cs.{Vue.js,React.js}", "$and": "tags.ov.{Python,Vue.js}"}',
+    example: '{"title":{"ilike":"%react%"},"salary":{"gte":50000}}',
   })
   @IsOptional()
   @IsObject()

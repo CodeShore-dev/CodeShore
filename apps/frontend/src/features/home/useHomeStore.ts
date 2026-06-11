@@ -7,15 +7,15 @@ import {
 } from '@codeshore/data-types';
 
 import { formatNumber } from '../../utils/format';
+import useKeywordTechRanking from './composables/useKeywordTechRanking';
 import {
   fetchJobCount,
-  fetchMvKeywordGroupRanking,
   fetchMvSalaryTypeMedianRatio,
   fetchMvSalaryWeightedRatio,
 } from './service';
 
 export const useHomeStore = defineStore('home', () => {
-  const mvKeywordGroupRankingLoading = ref(false);
+  const selectedCategory = ref('language');
 
   const salaryTypeMedianRatio = ref<
     SupabaseView.MvSalaryTypeMedianRatio[]
@@ -31,18 +31,14 @@ export const useHomeStore = defineStore('home', () => {
     year_salary_type_jobs: 0,
   });
 
-  const mvKeywordGroupRanking = ref<
-    SupabaseView.MvKeywordGroupRanking[]
-  >([]);
-
   const getMvSalaryTypeMedianRatio = async () => {
-    salaryTypeMedianRatio.value =
-      await fetchMvSalaryTypeMedianRatio();
+    ({ result: salaryTypeMedianRatio.value } =
+      await fetchMvSalaryTypeMedianRatio());
   };
 
   const getMvSalaryWeightedRatio = async () => {
-    salaryWeightedRatio.value =
-      await fetchMvSalaryWeightedRatio();
+    ({ result: salaryWeightedRatio.value } =
+      await fetchMvSalaryWeightedRatio());
   };
 
   const getJobCount = async () => {
@@ -50,23 +46,12 @@ export const useHomeStore = defineStore('home', () => {
     jobCount.value = res[0];
   };
 
-  const getMvKeywordGroupRanking = async (
-    category?: string,
-  ) => {
-    mvKeywordGroupRankingLoading.value = true;
-    ({ result: mvKeywordGroupRanking.value } =
-      await fetchMvKeywordGroupRanking({
-        from: 0,
-        to: 4,
-        where: JSON.stringify({
-          category: { eq: category },
-        }),
-        orders: 'job_count:desc',
-      }));
-    mvKeywordGroupRankingLoading.value = false;
-  };
-
-  const salaryBenchmarks = computed(() => {
+  const salaryBenchmarks = computed<
+    Record<
+      'year' | 'month',
+      { median: number; high: number; top: number }
+    >
+  >(() => {
     const yearSalary = salaryTypeMedianRatio.value.find(
       stat => stat.salary_type === 'year',
     );
@@ -75,14 +60,14 @@ export const useHomeStore = defineStore('home', () => {
     );
     return {
       month: {
-        均標: monthSalary?.median_mark,
-        高標: monthSalary?.high_mark,
-        頂標: monthSalary?.top_mark,
+        median: monthSalary?.median_mark ?? 0,
+        high: monthSalary?.high_mark ?? 0,
+        top: monthSalary?.top_mark ?? 0,
       },
       year: {
-        均標: yearSalary?.median_mark,
-        高標: yearSalary?.high_mark,
-        頂標: yearSalary?.top_mark,
+        median: yearSalary?.median_mark ?? 0,
+        high: yearSalary?.high_mark ?? 0,
+        top: yearSalary?.top_mark ?? 0,
       },
     };
   });
@@ -98,16 +83,17 @@ export const useHomeStore = defineStore('home', () => {
     ),
   }));
 
+  const keywordTechRanking = useKeywordTechRanking();
+
   return {
     jobCount,
     salaryTypeMedianRatio,
     salaryBenchmarks,
     jobCountText,
-    mvKeywordGroupRanking,
-    mvKeywordGroupRankingLoading,
+    selectedCategory,
+    keywordTechRanking,
     getMvSalaryTypeMedianRatio,
     getMvSalaryWeightedRatio,
     getJobCount,
-    getMvKeywordGroupRanking,
   };
 });

@@ -4,6 +4,7 @@ import {
   MvKeywordGroupCategoryService,
   MvKeywordGroupRankingService,
   MvKeywordGroupService,
+  MvTechComboStatsService,
   resetJobKeywords_Keywords_JobKeywordGroup,
 } from '@codeshore/data-utils';
 import {
@@ -12,11 +13,6 @@ import {
 } from '@codeshore/service-cache';
 
 import { QueryDto } from './../query.dto';
-
-const CACHE_KEY_GROUP_VIEW = 'keyword:group:view';
-const CACHE_KEY_GROUP_RANKING = 'keyword:group:ranking';
-const CACHE_KEY_GROUP_CATEGORIES =
-  'keyword:group:categories';
 
 function isFetchAllQuery(query: QueryDto): boolean {
   return query.from === 0 && query.to === -1;
@@ -29,12 +25,15 @@ export class Service {
     private readonly mvKeywordGroupService: MvKeywordGroupService,
     private readonly mvKeywordGroupCategoryService: MvKeywordGroupCategoryService,
     private readonly mvKeywordGroupRankingService: MvKeywordGroupRankingService,
+    private readonly mvTechComboStatsService: MvTechComboStatsService,
   ) {}
 
   async getMvKeywordGroup(query: QueryDto) {
-    if (isFetchAllQuery(query)) {
+    const isTheRequestFromHomePage = (query: QueryDto) =>
+      query.from === 0 && query.to === -1;
+    if (isTheRequestFromHomePage(query)) {
       return this.cacheService.getOrSet(
-        CACHE_KEY_GROUP_VIEW,
+        MvKeywordGroupService.name,
         () => this.mvKeywordGroupService.fetchAll(query),
       );
     }
@@ -42,21 +41,37 @@ export class Service {
   }
 
   async getMvKeywordGroupRanking(query: QueryDto) {
-    const isTheRequestFromHomePage = query.from === 0 && query.to === 15
+    const isTheRequestFromHomePage =
+      query.from === 0 && query.to === 9;
     if (isTheRequestFromHomePage) {
       return this.cacheService.getOrSet(
-        query.where?.category?.eq
-          ? `${CACHE_KEY_GROUP_RANKING}:${query.where.category.eq}`
-          : CACHE_KEY_GROUP_RANKING,
-        () => this.mvKeywordGroupRankingService.fetchAll(query),
+        `${MvKeywordGroupRankingService.name}:${JSON.stringify(query.where)}`,
+        () =>
+          this.mvKeywordGroupRankingService.fetchAll(query),
       );
     }
-    return this.mvKeywordGroupRankingService.fetchAll(query);
+    return this.mvKeywordGroupRankingService.fetchAll(
+      query,
+    );
   }
 
-  @Cacheable({ key: CACHE_KEY_GROUP_CATEGORIES })
+  async getMvTechComboStatsService(query: QueryDto) {
+    const isTheRequestFromHomePage =
+      query.from === 0 && query.to === 4;
+    if (isTheRequestFromHomePage) {
+      return this.cacheService.getOrSet(
+        `${MvTechComboStatsService.name}:${JSON.stringify(query.where)}`,
+        () => this.mvTechComboStatsService.fetchAll(query),
+      );
+    }
+    return this.mvTechComboStatsService.fetch(query);
+  }
+
+  @Cacheable({ key: MvKeywordGroupCategoryService.name })
   async getKeywordGroupCategories(query: QueryDto) {
-    return this.mvKeywordGroupCategoryService.fetchAll(query);
+    return this.mvKeywordGroupCategoryService.fetchAll(
+      query,
+    );
   }
 
   resetJobKeywords_Keywords_JobKeywordGroup(

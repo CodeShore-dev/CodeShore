@@ -5,8 +5,8 @@ export namespace SupabaseTable {
   export type Job = Modify<
     Database['public']['Tables']['job']['Row'],
     {
-      updated_at: Date;
-      created_at: Date;
+      updated_at?: Date;
+      created_at?: Date;
     }
   >;
 
@@ -20,7 +20,7 @@ export namespace SupabaseTable {
   export type Company = Modify<
     Database['public']['Tables']['company']['Row'],
     {
-      created_at: Date;
+      created_at?: Date;
     }
   >;
 
@@ -30,7 +30,7 @@ export namespace SupabaseTable {
   export type JobPreference = Modify<
     Database['public']['Tables']['job_preference']['Row'],
     {
-      updated_at: Date;
+      updated_at?: Date;
     }
   >;
 
@@ -106,6 +106,7 @@ export namespace SupabaseView {
   /**
    * keyword
    * keyword_group_keyword
+   * keyword_group_parent
    * keyword_group
    * keyword_bin
    */
@@ -140,9 +141,10 @@ export namespace SupabaseView {
    * job_keyword_group
    * job
    * keyword_group
+   * mv_keyword_group
    */
-  export type MvLanguageTechComboStats = NonNull<
-    Database['public']['Views']['mv_language_tech_combo_stats']['Row']
+  export type MvTechComboStats = NonNull<
+    Database['public']['Views']['mv_tech_combo_stats']['Row']
   >;
 
   /**
@@ -168,5 +170,4 @@ export namespace SupabaseView {
   export type MvSalaryWeightedRatio = NonNull<
     Database['public']['Views']['mv_salary_weighted_ratio']['Row']
   >;
-
 }

@@ -1,7 +1,7 @@
-# service-config
+# codebook
 
 This library was generated with [Nx](https://nx.dev).
 
 ## Building
 
-Run `nx build service-config` to build the library.
+Run `nx build codebook` to build the library.

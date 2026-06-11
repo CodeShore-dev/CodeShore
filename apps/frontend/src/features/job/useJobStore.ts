@@ -55,7 +55,9 @@ export const useJobStore = defineStore('job', () => {
   const searchText = ref<string>('');
   const companySearchText = ref<string>('');
   const selectedLocations = ref<string[]>([]);
-  const locationGroups = ref<SupabaseView.MvLocationGroup[]>([]);
+  const locationGroups = ref<
+    SupabaseView.MvLocationGroup[]
+  >([]);
 
   const baseFilters = computed(() => {
     const where: Record<string, any> = {};
@@ -64,7 +66,9 @@ export const useJobStore = defineStore('job', () => {
 
     if (searchText.value.trim()) {
       const q = searchText.value.trim();
-      orGroups.push(`title.ilike.%${q}%,description.ilike.%${q}%`);
+      orGroups.push(
+        `title.ilike.%${q}%,description.ilike.%${q}%`,
+      );
     }
 
     if (companySearchText.value.trim()) {
@@ -101,7 +105,9 @@ export const useJobStore = defineStore('job', () => {
     if (salaryFilter.value === 'excluding') {
       orGroups.push(hasSalaryWhere);
     } else if (salaryFilter.value === 'only') {
-      orGroups.push('and(min_salary.eq.0,max_salary.eq.9999999)');
+      orGroups.push(
+        'and(min_salary.eq.0,max_salary.eq.9999999)',
+      );
     }
 
     if (orGroups.length === 1) {
@@ -228,7 +234,9 @@ export const useJobStore = defineStore('job', () => {
     }
   };
 
-  const clearPreferences = async (preference: 'like' | 'dislike') => {
+  const clearPreferences = async (
+    preference: 'like' | 'dislike',
+  ) => {
     try {
       await clearJobPreferences(preference);
       countLoaded.value = false;

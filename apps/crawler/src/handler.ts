@@ -223,6 +223,7 @@ export const createRouter = <
             await new JobService().fetchAll({
               select: 'id, updated_at, created_at',
             }));
+            log.info(`Fetched ${existingJobs.length} jobs`)
         }
 
         const jobs = getJobsFromResponse(response)

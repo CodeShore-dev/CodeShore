@@ -1,12 +1,17 @@
-import { Module } from '@nestjs/common';
+import {
+  Module,
+} from '@nestjs/common';
 
-import { MvSalaryTypeMedianRatioService, MvSalaryWeightedRatioService } from '@codeshore/data-utils';
+import {
+  MvSalaryTypeMedianRatioService,
+  MvSalaryWeightedRatioService,
+} from '@codeshore/data-utils';
 import { getAppCacheModule } from '@codeshore/service-cache';
-import { getAppConfigModule } from '@codeshore/service-config';
 import { LoggerModule } from '@codeshore/service-logger';
 import { getServeStaticModule } from '@codeshore/service-serve-static';
 
 import { AuthModule } from '../features/auth/auth.module';
+import { Module as CacheModule } from '../features/cache/module';
 import { Module as CompanyModule } from '../features/company/module';
 import { Module as JobModule } from '../features/job/module';
 import { Module as KeywordModule } from '../features/keyword/module';
@@ -17,10 +22,10 @@ import { AppService } from './app.service';
 @Module({
   imports: [
     getAppCacheModule(),
-    getAppConfigModule(),
     getServeStaticModule(process.env.REPO),
-    LoggerModule,
+    LoggerModule.forRoot(),
     AuthModule,
+    CacheModule,
     CompanyModule,
     JobModule,
     KeywordModule,

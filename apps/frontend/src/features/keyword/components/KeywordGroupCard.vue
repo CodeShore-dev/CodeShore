@@ -4,11 +4,9 @@ import { RouterLink } from 'vue-router';
 
 import { SupabaseView } from '@codeshore/data-types';
 
-import { CATEGORY_LABEL_MAP } from '../useKeywordStore';
+import { CATEGORY_LABEL_MAP } from '../../../utils/constants';
 import { useKeywordGroupStore } from '../useKeywordGroupStore';
 import { useAuthStore } from '../../auth/useAuthStore';
-import KeywordGroupEditForm from './KeywordGroupEditForm.vue';
-import KeywordGroupAssignPanel from './KeywordGroupAssignPanel.vue';
 
 const props = defineProps<{ group: SupabaseView.MvKeywordGroup }>();
 
@@ -122,17 +120,8 @@ async function handleDelete() {
       </div>
     </div>
 
-    <!-- Assign panel (keyword items) -->
-    <KeywordGroupAssignPanel
-      v-if="!store.selectMode && group.category === null && assigningKeyword === group.keyword_group"
-      :group-id="group.keyword_group"
-      :keyword="group.keyword_group"
-      @done="assigningKeyword = null"
-    />
-
     <!-- Group info (non-edit, grouped items) -->
     <div
-      v-else-if="!store.selectMode && group.category !== null && !isEditing"
       class="border-t border-[#c3c6d5]/20 px-5 py-3"
     >
       <div class="mb-2 flex flex-wrap items-center gap-2">
@@ -140,10 +129,10 @@ async function handleDelete() {
         <span class="rounded-full bg-[#fd7700]/15 px-2 py-0.5 text-sm font-medium text-[#fd7700]">
           {{ CATEGORY_LABEL_MAP[group.category] }}
         </span>
-        <template v-if="group.parent">
+        <template v-if="group.parents">
           <span class="text-sm font-semibold text-[#434653] dark:text-[#c3c6d5]">父層</span>
           <span class="rounded-full bg-amber-500/15 px-2 py-0.5 text-sm font-medium text-amber-500">
-            {{ group.parent }}
+            {{ group.parents }}
           </span>
         </template>
       </div>
@@ -163,13 +152,5 @@ async function handleDelete() {
         >
       </div>
     </div>
-
-    <!-- Edit form -->
-    <KeywordGroupEditForm
-      v-else-if="!store.selectMode && group.category !== null && isEditing"
-      :group="group"
-      @save="isEditing = false"
-      @cancel="isEditing = false"
-    />
   </div>
 </template>

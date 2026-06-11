@@ -1,30 +1,18 @@
 import { Logger, ValidationPipe } from '@nestjs/common';
-import { NestFactory } from '@nestjs/core';
+import {
+  IEntryNestModule,
+  NestFactory,
+} from '@nestjs/core';
 import {
   DocumentBuilder,
   SwaggerModule,
 } from '@nestjs/swagger';
 
-import {
-  InboundInterceptor,
-  ServiceLogger,
-} from '@codeshore/service-logger';
-
-import { GlobalExceptionFilter } from './global-exception.filter';
-
-/**
- * e.g. x-y-z-service
- * => ['x-y-z', 'xyz']
- * @param repo
- * @returns
- */
-export const getMetadata = (repo: string) => [
-  repo.replace(/-service$/, ''),
-  repo.replace(/-(service)?/g, ''),
-];
+import { ServiceLogger } from '@codeshore/service-logger';
+import { AllExceptionsFilter, InboundInterceptor } from '@codeshore/service-transport';
 
 export async function bootstrap(
-  AppModule: any,
+  AppModule: IEntryNestModule,
   {
     repo = 'unknown-service',
     port = 8080,
@@ -39,12 +27,10 @@ export async function bootstrap(
     console.error('❌ Unhandled Rejection:', reason);
   });
 
-  let [, prefix] = getMetadata(repo);
-  prefix += repo ? '/api' : 'api';
+  const prefix = 'api';
 
   const app = await NestFactory.create(AppModule);
   const logger = app.get(ServiceLogger);
-  app.useLogger(logger);
   app.enableCors();
   app.setGlobalPrefix(prefix);
   app.useGlobalInterceptors(new InboundInterceptor(logger));
@@ -55,7 +41,8 @@ export async function bootstrap(
       forbidNonWhitelisted: false,
     }),
   );
-  app.useGlobalFilters(new GlobalExceptionFilter());
+  app.useGlobalFilters(new AllExceptionsFilter());
+  app.enableShutdownHooks();
 
   const options = new DocumentBuilder()
     .setTitle(`${repo} API`)

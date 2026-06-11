@@ -6,7 +6,6 @@ import Pagination from '../../../components/Pagination.vue';
 import { useAuthStore } from '../../auth/useAuthStore';
 import KeywordGroupBulkToolbar from '../components/KeywordGroupBulkToolbar.vue';
 import KeywordGroupCard from '../components/KeywordGroupCard.vue';
-import KeywordGroupCreateModal from '../components/KeywordGroupCreateModal.vue';
 import {
   type GroupFilter,
   useKeywordGroupStore,
@@ -132,13 +131,13 @@ const showCreateModal = ref(false);
         class="flex animate-pulse flex-col gap-2 rounded-xl bg-white px-5 py-4 shadow-[0_24px_40px_rgba(0,31,42,0.06)]"
       >
         <div class="flex items-center justify-between">
-          <div class="h-4 w-40 rounded bg-[#001f2a]/[0.08]" />
-          <div class="h-4 w-12 rounded bg-[#001f2a]/[0.08]" />
+          <div class="h-4 w-40 rounded bg-[#001f2a]/8" />
+          <div class="h-4 w-12 rounded bg-[#001f2a]/8" />
         </div>
         <div class="flex gap-2">
-          <div class="h-5 w-16 rounded-full bg-[#001f2a]/[0.08]" />
-          <div class="h-5 w-12 rounded-full bg-[#001f2a]/[0.08]" />
-          <div class="h-5 w-20 rounded-full bg-[#001f2a]/[0.08]" />
+          <div class="h-5 w-16 rounded-full bg-[#001f2a]/8" />
+          <div class="h-5 w-12 rounded-full bg-[#001f2a]/8" />
+          <div class="h-5 w-20 rounded-full bg-[#001f2a]/8" />
         </div>
       </div>
     </div>
@@ -184,11 +183,6 @@ const showCreateModal = ref(false);
         第 {{ store.currentPage }} 頁，共 {{ store.totalPages }} 頁・總計 {{ store.totalCount }} 個群組
       </p>
     </template>
-
-    <KeywordGroupCreateModal
-      :open="showCreateModal"
-      @close="showCreateModal = false"
-    />
   </div>
 </template>
 
