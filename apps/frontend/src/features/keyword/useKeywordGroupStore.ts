@@ -11,6 +11,7 @@ import {
   fetchMvKeywordGroup,
   resetMvKeywordGroup,
   updateKeywordGroup,
+  updateKeywordGroupIconSlugs,
 } from './service';
 
 const PAGE_SIZE = 20;
@@ -66,13 +67,11 @@ export const useKeywordGroupStore = defineStore(
       loading.value = loadingEffect;
       const from = (page - 1) * PAGE_SIZE;
       const to = page * PAGE_SIZE - 1;
-      const { result, count } = await fetchMvKeywordGroup(
-        {
-          from,
-          to,
-          where: buildWhere(),
-        },
-      );
+      const { result, count } = await fetchMvKeywordGroup({
+        from,
+        to,
+        where: buildWhere(),
+      });
       keywordGroups.value = result;
       totalCount.value = count;
       loading.value = false;
@@ -124,6 +123,19 @@ export const useKeywordGroupStore = defineStore(
       saving.value = false;
     };
 
+    // 更新某群組的 icon 順序；不動全域 saving（避免列表變骨架），
+    // 成功後就地更新本地資料讓畫面立即反映。
+    const updateIconSlugs = async (
+      id: string,
+      icon_slugs: string[],
+    ) => {
+      await updateKeywordGroupIconSlugs(id, icon_slugs);
+      const target = keywordGroups.value.find(
+        g => g.keyword_group === id,
+      );
+      if (target) target.icon_slugs = icon_slugs;
+    };
+
     const deleteGroup = async (id: string) => {
       saving.value = true;
       await deleteKeywordGroup(id);
@@ -146,7 +158,7 @@ export const useKeywordGroupStore = defineStore(
       await updateKeywordGroup(keywordGroup, {
         keywords: [...(group?.keywords || []), keyword],
         category: group?.category || null,
-        parent: group?.parent || null,
+        parent: group?.parents?.[0] || null,
       });
       saving.value = false;
     };
@@ -248,6 +260,7 @@ export const useKeywordGroupStore = defineStore(
       createGroup,
       createGroupFromKeyword,
       updateGroup,
+      updateIconSlugs,
       deleteGroup,
       assignKeywordToGroup,
       removeKeyword,
@@ -260,4 +273,3 @@ export const useKeywordGroupStore = defineStore(
     };
   },
 );
-

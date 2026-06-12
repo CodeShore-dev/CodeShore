@@ -2,9 +2,9 @@
 import { computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
+import TechIcon from '../../../components/TechIcon.vue';
 import { toWan } from '../../../utils/format';
 import useTechComboStats from '../composables/useTechComboStats';
-import { useHomeStore } from '../useHomeStore';
 
 type Props = {
   tech: string;
@@ -88,9 +88,23 @@ watch(
             class="leading-none font-black tracking-[-0.03em]"
             style="font-size: clamp(1.75rem, 7vw, 3.25rem)"
           >
-            {{ topCombo.tech1_label }}<br />
+            <span class="inline-flex items-center gap-2">
+              <TechIcon
+                :slugs="topCombo.tech1_icons"
+                :label="topCombo.tech1_label"
+                :size="28"
+              />
+              {{ topCombo.tech1_label }} </span
+            ><br />
             <span class="text-[#fd7700]">+</span>
-            {{ topCombo.tech2_label }}
+            <span class="inline-flex items-center gap-2">
+              <TechIcon
+                :slugs="topCombo.tech2_icons"
+                :label="topCombo.tech2_label"
+                :size="28"
+              />
+              {{ topCombo.tech2_label }}
+            </span>
           </div>
         </div>
         <div class="mt-4 flex items-end justify-between">
@@ -145,12 +159,26 @@ watch(
           #{{ i + 2 }}
         </div>
         <div
-          class="mt-2 leading-tight font-black tracking-[-0.02em] text-[#001f2a]"
+          class="mt-2 flex flex-wrap items-center gap-x-1 gap-y-1 leading-tight font-black tracking-[-0.02em] text-[#001f2a]"
           style="font-size: 1.375rem"
         >
-          {{ combo.tech1_label }}
+          <span class="inline-flex items-center gap-1.5">
+            <TechIcon
+              :slugs="combo.tech1_icons"
+              :label="combo.tech1_label"
+              :size="16"
+            />
+            {{ combo.tech1_label }}
+          </span>
           <span class="text-[#fd7700]">+</span>
-          {{ combo.tech2_label }}
+          <span class="inline-flex items-center gap-1.5">
+            <TechIcon
+              :slugs="combo.tech2_icons"
+              :label="combo.tech2_label"
+              :size="16"
+            />
+            {{ combo.tech2_label }}
+          </span>
         </div>
         <div class="mt-2 flex items-end justify-between">
           <div>

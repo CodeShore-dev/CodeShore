@@ -4,3 +4,7 @@ export type ListQuery = {
   orders?: string;
   where?: string;
 };
+
+export type Response<T = unknown> = {
+  data: T;
+};

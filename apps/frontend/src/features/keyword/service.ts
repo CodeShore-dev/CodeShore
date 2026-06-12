@@ -57,6 +57,16 @@ export const updateKeywordGroup = async (
   );
 };
 
+export const updateKeywordGroupIconSlugs = async (
+  id: string,
+  icon_slugs: string[],
+): Promise<void> => {
+  await httpClient.patch('/api/keyword/group/icon-slugs', {
+    id,
+    icon_slugs,
+  });
+};
+
 export const deleteKeywordGroup = async (
   id: string,
 ): Promise<void> => {

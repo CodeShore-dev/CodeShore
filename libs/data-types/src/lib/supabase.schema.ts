@@ -285,23 +285,23 @@ export type Database = {
       keyword_group: {
         Row: {
           category: string
+          icon_slugs: string[] | null
           id: string
           label: string
-          parent: string | null
           tags: string[] | null
         }
         Insert: {
           category: string
+          icon_slugs?: string[] | null
           id: string
           label: string
-          parent?: string | null
           tags?: string[] | null
         }
         Update: {
           category?: string
+          icon_slugs?: string[] | null
           id?: string
           label?: string
-          parent?: string | null
           tags?: string[] | null
         }
         Relationships: []
@@ -450,6 +450,7 @@ export type Database = {
           category: string | null
           children: string[] | null
           count: number | null
+          icon_slugs: string[] | null
           keyword_group: string | null
           keywords: string[] | null
           label: string | null
@@ -468,6 +469,7 @@ export type Database = {
       mv_keyword_group_ranking: {
         Row: {
           category: string | null
+          icon_slugs: string[] | null
           job_count: number | null
           keyword_group: string | null
           label: string | null
@@ -541,9 +543,11 @@ export type Database = {
           pr88_min_month: number | null
           pr88_min_year: number | null
           tech1: string | null
+          tech1_icons: string[] | null
           tech1_label: string | null
           tech1_tags: string[] | null
           tech2: string | null
+          tech2_icons: string[] | null
           tech2_label: string | null
           tech2_tags: string[] | null
           year_median_avg: number | null
@@ -653,7 +657,6 @@ export type Database = {
       refresh_mv_keyword_group_category: { Args: never; Returns: undefined }
       refresh_mv_keyword_group_ranking: { Args: never; Returns: undefined }
       refresh_mv_keyword_group_tags: { Args: never; Returns: undefined }
-      refresh_mv_language_tech_combo_stats: { Args: never; Returns: undefined }
       refresh_mv_location_group: { Args: never; Returns: undefined }
       refresh_mv_salary_type_median_ratio: { Args: never; Returns: undefined }
       refresh_mv_salary_weighted_ratio: { Args: never; Returns: undefined }

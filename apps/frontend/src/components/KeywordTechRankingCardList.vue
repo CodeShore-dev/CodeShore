@@ -8,6 +8,7 @@ import {
   CATEGORY_LABEL_MAP,
   TAG_LABEL_MAP,
 } from '../utils/constants';
+import TechIcon from './TechIcon.vue';
 
 const props = defineProps<{
   title: string;
@@ -128,11 +129,18 @@ watch(
           >
             #{{ i + 1 }}
           </div>
-          <span
-            class="text-lg leading-tight font-black tracking-tight text-[#001f2a]"
-          >
-            {{ item.label }}
-          </span>
+          <div class="flex items-center gap-2">
+            <TechIcon
+              :slugs="item.icon_slugs"
+              :label="item.label"
+              :size="18"
+            />
+            <span
+              class="text-lg leading-tight font-black tracking-tight text-[#001f2a]"
+            >
+              {{ item.label }}
+            </span>
+          </div>
           <div class="flex gap-1">
             <span
               v-for="tag in item.tags"
@@ -170,4 +178,3 @@ watch(
     </div>
   </section>
 </template>
-

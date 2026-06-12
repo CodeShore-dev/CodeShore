@@ -1,13 +1,20 @@
 import {
+  Body,
   Controller as ControllerDecorator,
   Get,
+  Patch,
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 
 import { AdminOnly } from '../auth/auth.decorator';
 import { QueryDto } from '../query.dto';
+import { UpdateIconSlugsDto } from './dto';
 import { Service } from './service';
 
 const name = 'keyword';
@@ -20,7 +27,8 @@ export class Controller {
 
   @Get('group')
   @ApiOperation({
-    summary: 'Query keyword groups (supports pagination, sorting and filtering)',
+    summary:
+      'Query keyword groups (supports pagination, sorting and filtering)',
     description:
       'Reads from the keyword-group materialized view. When from=0 and to=-1 (fetch all), the result is served from the server-side cache. Example: /keyword/group?from=0&to=-1 returns the full grouping; /keyword/group?from=0&to=20&orders=count:desc returns the top 20.',
   })
@@ -49,5 +57,22 @@ export class Controller {
   @AdminOnly()
   resetJobKeywords_Keywords_JobKeywordGroup() {
     return this.service.resetJobKeywords_Keywords_JobKeywordGroup();
+  }
+
+  @Patch('group/icon-slugs')
+  @ApiOperation({
+    summary:
+      'Update the ordered icon sources of a keyword group (admin only)',
+    description:
+      "Replaces keyword_group.icon_slugs with the given ordered list ('source:slug', earlier = higher priority) and refreshes the keyword-group materialized view. The id is in the body so keyword ids containing slashes are handled.",
+  })
+  @AdminOnly()
+  updateKeywordGroupIconSlugs(
+    @Body() dto: UpdateIconSlugsDto,
+  ) {
+    return this.service.updateKeywordGroupIconSlugs(
+      dto.id,
+      dto.icon_slugs,
+    );
   }
 }

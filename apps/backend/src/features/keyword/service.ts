@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import {
+  KeywordGroupService,
   MvKeywordGroupCategoryService,
   MvKeywordGroupService,
   resetJobKeywords_Keywords_JobKeywordGroup,
@@ -16,6 +17,7 @@ import { QueryDto } from './../query.dto';
 export class Service {
   constructor(
     private readonly cacheService: CacheService,
+    private readonly keywordGroupService: KeywordGroupService,
     private readonly mvKeywordGroupService: MvKeywordGroupService,
     private readonly mvKeywordGroupCategoryService: MvKeywordGroupCategoryService,
   ) {}
@@ -48,5 +50,23 @@ export class Service {
       keyword,
     );
   }
-}
 
+  async updateKeywordGroupIconSlugs(
+    id: string,
+    icon_slugs: string[],
+  ) {
+    const { error } = await this.keywordGroupService.update(
+      {
+        id,
+        icon_slugs,
+      },
+    );
+    if (error) throw new Error(error.message);
+    // 讓 materialized view 與首頁全清單快取反映新順序
+    await this.mvKeywordGroupService.refresh();
+    await this.cacheService.invalidate(
+      MvKeywordGroupService.name,
+    );
+    return { id, icon_slugs };
+  }
+}
