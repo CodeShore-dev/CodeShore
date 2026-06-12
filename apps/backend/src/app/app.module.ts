@@ -1,10 +1,10 @@
-import {
-  Module,
-} from '@nestjs/common';
+import { Module } from '@nestjs/common';
 
 import {
+  MvKeywordGroupRankingService,
   MvSalaryTypeMedianRatioService,
   MvSalaryWeightedRatioService,
+  MvTechComboStatsService,
 } from '@codeshore/data-utils';
 import { getAppCacheModule } from '@codeshore/service-cache';
 import { LoggerModule } from '@codeshore/service-logger';
@@ -35,6 +35,8 @@ import { AppService } from './app.service';
     AppService,
     provideWithLogger(MvSalaryTypeMedianRatioService),
     provideWithLogger(MvSalaryWeightedRatioService),
+    provideWithLogger(MvKeywordGroupRankingService),
+    provideWithLogger(MvTechComboStatsService),
   ],
 })
 export class AppModule {}
