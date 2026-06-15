@@ -214,6 +214,7 @@ async function reCrawlJobs(
           const descriptionChanged =
             detail.description !== job.description;
           const salaryChanged =
+            !job.salary_manual &&
             detail.salary !== job.salary;
           const locationChanged =
             detail.location !== job.location;
@@ -233,13 +234,17 @@ async function reCrawlJobs(
             salaryChanged ||
             locationChanged
           ) {
-            const salary = detail.salary ?? '';
+            const salaryUpdate = salaryChanged
+              ? {
+                  salary: detail.salary ?? '',
+                  ...parseSalary(detail.salary ?? ''),
+                }
+              : {};
             pending.jobs.push({
               ...job,
               description: detail.description,
               location: detail.location,
-              salary,
-              ...parseSalary(salary),
+              ...salaryUpdate,
               updated_at: new Date(),
               closed: false,
             });
@@ -355,13 +360,15 @@ async function main() {
 
     case 'job-salary': {
       const { result } = await new JobService().fetchAll({
-        select: 'id,salary',
+        select: 'id,salary,salary_manual',
       });
       await new JobService().updateMultiple(
-        result.map(x => ({
-          id: x.id,
-          ...parseSalary(x.salary),
-        })),
+        result
+          .filter(x => !x.salary_manual)
+          .map(x => ({
+            id: x.id,
+            ...parseSalary(x.salary),
+          })),
       );
       break;
     }

@@ -21,9 +21,6 @@ const router = useRouter();
 
 const selectedCategory = ref('language');
 
-// Grid is 2/3/4/5 columns per breakpoint; always show 2 rows, so the
-// surplus cards beyond each breakpoint's count are hidden via literal
-// Tailwind classes (kept whole so the JIT scanner detects them).
 const CARD_VISIBILITY = [
   'flex',
   'flex',
@@ -133,7 +130,6 @@ watch(
             <TechIcon
               :slugs="item.icon_slugs"
               :label="item.label"
-              :size="18"
             />
             <span
               class="text-lg leading-tight font-black tracking-tight text-[#001f2a]"

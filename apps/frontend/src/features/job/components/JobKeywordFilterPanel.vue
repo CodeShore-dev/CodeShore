@@ -153,7 +153,7 @@ function hideTabTooltip(): void {
             <TechIcon
               :slugs="keywordGroup.icon_slugs"
               :label="keywordGroup.label"
-              :size="16"
+              :size="20"
             />
             <span class="truncate">{{
               keywordGroup.label

@@ -34,6 +34,13 @@ const router = createRouter({
         ),
     },
     {
+      path: '/admin/jobs',
+      name: 'admin-jobs',
+      meta: { adminOnly: true },
+      component: () =>
+        import('../features/admin/views/JobMonitor.vue'),
+    },
+    {
       path: '/login',
       name: 'login',
       component: () =>
@@ -63,6 +70,10 @@ router.beforeEach(async to => {
   }
 
   if (authStore.isAuthenticated && to.name === 'login') {
+    return { name: 'home' };
+  }
+
+  if (to.meta.adminOnly && !authStore.canEdit) {
     return { name: 'home' };
   }
 });

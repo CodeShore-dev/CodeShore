@@ -1,16 +1,20 @@
 <script lang="ts" setup>
+import { v4 as uuid } from 'uuid';
 import { computed, ref, watch } from 'vue';
 
-import { loadProcessedIcon } from '../utils/svgRecolor';
+import {
+  loadProcessedIcon,
+  namespaceIds,
+} from '../utils/svgRecolor';
+
+const uid = `ti_${uuid()}`;
 
 const SOURCE_URL: Record<string, (slug: string) => string> =
   {
     'simple-icons': slug =>
       `https://cdn.simpleicons.org/${slug}`,
     thesvg: slug =>
-      `https://cdn.jsdelivr.net/gh/glincker/thesvg@main/public/icons/${slug}/default.svg`,
-    devicon: slug =>
-      `https://cdn.jsdelivr.net/gh/devicons/devicon/icons/${slug}.svg`,
+      `https://cdn.jsdelivr.net/gh/glincker/thesvg@main/public/icons/${slug.includes('/') ? slug : `${slug}/default`}.svg`,
     iconify: slug =>
       `https://api.iconify.design/${slug}.svg`,
   };
@@ -20,8 +24,14 @@ const props = withDefaults(
     slugs?: string[] | null;
     label?: string | null;
     size?: number;
+    hideIfNotFound?: boolean;
   }>(),
-  { slugs: null, label: '', size: 18 },
+  {
+    slugs: null,
+    label: '',
+    size: 32,
+    hideIfNotFound: true,
+  },
 );
 
 const sources = computed<string[]>(() =>
@@ -45,9 +55,9 @@ async function resolve(urls: string[]): Promise<void> {
   settled.value = false;
   for (const url of urls) {
     const svg = await loadProcessedIcon(url);
-    if (mine !== seq) return; // 已被新的請求取代
+    if (mine !== seq) return;
     if (svg) {
-      markup.value = svg;
+      markup.value = namespaceIds(svg, uid);
       settled.value = true;
       return;
     }
@@ -64,6 +74,7 @@ const initial = computed(() =>
 
 <template>
   <span
+    v-if="!props.hideIfNotFound || !settled || markup"
     class="techicon inline-flex shrink-0 items-center justify-center overflow-hidden rounded-md border border-[#eef3f8] bg-white"
     :style="{
       width: `${size + 8}px`,

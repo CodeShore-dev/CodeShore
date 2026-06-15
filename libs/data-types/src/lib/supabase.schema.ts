@@ -50,6 +50,7 @@ export type Database = {
           max_salary: number
           min_salary: number
           salary: string
+          salary_manual: boolean
           salary_type: string
           title: string
           updated_at: string
@@ -65,6 +66,7 @@ export type Database = {
           max_salary: number
           min_salary: number
           salary: string
+          salary_manual?: boolean
           salary_type: string
           title: string
           updated_at?: string
@@ -80,6 +82,7 @@ export type Database = {
           max_salary?: number
           min_salary?: number
           salary?: string
+          salary_manual?: boolean
           salary_type?: string
           title?: string
           updated_at?: string
@@ -567,7 +570,23 @@ export type Database = {
           year_salary_type_jobs: number
         }[]
       }
+      get_job_crawl_stats: {
+        Args: { p_days?: number }
+        Returns: {
+          new_jobs_count: number
+          new_jobs_date: string
+          updated_jobs_count: number
+          updated_jobs_date: string
+        }[]
+      }
       get_job_preference_count: { Args: { p_user_id: string }; Returns: Json }
+      get_job_update_date_counts: {
+        Args: never
+        Returns: {
+          count: number
+          updated_date: string
+        }[]
+      }
       get_jobs_by_preference: {
         Args: { p_preference: string; p_user_id: string }
         Returns: {
@@ -594,6 +613,31 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "mv_job"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      get_location_anomaly_jobs: {
+        Args: { p_maxlen?: number; p_type: string }
+        Returns: {
+          closed: boolean
+          company_id: string
+          created_at: string
+          description: string
+          detail_link: string
+          id: string
+          location: string
+          max_salary: number
+          min_salary: number
+          salary: string
+          salary_manual: boolean
+          salary_type: string
+          title: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "job"
           isOneToOne: false
           isSetofReturn: true
         }

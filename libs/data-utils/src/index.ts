@@ -11,6 +11,7 @@ export * from './lib/api/mv_company';
 export * from './lib/api/keyword_bin.service';
 export * from './lib/api/job_keyword.service';
 export * from './lib/api/rpc';
+export * from './lib/api/job_anomaly';
 export * from './lib/api/job_source.service';
 export * from './lib/api/job_source_url.service';
 export * from './lib/api/keyword_group_keyword.service';

@@ -12,7 +12,10 @@ const navLinks = computed(() => [
   { to: '/jobs', label: '職缺', exact: true },
   { to: '/companies', label: '公司', exact: false },
   ...(authStore.canEdit
-    ? [{ to: '/keywords', label: '關鍵字', exact: false }]
+    ? [
+        { to: '/keywords', label: '關鍵字', exact: false },
+        { to: '/admin/jobs', label: '監控', exact: false },
+      ]
     : []),
 ]);
 

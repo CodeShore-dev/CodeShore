@@ -92,16 +92,15 @@ watch(
               <TechIcon
                 :slugs="topCombo.tech1_icons"
                 :label="topCombo.tech1_label"
-                :size="28"
               />
-              {{ topCombo.tech1_label }} </span
-            ><br />
-            <span class="text-[#fd7700]">+</span>
+              {{ topCombo.tech1_label }}
+            </span>
+            <br />
+            <span class="text-[#fd7700] pr-2">+</span>
             <span class="inline-flex items-center gap-2">
               <TechIcon
                 :slugs="topCombo.tech2_icons"
                 :label="topCombo.tech2_label"
-                :size="28"
               />
               {{ topCombo.tech2_label }}
             </span>
@@ -159,23 +158,22 @@ watch(
           #{{ i + 2 }}
         </div>
         <div
-          class="mt-2 flex flex-wrap items-center gap-x-1 gap-y-1 leading-tight font-black tracking-[-0.02em] text-[#001f2a]"
+          class="mt-2 flex items-center gap-x-1 gap-y-1 leading-tight font-black tracking-[-0.02em] text-[#001f2a]"
           style="font-size: 1.375rem"
         >
           <span class="inline-flex items-center gap-1.5">
             <TechIcon
               :slugs="combo.tech1_icons"
               :label="combo.tech1_label"
-              :size="16"
             />
             {{ combo.tech1_label }}
           </span>
+          <br />
           <span class="text-[#fd7700]">+</span>
           <span class="inline-flex items-center gap-1.5">
             <TechIcon
               :slugs="combo.tech2_icons"
               :label="combo.tech2_label"
-              :size="16"
             />
             {{ combo.tech2_label }}
           </span>

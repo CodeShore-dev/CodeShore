@@ -24,22 +24,15 @@ const authStore = useAuthStore();
 const isEditing = ref(false);
 const assigningKeyword = ref<string | null>(null);
 
-// ── 圖示順序編輯（admin 點 icon → 上方彈出小框調整 icon_slugs 順序）──
 const editingIcons = ref(false);
 const savingOrder = ref(false);
 const anchor = ref({ x: 0, y: 0 });
 const popupRef = ref<HTMLElement | null>(null);
 
-const ICON_SOURCES = [
-  'simple-icons',
-  'thesvg',
-  'devicon',
-  'iconify',
-];
+const ICON_SOURCES = ['thesvg', 'simple-icons', 'iconify'];
 type IconRow = { id: number; source: string; slug: string };
 let rowSeq = 0;
 const iconRows = ref<IconRow[]>([]);
-// 下拉選單可選的來源：已知來源 ∪ 目前資料裡出現過的來源
 const availableSources = computed(() => [
   ...new Set([
     ...ICON_SOURCES,
@@ -51,7 +44,6 @@ const canEditIcons = computed(
   () => authStore.canEdit && !store.selectMode,
 );
 
-// 'source:slug' -> { source, slug }（slug 可含冒號，以第一個冒號切分）
 function parseEntry(entry: string): IconRow {
   const sep = entry.indexOf(':');
   return {
@@ -209,14 +201,14 @@ async function handleDelete() {
           <TechIcon
             :slugs="group.icon_slugs"
             :label="group.label"
-            :size="32"
+            :hide-if-not-found="false"
           />
         </button>
         <TechIcon
           v-else
           :slugs="group.icon_slugs"
           :label="group.label"
-          :size="32"
+          :hide-if-not-found="false"
         />
         <span
           class="flex items-center gap-2 rounded-lg bg-[#e6f6ff] px-3 py-1 font-mono text-sm font-bold text-[#003d92] dark:bg-[#003d92]/30 dark:text-[#a8d4f5]"
@@ -343,7 +335,7 @@ async function handleDelete() {
     <div
       v-if="editingIcons"
       ref="popupRef"
-      class="fixed z-50 w-[23rem] -translate-x-1/2 -translate-y-full rounded-xl border border-[#c3c6d5]/40 bg-white p-3 shadow-[0_12px_40px_rgba(0,31,42,0.18)]"
+      class="fixed z-50 w-92 -translate-x-1/2 -translate-y-full rounded-xl border border-[#c3c6d5]/40 bg-white p-3 shadow-[0_12px_40px_rgba(0,31,42,0.18)]"
       :style="{
         left: `${anchor.x}px`,
         top: `${anchor.y - 10}px`,
@@ -370,11 +362,11 @@ async function handleDelete() {
           <TechIcon
             :slugs="previewSlugs(row)"
             :label="group.label"
-            :size="20"
+            :hide-if-not-found="false"
           />
           <select
             v-model="row.source"
-            class="shrink-0 rounded border border-[#c3c6d5]/60 bg-white py-1 pr-0.5 pl-1 text-[11px] text-[#001f2a] focus:border-[#003d92] focus:outline-none"
+            class="min-w-16 shrink-0 rounded border border-[#c3c6d5]/60 bg-white py-1 pr-0.5 pl-1 text-[11px] text-[#001f2a] focus:border-[#003d92] focus:outline-none"
           >
             <option
               v-for="s in availableSources"

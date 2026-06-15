@@ -75,6 +75,15 @@ export namespace SupabaseFunction {
     liked_count: number;
     disliked_count: number;
   };
+
+  export type JobCrawlStats =
+    Database['public']['Functions']['get_job_crawl_stats']['Returns'][number];
+
+  export type LocationAnomalyJob =
+    Database['public']['Functions']['get_location_anomaly_jobs']['Returns'][number];
+
+  export type JobUpdateDateCount =
+    Database['public']['Functions']['get_job_update_date_counts']['Returns'][number];
 }
 
 export namespace SupabaseView {

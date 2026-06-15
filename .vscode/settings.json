@@ -16,6 +16,7 @@
     "openrouter",
     "Postgrest",
     "Preferenced",
+    "recrawl",
     "Supabase",
     "techicon",
     "thesvg",
