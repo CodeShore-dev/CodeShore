@@ -7,6 +7,7 @@ export namespace SupabaseTable {
     {
       updated_at?: Date;
       created_at?: Date;
+      salary_manual?: boolean;
     }
   >;
 

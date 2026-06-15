@@ -154,7 +154,7 @@ const recrawlEmptyBulk = () =>
       class="text-on-surface-variant mb-3 flex flex-wrap items-center gap-2 text-sm"
     >
       <span class="font-semibold">統計區間</span>
-      <span>近</span>
+      <span>最新的日期之近</span>
       <input
         v-model.number="statsDays"
         type="number"
@@ -182,7 +182,7 @@ const recrawlEmptyBulk = () =>
           <span class="material-symbols-outlined text-primary"
             >fiber_new</span
           >
-          新職缺數量
+          新職缺
         </div>
         <div class="text-on-surface mt-2 text-3xl font-black">
           {{
@@ -192,7 +192,7 @@ const recrawlEmptyBulk = () =>
           }}
         </div>
         <div class="text-on-surface-variant mt-1 text-xs">
-          {{ fmtRangeStart(store.stats?.new_jobs_date) }} - {{ fmtDate(store.stats?.new_jobs_date) }}
+          {{ fmtRangeStart(store.stats?.new_jobs_date) }} - 今天
         </div>
       </div>
 
@@ -205,7 +205,7 @@ const recrawlEmptyBulk = () =>
           <span class="material-symbols-outlined text-primary"
             >update</span
           >
-          最近更新職缺數量
+          最近更新職缺
         </div>
         <div class="text-on-surface mt-2 text-3xl font-black">
           {{
@@ -215,7 +215,7 @@ const recrawlEmptyBulk = () =>
           }}
         </div>
         <div class="text-on-surface-variant mt-1 text-xs">
-          {{ fmtRangeStart(store.stats?.updated_jobs_date) }} - {{ fmtDate(store.stats?.updated_jobs_date) }}
+          {{ fmtRangeStart(store.stats?.updated_jobs_date) }} - 今天
         </div>
       </div>
     </div>
