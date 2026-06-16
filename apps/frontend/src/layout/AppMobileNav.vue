@@ -1,23 +1,7 @@
 <script lang="ts" setup>
-import { computed } from 'vue';
-import { useRoute } from 'vue-router';
+import { useNavLinks } from './composables/useNavLinks';
 
-import { useAuthStore } from '../features/auth/useAuthStore';
-
-const route = useRoute();
-const authStore = useAuthStore();
-
-const navLinks = computed(() => [
-  { to: '/', label: '首頁', icon: 'home', exact: true },
-  { to: '/jobs', label: '職缺', icon: 'work', exact: true },
-  { to: '/companies', label: '公司', icon: 'apartment', exact: false },
-  ...(authStore.canEdit
-    ? [
-        { to: '/keywords', label: '關鍵字', icon: 'label', exact: false },
-        { to: '/admin/jobs', label: '監控', icon: 'monitoring', exact: false },
-      ]
-    : []),
-]);
+const { navLinks, isActive } = useNavLinks();
 </script>
 
 <template>
@@ -31,7 +15,7 @@ const navLinks = computed(() => [
       :to="link.to"
       class="flex flex-col items-center justify-center p-2 transition"
       :class="
-        (link.exact ? route.path === link.to : route.path.startsWith(link.to))
+        isActive(link)
           ? 'text-[#003d92]'
           : 'text-[#434653] hover:text-[#003d92]'
       "
@@ -39,7 +23,7 @@ const navLinks = computed(() => [
       <span
         class="material-symbols-outlined transition"
         :style="
-          (link.exact ? route.path === link.to : route.path.startsWith(link.to))
+          isActive(link)
             ? 'font-variation-settings: \'FILL\' 1'
             : ''
         "
