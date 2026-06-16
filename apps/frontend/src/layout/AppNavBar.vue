@@ -1,30 +1,9 @@
 <script lang="ts" setup>
-import { useRoute } from 'vue-router';
-
 import { useAuthStore } from '../features/auth/useAuthStore';
-import { computed } from 'vue';
+import { useNavLinks } from './composables/useNavLinks';
 
-const route = useRoute();
 const authStore = useAuthStore();
-
-const navLinks = computed(() => [
-  { to: '/', label: '首頁', exact: true },
-  { to: '/jobs', label: '職缺', exact: true },
-  { to: '/companies', label: '公司', exact: false },
-  ...(authStore.canEdit
-    ? [
-        { to: '/keywords', label: '關鍵字', exact: false },
-        { to: '/admin/jobs', label: '監控', exact: false },
-      ]
-    : []),
-]);
-
-function isActive(link: { to: string; exact?: boolean; prefQuery?: boolean; query?: Record<string, string> }) {
-  if (link.prefQuery) return route.path === link.to && !!route.query.tab;
-  if (link.exact && link.to === '/jobs') return route.path === link.to && !route.query.tab;
-  if (link.exact) return route.path === link.to;
-  return route.path.startsWith(link.to);
-}
+const { navLinks, isActive } = useNavLinks();
 </script>
 
 <template>

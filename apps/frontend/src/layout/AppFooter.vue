@@ -1,5 +1,8 @@
 <script lang="ts" setup>
+import { useNavLinks } from './composables/useNavLinks';
+
 const version = import.meta.env.VITE_APP_VER;
+const { footerLinks } = useNavLinks();
 </script>
 
 <template>
@@ -60,12 +63,7 @@ const version = import.meta.env.VITE_APP_VER;
           產品
         </div>
         <RouterLink
-          v-for="item in [
-            { label: '首頁', to: '/' },
-            { label: '職缺', to: '/jobs' },
-            { label: '公司', to: '/companies' },
-            { label: '關鍵字', to: '/keywords' },
-          ]"
+          v-for="item in footerLinks"
           :key="item.label"
           :to="item.to"
           class="block py-1 text-sm font-bold text-[#001f2a] transition-colors hover:text-[#003d92]"
