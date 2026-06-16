@@ -139,11 +139,24 @@ m.value.some(v => selectedKeywordsSet.has(v.toLowerCase()))
 
 ---
 
+## 導覽 / 分頁捲動規則（強制原則）
+
+**切換頁面（router 導覽）或切換 pagination，畫面必須自動捲動回最上方。**
+
+這是專案級強制原則，已內建於框架層級，新功能不需也不應自行重新實作：
+
+- **切換頁面**：`router/index.ts` 的 `scrollBehavior` 統一處理（路徑變化即捲到頂部；瀏覽器上一頁/下一頁還原原位置；同路徑下的 query 變化如篩選、抽屜、分頁不觸發，避免誤跳）。
+- **切換 pagination**：共用元件 `src/components/Pagination.vue` 內建呼叫 `utils/scroll.ts` 的 `scrollToTop()`，任何 feature 只要使用 `<Pagination>` 即自動具備此行為。
+- **新增捲動重置情境**（例如非 `<Pagination>` 的自訂分頁 UI）一律呼叫 `utils/scroll.ts` 的 `scrollToTop()`，禁止在元件內各自寫 `window.scrollTo` / `useWindowScroll` 重新實作。
+
+---
+
 ## 工具函式規則
 
 - 萬元格式：使用 `utils/format.ts` 的 `toWan(n)` / `toWanInt(n)`
 - 日期顯示：使用 `formatDateInfo(date, formatted)` 
 - 數字千分位：使用 `formatNumber(n)`
+- 捲動回頂部：使用 `utils/scroll.ts` 的 `scrollToTop()`（見上方「導覽 / 分頁捲動規則」）
 - **不在元件內自行實作上述邏輯**
 
 ---
