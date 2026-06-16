@@ -81,9 +81,10 @@ const description = computed(() => {
 <template>
   <div class="group relative w-full">
     <div class="flex min-h-110 flex-col overflow-hidden rounded-xl bg-white shadow-[0_24px_40px_rgba(0,31,42,0.06)]">
-      <JobCardSkeleton v-if="store.loading" />
+      <Transition name="card-load-fade" mode="out-in">
+      <JobCardSkeleton v-if="store.loading" key="skeleton" />
 
-      <div v-else class="flex grow flex-col p-4 lg:p-8">
+      <div v-else key="content" class="flex grow flex-col p-4 lg:p-8">
         <!-- Company + closed badge -->
         <div class="mb-6">
           <div class="mb-2 flex items-center gap-2">
@@ -129,6 +130,7 @@ const description = computed(() => {
           @keyword-select="handleKeywordSelect"
         />
       </div>
+      </Transition>
     </div>
   </div>
 
@@ -179,3 +181,14 @@ const description = computed(() => {
     @close="popover = null"
   />
 </template>
+
+<style scoped>
+.card-load-fade-enter-active,
+.card-load-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.card-load-fade-enter-from,
+.card-load-fade-leave-to {
+  opacity: 0;
+}
+</style>

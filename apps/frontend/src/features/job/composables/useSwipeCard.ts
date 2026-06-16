@@ -20,7 +20,7 @@ export function useSwipeCard(options: {
     setTimeout(() => options.onCommit(preference), 250);
   };
 
-  const { distanceX, distanceY } = usePointerSwipe(
+  const { distanceX } = usePointerSwipe(
     cardRef,
     {
       threshold: SWIPE_THRESHOLD,
@@ -58,10 +58,6 @@ export function useSwipeCard(options: {
   const offsetX = computed(() =>
     dragging.value ? -distanceX.value : 0,
   );
-  const offsetY = computed(() =>
-    dragging.value ? -distanceY.value * 0.15 : 0,
-  );
-  const rotate = computed(() => offsetX.value / 18);
 
   const progress = computed(() =>
     Math.min(Math.abs(offsetX.value) / SWIPE_THRESHOLD, 1),
@@ -77,14 +73,14 @@ export function useSwipeCard(options: {
     if (flying.value) {
       const sign = flying.value === 'like' ? 1 : -1;
       return {
-        transform: `translate(${sign * 160}%, -10%) rotate(${sign * 20}deg)`,
+        transform: `translateX(${sign * 160}%)`,
         opacity: '0',
         transition:
-          'transform 0.25s ease, opacity 0.25s ease',
+          'transform 0.3s ease, opacity 0.3s ease',
       };
     }
     return {
-      transform: `translate(${offsetX.value}px, ${offsetY.value}px) rotate(${rotate.value}deg)`,
+      transform: `translateX(${offsetX.value}px)`,
       transition: dragging.value
         ? 'none'
         : 'transform 0.25s ease',
@@ -94,7 +90,9 @@ export function useSwipeCard(options: {
   return {
     cardRef,
     cardStyle,
+    commit,
     dragging,
+    flying,
     likeOpacity,
     dislikeOpacity,
   };
