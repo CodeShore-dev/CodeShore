@@ -70,7 +70,7 @@ watch(
       class="grid grid-cols-2 gap-3 md:grid-cols-[1.4fr_1fr_1fr]"
     >
       <button
-        class="col-span-2 flex cursor-pointer flex-col justify-between rounded-xl bg-[#001f2a] p-6 text-left text-white transition-all hover:opacity-95 active:scale-[0.98] md:col-span-1 md:row-span-2"
+        class="col-span-2 flex min-w-0 cursor-pointer flex-col justify-between rounded-xl bg-[#001f2a] p-6 text-left text-white transition-all hover:opacity-95 active:scale-[0.98] md:col-span-1 md:row-span-2"
         style="min-height: clamp(200px, 50vw, 280px)"
         @click="
           goJobs({
@@ -88,7 +88,9 @@ watch(
             class="leading-none font-black tracking-[-0.03em]"
             style="font-size: clamp(1.75rem, 7vw, 3.25rem)"
           >
-            <span class="inline-flex items-center gap-2">
+            <span
+              class="inline-flex min-w-0 items-center gap-2 break-words"
+            >
               <TechIcon
                 :slugs="topCombo.tech1_icons"
                 :label="topCombo.tech1_label"
@@ -97,7 +99,9 @@ watch(
             </span>
             <br />
             <span class="text-[#fd7700] pr-2">+</span>
-            <span class="inline-flex items-center gap-2">
+            <span
+              class="inline-flex min-w-0 items-center gap-2 break-words"
+            >
               <TechIcon
                 :slugs="topCombo.tech2_icons"
                 :label="topCombo.tech2_label"
@@ -146,7 +150,7 @@ watch(
       <button
         v-for="(combo, i) in smallCombos"
         :key="`${combo.tech1}+${combo.tech2}`"
-        class="flex cursor-pointer flex-col justify-between rounded-xl bg-white p-4 text-left shadow-[0_24px_40px_rgba(0,31,42,0.06)] transition-all hover:-translate-y-0.5 active:scale-[0.98]"
+        class="flex min-w-0 cursor-pointer flex-col justify-between rounded-xl bg-white p-4 text-left shadow-[0_24px_40px_rgba(0,31,42,0.06)] transition-all hover:-translate-y-0.5 active:scale-[0.98]"
         style="min-height: 130px"
         @click="
           goJobs({ tags: `${combo.tech1},${combo.tech2}` })
@@ -158,10 +162,12 @@ watch(
           #{{ i + 2 }}
         </div>
         <div
-          class="mt-2 flex items-center gap-x-1 gap-y-1 leading-tight font-black tracking-[-0.02em] text-[#001f2a]"
+          class="mt-2 flex flex-wrap items-center gap-x-1 gap-y-1 leading-tight font-black tracking-[-0.02em] text-[#001f2a]"
           style="font-size: 1.375rem"
         >
-          <span class="inline-flex items-center gap-1.5">
+          <span
+            class="inline-flex min-w-0 items-center gap-1.5 break-words"
+          >
             <TechIcon
               :slugs="combo.tech1_icons"
               :label="combo.tech1_label"
@@ -170,7 +176,9 @@ watch(
           </span>
           <br />
           <span class="text-[#fd7700]">+</span>
-          <span class="inline-flex items-center gap-1.5">
+          <span
+            class="inline-flex min-w-0 items-center gap-1.5 break-words"
+          >
             <TechIcon
               :slugs="combo.tech2_icons"
               :label="combo.tech2_label"
