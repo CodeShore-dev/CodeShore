@@ -16,6 +16,12 @@ const benchmarkTags: Record<string, string> = {
   top: 'PR88',
 };
 
+const benchmarkLabels: Record<string, string> = {
+  median: '中位數',
+  high: '高薪',
+  top: '頂薪',
+};
+
 const activeBenchmarks = computed(() => {
   const benchmark =
     salaryUnit.value === 'month'
@@ -23,17 +29,17 @@ const activeBenchmarks = computed(() => {
       : store.salaryBenchmarks.year;
   return [
     {
-      label: 'median',
+      key: 'median',
       value: benchmark['median'],
       position: 50,
     },
     {
-      label: 'high',
+      key: 'high',
       value: benchmark['high'],
       position: 75,
     },
     {
-      label: 'top',
+      key: 'top',
       value: benchmark['top'],
       position: 88,
     },
@@ -103,19 +109,19 @@ const activeBenchmarks = computed(() => {
     >
       <div
         v-for="benchmark in activeBenchmarks"
-        :key="benchmark.label"
+        :key="benchmark.key"
         class="flex flex-col rounded-xl bg-white p-5 shadow-[0_24px_40px_rgba(0,31,42,0.06)]"
       >
         <div
           class="mb-3 flex items-baseline justify-between"
         >
-          <span class="uppercase text-sm font-black text-[#001f2a]">{{
-            benchmark.label
+          <span class="text-sm font-black text-[#001f2a]">{{
+            benchmarkLabels[benchmark.key]
           }}</span>
           <span
             class="font-mono text-[10px] tracking-widest text-[#434653]"
           >
-            {{ benchmarkTags[benchmark.label] }}
+            {{ benchmarkTags[benchmark.key] }}
           </span>
         </div>
         <div
