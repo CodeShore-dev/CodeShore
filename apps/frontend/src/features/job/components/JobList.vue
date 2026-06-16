@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-import { useWindowScroll } from '@vueuse/core';
 import { computed, nextTick, watch } from 'vue';
 
 import Pagination from '../../../components/Pagination.vue';
@@ -39,13 +38,6 @@ const isLastJobOnLastPage = computed(
     store.listPage >= totalPages.value,
 );
 
-const { y } = useWindowScroll();
-
-const scrollToTop = async () => {
-  await nextTick();
-  y.value = 0;
-};
-
 const goToPage = async (page: number) => {
   if (page < 1 || page > totalPages.value || store.loading) return;
   await store.fetchListJobs({
@@ -53,7 +45,6 @@ const goToPage = async (page: number) => {
     page,
     loadingEffect: true,
   });
-  await scrollToTop();
 };
 
 const goToPrevJob = async () => {

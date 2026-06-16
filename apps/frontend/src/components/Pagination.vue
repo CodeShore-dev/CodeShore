@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { scrollToTop } from '../utils/scroll'
+
 interface PaginationProps {
   currentPage: number
   totalPages: number
@@ -13,17 +15,20 @@ const emit = defineEmits<{
 function goToPage(page: number): void {
   if (page < 1 || page > props.totalPages) return
   emit('update:currentPage', page)
+  scrollToTop()
 }
 
 function prevPage(): void {
   if (props.currentPage > 1) {
     emit('update:currentPage', props.currentPage - 1)
+    scrollToTop()
   }
 }
 
 function nextPage(): void {
   if (props.currentPage < props.totalPages) {
     emit('update:currentPage', props.currentPage + 1)
+    scrollToTop()
   }
 }
 

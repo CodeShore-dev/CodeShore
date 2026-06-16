@@ -4,7 +4,7 @@ import { computed, ref, watch } from 'vue';
 import { SupabaseView } from '@codeshore/data-types';
 
 import { useJobStore } from '../useJobStore';
-import JobCard from './JobCard.vue';
+import JobSwipeCard from './JobSwipeCard.vue';
 
 type Props = {
   job: SupabaseView.MvJob | undefined;
@@ -68,7 +68,11 @@ const drawerTitle = computed(() =>
 
           <!-- Job card -->
           <div class="flex flex-1 flex-col p-4">
-            <JobCard :job="job" />
+            <JobSwipeCard
+              :key="job.id"
+              :job="job"
+              @swipe="emit('updatePreference', $event)"
+            />
           </div>
 
           <!-- Navigation + preference buttons -->
