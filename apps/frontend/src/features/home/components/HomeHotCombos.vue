@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 
 import TechIcon from '../../../components/TechIcon.vue';
 import { toWan } from '../../../utils/format';
+import { TAG_LABEL_MAP } from '../../../utils/constants';
 import useTechComboStats from '../composables/useTechComboStats';
 
 type Props = {
@@ -84,28 +85,39 @@ watch(
           >
             #1
           </div>
-          <div
-            class="flex flex-col gap-1 leading-none font-black tracking-[-0.03em]"
-            style="font-size: clamp(1.75rem, 7vw, 3.25rem)"
-          >
-            <div class="flex min-w-0 items-center gap-2">
-              <TechIcon
-                :slugs="topCombo.tech1_icons"
-                :label="topCombo.tech1_label"
-              />
-              <span class="min-w-0 break-words">{{
-                topCombo.tech1_label
-              }}</span>
+          <div class="flex flex-col gap-2">
+            <div
+              class="flex flex-col gap-1 leading-none font-black tracking-[-0.03em]"
+              style="font-size: clamp(1.75rem, 7vw, 3.25rem)"
+            >
+              <div class="flex min-w-0 items-center gap-2">
+                <TechIcon
+                  :slugs="topCombo.tech1_icons"
+                  :label="topCombo.tech1_label"
+                />
+                <span class="min-w-0 break-words">{{
+                  topCombo.tech1_label
+                }}</span>
+              </div>
+              <span class="text-[#fd7700]">+</span>
+              <div class="flex min-w-0 items-center gap-2">
+                <TechIcon
+                  :slugs="topCombo.tech2_icons"
+                  :label="topCombo.tech2_label"
+                />
+                <span class="min-w-0 break-words">{{
+                  topCombo.tech2_label
+                }}</span>
+              </div>
             </div>
-            <span class="text-[#fd7700]">+</span>
-            <div class="flex min-w-0 items-center gap-2">
-              <TechIcon
-                :slugs="topCombo.tech2_icons"
-                :label="topCombo.tech2_label"
-              />
-              <span class="min-w-0 break-words">{{
-                topCombo.tech2_label
-              }}</span>
+            <div class="flex flex-wrap gap-1">
+              <span
+                v-for="tag in [...(topCombo.tech1_tags ?? []), ...(topCombo.tech2_tags ?? [])]"
+                :key="tag"
+                class="shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-bold text-white/70"
+              >
+                {{ TAG_LABEL_MAP[tag] ?? tag }}
+              </span>
             </div>
           </div>
         </div>
@@ -183,6 +195,15 @@ watch(
               combo.tech2_label
             }}</span>
           </div>
+        </div>
+        <div class="mt-1.5 flex flex-wrap gap-1">
+          <span
+            v-for="tag in [...(combo.tech1_tags ?? []), ...(combo.tech2_tags ?? [])]"
+            :key="tag"
+            class="shrink-0 rounded bg-[#d9f2ff] px-1.5 py-0.5 text-[10px] font-bold text-[#434653]"
+          >
+            {{ TAG_LABEL_MAP[tag] ?? tag }}
+          </span>
         </div>
         <div class="mt-2 flex items-end justify-between">
           <div>
