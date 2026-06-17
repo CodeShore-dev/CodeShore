@@ -25,6 +25,7 @@ const emit = defineEmits<Emits>();
 
 const store = useJobStore();
 const drawerRef = ref<HTMLDivElement | null>(null);
+const swipeCardRef = ref<InstanceType<typeof JobSwipeCard> | null>(null);
 
 watch(
   () => props.job,
@@ -68,11 +69,14 @@ const drawerTitle = computed(() =>
 
           <!-- Job card -->
           <div class="flex flex-1 flex-col p-4">
-            <JobSwipeCard
-              :key="job.id"
-              :job="job"
-              @swipe="emit('updatePreference', $event)"
-            />
+            <Transition name="card-swap" mode="out-in">
+              <JobSwipeCard
+                ref="swipeCardRef"
+                :key="job.id"
+                :job="job"
+                @swipe="emit('updatePreference', $event)"
+              />
+            </Transition>
           </div>
 
           <!-- Navigation + preference buttons -->
@@ -103,7 +107,7 @@ const drawerTitle = computed(() =>
                   ? 'cursor-not-allowed bg-[#ba1a1a] text-white opacity-50'
                   : 'cursor-pointer bg-[#c9e7f7] text-[#434653] hover:bg-[#ba1a1a] hover:text-white active:scale-90'
               "
-              @click="emit('updatePreference', 'dislike')"
+              @click="swipeCardRef?.flyOut('dislike')"
             >
               <span class="material-symbols-outlined text-3xl transition-transform group-hover:rotate-90">close</span>
             </button>
@@ -117,7 +121,7 @@ const drawerTitle = computed(() =>
                   ? 'cursor-not-allowed opacity-50 ring-4 ring-[#003d92] ring-offset-2'
                   : 'cursor-pointer hover:shadow-2xl active:scale-90'
               "
-              @click="emit('updatePreference', 'like')"
+              @click="swipeCardRef?.flyOut('like')"
             >
               <div class="absolute inset-0 animate-ping rounded-full bg-[#003d92] opacity-0 group-hover:opacity-20" />
               <span
@@ -163,5 +167,21 @@ const drawerTitle = computed(() =>
   > div:last-child {
     transform: translateX(100%);
   }
+}
+
+.card-swap-enter-active {
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease;
+}
+.card-swap-enter-from {
+  opacity: 0;
+  transform: scale(0.94) translateY(16px);
+}
+.card-swap-leave-active {
+  transition: opacity 0.15s ease;
+}
+.card-swap-leave-to {
+  opacity: 0;
 }
 </style>

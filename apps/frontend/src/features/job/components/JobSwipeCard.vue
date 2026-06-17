@@ -29,7 +29,9 @@ const dismissHint = () => {
 const {
   cardRef,
   cardStyle,
+  commit,
   dragging,
+  flying,
   likeOpacity,
   dislikeOpacity,
 } = useSwipeCard({
@@ -41,6 +43,8 @@ const {
 watch(dragging, isDragging => {
   if (isDragging) dismissHint();
 });
+
+defineExpose({ flyOut: commit });
 </script>
 
 <template>
@@ -52,21 +56,55 @@ watch(dragging, isDragging => {
       />
     </Transition>
 
-    <div ref="cardRef" class="relative" :style="cardStyle">
-      <JobCard :job="job" />
+    <div class="relative">
+      <Transition name="stamp-pop">
+        <div
+          v-if="flying"
+          :key="flying"
+          class="pointer-events-none absolute inset-0 z-20 flex items-center justify-center"
+        >
+          <span
+            class="material-symbols-outlined text-[140px] drop-shadow-lg"
+            :class="flying === 'like' ? 'text-[#003d92]' : 'text-[#ba1a1a]'"
+            style="font-variation-settings: 'FILL' 1"
+          >{{ flying === 'like' ? 'favorite' : 'close' }}</span>
+        </div>
+      </Transition>
 
-      <div
-        class="pointer-events-none absolute top-8 left-8 -rotate-12 rounded-lg border-4 border-[#003d92] bg-white/80 px-4 py-1 text-2xl font-black tracking-widest text-[#003d92]"
-        :style="{ opacity: likeOpacity }"
-      >
-        喜歡
-      </div>
-      <div
-        class="pointer-events-none absolute top-8 right-8 rotate-12 rounded-lg border-4 border-[#ba1a1a] bg-white/80 px-4 py-1 text-2xl font-black tracking-widest text-[#ba1a1a]"
-        :style="{ opacity: dislikeOpacity }"
-      >
-        不喜歡
+      <div ref="cardRef" class="relative" :style="cardStyle">
+        <JobCard :job="job" />
+
+        <div
+          class="pointer-events-none absolute top-8 left-8 -rotate-12 rounded-lg border-4 border-[#003d92] bg-white/80 px-4 py-1 text-2xl font-black tracking-widest text-[#003d92]"
+          :style="{ opacity: likeOpacity }"
+        >
+          喜歡
+        </div>
+        <div
+          class="pointer-events-none absolute top-8 right-8 rotate-12 rounded-lg border-4 border-[#ba1a1a] bg-white/80 px-4 py-1 text-2xl font-black tracking-widest text-[#ba1a1a]"
+          :style="{ opacity: dislikeOpacity }"
+        >
+          不喜歡
+        </div>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.stamp-pop-enter-active {
+  transition:
+    transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 0.3s ease;
+}
+.stamp-pop-enter-from {
+  opacity: 0;
+  transform: scale(0.4);
+}
+.stamp-pop-leave-active {
+  transition: opacity 0.15s ease;
+}
+.stamp-pop-leave-to {
+  opacity: 0;
+}
+</style>
