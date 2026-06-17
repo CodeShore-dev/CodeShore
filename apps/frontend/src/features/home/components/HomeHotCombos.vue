@@ -112,7 +112,7 @@ watch(
             </div>
             <div class="flex flex-wrap gap-1">
               <span
-                v-for="tag in [...(topCombo.tech1_tags ?? []), ...(topCombo.tech2_tags ?? [])]"
+                v-for="tag in (topCombo.tech2_tags ?? [])"
                 :key="tag"
                 class="shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-bold text-white/70"
               >
@@ -198,7 +198,7 @@ watch(
         </div>
         <div class="mt-1.5 flex flex-wrap gap-1">
           <span
-            v-for="tag in [...(combo.tech1_tags ?? []), ...(combo.tech2_tags ?? [])]"
+            v-for="tag in (combo.tech2_tags ?? [])"
             :key="tag"
             class="shrink-0 rounded bg-[#d9f2ff] px-1.5 py-0.5 text-[10px] font-bold text-[#434653]"
           >
