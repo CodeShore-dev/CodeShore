@@ -75,9 +75,20 @@ const goToNextJob = async () => {
   }
 };
 
-const updatePreference = async (preference: 'like' | 'dislike') => {
-  await store.updateListJobPreference(selectedJob.value!.id, preference);
-  selectedJobId.value = store.listJobs[0]?.id ?? null;
+const updatePreference = (preference: 'like' | 'dislike') => {
+  if (store.preferenceUpdating) return;
+  const currentId = selectedJob.value!.id;
+  const currentIndex = selectedJobIndex.value;
+
+  // Immediately show the next job without waiting for the API
+  const nextJob =
+    store.listJobs[currentIndex + 1] ??
+    store.listJobs[currentIndex - 1] ??
+    null;
+  selectedJobId.value = nextJob?.id ?? null;
+
+  // Background update — does not block the UI
+  store.updateListJobPreference(currentId, preference);
 };
 
 const listItemElMap = new Map<string, HTMLElement>();
