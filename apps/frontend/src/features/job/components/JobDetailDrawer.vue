@@ -31,7 +31,7 @@ const swipeLikeOpacity = computed(() => swipeCardRef.value?.likeOpacity ?? 0);
 const swipeDislikeOpacity = computed(() => swipeCardRef.value?.dislikeOpacity ?? 0);
 
 watch(
-  () => props.job,
+  () => props.job?.id,
   () => {
     if (drawerRef.value) drawerRef.value.scrollTop = 0;
   },
