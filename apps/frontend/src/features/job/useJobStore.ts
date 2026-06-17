@@ -45,6 +45,7 @@ export const useJobStore = defineStore('job', () => {
   }));
   const countLoaded = ref(false);
   const loading = ref(false);
+  const preferenceUpdating = ref(false);
   const salaryFilter = ref<'none' | 'excluding' | 'only'>(
     'none',
   );
@@ -194,13 +195,32 @@ export const useJobStore = defineStore('job', () => {
     id: string,
     preference: 'like' | 'dislike',
   ) => {
+    preferenceUpdating.value = true;
+
+    // Optimistically remove the job so the UI shows next item immediately
+    listJobs.value = listJobs.value.filter(job => job.id !== id);
+
+    // Optimistically update tab counts
+    const pref = listViewPreference.value;
+    if (pref === null) {
+      if (preference === 'like') count.liked.value++;
+      else count.disliked.value++;
+    } else if (pref === 'like' && preference === 'dislike') {
+      count.liked.value--;
+      count.disliked.value++;
+    } else if (pref === 'dislike' && preference === 'like') {
+      count.disliked.value--;
+      count.liked.value++;
+    }
+
     try {
-      loading.value = true;
-      await setJobPreference(id, preference);
-      const pref = listViewPreference.value!;
       const page = listPage.value;
       const from = (page - 1) * listPageSize;
       const to = from + listPageSize - 1;
+
+      // Must set preference before fetching so the new list is accurate
+      await setJobPreference(id, preference);
+
       const [
         listData,
         {
@@ -219,18 +239,20 @@ export const useJobStore = defineStore('job', () => {
         }),
         fetchJobPreferencedCount(),
       ]);
+
       count.total.value =
         homeStore.jobCount.open_jobs -
         likedCount -
         dislikedCount;
       count.liked.value = likedCount;
       count.disliked.value = dislikedCount;
+      // Silently refresh the list in the background
       listJobs.value = listData.result;
       listTotalCount.value = listData.count;
     } catch (error) {
       console.error(error);
     } finally {
-      loading.value = false;
+      preferenceUpdating.value = false;
     }
   };
 
@@ -338,6 +360,7 @@ export const useJobStore = defineStore('job', () => {
     count,
     countText,
     loading,
+    preferenceUpdating,
     salaryFilter,
     salaryAmountFilter,
     searchText,

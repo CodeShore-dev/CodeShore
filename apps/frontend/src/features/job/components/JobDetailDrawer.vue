@@ -130,36 +130,42 @@ const drawerTitle = computed(() =>
             </button>
 
             <!-- Dislike -->
-            <button
-              :disabled="store.listViewPreference === 'dislike'"
-              class="group flex h-16 w-16 items-center justify-center rounded-full shadow-md transition-all duration-300"
-              :class="
-                store.listViewPreference === 'dislike'
-                  ? 'cursor-not-allowed bg-[#ba1a1a] text-white opacity-50'
-                  : 'cursor-pointer bg-[#c9e7f7] text-[#434653] hover:bg-[#ba1a1a] hover:text-white active:scale-90'
-              "
-              @click="swipeCardRef?.flyOut('dislike')"
-            >
-              <span class="material-symbols-outlined text-3xl transition-transform group-hover:rotate-90">close</span>
-            </button>
+            <div class="flex flex-col items-center gap-1.5">
+              <button
+                :disabled="store.listViewPreference === 'dislike' || store.preferenceUpdating"
+                class="group flex h-16 w-16 items-center justify-center rounded-full shadow-md transition-all duration-300"
+                :class="
+                  store.listViewPreference === 'dislike' || store.preferenceUpdating
+                    ? 'cursor-not-allowed bg-[#ba1a1a] text-white opacity-50'
+                    : 'cursor-pointer bg-[#c9e7f7] text-[#434653] hover:bg-[#ba1a1a] hover:text-white active:scale-90'
+                "
+                @click="swipeCardRef?.flyOut('dislike')"
+              >
+                <span class="material-symbols-outlined text-3xl transition-transform group-hover:rotate-90">close</span>
+              </button>
+              <span class="text-xs font-medium text-[#434653]">不喜歡</span>
+            </div>
 
             <!-- Like -->
-            <button
-              :disabled="store.listViewPreference === 'like'"
-              class="group relative flex h-20 w-20 items-center justify-center rounded-full bg-linear-to-br from-[#003d92] to-[#1654b9] text-white shadow-xl transition-all duration-300"
-              :class="
-                store.listViewPreference === 'like'
-                  ? 'cursor-not-allowed opacity-50 ring-4 ring-[#003d92] ring-offset-2'
-                  : 'cursor-pointer hover:shadow-2xl active:scale-90'
-              "
-              @click="swipeCardRef?.flyOut('like')"
-            >
-              <div class="absolute inset-0 animate-ping rounded-full bg-[#003d92] opacity-0 group-hover:opacity-20" />
-              <span
-                class="material-symbols-outlined text-4xl"
-                style="font-variation-settings: 'FILL' 1"
-              >favorite</span>
-            </button>
+            <div class="flex flex-col items-center gap-1.5">
+              <button
+                :disabled="store.listViewPreference === 'like' || store.preferenceUpdating"
+                class="group relative flex h-20 w-20 items-center justify-center rounded-full bg-linear-to-br from-[#003d92] to-[#1654b9] text-white shadow-xl transition-all duration-300"
+                :class="
+                  store.listViewPreference === 'like' || store.preferenceUpdating
+                    ? 'cursor-not-allowed opacity-50 ring-4 ring-[#003d92] ring-offset-2'
+                    : 'cursor-pointer hover:shadow-2xl active:scale-90'
+                "
+                @click="swipeCardRef?.flyOut('like')"
+              >
+                <div class="absolute inset-0 animate-ping rounded-full bg-[#003d92] opacity-0 group-hover:opacity-20" />
+                <span
+                  class="material-symbols-outlined text-4xl"
+                  style="font-variation-settings: 'FILL' 1"
+                >favorite</span>
+              </button>
+              <span class="text-xs font-medium text-[#001f2a]">喜歡</span>
+            </div>
 
             <!-- Next -->
             <button

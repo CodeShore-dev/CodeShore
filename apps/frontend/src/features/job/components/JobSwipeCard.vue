@@ -61,13 +61,21 @@ defineExpose({ flyOut: commit, likeOpacity, dislikeOpacity });
         <div
           v-if="flying"
           :key="flying"
-          class="pointer-events-none absolute inset-0 z-20 flex items-center justify-center"
+          class="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center gap-2"
         >
           <span
-            class="material-symbols-outlined text-[140px] drop-shadow-lg"
+            class="material-symbols-outlined text-[120px] drop-shadow-lg"
             :class="flying === 'like' ? 'text-[#003d92]' : 'text-[#ba1a1a]'"
             style="font-variation-settings: 'FILL' 1"
           >{{ flying === 'like' ? 'favorite' : 'close' }}</span>
+          <span
+            class="rounded-lg border-4 px-5 py-1 text-2xl font-black tracking-widest drop-shadow"
+            :class="
+              flying === 'like'
+                ? 'border-[#003d92] bg-white/90 text-[#003d92]'
+                : 'border-[#ba1a1a] bg-white/90 text-[#ba1a1a]'
+            "
+          >{{ flying === 'like' ? '已喜歡' : '已不喜歡' }}</span>
         </div>
       </Transition>
 
