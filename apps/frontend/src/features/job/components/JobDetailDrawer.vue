@@ -27,6 +27,9 @@ const store = useJobStore();
 const drawerRef = ref<HTMLDivElement | null>(null);
 const swipeCardRef = ref<InstanceType<typeof JobSwipeCard> | null>(null);
 
+const swipeLikeOpacity = computed(() => swipeCardRef.value?.likeOpacity ?? 0);
+const swipeDislikeOpacity = computed(() => swipeCardRef.value?.dislikeOpacity ?? 0);
+
 watch(
   () => props.job,
   () => {
@@ -49,9 +52,37 @@ const drawerTitle = computed(() =>
       <div v-if="job" class="fixed inset-0 z-50 flex">
         <div class="fixed inset-0 bg-black/50" @click="emit('close')" />
         <div
-          ref="drawerRef"
-          class="relative z-10 ml-auto flex h-full w-full max-w-3xl flex-col overflow-y-auto bg-[#f4faff] shadow-2xl"
+          class="relative z-10 ml-auto flex h-full w-full max-w-3xl flex-col bg-[#f4faff] shadow-2xl"
         >
+          <!-- Swipe direction gradient overlays — absolute to the panel (not scroll content),
+               so they remain visible at any scroll position -->
+          <div
+            class="pointer-events-none absolute inset-0 z-40 flex items-center justify-end pr-6"
+            :style="{
+              opacity: swipeLikeOpacity,
+              background: 'linear-gradient(to left, rgba(0,61,146,0.28) 0%, transparent 55%)',
+            }"
+          >
+            <div class="-rotate-12 rounded-lg border-4 border-[#003d92] bg-white/90 px-4 py-1 text-2xl font-black tracking-widest text-[#003d92]">
+              喜歡
+            </div>
+          </div>
+          <div
+            class="pointer-events-none absolute inset-0 z-40 flex items-center justify-start pl-6"
+            :style="{
+              opacity: swipeDislikeOpacity,
+              background: 'linear-gradient(to right, rgba(186,26,26,0.28) 0%, transparent 55%)',
+            }"
+          >
+            <div class="rotate-12 rounded-lg border-4 border-[#ba1a1a] bg-white/90 px-4 py-1 text-2xl font-black tracking-widest text-[#ba1a1a]">
+              不喜歡
+            </div>
+          </div>
+
+          <!-- Scrollable content — overflow-y-auto is here, not on the panel, so
+               the absolute overlays above cover only the visible viewport height -->
+          <div ref="drawerRef" class="flex h-full flex-col overflow-y-auto">
+
           <!-- Header -->
           <div
             class="flex shrink-0 items-center justify-between border-b border-[#001f2a]/6 bg-white px-6 py-4"
@@ -143,6 +174,7 @@ const drawerTitle = computed(() =>
             >
               <span class="material-symbols-outlined">chevron_right</span>
             </button>
+          </div>
           </div>
         </div>
       </div>
