@@ -35,6 +35,12 @@ const { navLinks, isActive } = useNavLinks();
         >
           {{ link.label }}
         </RouterLink>
+        <RouterLink
+          :to="{ name: 'methodology' }"
+          class="rounded-full px-4 py-2 text-sm font-bold text-[#434653] transition hover:bg-[#001f2a]/4 hover:text-[#001f2a]"
+        >
+          公開透明
+        </RouterLink>
       </div>
 
       <div class="flex items-center gap-3">
@@ -42,7 +48,7 @@ const { navLinks, isActive } = useNavLinks();
           v-if="authStore.isAuthenticated && authStore.user"
         >
           <span
-            class="hidden text-sm text-[#434653] dark:text-[#c3c6d5] md:inline"
+            class="hidden text-sm text-[#434653] md:inline dark:text-[#c3c6d5]"
           >
             {{ authStore.user.email }}
           </span>

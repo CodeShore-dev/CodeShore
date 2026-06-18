@@ -35,7 +35,10 @@ const { footerLinks } = useNavLinks();
         </div>
         <a
           v-for="item in [
-            { label: '104 人力銀行', src: 'https://104.com.tw' },
+            {
+              label: '104 人力銀行',
+              src: 'https://104.com.tw',
+            },
             { label: 'Cake', src: 'https://cake.me' },
           ]"
           :key="item.src"
@@ -67,6 +70,12 @@ const { footerLinks } = useNavLinks();
         >
           {{ item.label }}
         </RouterLink>
+        <RouterLink
+          :to="{ name: 'methodology' }"
+          class="block py-1 text-sm font-bold text-[#001f2a] transition-colors hover:text-[#003d92]"
+        >
+          公開透明
+        </RouterLink>
       </div>
 
       <div>
@@ -97,4 +106,3 @@ const { footerLinks } = useNavLinks();
     </div>
   </footer>
 </template>
-
