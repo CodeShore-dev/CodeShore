@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 
 import { toWanInt } from '../../../utils/format';
+import InfoHint from '../../methodology/components/InfoHint.vue';
 import { useHomeStore } from '../useHomeStore';
 
 defineProps<{ loading: boolean }>();
@@ -51,9 +52,10 @@ const activeBenchmarks = computed(() => {
   <section class="mt-10">
     <div class="mb-4 flex items-baseline justify-between">
       <div
-        class="text-xs font-bold tracking-[0.18em] text-[#434653]"
+        class="flex items-center gap-1.5 text-xs font-bold tracking-[0.18em] text-[#434653]"
       >
         市場薪資行情
+        <InfoHint metric="home.salaryBenchmark" />
       </div>
       <div
         class="flex overflow-hidden rounded-lg border border-[#c9e7f7] text-xs"

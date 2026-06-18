@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import KeywordTechRankingCardList from '../../../components/KeywordTechRankingCardList.vue';
 import { toWanInt } from '../../../utils/format';
+import InfoHint from '../../methodology/components/InfoHint.vue';
 import useKeywordTechRanking from '../composables/useKeywordTechRanking';
 import { useHomeStore } from '../useHomeStore';
 
@@ -30,88 +31,100 @@ const { items, getItems, loading } = useKeywordTechRanking({
 </script>
 
 <template>
-  <KeywordTechRankingCardList
-    :title="titleMap[props.type]"
-    :items
-    :loading
-    :get-items
-    :more-to="{
-      name: 'techs',
-      query: { mode: `salary-${props.type}` },
-    }"
-  >
-    <template #metric="{ item }">
-      <div class="flex flex-col gap-1.5">
-        <div
-          class="flex items-center justify-between gap-1 text-lg"
-        >
-          <span
-            class="leading-none font-black tracking-[-0.02em] text-[#003d92] tabular-nums"
-          >
-            {{ toWanInt(item[`${props.type}_median_avg`]) }}
-            <span
-              class="text-[0.875rem] font-black text-[#434653]"
-            >
-              萬
-            </span>
-          </span>
-          <span
-            class="flex items-baseline gap-1 text-[11px] font-bold text-[#434653]"
+  <div class="relative">
+    <KeywordTechRankingCardList
+      :title="titleMap[props.type]"
+      :items
+      :loading
+      :get-items
+      :more-to="{
+        name: 'techs',
+        query: { mode: `salary-${props.type}` },
+      }"
+    >
+      <template #metric="{ item }">
+        <div class="flex flex-col gap-1.5">
+          <div
+            class="flex items-center justify-between gap-1 text-lg"
           >
             <span
-              class="font-mono text-[10px] tracking-widest"
+              class="leading-none font-black tracking-[-0.02em] text-[#003d92] tabular-nums"
             >
-              PR50
+              {{
+                toWanInt(item[`${props.type}_median_avg`])
+              }}
+              <span
+                class="text-[0.875rem] font-black text-[#434653]"
+              >
+                萬
+              </span>
             </span>
-          </span>
+            <span
+              class="flex items-baseline gap-1 text-[11px] font-bold text-[#434653]"
+            >
+              <span
+                class="font-mono text-[10px] tracking-widest"
+              >
+                PR50
+              </span>
+            </span>
+          </div>
+          <div
+            class="flex items-center justify-between gap-1 text-sm"
+          >
+            <span
+              class="leading-none font-black tracking-[-0.02em] text-[#003d92] tabular-nums"
+            >
+              {{ toWanInt(item[`${props.type}_pr75_avg`]) }}
+              <span
+                class="text-[0.875rem] font-black text-[#434653]"
+              >
+                萬
+              </span>
+            </span>
+            <span
+              class="flex items-baseline gap-1 text-[11px] font-bold text-[#434653]"
+            >
+              <span
+                class="font-mono text-[10px] tracking-widest"
+              >
+                PR75
+              </span>
+            </span>
+          </div>
+          <div
+            class="flex items-center justify-between gap-1 text-xs"
+          >
+            <span
+              class="leading-none font-black tracking-[-0.02em] text-[#003d92] tabular-nums"
+            >
+              {{ toWanInt(item[`${props.type}_pr88_avg`]) }}
+              <span
+                class="text-[0.875rem] font-black text-[#434653]"
+              >
+                萬
+              </span>
+            </span>
+            <span
+              class="flex items-baseline gap-1 text-[11px] font-bold text-[#434653]"
+            >
+              <span
+                class="font-mono text-[10px] tracking-widest"
+              >
+                PR88
+              </span>
+            </span>
+          </div>
         </div>
-        <div
-          class="flex items-center justify-between gap-1 text-sm"
-        >
-          <span
-            class="leading-none font-black tracking-[-0.02em] text-[#003d92] tabular-nums"
-          >
-            {{ toWanInt(item[`${props.type}_pr75_avg`]) }}
-            <span
-              class="text-[0.875rem] font-black text-[#434653]"
-            >
-              萬
-            </span>
-          </span>
-          <span
-            class="flex items-baseline gap-1 text-[11px] font-bold text-[#434653]"
-          >
-            <span
-              class="font-mono text-[10px] tracking-widest"
-            >
-              PR75
-            </span>
-          </span>
-        </div>
-        <div
-          class="flex items-center justify-between gap-1 text-xs"
-        >
-          <span
-            class="leading-none font-black tracking-[-0.02em] text-[#003d92] tabular-nums"
-          >
-            {{ toWanInt(item[`${props.type}_pr88_avg`]) }}
-            <span
-              class="text-[0.875rem] font-black text-[#434653]"
-            >
-              萬
-            </span>
-          </span>
-          <span
-            class="flex items-baseline gap-1 text-[11px] font-bold text-[#434653]"
-          >
-            <span
-              class="font-mono text-[10px] tracking-widest"
-            >
-              PR88
-            </span>
-          </span>
-        </div>
-      </div>
-    </template>
-  </KeywordTechRankingCardList>
+      </template>
+    </KeywordTechRankingCardList>
+    <InfoHint
+      :metric="
+        props.type === 'year'
+          ? 'home.highSalaryTech.year'
+          : 'home.highSalaryTech.month'
+      "
+      class="absolute top-10 left-[8rem]"
+    />
+  </div>
 </template>

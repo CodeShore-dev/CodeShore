@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { useRouter } from 'vue-router';
 
+import InfoHint from '../../methodology/components/InfoHint.vue';
 import { useHomeStore } from '../useHomeStore';
 
 defineProps<{ loading: boolean }>();
@@ -34,9 +35,10 @@ function goJobs(query: Record<string, string> = {}) {
 <template>
   <section class="mt-10">
     <div
-      class="mb-4 text-xs font-bold tracking-[0.18em] text-[#434653]"
+      class="mb-4 flex items-center gap-1.5 text-xs font-bold tracking-[0.18em] text-[#434653]"
     >
       職缺數量
+      <InfoHint metric="home.statRow" />
     </div>
     <div
       v-if="loading"
