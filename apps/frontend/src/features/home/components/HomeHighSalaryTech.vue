@@ -1,8 +1,8 @@
 <script lang="ts" setup>
+import KeywordTechRankingCardList from '../../../components/KeywordTechRankingCardList.vue';
 import { toWanInt } from '../../../utils/format';
 import useKeywordTechRanking from '../composables/useKeywordTechRanking';
 import { useHomeStore } from '../useHomeStore';
-import KeywordTechRankingCardList from '../../../components/KeywordTechRankingCardList.vue';
 
 type Props = {
   type: 'month' | 'year';
@@ -35,6 +35,10 @@ const { items, getItems, loading } = useKeywordTechRanking({
     :items
     :loading
     :get-items
+    :more-to="{
+      name: 'techs',
+      query: { mode: `salary-${props.type}` },
+    }"
   >
     <template #metric="{ item }">
       <div class="flex flex-col gap-1.5">
@@ -111,4 +115,3 @@ const { items, getItems, loading } = useKeywordTechRanking({
     </template>
   </KeywordTechRankingCardList>
 </template>
-

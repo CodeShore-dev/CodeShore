@@ -1,6 +1,9 @@
 <script lang="ts" setup>
 import { ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import {
+  type RouteLocationRaw,
+  useRouter,
+} from 'vue-router';
 
 import { SupabaseView } from '@codeshore/data-types';
 
@@ -15,6 +18,7 @@ const props = defineProps<{
   items: SupabaseView.MvKeywordGroupRanking[];
   loading: boolean;
   getItems: (category: string) => void;
+  moreTo?: RouteLocationRaw;
 }>();
 
 const router = useRouter();
@@ -71,10 +75,25 @@ watch(
     <div
       class="mb-4 flex flex-wrap items-baseline justify-between gap-2"
     >
-      <div
-        class="text-xs font-bold tracking-[0.18em] text-[#434653]"
-      >
-        {{ title }}
+      <div class="flex items-baseline gap-3">
+        <div
+          class="text-xs font-bold tracking-[0.18em] text-[#434653]"
+        >
+          {{ title }}
+        </div>
+        <RouterLink
+          v-if="moreTo"
+          :to="moreTo"
+          class="flex items-center gap-0.5 text-xs font-bold text-[#003d92] transition-colors hover:text-[#001f2a]"
+        >
+          更多
+          <span
+            class="material-symbols-outlined"
+            style="font-size: 14px"
+          >
+            arrow_forward
+          </span>
+        </RouterLink>
       </div>
       <div
         class="flex w-full flex-wrap overflow-hidden rounded-lg border border-[#c9e7f7] text-xs md:w-auto"

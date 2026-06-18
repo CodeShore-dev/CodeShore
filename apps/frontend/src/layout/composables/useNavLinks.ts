@@ -23,7 +23,18 @@ const NAV_LINKS: NavLink[] = [
     exact: true,
     exactExcludesQuery: 'tab',
   },
-  { to: '/companies', label: '公司', icon: 'apartment', exact: false },
+  {
+    to: '/companies',
+    label: '公司',
+    icon: 'apartment',
+    exact: false,
+  },
+  {
+    to: '/techs',
+    label: '技術',
+    icon: 'insights',
+    exact: false,
+  },
   {
     to: '/keywords',
     label: '關鍵字',
@@ -46,11 +57,15 @@ export function useNavLinks() {
   const authStore = useAuthStore();
 
   const navLinks = computed(() =>
-    NAV_LINKS.filter(link => !link.requiresEdit || authStore.canEdit),
+    NAV_LINKS.filter(
+      link => !link.requiresEdit || authStore.canEdit,
+    ),
   );
 
   const footerLinks = computed(() =>
-    navLinks.value.filter(link => link.showInFooter !== false),
+    navLinks.value.filter(
+      link => link.showInFooter !== false,
+    ),
   );
 
   function isActive(link: NavLink) {

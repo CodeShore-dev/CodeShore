@@ -65,7 +65,33 @@ module.exports = {
         headline: ['Inter'],
         body: ['Inter'],
         label: ['Inter'],
-      }
+      },
+      keyframes: {
+        bounceLeft: {
+          '0%, 100%': {
+            transform: 'translateX(0)',
+            animationTimingFunction: 'cubic-bezier(0.8,0,1,1)',
+          },
+          '50%': {
+            transform: 'translateX(-25%)', // 先往左彈
+            animationTimingFunction: 'cubic-bezier(0,0,0.2,1)',
+          },
+        },
+        bounceRight: {
+          '0%, 100%': {
+            transform: 'translateX(0)',
+            animationTimingFunction: 'cubic-bezier(0.8,0,1,1)',
+          },
+          '50%': {
+            transform: 'translateX(25%)', // 先往右彈
+            animationTimingFunction: 'cubic-bezier(0,0,0.2,1)',
+          },
+        },
+      },
+      animation: {
+        'bounce-left': 'bounceLeft 1s infinite',
+        'bounce-right': 'bounceRight 1s infinite',
+      },
     },
   },
   plugins: [

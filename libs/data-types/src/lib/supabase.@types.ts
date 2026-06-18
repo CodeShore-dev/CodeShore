@@ -110,6 +110,12 @@ export namespace SupabaseView {
     {
       updated_at: Date;
       created_at: Date;
+      /**
+       * Only present when rows come from get_jobs_by_preference
+       * (the liked / disliked lists); reflects when the current
+       * user marked the job.
+       */
+      preference_updated_at?: Date;
     }
   >;
 

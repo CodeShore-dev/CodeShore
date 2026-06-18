@@ -11,6 +11,6 @@ const store = useHomeStore();
     :items="store.keywordTechRanking.items"
     :loading="store.keywordTechRanking.loading"
     :get-items="store.keywordTechRanking.getItems"
+    :more-to="{ name: 'techs', query: { mode: 'popular' } }"
   />
 </template>
-

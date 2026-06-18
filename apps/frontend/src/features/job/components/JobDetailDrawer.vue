@@ -112,7 +112,7 @@ const drawerTitle = computed(() =>
 
           <!-- Navigation + preference buttons -->
           <div
-            class="flex shrink-0 items-center justify-center gap-8 border-t border-[#001f2a]/6 bg-white pt-6 pb-10"
+            class="md:flex hidden shrink-0 items-center justify-center gap-8 border-t border-[#001f2a]/6 bg-white pt-6 pb-10"
             :class="{ 'pointer-events-none opacity-50': store.loading }"
           >
             <!-- Prev -->
@@ -150,7 +150,7 @@ const drawerTitle = computed(() =>
             <div class="flex flex-col items-center gap-1.5">
               <button
                 :disabled="store.listViewPreference === 'like' || store.preferenceUpdating"
-                class="group relative flex h-20 w-20 items-center justify-center rounded-full bg-linear-to-br from-[#003d92] to-[#1654b9] text-white shadow-xl transition-all duration-300"
+                class="group relative flex h-16 w-16 items-center justify-center rounded-full bg-linear-to-br from-[#003d92] to-[#1654b9] text-white shadow-xl transition-all duration-300"
                 :class="
                   store.listViewPreference === 'like' || store.preferenceUpdating
                     ? 'cursor-not-allowed opacity-50 ring-4 ring-[#003d92] ring-offset-2'

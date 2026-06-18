@@ -20,7 +20,7 @@
           CodeShore 的定位很單純：幫你看懂市場。職缺資料來自 104、Cake，分析完了，<strong class="text-white">投履歷還是要回那裡。</strong>
         </p>
       </div>
-      <div class="grid grid-cols-2 gap-2">
+      <div class="grid md:grid-cols-2 gap-2">
         <div
           v-for="ch in [
             { name: '104 人力銀行', share: '54%', host: 'https://104.com.tw' },

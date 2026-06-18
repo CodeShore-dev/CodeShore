@@ -27,10 +27,8 @@ const dismissHint = () => {
 };
 
 const {
-  cardRef,
   cardStyle,
   commit,
-  dragging,
   flying,
   likeOpacity,
   dislikeOpacity,
@@ -38,10 +36,6 @@ const {
   canLike: () => store.listViewPreference !== 'like',
   canDislike: () => store.listViewPreference !== 'dislike',
   onCommit: preference => emit('swipe', preference),
-});
-
-watch(dragging, isDragging => {
-  if (isDragging) dismissHint();
 });
 
 defineExpose({ flyOut: commit, likeOpacity, dislikeOpacity });

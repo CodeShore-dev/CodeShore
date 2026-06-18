@@ -7,6 +7,7 @@ import { formatNumber } from '../../utils/format';
 import { useHomeStore } from '../home/useHomeStore';
 import { useKeywordStore } from '../keyword/useKeywordStore';
 import {
+  DEFAULT_JOB_ORDERS,
   clearJobPreferences,
   createCrawlEventSource,
   fetchJobPreferencedCount,
@@ -29,6 +30,14 @@ export const useJobStore = defineStore('job', () => {
   const listPage = ref(1);
   const listPageSize = 10;
   const listTotalCount = ref(0);
+  // 'salary' = 預設薪資排序；'recent' = 依使用者標記時間（preference_updated_at）
+  const listSort = ref<'salary' | 'recent'>('salary');
+  // preference_updated_at 只存在於喜歡/不喜歡清單（get_jobs_by_preference）
+  const listOrders = computed(() =>
+    listViewPreference.value && listSort.value === 'recent'
+      ? 'preference_updated_at:desc'
+      : DEFAULT_JOB_ORDERS,
+  );
   const count = {
     total: ref(0),
     liked: ref(0),
@@ -164,11 +173,14 @@ export const useJobStore = defineStore('job', () => {
 
       const [{ result, count: total }, preferencedCount] =
         await Promise.all([
-          fetchJobs({
-            from,
-            to,
-            where: JSON.stringify(where),
-          }),
+          fetchJobs(
+            {
+              from,
+              to,
+              where: JSON.stringify(where),
+            },
+            listOrders.value,
+          ),
           countLoaded.value
             ? Promise.resolve(null)
             : fetchJobPreferencedCount(),
@@ -228,15 +240,18 @@ export const useJobStore = defineStore('job', () => {
           disliked_count: dislikedCount,
         },
       ] = await Promise.all([
-        fetchJobs({
-          from,
-          to,
-          where: JSON.stringify({
-            preference:
-              pref === null ? { is: pref } : { eq: pref },
-            ...baseFilters.value,
-          }),
-        }),
+        fetchJobs(
+          {
+            from,
+            to,
+            where: JSON.stringify({
+              preference:
+                pref === null ? { is: pref } : { eq: pref },
+              ...baseFilters.value,
+            }),
+          },
+          listOrders.value,
+        ),
         fetchJobPreferencedCount(),
       ]);
 
@@ -254,6 +269,16 @@ export const useJobStore = defineStore('job', () => {
     } finally {
       preferenceUpdating.value = false;
     }
+  };
+
+  const setListSort = (sort: 'salary' | 'recent') => {
+    if (listSort.value === sort) return;
+    listSort.value = sort;
+    fetchListJobs({
+      preference: listViewPreference.value,
+      page: 1,
+      loadingEffect: true,
+    });
   };
 
   const clearPreferences = async (
@@ -354,6 +379,8 @@ export const useJobStore = defineStore('job', () => {
     listPage,
     listPageSize,
     listTotalCount,
+    listSort,
+    setListSort,
     listTotalCountText: computed(() =>
       formatNumber(listTotalCount.value),
     ),

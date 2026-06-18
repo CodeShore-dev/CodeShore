@@ -6,14 +6,19 @@ import {
 import { ListQuery } from '../../@types';
 import { httpClient } from '../../httpClient';
 
-export const fetchJobs = async (query: ListQuery) => {
+export const DEFAULT_JOB_ORDERS =
+  'avg_salary:desc;min_salary:desc;max_salary:desc;updated_at:desc';
+
+export const fetchJobs = async (
+  query: ListQuery,
+  orders: string = DEFAULT_JOB_ORDERS,
+) => {
   const res = await httpClient.get<
     ListResponse<SupabaseView.MvJob>
   >('/api/job', {
     params: {
       ...query,
-      orders:
-        'min_salary:desc;max_salary:desc;updated_at:desc',
+      orders,
     },
   });
   return res.data;

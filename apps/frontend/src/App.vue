@@ -9,7 +9,6 @@ import AppFooter from './layout/AppFooter.vue';
   <div
     class="bg-background font-body text-on-surface min-h-screen"
   >
-    <!-- Fixed compound header: disclosure strip + nav -->
     <div class="fixed top-0 z-50 w-full">
       <div class="hidden md:block bg-[#001f2a] text-[#f4faff] text-xs font-bold tracking-wider">
         <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-1.5">
@@ -23,7 +22,6 @@ import AppFooter from './layout/AppFooter.vue';
       <AppNavBar />
     </div>
 
-    <!-- pt accounts for nav only on mobile, strip + nav on md+ -->
     <main
       class="mx-auto flex max-w-7xl flex-col items-center px-4 pt-20 pb-24 lg:px-6 md:pt-27 md:pb-12"
     >

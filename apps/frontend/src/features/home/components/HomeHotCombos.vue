@@ -71,7 +71,7 @@ watch(
       class="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-[1.4fr_1fr_1fr]"
     >
       <button
-        class="col-span-1 flex min-w-0 cursor-pointer flex-col justify-between rounded-xl bg-[#001f2a] p-6 text-left text-white transition-all hover:opacity-95 active:scale-[0.98] sm:col-span-2 md:col-span-1 md:row-span-2"
+        class="group col-span-1 flex min-w-0 cursor-pointer flex-col justify-between rounded-xl bg-[#001f2a] p-6 text-left text-white transition-all hover:opacity-95 active:scale-[0.98] sm:col-span-2 md:col-span-1 md:row-span-2"
         style="min-height: clamp(200px, 50vw, 280px)"
         @click="
           goJobs({
@@ -81,9 +81,19 @@ watch(
       >
         <div>
           <div
-            class="mb-4 font-mono text-[11px] tracking-[0.15em] text-white/50"
+            class="mb-4 flex items-center justify-between font-mono text-[11px] tracking-[0.15em] text-white/50"
           >
-            #1
+            <span>#1</span>
+            <span
+              class="flex items-center gap-1 font-sans font-bold tracking-normal text-[#fd7700]"
+            >
+              前往職缺
+              <span
+                class="material-symbols-outlined transition-transform group-hover:translate-x-0.5"
+                style="font-size: 14px"
+                >arrow_forward</span
+              >
+            </span>
           </div>
           <div class="flex flex-col gap-2">
             <div
@@ -95,7 +105,7 @@ watch(
                   :slugs="topCombo.tech1_icons"
                   :label="topCombo.tech1_label"
                 />
-                <span class="min-w-0 break-words">{{
+                <span class="min-w-0 wrap-break-word">{{
                   topCombo.tech1_label
                 }}</span>
               </div>
@@ -105,7 +115,7 @@ watch(
                   :slugs="topCombo.tech2_icons"
                   :label="topCombo.tech2_label"
                 />
-                <span class="min-w-0 break-words">{{
+                <span class="min-w-0 wrap-break-word">{{
                   topCombo.tech2_label
                 }}</span>
               </div>
@@ -161,16 +171,26 @@ watch(
       <button
         v-for="(combo, i) in smallCombos"
         :key="`${combo.tech1}+${combo.tech2}`"
-        class="flex min-w-0 cursor-pointer flex-col justify-between rounded-xl bg-white p-4 text-left shadow-[0_24px_40px_rgba(0,31,42,0.06)] transition-all hover:-translate-y-0.5 active:scale-[0.98]"
+        class="group flex min-w-0 cursor-pointer flex-col justify-between rounded-xl bg-white p-4 text-left shadow-[0_24px_40px_rgba(0,31,42,0.06)] transition-all hover:-translate-y-0.5 active:scale-[0.98]"
         style="min-height: 130px"
         @click="
           goJobs({ tags: `${combo.tech1},${combo.tech2}` })
         "
       >
         <div
-          class="font-mono text-[10px] tracking-[0.15em] text-[#434653]"
+          class="flex items-center justify-between font-mono text-[10px] tracking-[0.15em] text-[#434653]"
         >
-          #{{ i + 2 }}
+          <span>#{{ i + 2 }}</span>
+          <span
+            class="flex items-center gap-0.5 font-sans font-bold tracking-normal text-[#003d92]"
+          >
+            前往職缺
+            <span
+              class="material-symbols-outlined transition-transform group-hover:translate-x-0.5"
+              style="font-size: 13px"
+              >arrow_forward</span
+            >
+          </span>
         </div>
         <div
           class="mt-2 flex flex-col gap-1 leading-tight font-black tracking-[-0.02em] text-[#001f2a]"
@@ -181,17 +201,17 @@ watch(
               :slugs="combo.tech1_icons"
               :label="combo.tech1_label"
             />
-            <span class="min-w-0 break-words">{{
+            <span class="min-w-0 wrap-break-word">{{
               combo.tech1_label
             }}</span>
           </div>
-          <span class="text-[#fd7700]">+</span>
+          <span class="text-[#fd7700] px-2">+</span>
           <div class="flex min-w-0 items-center gap-1.5">
             <TechIcon
               :slugs="combo.tech2_icons"
               :label="combo.tech2_label"
             />
-            <span class="min-w-0 break-words">{{
+            <span class="min-w-0 wrap-break-word">{{
               combo.tech2_label
             }}</span>
           </div>

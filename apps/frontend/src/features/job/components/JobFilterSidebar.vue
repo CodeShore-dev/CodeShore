@@ -19,6 +19,14 @@ const debouncedSearchText = refDebounced(
 watch(debouncedSearchText, val => {
   store.searchText = val;
 });
+// Store → local: reflect external changes (e.g. removing a chip / clear all)
+watch(
+  () => store.searchText,
+  val => {
+    if (val !== localSearchText.value)
+      localSearchText.value = val;
+  },
+);
 
 // Debounced search for company name
 const localCompanySearchText = ref(store.companySearchText);
@@ -29,6 +37,13 @@ const debouncedCompanySearchText = refDebounced(
 watch(debouncedCompanySearchText, val => {
   store.companySearchText = val;
 });
+watch(
+  () => store.companySearchText,
+  val => {
+    if (val !== localCompanySearchText.value)
+      localCompanySearchText.value = val;
+  },
+);
 
 // Salary amount with debounce
 const salaryMultiplier = computed(() => {
@@ -52,7 +67,6 @@ const debouncedSalaryAmount = refDebounced(
   500,
 );
 
-
 const salaryUnitLabel = computed(() => {
   if (store.salaryAmountFilter.type === 'year')
     return '百萬';
@@ -65,6 +79,18 @@ watch(debouncedSalaryAmount, val => {
   store.salaryAmountFilter.amount =
     val !== null ? val * salaryMultiplier.value : null;
 });
+// Store → local: reflect external changes to the salary amount
+watch(
+  () => store.salaryAmountFilter.amount,
+  val => {
+    const display =
+      val !== null && salaryMultiplier.value
+        ? val / salaryMultiplier.value
+        : null;
+    if (display !== localSalaryAmount.value)
+      localSalaryAmount.value = display;
+  },
+);
 
 watch(
   () => store.salaryAmountFilter.type,
@@ -143,9 +169,21 @@ defineExpose({
 
     <!-- Location filter -->
     <section>
-      <div class="mb-1.5 text-[10px] font-bold tracking-[0.15em] text-[#434653]">地區</div>
+      <div
+        class="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold tracking-[0.15em] text-[#434653]"
+      >
+        <span>地區</span>
+        <span
+          v-if="store.selectedLocations.length"
+          class="rounded-full bg-[#003d92] px-1.5 py-px text-[9px] leading-none text-white"
+          >{{ store.selectedLocations.length }}</span
+        >
+      </div>
       <div class="relative mb-3">
-        <span class="material-symbols-outlined pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-base! text-on-surface-variant">search</span>
+        <span
+          class="material-symbols-outlined text-on-surface-variant pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-base!"
+          >search</span
+        >
         <input
           v-model="locationSearch"
           type="text"
@@ -157,13 +195,17 @@ defineExpose({
           class="text-on-surface-variant hover:text-on-surface absolute top-1/2 right-2 flex -translate-y-1/2 cursor-pointer"
           @click="locationSearch = ''"
         >
-          <span class="material-symbols-outlined text-base">close</span>
+          <span class="material-symbols-outlined text-base"
+            >close</span
+          >
         </button>
       </div>
       <div
         v-if="store.locationGroupsLoading"
         class="text-on-surface-variant text-xs"
-      >載入中...</div>
+      >
+        載入中...
+      </div>
       <div
         v-else
         class="flex max-h-60 flex-col gap-1 overflow-y-auto"
@@ -182,23 +224,41 @@ defineExpose({
           <span>{{ loc.location }}</span>
           <span class="flex items-center gap-1">
             <span
-              v-if="store.selectedLocations.includes(loc.location)"
+              v-if="
+                store.selectedLocations.includes(
+                  loc.location,
+                )
+              "
               class="material-symbols-outlined text-sm"
-            >check</span>
+              >check</span
+            >
             <span>{{ loc.count }}</span>
           </span>
         </span>
         <span
-          v-if="!filteredLocationGroups.length && locationSearch"
+          v-if="
+            !filteredLocationGroups.length && locationSearch
+          "
           class="text-on-surface-variant px-4 py-2 text-sm"
-        >沒有符合的地區</span>
+          >沒有符合的地區</span
+        >
       </div>
     </section>
 
     <!-- Salary filter: none / excluding / only -->
     <section>
-      <div class="mb-1.5 text-[10px] font-bold tracking-[0.15em] text-[#434653]">面議薪資</div>
-      <div class="flex overflow-hidden rounded-lg border border-[#c3c6d5]">
+      <div
+        class="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold tracking-[0.15em] text-[#434653]"
+      >
+        <span>面議薪資</span>
+        <span
+          v-if="store.salaryFilter !== 'none'"
+          class="size-1.5 rounded-full bg-[#003d92]"
+        />
+      </div>
+      <div
+        class="flex overflow-hidden rounded-lg border border-[#c3c6d5]"
+      >
         <button
           v-for="option in [
             { value: 'none', label: '無' },
@@ -212,7 +272,12 @@ defineExpose({
               ? 'bg-[#003d92] text-white'
               : 'bg-white text-[#434653] hover:bg-[#f4faff]'
           "
-          @click="store.salaryFilter = option.value as 'none' | 'excluding' | 'only'"
+          @click="
+            store.salaryFilter = option.value as
+              | 'none'
+              | 'excluding'
+              | 'only'
+          "
         >
           {{ option.label }}
         </button>
@@ -221,8 +286,21 @@ defineExpose({
 
     <!-- Salary amount filter: type toggle + amount input -->
     <section class="space-y-2">
-      <div class="mb-1.5 text-[10px] font-bold tracking-[0.15em] text-[#434653]">薪資下限</div>
-      <div class="flex overflow-hidden rounded-lg border border-[#c3c6d5]">
+      <div
+        class="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold tracking-[0.15em] text-[#434653]"
+      >
+        <span>薪資下限</span>
+        <span
+          v-if="
+            store.salaryAmountFilter.type !== '' ||
+            store.salaryAmountFilter.amount !== null
+          "
+          class="size-1.5 rounded-full bg-[#003d92]"
+        />
+      </div>
+      <div
+        class="flex overflow-hidden rounded-lg border border-[#c3c6d5]"
+      >
         <button
           v-for="option in [
             { value: '', label: '不限' },
@@ -236,7 +314,12 @@ defineExpose({
               ? 'bg-[#003d92] text-white'
               : 'bg-white text-[#434653] hover:bg-[#f4faff]'
           "
-          @click="store.salaryAmountFilter.type = option.value as 'month' | 'year' | ''"
+          @click="
+            store.salaryAmountFilter.type = option.value as
+              | 'month'
+              | 'year'
+              | ''
+          "
         >
           {{ option.label }}
         </button>
@@ -254,16 +337,18 @@ defineExpose({
         <span
           v-if="salaryUnitLabel"
           class="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-sm font-bold text-[#434653]"
-        >{{ salaryUnitLabel }}</span>
+          >{{ salaryUnitLabel }}</span
+        >
         <button
           v-if="localSalaryAmount !== null"
           class="absolute top-1/2 right-8 flex -translate-y-1/2 cursor-pointer text-[#434653]/50 hover:text-[#434653]"
           @click="clearSalaryAmount"
         >
-          <span class="material-symbols-outlined text-base">close</span>
+          <span class="material-symbols-outlined text-base"
+            >close</span
+          >
         </button>
       </div>
     </section>
   </div>
 </template>
-

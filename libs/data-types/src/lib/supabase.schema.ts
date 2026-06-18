@@ -426,6 +426,7 @@ export type Database = {
       }
       mv_job: {
         Row: {
+          avg_salary: number | null
           closed: boolean | null
           company_id: string | null
           company_link: string | null
@@ -590,32 +591,28 @@ export type Database = {
       get_jobs_by_preference: {
         Args: { p_preference: string; p_user_id: string }
         Returns: {
-          closed: boolean | null
-          company_id: string | null
-          company_link: string | null
-          company_name: string | null
-          company_type: string | null
-          created_at: string | null
-          description: string | null
-          description_ch_en_ratio: number | null
-          detail_link: string | null
-          id: string | null
-          keyword_group_mappings: string[] | null
-          keyword_groups: string[] | null
-          location: string | null
-          max_salary: number | null
-          min_salary: number | null
-          salary: string | null
-          salary_type: string | null
-          title: string | null
-          updated_at: string | null
+          avg_salary: number
+          closed: boolean
+          company_id: string
+          company_link: string
+          company_name: string
+          company_type: string
+          created_at: string
+          description: string
+          description_ch_en_ratio: number
+          detail_link: string
+          id: string
+          keyword_group_mappings: string[]
+          keyword_groups: string[]
+          location: string
+          max_salary: number
+          min_salary: number
+          preference_updated_at: string
+          salary: string
+          salary_type: string
+          title: string
+          updated_at: string
         }[]
-        SetofOptions: {
-          from: "*"
-          to: "mv_job"
-          isOneToOne: false
-          isSetofReturn: true
-        }
       }
       get_location_anomaly_jobs: {
         Args: { p_maxlen?: number; p_type: string }
@@ -661,6 +658,7 @@ export type Database = {
       get_unreviewed_jobs: {
         Args: { p_user_id: string }
         Returns: {
+          avg_salary: number | null
           closed: boolean | null
           company_id: string | null
           company_link: string | null

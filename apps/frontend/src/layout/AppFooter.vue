@@ -12,7 +12,6 @@ const { footerLinks } = useNavLinks();
     <div
       class="mx-auto grid max-w-7xl grid-cols-1 gap-8 px-6 sm:grid-cols-[2fr_1fr_1fr_1fr]"
     >
-      <!-- Brand column -->
       <div>
         <div
           class="mb-3 text-[22px] font-black tracking-[-0.04em] text-[#003d92]"
@@ -28,7 +27,6 @@ const { footerLinks } = useNavLinks();
         </p>
       </div>
 
-      <!-- 資料來源 -->
       <div>
         <div
           class="mb-3 text-[11px] font-bold tracking-[0.15em] text-[#434653]"
@@ -55,7 +53,6 @@ const { footerLinks } = useNavLinks();
         </a>
       </div>
 
-      <!-- 產品 -->
       <div>
         <div
           class="mb-3 text-[11px] font-bold tracking-[0.15em] text-[#434653]"
@@ -72,7 +69,6 @@ const { footerLinks } = useNavLinks();
         </RouterLink>
       </div>
 
-      <!-- 關於 -->
       <div>
         <div
           class="mb-3 text-[11px] font-bold tracking-[0.15em] text-[#434653]"
@@ -93,7 +89,6 @@ const { footerLinks } = useNavLinks();
       </div>
     </div>
 
-    <!-- Bottom bar -->
     <div
       class="mx-auto mt-8 flex max-w-7xl items-center justify-between border-t border-dashed border-[#c3c6d5] px-6 pt-4 text-[11px] tracking-wider text-[#434653]"
     >

@@ -3,7 +3,13 @@ import { createRouter, createWebHistory } from 'vue-router';
 import { useAuthStore } from '../features/auth/useAuthStore';
 import Home from '../features/home/views/Home.vue';
 
-const PUBLIC_ROUTES = ['login', 'auth-callback', 'home'];
+const PUBLIC_ROUTES = [
+  'login',
+  'auth-callback',
+  'home',
+  'techs',
+  'techs-combos',
+];
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -28,6 +34,18 @@ const router = createRouter({
         import('../features/job/views/JobPreference.vue'),
     },
     {
+      path: '/techs',
+      name: 'techs',
+      component: () =>
+        import('../features/techs/views/TechRanking.vue'),
+    },
+    {
+      path: '/techs/combos',
+      name: 'techs-combos',
+      component: () =>
+        import('../features/techs/views/TechCombos.vue'),
+    },
+    {
       path: '/companies',
       name: 'companies',
       component: () =>
@@ -37,9 +55,7 @@ const router = createRouter({
       path: '/keywords',
       name: 'keywords',
       component: () =>
-        import(
-          '../features/keyword/views/KeywordGroupManager.vue'
-        ),
+        import('../features/keyword/views/KeywordGroupManager.vue'),
     },
     {
       path: '/admin/jobs',

@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, ref } from 'vue';
+import { ref, watch } from 'vue';
 
 import HomeHandoff from '../components/HomeHandoff.vue';
 import HomeHero from '../components/HomeHero.vue';
@@ -21,10 +21,20 @@ Promise.all([
   loading.value = false;
 });
 
-const popularTechs = computed(() =>
-  store.keywordTechRanking.items
-    .map(x => x.keyword_group)
-    .slice(0, 5),
+const popularTechs = ref<string[]>([]);
+watch(
+  () => store.keywordTechRanking.items,
+  value => {
+    popularTechs.value.push(
+      ...value
+        .filter(
+          x =>
+            !popularTechs.value.includes(x.keyword_group),
+        )
+        .map(x => x.keyword_group),
+    );
+  },
+  { immediate: true },
 );
 </script>
 
@@ -37,10 +47,24 @@ const popularTechs = computed(() =>
     <HomeHighSalaryTech :type="'year'" />
     <HomeHighSalaryTech :type="'month'" />
     <section class="mt-10">
-      <div
-        class="mb-2 text-xs font-bold tracking-[0.18em] text-[#434653]"
-      >
-        熱門技術組合
+      <div class="mb-2 flex items-baseline gap-3">
+        <div
+          class="text-xs font-bold tracking-[0.18em] text-[#434653]"
+        >
+          熱門技術組合
+        </div>
+        <RouterLink
+          :to="{ name: 'techs-combos' }"
+          class="flex items-center gap-0.5 text-xs font-bold text-[#003d92] transition-colors hover:text-[#001f2a]"
+        >
+          更多
+          <span
+            class="material-symbols-outlined"
+            style="font-size: 14px"
+          >
+            arrow_forward
+          </span>
+        </RouterLink>
       </div>
       <div class="mb-4 text-lg font-black text-[#001f2a]">
         <span class="text-[#003d92]"
