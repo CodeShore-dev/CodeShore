@@ -6,6 +6,7 @@ import Pagination from '../../../components/Pagination.vue';
 import TechIcon from '../../../components/TechIcon.vue';
 import { TAG_LABEL_MAP } from '../../../utils/constants';
 import { toWan } from '../../../utils/format';
+import InfoHint from '../../methodology/components/InfoHint.vue';
 import { useTechCombos } from '../composables/useTechCombos';
 
 const route = useRoute();
@@ -94,9 +95,14 @@ function goJobs(tech1: string, tech2: string) {
       </div>
       <div class="flex items-end justify-between gap-4">
         <h1
-          class="text-[2.25rem] leading-tight font-black tracking-[-0.03em] text-[#001f2a]"
+          class="flex items-start gap-1.5 text-[2.25rem] leading-tight font-black tracking-[-0.03em] text-[#001f2a]"
         >
-          最常一起出現的<br class="sm:hidden" />技術組合
+          <span
+            >最常一起出現的<br
+              class="sm:hidden"
+            />技術組合</span
+          >
+          <InfoHint metric="techs.combos" class="mt-1.5" />
         </h1>
         <span
           v-if="selectedTech && !loading"
