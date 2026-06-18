@@ -6,9 +6,13 @@ import { execSync } from 'node:child_process';
 import { defineConfig } from 'vite';
 
 function resolveAppVer(): string {
-  if (process.env.VITE_APP_VER) return process.env.VITE_APP_VER;
+  if (process.env.VITE_APP_VER)
+    return process.env.VITE_APP_VER;
   try {
-    return execSync('git describe --tags --always --dirty', { encoding: 'utf8' }).trim();
+    return execSync(
+      'git describe --tags --always --dirty',
+      { encoding: 'utf8' },
+    ).trim();
   } catch {
     return '0.0.0-local';
   }
@@ -26,7 +30,8 @@ export default defineConfig(() => ({
     host: 'localhost',
   },
   define: {
-    'import.meta.env.VITE_APP_VER': JSON.stringify(resolveAppVer()),
+    'import.meta.env.VITE_APP_VER':
+      JSON.stringify(resolveAppVer()),
   },
   plugins: [
     vue(),
@@ -44,5 +49,12 @@ export default defineConfig(() => ({
     commonjsOptions: {
       transformMixedEsModules: true,
     },
+  },
+  test: {
+    watch: false,
+    globals: true,
+    environment: 'jsdom',
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    reporters: ['default'],
   },
 }));
