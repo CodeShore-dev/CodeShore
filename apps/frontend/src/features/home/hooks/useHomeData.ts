@@ -1,0 +1,70 @@
+import { useQuery } from '@tanstack/react-query';
+
+import { formatNumber } from '../../../utils/format';
+import {
+  fetchJobCount,
+  fetchMvSalaryTypeMedianRatio,
+  fetchMvSalaryWeightedRatio,
+} from '../service';
+
+type Benchmark = { median: number; high: number; top: number };
+
+// Home server-state via TanStack Query (task 5.1), replacing the Pinia store's
+// fetch + derived getters. Components call this directly; the shared query
+// cache dedupes the three requests.
+export function useHomeData() {
+  const medianRatio = useQuery({
+    queryKey: ['home', 'salaryTypeMedianRatio'],
+    queryFn: async () => (await fetchMvSalaryTypeMedianRatio()).result,
+  });
+  const weightedRatio = useQuery({
+    queryKey: ['home', 'salaryWeightedRatio'],
+    queryFn: async () => (await fetchMvSalaryWeightedRatio()).result,
+  });
+  const jobCount = useQuery({
+    queryKey: ['home', 'jobCount'],
+    queryFn: async () => (await fetchJobCount())[0],
+  });
+
+  const loading =
+    medianRatio.isLoading ||
+    weightedRatio.isLoading ||
+    jobCount.isLoading;
+
+  const median = medianRatio.data ?? [];
+  const yearSalary = median.find(s => s.salary_type === 'year');
+  const monthSalary = median.find(s => s.salary_type === 'month');
+  const salaryBenchmarks: Record<'year' | 'month', Benchmark> = {
+    month: {
+      median: monthSalary?.median_mark ?? 0,
+      high: monthSalary?.high_mark ?? 0,
+      top: monthSalary?.top_mark ?? 0,
+    },
+    year: {
+      median: yearSalary?.median_mark ?? 0,
+      high: yearSalary?.high_mark ?? 0,
+      top: yearSalary?.top_mark ?? 0,
+    },
+  };
+
+  const weighted = weightedRatio.data ?? [];
+  const salaryWeightedRatios: Record<'year' | 'month', number> = {
+    year: weighted.find(r => r.salary_type === 'year')?.ratio ?? 0,
+    month: weighted.find(r => r.salary_type === 'month')?.ratio ?? 0,
+  };
+
+  const jc = jobCount.data ?? {
+    jobs: 0,
+    open_jobs: 0,
+    month_salary_type_jobs: 0,
+    year_salary_type_jobs: 0,
+  };
+  const jobCountText = {
+    total: formatNumber(jc.jobs),
+    open: formatNumber(jc.open_jobs),
+    month: formatNumber(jc.month_salary_type_jobs),
+    year: formatNumber(jc.year_salary_type_jobs),
+  };
+
+  return { loading, salaryBenchmarks, salaryWeightedRatios, jobCountText };
+}
