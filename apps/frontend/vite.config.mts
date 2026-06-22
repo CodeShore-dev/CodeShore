@@ -1,7 +1,7 @@
 /// <reference types='vitest' />
 import { nxCopyAssetsPlugin } from '@nx/vite/plugins/nx-copy-assets.plugin';
 import { nxViteTsPaths } from '@nx/vite/plugins/nx-tsconfig-paths.plugin';
-import vue from '@vitejs/plugin-vue';
+import react from '@vitejs/plugin-react';
 import { execSync } from 'node:child_process';
 import { defineConfig } from 'vite';
 
@@ -34,7 +34,7 @@ export default defineConfig(() => ({
       JSON.stringify(resolveAppVer()),
   },
   plugins: [
-    vue(),
+    react(),
     nxViteTsPaths(),
     nxCopyAssetsPlugin(['*.md']),
   ],

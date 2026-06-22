@@ -4,8 +4,7 @@
     "esModuleInterop": false,
     "allowSyntheticDefaultImports": true,
     "strict": true,
-    "jsx": "preserve",
-    "jsxImportSource": "vue",
+    "jsx": "react-jsx",
     "moduleResolution": "node",
     "resolveJsonModule": true
   },
