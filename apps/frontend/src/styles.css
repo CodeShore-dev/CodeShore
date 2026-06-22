@@ -84,3 +84,14 @@ mark.kw.is-active {
   background: #003d92;
   color: #ffffff;
 }
+
+/* TechIcon: size the injected SVG to fill its slot (ported from the Vue
+   scoped style). */
+.techicon {
+  color: #001f2a;
+}
+.techicon-svg svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
