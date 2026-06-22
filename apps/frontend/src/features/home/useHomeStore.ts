@@ -72,6 +72,21 @@ export const useHomeStore = defineStore('home', () => {
     };
   });
 
+  const salaryWeightedRatios = computed<
+    Record<'year' | 'month', number>
+  >(() => {
+    const year = salaryWeightedRatio.value.find(
+      r => r.salary_type === 'year',
+    );
+    const month = salaryWeightedRatio.value.find(
+      r => r.salary_type === 'month',
+    );
+    return {
+      year: year?.ratio ?? 0,
+      month: month?.ratio ?? 0,
+    };
+  });
+
   const jobCountText = computed(() => ({
     total: formatNumber(jobCount.value.jobs),
     open: formatNumber(jobCount.value.open_jobs),
@@ -89,6 +104,7 @@ export const useHomeStore = defineStore('home', () => {
     jobCount,
     salaryTypeMedianRatio,
     salaryBenchmarks,
+    salaryWeightedRatios,
     jobCountText,
     selectedCategory,
     keywordTechRanking,

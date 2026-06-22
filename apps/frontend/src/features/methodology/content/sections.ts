@@ -206,7 +206,7 @@ export const methodologySections: readonly MethodologySection[] =
         },
         {
           kind: 'paragraph',
-          text: '一致性原則：本段所述物件均對應站台實際運作中的資料庫物件，不描述不存在的物件；各分析數字的口徑與其背後對應的物化視圖 / function 一致。',
+          text: '一致性原則：本段所述物件均對應站台實際運作中的資料庫物件，不描述不存在的物件；各分析數字的統計範圍與其背後對應的物化視圖 / function 一致。',
         },
       ],
     },

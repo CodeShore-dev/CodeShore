@@ -72,6 +72,16 @@ export class AppController {
     return this.service.getMvTechComboStatsService(query);
   }
 
+  @Get('/methodology/sql')
+  @ApiOperation({
+    summary: 'Get the source SQL behind each analytical metric',
+    description:
+      'Returns a map of database object name to its CREATE statement (view / materialized view / function), extracted from supabase/schema.sql at build time. Used by the methodology page to show the SQL behind each number. Public (no authentication required).',
+  })
+  getMethodologySql() {
+    return this.service.getMethodologySql();
+  }
+
   @Sse('/sse')
   sse(): Observable<MessageEvent> {
     return this.messageQueue.pipe(

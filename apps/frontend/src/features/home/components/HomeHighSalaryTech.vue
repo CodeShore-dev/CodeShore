@@ -31,18 +31,26 @@ const { items, getItems, loading } = useKeywordTechRanking({
 </script>
 
 <template>
-  <div class="relative">
-    <KeywordTechRankingCardList
-      :title="titleMap[props.type]"
-      :items
-      :loading
-      :get-items
-      :more-to="{
-        name: 'techs',
-        query: { mode: `salary-${props.type}` },
-      }"
-    >
-      <template #metric="{ item }">
+  <KeywordTechRankingCardList
+    :title="titleMap[props.type]"
+    :items
+    :loading
+    :get-items
+    :more-to="{
+      name: 'techs',
+      query: { mode: `salary-${props.type}` },
+    }"
+  >
+    <template #title-hint>
+      <InfoHint
+        :metric="
+          props.type === 'year'
+            ? 'home.highSalaryTech.year'
+            : 'home.highSalaryTech.month'
+        "
+      />
+    </template>
+    <template #metric="{ item }">
         <div class="flex flex-col gap-1.5">
           <div
             class="flex items-center justify-between gap-1 text-lg"
@@ -118,13 +126,4 @@ const { items, getItems, loading } = useKeywordTechRanking({
         </div>
       </template>
     </KeywordTechRankingCardList>
-    <InfoHint
-      :metric="
-        props.type === 'year'
-          ? 'home.highSalaryTech.year'
-          : 'home.highSalaryTech.month'
-      "
-      class="absolute top-10 left-[8rem]"
-    />
-  </div>
 </template>

@@ -76,10 +76,13 @@ watch(
       class="mb-4 flex flex-wrap items-baseline justify-between gap-2"
     >
       <div class="flex items-baseline gap-3">
-        <div
-          class="text-xs font-bold tracking-[0.18em] text-[#434653]"
-        >
-          {{ title }}
+        <div class="flex items-center gap-1.5">
+          <div
+            class="text-xs font-bold tracking-[0.18em] text-[#434653]"
+          >
+            {{ title }}
+          </div>
+          <slot name="title-hint" />
         </div>
         <RouterLink
           v-if="moreTo"

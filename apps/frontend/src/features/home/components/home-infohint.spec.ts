@@ -58,7 +58,7 @@ const TechIconStub = {
   template: '<i />',
 };
 
-// 宿主以 InfoHint 作為 card-list 的兄弟節點（非 slot），stub 僅需渲染預設 slot
+// 宿主透過 title-hint 具名插槽嵌入 InfoHint，stub 需同時渲染具名與預設插槽
 const KeywordTechRankingCardListStub = {
   name: 'KeywordTechRankingCardList',
   props: [
@@ -68,7 +68,7 @@ const KeywordTechRankingCardListStub = {
     'getItems',
     'moreTo',
   ],
-  template: '<div><slot /></div>',
+  template: '<div><slot name="title-hint" /><slot /></div>',
 };
 
 const globalStubs = {
@@ -110,6 +110,9 @@ describe('Home analytical sections embed InfoHint', () => {
     });
     expect(metricsOf(wrapper)).toContain(
       'home.salaryBenchmark',
+    );
+    expect(metricsOf(wrapper)).toContain(
+      'home.salaryWeightedRatio',
     );
   });
 

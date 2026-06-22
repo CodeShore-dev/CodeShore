@@ -1,5 +1,38 @@
 <script lang="ts" setup>
+import { computed, onMounted, ref } from 'vue';
+
+import { metricExplanations } from '../content/metrics';
 import { methodologySections } from '../content/sections';
+import { fetchMethodologySql } from '../service';
+
+const sqlMap = ref<Record<string, string>>({});
+
+// 收集所有 metric 引用到的資料庫物件，依首次出現順序排列，
+// 並記錄各物件被哪些分析數字使用，於頁面顯示來源 SQL。
+const sqlObjects = computed(() => {
+  const used = new Map<string, string[]>();
+  for (const metric of Object.values(metricExplanations)) {
+    for (const name of metric.sqlObjects) {
+      const titles = used.get(name) ?? [];
+      if (!titles.includes(metric.title)) {
+        titles.push(metric.title);
+      }
+      used.set(name, titles);
+    }
+  }
+  return [...used.entries()].map(([name, usedBy]) => ({
+    name,
+    usedBy,
+  }));
+});
+
+onMounted(async () => {
+  try {
+    sqlMap.value = await fetchMethodologySql();
+  } catch {
+    sqlMap.value = {};
+  }
+});
 </script>
 
 <template>
@@ -75,6 +108,44 @@ import { methodologySections } from '../content/sections';
             </table>
           </div>
         </template>
+      </section>
+
+      <section id="source-sql" class="mb-12 scroll-mt-20">
+        <h2 class="mb-2 text-xl font-black text-[#003d92]">
+          資料來源 SQL
+        </h2>
+        <p
+          class="mb-6 text-sm leading-relaxed text-[#1f2330]"
+        >
+          以下是各分析數字背後實際使用的資料庫物件定義，於建置時自
+          schema.sql 擷取。
+        </p>
+
+        <div
+          v-for="obj in sqlObjects"
+          :id="`sql-${obj.name}`"
+          :key="obj.name"
+          class="mb-6 scroll-mt-20"
+        >
+          <h3
+            class="font-mono text-sm font-bold break-all text-[#001f2a]"
+          >
+            {{ obj.name }}
+          </h3>
+          <p class="mb-2 text-xs text-[#434653]">
+            用於：{{ obj.usedBy.join('、') }}
+          </p>
+          <pre
+            v-if="sqlMap[obj.name]"
+            class="overflow-x-auto rounded-lg bg-[#001f2a] p-4 text-xs leading-relaxed text-[#d9f2ff]"
+          ><code>{{ sqlMap[obj.name] }}</code></pre>
+          <p
+            v-else
+            class="rounded-lg bg-[#f4faff] p-4 text-xs text-[#434653]"
+          >
+            SQL 載入中…
+          </p>
+        </div>
       </section>
     </div>
   </div>

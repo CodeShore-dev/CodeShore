@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import type { SupabaseFunction } from '@codeshore/data-types';
+import { SCHEMA_SQL } from '@codeshore/data-types';
 import {
   MvKeywordGroupRankingService,
   MvSalaryTypeMedianRatioService,
@@ -38,6 +39,15 @@ export class AppService {
   @Cacheable({ key: MvSalaryWeightedRatioService.name })
   async getMvSalaryWeightedRatio() {
     return this.mvSalaryWeightedRatioService.fetchAll();
+  }
+
+  /**
+   * 回傳各資料庫物件（view / materialized view / function）的 SQL 定義，
+   * 於建置時由 supabase/schema.sql 擷取（見 schema-sql.generated.ts），
+   * 供方法論頁顯示每個分析數字背後的來源 SQL。
+   */
+  getMethodologySql(): Record<string, string> {
+    return SCHEMA_SQL;
   }
 
   async getMvKeywordGroupRanking(query: QueryDto) {

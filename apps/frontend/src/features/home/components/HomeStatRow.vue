@@ -11,7 +11,7 @@ const router = useRouter();
 
 const statCards = [
   {
-    label: '所有職缺',
+    label: '開放職缺',
     valKey: 'open' as const,
     query: {} as Record<string, string>,
   },

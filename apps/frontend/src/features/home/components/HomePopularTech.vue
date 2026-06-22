@@ -7,20 +7,18 @@ const store = useHomeStore();
 </script>
 
 <template>
-  <div class="relative">
-    <KeywordTechRankingCardList
-      title="熱門技術"
-      :items="store.keywordTechRanking.items"
-      :loading="store.keywordTechRanking.loading"
-      :get-items="store.keywordTechRanking.getItems"
-      :more-to="{
-        name: 'techs',
-        query: { mode: 'popular' },
-      }"
-    />
-    <InfoHint
-      metric="home.popularTech"
-      class="absolute top-10 left-[5.5rem]"
-    />
-  </div>
+  <KeywordTechRankingCardList
+    title="熱門技術"
+    :items="store.keywordTechRanking.items"
+    :loading="store.keywordTechRanking.loading"
+    :get-items="store.keywordTechRanking.getItems"
+    :more-to="{
+      name: 'techs',
+      query: { mode: 'popular' },
+    }"
+  >
+    <template #title-hint>
+      <InfoHint metric="home.popularTech" />
+    </template>
+  </KeywordTechRankingCardList>
 </template>

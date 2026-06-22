@@ -23,6 +23,11 @@ const benchmarkLabels: Record<string, string> = {
   top: '頂薪',
 };
 
+const weightedRatioText = computed(() => {
+  const ratio = store.salaryWeightedRatios[salaryUnit.value];
+  return ratio ? `${ratio} 倍` : '—';
+});
+
 const activeBenchmarks = computed(() => {
   const benchmark =
     salaryUnit.value === 'month'
@@ -77,6 +82,19 @@ const activeBenchmarks = computed(() => {
           {{ opt.l }}
         </button>
       </div>
+    </div>
+    <div
+      class="mb-4 inline-flex items-center gap-2 rounded-lg bg-[#f4faff] px-3 py-2"
+    >
+      <span
+        class="text-xs font-bold tracking-wide text-[#434653]"
+        >市場加權比率</span
+      >
+      <span
+        class="font-mono text-sm font-black text-[#003d92] tabular-nums"
+        >{{ weightedRatioText }}</span
+      >
+      <InfoHint metric="home.salaryWeightedRatio" />
     </div>
     <div
       v-if="loading"

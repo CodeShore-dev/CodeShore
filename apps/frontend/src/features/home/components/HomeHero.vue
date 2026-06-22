@@ -76,7 +76,7 @@ onUnmounted(() => {
           </span>
         </div>
         <p class="mt-4 mb-0 leading-relaxed">
-          每天同步各大人力銀行職缺，讓你看清楚市場在要什麼、願意給多少。
+          每週同步各大人力銀行職缺，讓你看清楚市場在要什麼、願意給多少。
         </p>
       </div>
       <div class="border-l-4 border-[#003d92] pl-5">
