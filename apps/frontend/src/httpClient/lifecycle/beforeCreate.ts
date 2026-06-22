@@ -1,5 +1,7 @@
+import { env } from '../../config/env';
+
 export default () => {
-  if (import.meta.env.DEV) {
+  if (env.isDev) {
     const queryRecord = parseQueryString();
     const token = <string>queryRecord.token ?? '';
     const appList = queryRecord.appList ?? [];
