@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 
 import { useHomeStore } from '../../home/useHomeStore';
 import { useKeywordStore } from '../../keyword/useKeywordStore';
+import InfoHint from '../../methodology/components/InfoHint.vue';
 import JobActiveFilters from '../components/JobActiveFilters.vue';
 import JobFilterSidebar from '../components/JobFilterSidebar.vue';
 import JobList from '../components/JobList.vue';
@@ -163,6 +164,12 @@ function clearAllFilters(): void {
       </button>
 
       <!-- Tab selector -->
+      <div
+        class="mb-2 flex items-center gap-1.5 text-[11px] font-bold tracking-[0.18em] text-[#003d92]"
+      >
+        職缺統計
+        <InfoHint metric="job.list" />
+      </div>
       <section
         class="mb-6 grid w-full max-w-lg grid-cols-3 gap-3"
       >
