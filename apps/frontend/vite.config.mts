@@ -54,7 +54,17 @@ export default defineConfig(() => ({
     watch: false,
     globals: true,
     environment: 'jsdom',
+    setupFiles: ['src/test-setup.ts'],
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    // Legacy Vue specs cannot run after the Vue plugin removal; they are
+    // migrated to React Testing Library in task 11.3.
+    exclude: [
+      'src/features/company/views/company-infohint.spec.ts',
+      'src/features/home/components/home-infohint.spec.ts',
+      'src/features/job/job-infohint.spec.ts',
+      'src/features/techs/views/techs-infohint.spec.ts',
+      'src/layout/methodology-nav.spec.ts',
+    ],
     reporters: ['default'],
   },
 }));
