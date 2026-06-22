@@ -1,26 +1,42 @@
-import { createRouter, createWebHistory } from 'vue-router';
+import {
+  type RouterScrollBehavior,
+  createRouter,
+  createWebHistory,
+} from 'vue-router';
 
 import { useAuthStore } from '../features/auth/useAuthStore';
 import Home from '../features/home/views/Home.vue';
 
-const PUBLIC_ROUTES = [
+export const PUBLIC_ROUTES = [
   'login',
   'auth-callback',
   'home',
   'techs',
   'techs-combos',
+  'methodology',
 ];
+
+// Project rule: switching pages resets scroll to top. Restore browser
+// back/forward position; honour hash deep-links (e.g. /methodology#anchor)
+// so external links land on the target section (req 7.4); only reset on an
+// actual path change so same-page query updates (filters, drawer,
+// pagination) don't jump.
+export const scrollBehavior: RouterScrollBehavior = (
+  to,
+  from,
+  savedPosition,
+) => {
+  if (savedPosition) return savedPosition;
+  // Hash deep-link wins over a plain path-change reset so /methodology#anchor
+  // scrolls to the section. The top offset clears the fixed nav.
+  if (to.hash) return { el: to.hash, top: 80 };
+  if (to.path !== from.path) return { top: 0 };
+  return false;
+};
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
-  // Project rule: switching pages resets scroll to top. Restore browser
-  // back/forward position; only reset on an actual path change so
-  // same-page query updates (filters, drawer, pagination) don't jump.
-  scrollBehavior(to, from, savedPosition) {
-    if (savedPosition) return savedPosition;
-    if (to.path !== from.path) return { top: 0 };
-    return false;
-  },
+  scrollBehavior,
   routes: [
     {
       path: '/',
@@ -44,6 +60,12 @@ const router = createRouter({
       name: 'techs-combos',
       component: () =>
         import('../features/techs/views/TechCombos.vue'),
+    },
+    {
+      path: '/methodology',
+      name: 'methodology',
+      component: () =>
+        import('../features/methodology/views/Methodology.vue'),
     },
     {
       path: '/companies',

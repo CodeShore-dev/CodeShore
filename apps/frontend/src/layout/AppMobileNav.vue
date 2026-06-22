@@ -30,10 +30,20 @@ const { navLinks, isActive } = useNavLinks();
         >{{ link.icon }}</span
       >
       <span
-        class="mt-1 text-sm font-bold tracking-widest "
+        class="mt-1 text-sm font-bold tracking-widest"
         >{{ link.label }}</span
+      >
+    </RouterLink>
+    <RouterLink
+      :to="{ name: 'methodology' }"
+      class="flex flex-col items-center justify-center p-2 text-[#434653] transition hover:text-[#003d92]"
+    >
+      <span class="material-symbols-outlined transition"
+        >policy</span
+      >
+      <span class="mt-1 text-sm font-bold tracking-widest"
+        >公開透明</span
       >
     </RouterLink>
   </nav>
 </template>
-

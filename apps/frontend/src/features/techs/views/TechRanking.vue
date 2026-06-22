@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router';
 import Pagination from '../../../components/Pagination.vue';
 import { CATEGORY_LABEL_MAP } from '../../../utils/constants';
 import { useHomeStore } from '../../home/useHomeStore';
+import InfoHint from '../../methodology/components/InfoHint.vue';
 import TechRankingCard from '../components/TechRankingCard.vue';
 import {
   RankingMode,
@@ -112,9 +113,10 @@ load();
       </div>
       <div class="flex items-end justify-between gap-4">
         <h1
-          class="text-[2.25rem] leading-tight font-black tracking-[-0.03em] text-[#001f2a]"
+          class="flex items-start gap-1.5 text-[2.25rem] leading-tight font-black tracking-[-0.03em] text-[#001f2a]"
         >
           {{ heading }}
+          <InfoHint metric="techs.ranking" class="mt-1.5" />
         </h1>
         <span
           v-if="!loading"

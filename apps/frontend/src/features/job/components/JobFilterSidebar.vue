@@ -4,6 +4,7 @@ import { computed, ref, watch } from 'vue';
 
 import SearchInput from '../../../components/SearchInput.vue';
 import { useKeywordStore } from '../../keyword/useKeywordStore';
+import InfoHint from '../../methodology/components/InfoHint.vue';
 import { useJobStore } from '../useJobStore';
 import JobKeywordFilterPanel from './JobKeywordFilterPanel.vue';
 
@@ -251,6 +252,7 @@ defineExpose({
         class="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold tracking-[0.15em] text-[#434653]"
       >
         <span>面議薪資</span>
+        <InfoHint metric="job.salary" />
         <span
           v-if="store.salaryFilter !== 'none'"
           class="size-1.5 rounded-full bg-[#003d92]"

@@ -3,8 +3,9 @@ import { computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
 import TechIcon from '../../../components/TechIcon.vue';
-import { toWan } from '../../../utils/format';
 import { TAG_LABEL_MAP } from '../../../utils/constants';
+import { toWan } from '../../../utils/format';
+import InfoHint from '../../methodology/components/InfoHint.vue';
 import useTechComboStats from '../composables/useTechComboStats';
 
 type Props = {
@@ -46,10 +47,15 @@ watch(
     v-show="loading || items.length > 0"
     class="mb-6"
   >
-    <div class="mb-2 text-base font-black text-[#001f2a]">
-      與
-      <span class="text-[#003d92]">{{ techLabel }}</span>
-      語言最常同時出現的技術組合
+    <div
+      class="mb-2 flex items-center gap-1.5 text-base font-black text-[#001f2a]"
+    >
+      <span>
+        與
+        <span class="text-[#003d92]">{{ techLabel }}</span>
+        語言最常同時出現的技術組合
+      </span>
+      <InfoHint metric="home.hotCombos" />
     </div>
 
     <div
@@ -98,7 +104,9 @@ watch(
           <div class="flex flex-col gap-2">
             <div
               class="flex flex-col gap-1 leading-none font-black tracking-[-0.03em]"
-              style="font-size: clamp(1.75rem, 7vw, 3.25rem)"
+              style="
+                font-size: clamp(1.75rem, 7vw, 3.25rem);
+              "
             >
               <div class="flex min-w-0 items-center gap-2">
                 <TechIcon
@@ -122,7 +130,7 @@ watch(
             </div>
             <div class="flex flex-wrap gap-1">
               <span
-                v-for="tag in (topCombo.tech2_tags ?? [])"
+                v-for="tag in topCombo.tech2_tags ?? []"
                 :key="tag"
                 class="shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-bold text-white/70"
               >
@@ -205,7 +213,7 @@ watch(
               combo.tech1_label
             }}</span>
           </div>
-          <span class="text-[#fd7700] px-2">+</span>
+          <span class="px-2 text-[#fd7700]">+</span>
           <div class="flex min-w-0 items-center gap-1.5">
             <TechIcon
               :slugs="combo.tech2_icons"
@@ -218,7 +226,7 @@ watch(
         </div>
         <div class="mt-1.5 flex flex-wrap gap-1">
           <span
-            v-for="tag in (combo.tech2_tags ?? [])"
+            v-for="tag in combo.tech2_tags ?? []"
             :key="tag"
             class="shrink-0 rounded bg-[#d9f2ff] px-1.5 py-0.5 text-[10px] font-bold text-[#434653]"
           >
