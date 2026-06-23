@@ -1,0 +1,40 @@
+{
+  "projectId": "fbdcca03-32be-4f15-b7c3-50868f3dba06",
+  "shape": "package",
+  "pkg": "codeshore",
+  "globalName": "CodeShoreDS",
+  "entry": ".design-sync/entry.tsx",
+  "buildCmd": "node .design-sync/compile-css.mjs",
+  "readmeHeader": ".design-sync/conventions.md",
+  "srcDir": "apps/frontend/src",
+  "tsconfig": ".design-sync/tsconfig.bundle.json",
+  "cssEntry": ".design-sync/.cache/tailwind.css",
+  "provider": { "component": "MemoryRouter" },
+  "overrides": {
+    "KeywordTechRankingCardList": { "cardMode": "column" },
+    "AppNavBar": { "cardMode": "column" },
+    "AppFooter": { "cardMode": "column" },
+    "AppMobileNav": { "cardMode": "single", "primaryStory": "Default", "viewport": "390x120" }
+  },
+  "runtimeFontPrefixes": ["Material Symbols", "Inter", "Space Grotesk", "Roboto Mono"],
+  "componentSrcMap": {
+    "SearchInput": "apps/frontend/src/components/SearchInput.tsx",
+    "Pagination": "apps/frontend/src/components/Pagination.tsx",
+    "OperatorToggle": "apps/frontend/src/components/OperatorToggle.tsx",
+    "TechIcon": "apps/frontend/src/components/TechIcon.tsx",
+    "KeywordTechRankingCardList": "apps/frontend/src/components/KeywordTechRankingCardList.tsx",
+    "AppNavBar": "apps/frontend/src/layout/AppNavBar.tsx",
+    "AppFooter": "apps/frontend/src/layout/AppFooter.tsx",
+    "AppMobileNav": "apps/frontend/src/layout/AppMobileNav.tsx"
+  },
+  "dtsPropsFor": {
+    "SearchInput": "  /** Controlled input value. */\n  value: string;\n  placeholder?: string;\n  /** Fired on every keystroke and when the clear button is pressed (emits ''). */\n  onChange: (value: string) => void;",
+    "Pagination": "  currentPage: number;\n  totalPages: number;\n  /** Renders nothing when totalPages <= 1. Changing page also scrolls to top. */\n  onPageChange: (page: number) => void;",
+    "OperatorToggle": "  value: 'and' | 'or';\n  onChange: (value: 'and' | 'or') => void;",
+    "TechIcon": "  /** Ordered icon sources, each `\"<provider>:<slug>\"` (provider: simple-icons | thesvg | iconify). First resolvable wins. */\n  slugs?: string[] | null;\n  /** Used for the fallback initial when no icon resolves. */\n  label?: string | null;\n  /** Icon box size in px (default 32). */\n  size?: number;\n  /** When true (default), renders nothing if no icon resolves; otherwise shows the label initial. */\n  hideIfNotFound?: boolean;",
+    "KeywordTechRankingCardList": "  title: string;\n  items: Array<{\n    keyword_group: string;\n    label: string;\n    icon_slugs?: string[] | null;\n    tags?: string[] | null;\n    job_count: number;\n  }>;\n  loading: boolean;\n  /** Called on mount and whenever the category tab changes. */\n  getItems: (category: string) => void;\n  /** Optional \"more\" link target. */\n  moreTo?: string;\n  /** Slot rendered next to the title. */\n  titleHint?: React.ReactNode;\n  /** Override the default job-count metric per item. */\n  renderMetric?: (item: { keyword_group: string; label: string; job_count: number }) => React.ReactNode;",
+    "AppNavBar": "  /* Top navigation bar. Takes no props; reads nav links and the auth store internally. */",
+    "AppFooter": "  /* Site footer. Takes no props; reads nav links and app env internally. */",
+    "AppMobileNav": "  /* Bottom mobile navigation bar (hidden on md+). Takes no props. */"
+  }
+}
