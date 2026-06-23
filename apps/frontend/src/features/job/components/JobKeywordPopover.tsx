@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 
 import {
   useKeywordCategoriesQuery,
-  useKeywordGroupsQuery,
+  useTechsQuery,
   useSaveKeywordToGroupMutation,
 } from '../../keyword/queries';
 
@@ -22,7 +22,7 @@ export function JobKeywordPopover({
   y,
   onClose,
 }: JobKeywordPopoverProps) {
-  const { data: keywordGroups = [] } = useKeywordGroupsQuery();
+  const { data: techs = [] } = useTechsQuery();
   const { tabs } = useKeywordCategoriesQuery();
   const saveMutation = useSaveKeywordToGroupMutation();
 
@@ -38,16 +38,16 @@ export function JobKeywordPopover({
 
   const groupSuggestions = useMemo(() => {
     const q = groupSearch.toLowerCase();
-    return keywordGroups
-      .filter(g => g.keyword_group.toLowerCase().includes(q))
+    return techs
+      .filter(g => g.tech.toLowerCase().includes(q))
       .slice(0, 8);
-  }, [groupSearch, keywordGroups]);
+  }, [groupSearch, techs]);
 
   const isNewGroup = useMemo(() => {
     const q = groupSearch.trim().toLowerCase();
     if (!q) return false;
-    return !keywordGroups.some(g => g.keyword_group.toLowerCase() === q);
-  }, [groupSearch, keywordGroups]);
+    return !techs.some(g => g.tech.toLowerCase() === q);
+  }, [groupSearch, techs]);
 
   const availableTags = useMemo(
     () =>
@@ -101,12 +101,12 @@ export function JobKeywordPopover({
 
         <div className="relative mb-3">
           <span className="mb-1 block text-sm font-bold tracking-widest text-[#434653]">
-            加入關鍵字組
+            加入技術
           </span>
           <input
             value={groupSearch}
             type="text"
-            placeholder="搜尋或輸入群組名稱..."
+            placeholder="搜尋或輸入技術名稱..."
             className="w-full rounded-lg border border-[#c3c6d5] bg-[#f4faff] px-3 py-2 text-sm font-bold text-[#001f2a] placeholder-[#434653]/50 focus:outline-none"
             onChange={e => setGroupSearch(e.target.value)}
             onFocus={() => setShowSuggestions(true)}
@@ -116,11 +116,11 @@ export function JobKeywordPopover({
             <ul className="absolute top-full left-0 z-10 mt-1 w-full overflow-hidden rounded-lg border border-[#c3c6d5] bg-white shadow-lg">
               {groupSuggestions.map(g => (
                 <li
-                  key={g.keyword_group}
+                  key={g.tech}
                   className="cursor-pointer px-3 py-2 text-sm font-bold transition-colors hover:bg-[#f4faff]"
                   onMouseDown={e => {
                     e.preventDefault();
-                    selectGroup(g.keyword_group);
+                    selectGroup(g.tech);
                   }}
                 >
                   {g.label}

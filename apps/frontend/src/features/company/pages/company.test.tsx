@@ -9,7 +9,7 @@ const { company } = vi.hoisted(() => ({
     company_name: 'Acme Corp',
     company_type: '',
     job_count: 5,
-    keyword_groups: [],
+    techs: [],
     company_link: '',
   },
 }));
@@ -20,8 +20,8 @@ vi.mock('../service', () => ({
     .mockResolvedValue({ result: [company], count: 1 }),
 }));
 vi.mock('../../keyword/service', () => ({
-  fetchMvKeywordGroup: vi.fn().mockResolvedValue({ result: [] }),
-  fetchKeywordGroupCategories: vi.fn().mockResolvedValue({ result: [] }),
+  fetchMvTech: vi.fn().mockResolvedValue({ result: [] }),
+  fetchTechCategories: vi.fn().mockResolvedValue({ result: [] }),
 }));
 
 import { useCompanyFilterStore } from '../companyFilterStore';
@@ -41,10 +41,10 @@ describe('buildCompanyWhere', () => {
 
   it('uses cs for AND and ov for OR on keyword groups (req 6.2)', () => {
     expect(buildCompanyWhere('', ['a', 'b'], 'and')).toBe(
-      JSON.stringify({ keyword_groups: { cs: '{a,b}' } }),
+      JSON.stringify({ techs: { cs: '{a,b}' } }),
     );
     expect(buildCompanyWhere('', ['a', 'b'], 'or')).toBe(
-      JSON.stringify({ keyword_groups: { ov: '{a,b}' } }),
+      JSON.stringify({ techs: { ov: '{a,b}' } }),
     );
   });
 });
@@ -53,8 +53,8 @@ describe('useCompanyFilterStore', () => {
   beforeEach(() => {
     useCompanyFilterStore.setState({
       search: '',
-      selectedKeywordGroups: [],
-      keywordGroupOperator: 'and',
+      selectedTechs: [],
+      techOperator: 'and',
       page: 3,
     });
   });

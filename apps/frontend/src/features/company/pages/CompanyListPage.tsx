@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router';
 import { Pagination } from '../../../components/Pagination';
 import {
   useKeywordCategoriesQuery,
-  useKeywordGroupsQuery,
+  useTechsQuery,
 } from '../../keyword/queries';
 import { InfoHint } from '../../methodology/components/InfoHint';
 import { CompanyCard } from '../components/CompanyCard';
@@ -23,15 +23,15 @@ export function CompanyListPage() {
   const setSearch = useCompanyFilterStore(s => s.setSearch);
   const page = useCompanyFilterStore(s => s.page);
   const setPage = useCompanyFilterStore(s => s.setPage);
-  const selectedKeywordGroups = useCompanyFilterStore(
-    s => s.selectedKeywordGroups,
+  const selectedTechs = useCompanyFilterStore(
+    s => s.selectedTechs,
   );
   const clearFilters = useCompanyFilterStore(s => s.clearFilters);
   const hasActiveFilters = useCompanyFilterStore(
     selectCompanyHasActiveFilters,
   );
 
-  const { data: keywordGroups = [] } = useKeywordGroupsQuery();
+  const { data: techs = [] } = useTechsQuery();
   const { tabs } = useKeywordCategoriesQuery();
   const categoryLabelMap = useMemo(
     () => Object.fromEntries(tabs.map(t => [t.value, t.label])),
@@ -141,9 +141,9 @@ export function CompanyListPage() {
               <CompanyCard
                 key={company.company_id}
                 company={company}
-                keywordGroups={keywordGroups}
+                techs={techs}
                 categoryLabelMap={categoryLabelMap}
-                selectedKeywordGroups={selectedKeywordGroups}
+                selectedTechs={selectedTechs}
                 onClick={goToJobs}
               />
             ))}

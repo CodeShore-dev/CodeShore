@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 
 import {
-  KeywordGroupService,
-  MvKeywordGroupCategoryService,
-  MvKeywordGroupService,
-  resetJobKeywords_Keywords_JobKeywordGroup,
+  TechService,
+  MvTechCategoryService,
+  MvTechService,
+  resetJobKeywords_Keywords_JobTech,
 } from '@codeshore/data-utils';
 import {
   CacheService,
@@ -17,45 +17,45 @@ import { QueryDto } from './../query.dto';
 export class Service {
   constructor(
     private readonly cacheService: CacheService,
-    private readonly keywordGroupService: KeywordGroupService,
-    private readonly mvKeywordGroupService: MvKeywordGroupService,
-    private readonly mvKeywordGroupCategoryService: MvKeywordGroupCategoryService,
+    private readonly techService: TechService,
+    private readonly mvTechService: MvTechService,
+    private readonly mvTechCategoryService: MvTechCategoryService,
   ) {}
 
-  async getMvKeywordGroup(query: QueryDto) {
+  async getMvTech(query: QueryDto) {
     const isTheRequestFromHomePage = (query: QueryDto) =>
       query.from === 0 && query.to === -1;
     if (isTheRequestFromHomePage(query)) {
       return this.cacheService.getOrSet(
-        MvKeywordGroupService.name,
-        () => this.mvKeywordGroupService.fetchAll(query),
+        MvTechService.name,
+        () => this.mvTechService.fetchAll(query),
       );
     }
-    return this.mvKeywordGroupService.fetchAll(query);
+    return this.mvTechService.fetchAll(query);
   }
 
-  @Cacheable({ key: MvKeywordGroupCategoryService.name })
-  async getKeywordGroupCategories(query: QueryDto) {
-    return this.mvKeywordGroupCategoryService.fetchAll(
+  @Cacheable({ key: MvTechCategoryService.name })
+  async getTechCategories(query: QueryDto) {
+    return this.mvTechCategoryService.fetchAll(
       query,
     );
   }
 
-  resetJobKeywords_Keywords_JobKeywordGroup(
-    keywordGroup?: string,
+  resetJobKeywords_Keywords_JobTech(
+    tech?: string,
     keyword?: string,
   ) {
-    return resetJobKeywords_Keywords_JobKeywordGroup(
-      keywordGroup,
+    return resetJobKeywords_Keywords_JobTech(
+      tech,
       keyword,
     );
   }
 
-  async updateKeywordGroupIconSlugs(
+  async updateTechIconSlugs(
     id: string,
     icon_slugs: string[],
   ) {
-    const { error } = await this.keywordGroupService.update(
+    const { error } = await this.techService.update(
       {
         id,
         icon_slugs,
@@ -63,9 +63,9 @@ export class Service {
     );
     if (error) throw new Error(error.message);
     // 讓 materialized view 與首頁全清單快取反映新順序
-    await this.mvKeywordGroupService.refresh();
+    await this.mvTechService.refresh();
     await this.cacheService.invalidate(
-      MvKeywordGroupService.name,
+      MvTechService.name,
     );
     return { id, icon_slugs };
   }

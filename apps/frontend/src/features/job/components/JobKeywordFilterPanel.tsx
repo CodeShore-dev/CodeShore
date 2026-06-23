@@ -22,7 +22,7 @@ export function JobKeywordFilterPanel() {
     keywordSearch,
     setKeywordSearch,
     categoriesWithSelections,
-    filteredKeywordGroupView,
+    filteredTechView,
   } = useKeywordCatalogView();
 
   const selectedTags = useKeywordFilterStore(s => s.selectedTags);
@@ -118,12 +118,12 @@ export function JobKeywordFilterPanel() {
       )}
 
       <div className="flex max-h-115 flex-wrap gap-2 overflow-auto">
-        {filteredKeywordGroupView.map(keywordGroup => {
-          const isSelected = selectedTags.includes(keywordGroup.keyword_group);
-          const isExcluded = excludedTags.includes(keywordGroup.keyword_group);
+        {filteredTechView.map(tech => {
+          const isSelected = selectedTags.includes(tech.tech);
+          const isExcluded = excludedTags.includes(tech.tech);
           return (
             <span
-              key={keywordGroup.keyword_group}
+              key={tech.tech}
               className={`flex w-full cursor-pointer items-center justify-between gap-2 rounded px-4 py-2 text-sm font-bold ${
                 isSelected
                   ? 'bg-primary text-on-primary'
@@ -131,21 +131,21 @@ export function JobKeywordFilterPanel() {
                     ? 'bg-error text-on-error'
                     : 'bg-surface-container text-on-surface-variant hover:bg-primary-container hover:text-on-primary'
               }`}
-              onClick={() => toggleLanguage(keywordGroup.keyword_group)}
+              onClick={() => toggleLanguage(tech.tech)}
             >
               <span className="flex min-w-0 flex-col gap-1">
                 <span className="flex min-w-0 items-center gap-2">
                   <TechIcon
-                    slugs={keywordGroup.icon_slugs}
-                    label={keywordGroup.label}
+                    slugs={tech.icon_slugs}
+                    label={tech.label}
                     size={20}
                   />
-                  <span className="truncate">{keywordGroup.label}</span>
+                  <span className="truncate">{tech.label}</span>
                 </span>
 
-                {keywordGroup.tags?.length > 0 && (
+                {tech.tags?.length > 0 && (
                   <span className="flex flex-wrap gap-1">
-                    {keywordGroup.tags.map(tag => (
+                    {tech.tags.map(tag => (
                       <span
                         key={tag}
                         className="rounded-full bg-current/12 px-1.5 py-px text-[11px] font-medium normal-case"
@@ -156,12 +156,12 @@ export function JobKeywordFilterPanel() {
                   </span>
                 )}
 
-                {keywordGroup.parents?.length > 0 && (
+                {tech.parents?.length > 0 && (
                   <span className="flex flex-wrap items-center gap-1 normal-case opacity-70">
                     <span className="material-symbols-outlined text-[13px]! opacity-80">
                       subdirectory_arrow_right
                     </span>
-                    {keywordGroup.parents.map(parent => (
+                    {tech.parents.map(parent => (
                       <span
                         key={parent}
                         className="rounded-full border border-current/30 px-1.5 py-px text-[11px] font-medium"
@@ -182,7 +182,7 @@ export function JobKeywordFilterPanel() {
                     close
                   </span>
                 ) : null}
-                <span>{keywordGroup.count}</span>
+                <span>{tech.count}</span>
               </span>
             </span>
           );

@@ -105,7 +105,7 @@ export const metricExplanations: Record<
     ],
     note: '職缺數需達 8 筆以上才會列入；資料定期更新。',
     anchor: 'database',
-    sqlObjects: ['mv_keyword_group_ranking'],
+    sqlObjects: ['mv_tech_ranking'],
   },
   'home.highSalaryTech.year': {
     key: 'home.highSalaryTech.year',
@@ -132,7 +132,7 @@ export const metricExplanations: Record<
     ],
     note: '只列入職缺數達 8 筆、且年薪中位數高於全站年薪基準的技術；薪資寫「面議／以上」會先依市場行情推估。資料定期更新。',
     anchor: 'database',
-    sqlObjects: ['mv_keyword_group_ranking'],
+    sqlObjects: ['mv_tech_ranking'],
   },
   'home.highSalaryTech.month': {
     key: 'home.highSalaryTech.month',
@@ -159,7 +159,7 @@ export const metricExplanations: Record<
     ],
     note: '只列入職缺數達 8 筆、且月薪中位數高於全站月薪基準的技術；薪資寫「面議／以上」會先依市場行情推估。資料定期更新。',
     anchor: 'database',
-    sqlObjects: ['mv_keyword_group_ranking'],
+    sqlObjects: ['mv_tech_ranking'],
   },
   'home.hotCombos': {
     key: 'home.hotCombos',
@@ -213,7 +213,7 @@ export const metricExplanations: Record<
     ],
     note: '職缺數需達 8 筆以上才會列入；資料定期更新。',
     anchor: 'database',
-    sqlObjects: ['mv_keyword_group_ranking'],
+    sqlObjects: ['mv_tech_ranking'],
   },
   'techs.combos': {
     key: 'techs.combos',
@@ -260,7 +260,7 @@ export const metricExplanations: Record<
       {
         name: '技術分布',
         detail:
-          '該公司職缺用到的技術群組（去除重複）。',
+          '該公司職缺用到的技術（去除重複）。',
       },
       {
         name: '排名',

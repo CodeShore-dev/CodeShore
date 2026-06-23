@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react';
 import { SupabaseView } from '@codeshore/data-types';
 
 import {
-  fetchMvKeywordGroupRanking,
+  fetchMvTechRanking,
   fetchMvTechComboStats,
 } from '../../home/service';
 
@@ -12,7 +12,7 @@ import {
 export function useTechCombos() {
   const [loadingLanguages, setLoadingLanguages] = useState(false);
   const [languages, setLanguages] = useState<
-    SupabaseView.MvKeywordGroupRanking[]
+    SupabaseView.MvTechRanking[]
   >([]);
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<SupabaseView.MvTechComboStats[]>([]);
@@ -21,7 +21,7 @@ export function useTechCombos() {
   const loadLanguages = useCallback(async () => {
     setLoadingLanguages(true);
     try {
-      const { result } = await fetchMvKeywordGroupRanking({
+      const { result } = await fetchMvTechRanking({
         from: 0,
         to: 19,
         where: JSON.stringify({

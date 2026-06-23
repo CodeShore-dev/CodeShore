@@ -5,7 +5,7 @@ import { useKeywordFilterStore } from './keywordFilterStore';
 import {
   type KeywordTab,
   useKeywordCategoriesQuery,
-  useKeywordGroupsQuery,
+  useTechsQuery,
 } from './queries';
 
 export const SEARCH_TAB_VALUE = '__search__';
@@ -17,7 +17,7 @@ export const RELATED_TAB_VALUE = '__related__';
 // list of keyword groups shown for the active tab. Selection + browsing state
 // live in keywordFilterStore; the catalog itself comes from the shared queries.
 export function useKeywordCatalogView() {
-  const { data: keywordGroups = [] } = useKeywordGroupsQuery();
+  const { data: techs = [] } = useTechsQuery();
   const { tabs } = useKeywordCategoriesQuery();
 
   const selectedTags = useKeywordFilterStore(s => s.selectedTags);
@@ -34,17 +34,17 @@ export function useKeywordCatalogView() {
   const searchedView = useMemo(() => {
     const q = keywordSearch.trim().toLowerCase();
     if (!q) return [];
-    return keywordGroups.filter(g => g.label.toLowerCase().includes(q));
-  }, [keywordSearch, keywordGroups]);
+    return techs.filter(g => g.label.toLowerCase().includes(q));
+  }, [keywordSearch, techs]);
 
   const relatedView = useMemo(() => {
     if (!selectedTags.length && !excludedTags.length) return [];
     const allActive = [...selectedTags, ...excludedTags];
-    return keywordGroups.filter(g => {
-      if (allActive.includes(g.keyword_group)) return false;
+    return techs.filter(g => {
+      if (allActive.includes(g.tech)) return false;
       return !!g.parents && allActive.some(x => g.parents.includes(x));
     });
-  }, [selectedTags, excludedTags, keywordGroups]);
+  }, [selectedTags, excludedTags, techs]);
 
   const visibleTabs = useMemo<KeywordTab[]>(() => {
     const base: KeywordTab[] = [];
@@ -78,23 +78,23 @@ export function useKeywordCatalogView() {
     const result = new Set<string>();
     const allCategories = Object.keys(CATEGORY_LABEL_MAP);
     for (const tag of [...selectedTags, ...excludedTags]) {
-      const group = keywordGroups.find(g => g.keyword_group === tag);
+      const group = techs.find(g => g.tech === tag);
       if (group?.category) {
         result.add(allCategories.includes(group.category) ? group.category : '');
       }
     }
     return result;
-  }, [selectedTags, excludedTags, keywordGroups]);
+  }, [selectedTags, excludedTags, techs]);
 
-  const filteredKeywordGroupView = useMemo(() => {
+  const filteredTechView = useMemo(() => {
     if (selectedTab === SEARCH_TAB_VALUE) return searchedView;
     if (selectedTab === RELATED_TAB_VALUE) return relatedView;
     if (!selectedTab) {
       const known = tabs.filter(t => t.value !== '').map(t => t.value);
-      return keywordGroups.filter(g => !known.includes(g.category ?? ''));
+      return techs.filter(g => !known.includes(g.category ?? ''));
     }
-    return keywordGroups.filter(g => g.category === selectedTab);
-  }, [selectedTab, searchedView, relatedView, keywordGroups, tabs]);
+    return techs.filter(g => g.category === selectedTab);
+  }, [selectedTab, searchedView, relatedView, techs, tabs]);
 
   // Typing a search jumps to the virtual search tab; clearing it returns to the
   // first real tab. Reads current tab from the store to avoid stale closures.
@@ -124,13 +124,13 @@ export function useKeywordCatalogView() {
   }, [selectedTags, excludedTags]);
 
   return {
-    keywordGroups,
+    techs,
     visibleTabs,
     selectedTab,
     setSelectedTab,
     keywordSearch,
     setKeywordSearch,
     categoriesWithSelections,
-    filteredKeywordGroupView,
+    filteredTechView,
   };
 }

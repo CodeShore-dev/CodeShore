@@ -11,7 +11,7 @@ describe('deriveTabs', () => {
   it('builds a labelled tab for a known category', () => {
     const tabs = deriveTabs([
       { category: knownKey, count: 5 },
-    ] as unknown as SupabaseView.MvKeywordGroupCategory[]);
+    ] as unknown as SupabaseView.MvTechCategory[]);
 
     const tab = tabs.find(t => t.value === knownKey);
     expect(tab?.label).toBe(CATEGORY_LABEL_MAP[knownKey]);
@@ -23,7 +23,7 @@ describe('deriveTabs', () => {
       { category: knownKey, count: 5 },
       { category: '__unknown_a__', count: 3 },
       { category: '__unknown_b__', count: 4 },
-    ] as unknown as SupabaseView.MvKeywordGroupCategory[]);
+    ] as unknown as SupabaseView.MvTechCategory[]);
 
     const last = tabs[tabs.length - 1];
     expect(last.value).toBe('');
@@ -49,9 +49,9 @@ describe('buildKeywordAdminWhere', () => {
     );
   });
 
-  it('adds a trimmed ilike search on keyword_group', () => {
+  it('adds a trimmed ilike search on tech', () => {
     expect(buildKeywordAdminWhere('all', '  react ')).toBe(
-      JSON.stringify({ keyword_group: { ilike: '%react%' } }),
+      JSON.stringify({ tech: { ilike: '%react%' } }),
     );
   });
 
@@ -59,7 +59,7 @@ describe('buildKeywordAdminWhere', () => {
     expect(buildKeywordAdminWhere('grouped', 'vue')).toBe(
       JSON.stringify({
         $or: 'category.not.is.null',
-        keyword_group: { ilike: '%vue%' },
+        tech: { ilike: '%vue%' },
       }),
     );
   });

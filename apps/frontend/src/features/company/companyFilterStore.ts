@@ -2,11 +2,11 @@ import { create } from 'zustand';
 
 interface CompanyFilterState {
   search: string;
-  selectedKeywordGroups: string[];
-  keywordGroupOperator: 'and' | 'or';
+  selectedTechs: string[];
+  techOperator: 'and' | 'or';
   page: number;
   setSearch: (value: string) => void;
-  toggleKeywordGroup: (kg: string) => void;
+  toggleTech: (kg: string) => void;
   setOperator: (op: 'and' | 'or') => void;
   clearFilters: () => void;
   setPage: (page: number) => void;
@@ -16,23 +16,23 @@ interface CompanyFilterState {
 // (parity with the Vue store's watch that reloaded page 1 on filter change).
 export const useCompanyFilterStore = create<CompanyFilterState>(set => ({
   search: '',
-  selectedKeywordGroups: [],
-  keywordGroupOperator: 'and',
+  selectedTechs: [],
+  techOperator: 'and',
   page: 1,
   setSearch: value => set({ search: value, page: 1 }),
-  toggleKeywordGroup: kg =>
+  toggleTech: kg =>
     set(state => ({
-      selectedKeywordGroups: state.selectedKeywordGroups.includes(kg)
-        ? state.selectedKeywordGroups.filter(x => x !== kg)
-        : [...state.selectedKeywordGroups, kg],
+      selectedTechs: state.selectedTechs.includes(kg)
+        ? state.selectedTechs.filter(x => x !== kg)
+        : [...state.selectedTechs, kg],
       page: 1,
     })),
-  setOperator: op => set({ keywordGroupOperator: op, page: 1 }),
+  setOperator: op => set({ techOperator: op, page: 1 }),
   clearFilters: () =>
     set({
       search: '',
-      selectedKeywordGroups: [],
-      keywordGroupOperator: 'and',
+      selectedTechs: [],
+      techOperator: 'and',
       page: 1,
     }),
   setPage: page => set({ page }),
@@ -41,4 +41,4 @@ export const useCompanyFilterStore = create<CompanyFilterState>(set => ({
 export const selectCompanyHasActiveFilters = (
   state: CompanyFilterState,
 ): boolean =>
-  !!state.search.trim() || state.selectedKeywordGroups.length > 0;
+  !!state.search.trim() || state.selectedTechs.length > 0;

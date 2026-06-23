@@ -1,9 +1,9 @@
 import { Module as ModuleDecorator } from '@nestjs/common';
 
 import {
-  KeywordGroupService,
-  MvKeywordGroupCategoryService,
-  MvKeywordGroupService,
+  TechService,
+  MvTechCategoryService,
+  MvTechService,
 } from '@codeshore/data-utils';
 
 import { provideWithLogger } from '../logger-provider';
@@ -15,9 +15,9 @@ import { Service } from './service';
   controllers: [Controller],
   providers: [
     Service,
-    provideWithLogger(KeywordGroupService),
-    provideWithLogger(MvKeywordGroupService),
-    provideWithLogger(MvKeywordGroupCategoryService),
+    provideWithLogger(TechService),
+    provideWithLogger(MvTechService),
+    provideWithLogger(MvTechCategoryService),
   ],
 })
 export class Module {}

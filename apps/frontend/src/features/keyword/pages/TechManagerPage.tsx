@@ -3,10 +3,10 @@ import { useSearchParams } from 'react-router';
 
 import { Pagination } from '../../../components/Pagination';
 import { useCanEdit } from '../../auth/authStore';
-import { KeywordGroupBulkToolbar } from '../components/KeywordGroupBulkToolbar';
-import { KeywordGroupCard } from '../components/KeywordGroupCard';
-import { useKeywordGroupStore, type GroupFilter } from '../keywordGroupStore';
-import { useKeywordGroupAdminQuery } from '../queries';
+import { TechBulkToolbar } from '../components/TechBulkToolbar';
+import { TechCard } from '../components/TechCard';
+import { useTechStore, type GroupFilter } from '../techStore';
+import { useTechAdminQuery } from '../queries';
 import { useRefreshCatalogMutation } from '../mutations';
 
 const FILTER_OPTIONS: { value: GroupFilter; label: string }[] = [
@@ -15,24 +15,24 @@ const FILTER_OPTIONS: { value: GroupFilter; label: string }[] = [
   { value: 'ungrouped', label: '未入群' },
 ];
 
-// Admin keyword-group manager page (task 8.3). Ports KeywordGroupManager.vue:
+// Admin keyword-group manager page (task 8.3). Ports TechManager.vue:
 // filter tabs + search + bulk select + card list + pagination, with filter/page
 // mirrored into the URL query (parity with the Vue route.query sync).
-export function KeywordGroupManagerPage() {
+export function TechManagerPage() {
   const canEdit = useCanEdit();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const groupsFilter = useKeywordGroupStore(s => s.groupsFilter);
-  const setGroupsFilter = useKeywordGroupStore(s => s.setGroupsFilter);
-  const search = useKeywordGroupStore(s => s.search);
-  const setSearch = useKeywordGroupStore(s => s.setSearch);
-  const currentPage = useKeywordGroupStore(s => s.currentPage);
-  const setPage = useKeywordGroupStore(s => s.setPage);
-  const selectMode = useKeywordGroupStore(s => s.selectMode);
-  const toggleSelectMode = useKeywordGroupStore(s => s.toggleSelectMode);
+  const groupsFilter = useTechStore(s => s.groupsFilter);
+  const setGroupsFilter = useTechStore(s => s.setGroupsFilter);
+  const search = useTechStore(s => s.search);
+  const setSearch = useTechStore(s => s.setSearch);
+  const currentPage = useTechStore(s => s.currentPage);
+  const setPage = useTechStore(s => s.setPage);
+  const selectMode = useTechStore(s => s.selectMode);
+  const toggleSelectMode = useTechStore(s => s.toggleSelectMode);
 
-  const { keywordGroups, totalCount, totalPages, loading } =
-    useKeywordGroupAdminQuery();
+  const { techs, totalCount, totalPages, loading } =
+    useTechAdminQuery();
   const refresh = useRefreshCatalogMutation();
 
   const [, setShowCreateModal] = useState(false);
@@ -45,7 +45,7 @@ export function KeywordGroupManagerPage() {
     initialized.current = true;
     const filter = (searchParams.get('filter') as GroupFilter) ?? 'all';
     const page = Number(searchParams.get('page')) || 1;
-    useKeywordGroupStore.setState({ groupsFilter: filter, currentPage: page });
+    useTechStore.setState({ groupsFilter: filter, currentPage: page });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -65,15 +65,15 @@ export function KeywordGroupManagerPage() {
     <div className="w-full">
       <div className="mb-8">
         <div className="mb-2 text-[11px] font-bold tracking-[0.18em] text-[#003d92]">
-          ● 關鍵字群組管理 · ADMIN
+          ● 技術管理 · ADMIN
         </div>
         <div className="flex items-end justify-between gap-4">
           <div>
             <h1 className="text-[2rem] leading-tight font-black tracking-[-0.03em] text-[#001f2a]">
-              關鍵字組
+              技術
             </h1>
             <p className="mt-1 text-sm text-[#434653]">
-              管理關鍵字群組、群組內的關鍵字與分類標籤。
+              管理技術、技術內的關鍵字與分類標籤。
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2 pb-1">
@@ -140,7 +140,7 @@ export function KeywordGroupManagerPage() {
           <input
             value={search}
             type="text"
-            placeholder="搜尋群組名稱..."
+            placeholder="搜尋技術名稱..."
             className="w-full rounded-xl border border-[#c3c6d5] bg-white py-2 pr-8 pl-8 text-sm font-bold text-[#001f2a] placeholder-[#434653]/50 focus:border-[#003d92] focus:outline-none"
             onChange={e => setSearch(e.target.value)}
           />
@@ -177,11 +177,11 @@ export function KeywordGroupManagerPage() {
         </div>
       ) : (
         <>
-          <KeywordGroupBulkToolbar groups={keywordGroups} />
+          <TechBulkToolbar groups={techs} />
 
           <div className="flex flex-col gap-3">
-            {keywordGroups.map(group => (
-              <KeywordGroupCard key={group.keyword_group} group={group} />
+            {techs.map(group => (
+              <TechCard key={group.tech} group={group} />
             ))}
 
             {!totalCount && (
@@ -189,14 +189,14 @@ export function KeywordGroupManagerPage() {
                 <span className="material-symbols-outlined mb-3 text-5xl text-[#001f2a]/20">
                   label_off
                 </span>
-                <p className="font-bold text-[#434653]">尚無關鍵字群組。</p>
+                <p className="font-bold text-[#434653]">尚無技術。</p>
                 {canEdit && (
                   <button
                     type="button"
                     className="mt-4 cursor-pointer rounded-xl bg-[#003d92] px-5 py-2 text-sm font-bold text-white shadow transition hover:bg-[#1654b9] active:scale-95"
                     onClick={() => setShowCreateModal(true)}
                   >
-                    建立第一個群組
+                    建立第一個技術
                   </button>
                 )}
               </div>
@@ -213,7 +213,7 @@ export function KeywordGroupManagerPage() {
 
           {!!totalCount && (
             <p className="mt-3 text-center text-xs font-bold text-[#434653]/50">
-              第 {currentPage} 頁，共 {totalPages} 頁・總計 {totalCount} 個群組
+              第 {currentPage} 頁，共 {totalPages} 頁・總計 {totalCount} 個技術
             </p>
           )}
         </>

@@ -33,19 +33,19 @@ describe('deriveJobWhere', () => {
   it('uses cs for AND and ov for OR on included tags', () => {
     expect(
       deriveJobWhere({ ...base, selectedTags: ['a', 'b'] }),
-    ).toEqual({ keyword_groups: { cs: '{a,b}' } });
+    ).toEqual({ techs: { cs: '{a,b}' } });
     expect(
       deriveJobWhere({
         ...base,
         selectedTags: ['a', 'b'],
         keywordOperator: 'or',
       }),
-    ).toEqual({ keyword_groups: { ov: '{a,b}' } });
+    ).toEqual({ techs: { ov: '{a,b}' } });
   });
 
   it('adds not.ov for excluded tags', () => {
     expect(deriveJobWhere({ ...base, excludedTags: ['x'] })).toEqual({
-      keyword_groups: { 'not.ov': '{x}' },
+      techs: { 'not.ov': '{x}' },
     });
   });
 

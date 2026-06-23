@@ -12,7 +12,7 @@ import {
   JobService,
   JobSourceService,
   JobSourceURLService,
-  MvKeywordGroupService,
+  MvTechService,
 } from '@codeshore/data-utils';
 import {
   parseKeywordsOut,
@@ -338,11 +338,11 @@ async function main() {
   else if (resetJobKeywordArg) mode = 'job-keyword';
   else mode = 'crawl';
 
-  const { result: keywordGroups } =
-    await new MvKeywordGroupService().fetchAll({
+  const { result: techs } =
+    await new MvTechService().fetchAll({
       where: { category: { 'not.is': null } },
     });
-  const keywords = keywordGroups.flatMap(m => m.keywords);
+  const keywords = techs.flatMap(m => m.keywords);
 
   switch (mode) {
     case 're-crawl': {

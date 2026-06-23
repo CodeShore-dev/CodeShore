@@ -3,11 +3,11 @@ import { create } from 'zustand';
 export type GroupFilter = 'all' | 'grouped' | 'ungrouped';
 
 // Admin keyword-group manager UI state (task 8.1). Server data (the paginated
-// group list) lives in TanStack Query (useKeywordGroupAdminQuery); this store
+// group list) lives in TanStack Query (useTechAdminQuery); this store
 // only holds the filter/search/page and the bulk-selection UI, ported from the
-// UI parts of useKeywordGroupStore (Pinia). Changing the filter or search
+// UI parts of useTechStore (Pinia). Changing the filter or search
 // resets to page 1 (parity with the Vue store's loadGroups(1) on change).
-interface KeywordGroupState {
+interface TechState {
   groupsFilter: GroupFilter;
   search: string;
   currentPage: number;
@@ -22,7 +22,7 @@ interface KeywordGroupState {
   clearSelection: () => void;
 }
 
-export const useKeywordGroupStore = create<KeywordGroupState>(set => ({
+export const useTechStore = create<TechState>(set => ({
   groupsFilter: 'all',
   search: '',
   currentPage: 1,

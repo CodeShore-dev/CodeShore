@@ -1,6 +1,6 @@
 import { useMemo, useRef } from 'react';
 
-import { useKeywordGroupsQuery } from '../../keyword/queries';
+import { useTechsQuery } from '../../keyword/queries';
 
 export interface KeywordTooltipData {
   keyword: string;
@@ -36,7 +36,7 @@ export function JobDescriptionHighlighter({
   onTooltipHide,
   onKeywordSelect,
 }: JobDescriptionHighlighterProps) {
-  const { data: keywordGroups = [] } = useKeywordGroupsQuery();
+  const { data: techs = [] } = useTechsQuery();
   const descriptionRef = useRef<HTMLDivElement | null>(null);
   const activeTooltipKeyword = useRef<string | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -59,7 +59,7 @@ export function JobDescriptionHighlighter({
 
   const buildTooltipData = (span: HTMLElement): KeywordTooltipData => {
     const keyword = span.dataset.keyword ?? '';
-    const groups = keywordGroups
+    const groups = techs
       .filter(g =>
         g.keywords.map(k => k.toLowerCase()).includes(keyword.toLowerCase()),
       )

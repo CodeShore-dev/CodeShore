@@ -6,30 +6,30 @@ import {
 import { ListQuery } from '../../@types';
 import { httpClient } from '../../httpClient';
 
-export const fetchKeywordGroupCategories = async (
+export const fetchTechCategories = async (
   query?: ListQuery,
 ) => {
   const { data } = await httpClient.get<
-    ListResponse<SupabaseView.MvKeywordGroupCategory>
+    ListResponse<SupabaseView.MvTechCategory>
   >('/api/keyword/group/category', { params: query });
   return data;
 };
 
-export const fetchMvKeywordGroup = async (
+export const fetchMvTech = async (
   query?: ListQuery,
 ) => {
   const { data } = await httpClient.get<
-    ListResponse<SupabaseView.MvKeywordGroup>
+    ListResponse<SupabaseView.MvTech>
   >('/api/keyword/group', {
     params: {
       ...query,
-      orders: 'count:desc;keyword_group',
+      orders: 'count:desc;tech',
     },
   });
   return data;
 };
 
-export const createKeywordGroup = async (
+export const createTech = async (
   id: string,
   keywords: string[] = [],
   category: string | null = null,
@@ -43,7 +43,7 @@ export const createKeywordGroup = async (
   });
 };
 
-export const updateKeywordGroup = async (
+export const updateTech = async (
   id: string,
   payload: {
     keywords?: string[];
@@ -57,7 +57,7 @@ export const updateKeywordGroup = async (
   );
 };
 
-export const updateKeywordGroupIconSlugs = async (
+export const updateTechIconSlugs = async (
   id: string,
   icon_slugs: string[],
 ): Promise<void> => {
@@ -67,7 +67,7 @@ export const updateKeywordGroupIconSlugs = async (
   });
 };
 
-export const deleteKeywordGroup = async (
+export const deleteTech = async (
   id: string,
 ): Promise<void> => {
   await httpClient.delete(
@@ -83,6 +83,6 @@ export const deleteKeyword = async (
   );
 };
 
-export const resetMvKeywordGroup = async () => {
+export const resetMvTech = async () => {
   await httpClient.post(`/api/keyword/group/reset`);
 };

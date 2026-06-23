@@ -8,13 +8,13 @@ import { getSupabaseClient } from '@codeshore/supabase';
 import { TableService } from '../shared-services/supabase/table.service';
 import { distinct } from '../shared-services/supabase/utils';
 import { JobKeywordService } from './job_keyword.service';
-import { MvKeywordGroupService } from './mv_keyword_group';
+import { MvTechService } from './mv_tech';
 
-export class JobKeywordGroupService extends TableService<SupabaseTable.Job_.KeywordGroup> {
+export class JobTechService extends TableService<SupabaseTable.Job_.Tech> {
   constructor(logger?: ServiceLogger) {
     super(
       getSupabaseClient(),
-      'job_keyword_group',
+      'job_tech',
       logger,
       { delete_update: { idField: 'job_id' } },
     );
@@ -27,13 +27,13 @@ export class JobKeywordGroupService extends TableService<SupabaseTable.Job_.Keyw
       (await new JobKeywordService(this.logger).fetchAll())
         .result;
 
-    const keywordGroups = (
-      await new MvKeywordGroupService().fetchAll({
+    const techs = (
+      await new MvTechService().fetchAll({
         where: { category: { 'not.is': null } },
       })
     ).result;
 
-    const format = _makeFormatter(keywordGroups);
+    const format = _makeFormatter(techs);
 
     return this.reset(
       distinct(
@@ -42,25 +42,25 @@ export class JobKeywordGroupService extends TableService<SupabaseTable.Job_.Keyw
           .filter(x => x !== null),
         (a, b) =>
           a.job_id === b.job_id &&
-          a.keyword_group === b.keyword_group,
+          a.tech === b.tech,
       ),
     );
   }
 }
 
 function _makeFormatter(
-  keywordGroups: SupabaseView.MvKeywordGroup[],
+  techs: SupabaseView.MvTech[],
 ) {
   return (jobKeyword: SupabaseTable.Job_.Keyword) =>
     jobKeyword.keywords.map(keyword => {
-      const keywordGroup = keywordGroups.find(x =>
+      const tech = techs.find(x =>
         x.keywords.includes(keyword),
       );
-      return keywordGroup
+      return tech
         ? {
             job_id: jobKeyword.id,
-            keyword_group: keywordGroup?.keyword_group,
-            keywords: keywordGroup?.keywords.join(','),
+            tech: tech?.tech,
+            keywords: tech?.keywords.join(','),
           }
         : null;
     });

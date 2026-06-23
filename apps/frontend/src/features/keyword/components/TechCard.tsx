@@ -11,7 +11,7 @@ import {
   useDeleteKeywordItemMutation,
   useUpdateIconSlugsMutation,
 } from '../mutations';
-import { useKeywordGroupStore } from '../keywordGroupStore';
+import { useTechStore } from '../techStore';
 
 const ICON_SOURCES = ['thesvg', 'simple-icons', 'iconify'];
 
@@ -37,19 +37,19 @@ function previewSlugs(row: IconRow): string[] {
   return slug ? [`${row.source}:${slug}`] : [];
 }
 
-interface KeywordGroupCardProps {
-  group: SupabaseView.MvKeywordGroup;
+interface TechCardProps {
+  group: SupabaseView.MvTech;
 }
 
-// Keyword-group card (task 8.3). Faithful port of KeywordGroupCard.vue: select
+// Keyword-group card (task 8.3). Faithful port of TechCard.vue: select
 // checkbox, the icon-source reorder popover (portal to body), and delete. The
 // edit/assign buttons toggle local state exactly as the Vue version (no inline
 // form is rendered — parity with the source).
-export function KeywordGroupCard({ group }: KeywordGroupCardProps) {
+export function TechCard({ group }: TechCardProps) {
   const canEdit = useCanEdit();
-  const selectMode = useKeywordGroupStore(s => s.selectMode);
-  const selectedIds = useKeywordGroupStore(s => s.selectedIds);
-  const toggleSelectId = useKeywordGroupStore(s => s.toggleSelectId);
+  const selectMode = useTechStore(s => s.selectMode);
+  const selectedIds = useTechStore(s => s.selectedIds);
+  const toggleSelectId = useTechStore(s => s.toggleSelectId);
 
   const deleteItem = useDeleteKeywordItemMutation();
   const updateIconSlugs = useUpdateIconSlugsMutation();
@@ -61,7 +61,7 @@ export function KeywordGroupCard({ group }: KeywordGroupCardProps) {
   const [iconRows, setIconRows] = useState<IconRow[]>([]);
   const popupRef = useRef<HTMLDivElement | null>(null);
 
-  const selected = selectedIds.has(group.keyword_group);
+  const selected = selectedIds.has(group.tech);
   const canEditIcons = canEdit && !selectMode;
   const availableSources = [
     ...new Set([...ICON_SOURCES, ...iconRows.map(r => r.source)]),
@@ -119,23 +119,23 @@ export function KeywordGroupCard({ group }: KeywordGroupCardProps) {
       .filter(r => r.slug.trim())
       .map(r => `${r.source}:${r.slug.trim()}`);
     await updateIconSlugs.mutateAsync({
-      id: group.keyword_group,
+      id: group.tech,
       iconSlugs: composed,
     });
     closeIconEditor();
   };
 
   const handleCardClick = (): void => {
-    if (selectMode) toggleSelectId(group.keyword_group);
+    if (selectMode) toggleSelectId(group.tech);
   };
 
   const handleDelete = async (): Promise<void> => {
     const isKeyword = group.category === null;
     if (
-      !confirm(`確定要刪除「${group.label}」群組嗎？此操作無法還原。`)
+      !confirm(`確定要刪除「${group.label}」技術嗎？此操作無法還原。`)
     )
       return;
-    await deleteItem.mutateAsync({ id: group.keyword_group, isKeyword });
+    await deleteItem.mutateAsync({ id: group.tech, isKeyword });
   };
 
   return (
@@ -193,7 +193,7 @@ export function KeywordGroupCard({ group }: KeywordGroupCardProps) {
             </span>
 
             <Link
-              to={`/jobs?${new URLSearchParams({ tags: group.keyword_group })}`}
+              to={`/jobs?${new URLSearchParams({ tags: group.tech })}`}
               className="text-sm text-[#434653] underline-offset-2 hover:underline dark:text-[#c3c6d5]"
               onClick={e => e.stopPropagation()}
             >
@@ -210,19 +210,19 @@ export function KeywordGroupCard({ group }: KeywordGroupCardProps) {
           {!selectMode && (
             <div className="flex shrink-0 items-center gap-2">
               {group.category === null && canEdit
-                ? assigningKeyword !== group.keyword_group && (
+                ? assigningKeyword !== group.tech && (
                     <button
                       type="button"
                       className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium text-[#003d92] transition hover:bg-[#e6f6ff] dark:text-[#a8d4f5] dark:hover:bg-[#003d92]/20"
                       onClick={e => {
                         e.stopPropagation();
-                        setAssigningKeyword(group.keyword_group);
+                        setAssigningKeyword(group.tech);
                       }}
                     >
                       <span className="material-symbols-outlined text-base">
                         merge
                       </span>
-                      加入群組
+                      加入技術
                     </button>
                   )
                 : group.category !== null &&

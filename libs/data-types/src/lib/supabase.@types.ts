@@ -14,8 +14,8 @@ export namespace SupabaseTable {
   export namespace Job_ {
     export type Keyword =
       Database['public']['Tables']['job_keyword']['Row'];
-    export type KeywordGroup =
-      Database['public']['Tables']['job_keyword_group']['Row'];
+    export type Tech =
+      Database['public']['Tables']['job_tech']['Row'];
   }
 
   export type Company = Modify<
@@ -41,12 +41,12 @@ export namespace SupabaseTable {
   export type KeywordBin =
     Database['public']['Tables']['keyword_bin']['Row'];
 
-  export type KeywordGroup =
-    Database['public']['Tables']['keyword_group']['Row'];
+  export type Tech =
+    Database['public']['Tables']['tech']['Row'];
 
-  export namespace KeywordGroup_ {
+  export namespace Tech_ {
     export type Keyword =
-      Database['public']['Tables']['keyword_group_keyword']['Row'];
+      Database['public']['Tables']['tech_keyword']['Row'];
   }
 
   export type JobSource =
@@ -91,7 +91,7 @@ export namespace SupabaseView {
   /**
    * company
    * job
-   * job_keyword_group
+   * job_tech
    */
   export type MvCompany = NonNull<
     Database['public']['Views']['mv_company']['Row']
@@ -101,7 +101,7 @@ export namespace SupabaseView {
    * job
    * job_keyword
    * company
-   * job_keyword_group
+   * job_tech
    * location_group
    * location_group_location
    */
@@ -121,43 +121,43 @@ export namespace SupabaseView {
 
   /**
    * keyword
-   * keyword_group_keyword
-   * keyword_group_parent
-   * keyword_group
+   * tech_keyword
+   * tech_parent
+   * tech
    * keyword_bin
    */
-  export type MvKeywordGroup = NonNull<
-    Database['public']['Views']['mv_keyword_group']['Row']
+  export type MvTech = NonNull<
+    Database['public']['Views']['mv_tech']['Row']
   >;
 
   /**
-   * keyword_group
+   * tech
    */
-  export type MvKeywordGroupCategory = NonNull<
-    Database['public']['Views']['mv_keyword_group_category']['Row']
+  export type MvTechCategory = NonNull<
+    Database['public']['Views']['mv_tech_category']['Row']
   >;
 
   /**
-   * job_keyword_group
+   * job_tech
    * job
-   * keyword_group
+   * tech
    */
-  export type MvKeywordGroupRanking = NonNull<
-    Database['public']['Views']['mv_keyword_group_ranking']['Row']
+  export type MvTechRanking = NonNull<
+    Database['public']['Views']['mv_tech_ranking']['Row']
   >;
 
   /**
-   * keyword_group
+   * tech
    */
-  export type MvKeywordGroupTags = NonNull<
-    Database['public']['Views']['mv_keyword_group_tags']['Row']
+  export type MvTechTags = NonNull<
+    Database['public']['Views']['mv_tech_tags']['Row']
   >;
 
   /**
-   * job_keyword_group
+   * job_tech
    * job
-   * keyword_group
-   * mv_keyword_group
+   * tech
+   * mv_tech
    */
   export type MvTechComboStats = NonNull<
     Database['public']['Views']['mv_tech_combo_stats']['Row']

@@ -22,9 +22,9 @@ export function HomePage() {
       const seen = new Set(prev);
       const next = [...prev];
       for (const item of popularRanking.items) {
-        if (!seen.has(item.keyword_group)) {
-          seen.add(item.keyword_group);
-          next.push(item.keyword_group);
+        if (!seen.has(item.tech)) {
+          seen.add(item.tech);
+          next.push(item.tech);
         }
       }
       return next.length === prev.length ? prev : next;

@@ -1,11 +1,11 @@
-export interface KeywordGroupMapping {
+export interface TechMapping {
   key: string;
   label?: string;
   value: string[];
 }
 
 interface JobKeywordChipsProps {
-  mapping: KeywordGroupMapping[];
+  mapping: TechMapping[];
   selectedKeywordsSet: Set<string>;
 }
 

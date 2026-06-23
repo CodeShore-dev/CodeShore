@@ -4,21 +4,21 @@ import { OperatorToggle } from '../../../components/OperatorToggle';
 import { SearchInput } from '../../../components/SearchInput';
 import {
   useKeywordCategoriesQuery,
-  useKeywordGroupsQuery,
+  useTechsQuery,
 } from '../../keyword/queries';
 import { useCompanyFilterStore } from '../companyFilterStore';
 
 export function CompanyKeywordFilter() {
-  const selectedKeywordGroups = useCompanyFilterStore(
-    s => s.selectedKeywordGroups,
+  const selectedTechs = useCompanyFilterStore(
+    s => s.selectedTechs,
   );
-  const toggleKeywordGroup = useCompanyFilterStore(
-    s => s.toggleKeywordGroup,
+  const toggleTech = useCompanyFilterStore(
+    s => s.toggleTech,
   );
-  const operator = useCompanyFilterStore(s => s.keywordGroupOperator);
+  const operator = useCompanyFilterStore(s => s.techOperator);
   const setOperator = useCompanyFilterStore(s => s.setOperator);
 
-  const { data: keywordGroups = [] } = useKeywordGroupsQuery();
+  const { data: techs = [] } = useTechsQuery();
   const { tabs } = useKeywordCategoriesQuery();
 
   const [expanded, setExpanded] = useState(false);
@@ -35,16 +35,16 @@ export function CompanyKeywordFilter() {
   const kgMappings = useMemo(() => {
     const q = kgSearch.trim().toLowerCase();
     if (q) {
-      return keywordGroups.filter(g =>
-        g.keyword_group.toLowerCase().includes(q),
+      return techs.filter(g =>
+        g.tech.toLowerCase().includes(q),
       );
     }
     if (!selectedKgCategory) {
       const known = tabs.map(t => t.value).filter(Boolean);
-      return keywordGroups.filter(g => !known.includes(g.category ?? ''));
+      return techs.filter(g => !known.includes(g.category ?? ''));
     }
-    return keywordGroups.filter(g => g.category === selectedKgCategory);
-  }, [kgSearch, selectedKgCategory, keywordGroups, tabs]);
+    return techs.filter(g => g.category === selectedKgCategory);
+  }, [kgSearch, selectedKgCategory, techs, tabs]);
 
   return (
     <>
@@ -55,9 +55,9 @@ export function CompanyKeywordFilter() {
       >
         <span className="material-symbols-outlined text-sm">tag</span>
         技術篩選
-        {selectedKeywordGroups.length > 0 && (
+        {selectedTechs.length > 0 && (
           <span className="bg-primary text-on-primary rounded-full px-1.5 py-0.5 text-sm">
-            {selectedKeywordGroups.length}
+            {selectedTechs.length}
           </span>
         )}
         <span className="material-symbols-outlined text-sm">
@@ -76,7 +76,7 @@ export function CompanyKeywordFilter() {
               />
             </div>
 
-            {selectedKeywordGroups.length > 1 && (
+            {selectedTechs.length > 1 && (
               <div className="mb-3">
                 <OperatorToggle value={operator} onChange={setOperator} />
               </div>
@@ -104,16 +104,16 @@ export function CompanyKeywordFilter() {
             <div className="flex max-h-44 flex-wrap gap-1.5 overflow-auto">
               {kgMappings.map(kg => (
                 <button
-                  key={kg.keyword_group}
+                  key={kg.tech}
                   type="button"
                   className={`cursor-pointer rounded px-2.5 py-1 text-sm font-bold transition-colors ${
-                    selectedKeywordGroups.includes(kg.keyword_group)
+                    selectedTechs.includes(kg.tech)
                       ? 'bg-primary text-on-primary'
                       : 'bg-surface-container text-on-surface-variant hover:bg-primary-container hover:text-on-primary'
                   }`}
-                  onClick={() => toggleKeywordGroup(kg.keyword_group)}
+                  onClick={() => toggleTech(kg.tech)}
                 >
-                  {kg.keyword_group}
+                  {kg.tech}
                 </button>
               ))}
             </div>
