@@ -8,26 +8,27 @@
 
 ### 1. 單一元件不超過 200 行
 
-每個 `.vue` 檔案（含 script + template + style）**嚴格不超過 200 行**。
+每個 `.tsx` 元件檔**嚴格不超過 200 行**。
 
 超過時的拆分策略（依情況選擇）：
 - **UI 區塊**：抽成子元件（skeleton、CTA、chips、drawer 等）
-- **可複用邏輯**：抽成 `composables/use{Purpose}.ts`
-- **無狀態靜態內容**：獨立 `{Name}Section.vue` 或 `{Name}Handoff.vue`
+- **可複用邏輯**：抽成 `hooks/use{Purpose}.ts`
+- **無狀態靜態內容**：獨立 `{Name}Section.tsx` 或 `{Name}Handoff.tsx`
 
-### 2. views/ vs components/ 的邊界
+### 2. pages/ vs components/ 的邊界
 
 | 目錄 | 放什麼 | 特徵 |
 |------|--------|------|
-| `views/` | 頁面級元件 | 直接出現在 `router/index.ts`；持有頁面狀態與初始化邏輯 |
-| `components/` | 可複用子元件 | 不直接路由；接受 props、emit events；可獨立測試 |
-| `composables/` | 可複用邏輯 | `use` 前綴；不含 template；可跨元件使用 |
+| `pages/` | 頁面級元件 | 直接出現在 `app/router.tsx`；持有頁面狀態與初始化邏輯 |
+| `components/` | 可複用子元件 | 不直接路由；接受 props、callback props；可獨立測試 |
+| `hooks/` | 可複用邏輯 | `use` 前綴；不回傳 JSX；可跨元件使用 |
 
 ### 3. 跨元件共用的規則
 
 - **共用 UI 元件**（與 feature 無關）→ `src/components/`
-- **共用 UI 狀態**（多個元件需讀寫同一狀態）→ 移至對應的 Pinia store
-- **重複出現的 computed / 邏輯**（2 個以上元件）→ 抽成 composable
+- **共用 UI/filter 狀態**（多個元件需讀寫同一狀態）→ 對應的 Zustand store
+- **共用 server-state**（清單/統計等）→ TanStack Query（queryKey 含篩選，取代手寫 watch 重抓）
+- **重複出現的衍生邏輯**（2 個以上元件）→ 抽成 hook，純函式抽成可測試的 function
 
 ---
 
@@ -79,61 +80,64 @@ shadow-[0_24px_40px_rgba(0,31,42,0.06)]
 
 ### Active / Selected 按鈕狀態
 
-```html
-<!-- 選中 -->
-:class="isActive ? 'bg-[#003d92] text-white' : 'bg-white text-[#434653] hover:bg-[#f4faff]'"
+```tsx
+// 選中：以模板字串組 className（取代 Vue :class 三元）
+className={isActive ? 'bg-[#003d92] text-white' : 'bg-white text-[#434653] hover:bg-[#f4faff]'}
 ```
 
 ---
 
-## Pinia Store 規則
+## 狀態管理規則（Zustand + TanStack Query）
 
-- 一律使用 **setup-store** 風格（`defineStore('name', () => { ... })`）
-- Store 不直接依賴 router；router 操作留在 views / composables
-- 頁面初始化 fetch 在 view 的 `<script setup>` 頂層呼叫，不在 store constructor
-- 不在 store 裡持有純 UI 狀態（開關 dialog、sidebar open/close）
+- **server-state**（清單/統計/計數等遠端資料）→ TanStack Query：`queryKey` 含全部篩選條件，篩選變更自動 refetch（取代手寫 `loading`/`watch`）；變更操作用 mutation + 樂觀更新 + 失效對應 query。
+- **UI/filter-state**（已選關鍵字、AND/OR、排序、頁碼、抽屜開關、selectedId）→ 每 feature 一個輕量 Zustand store；以 selector hooks 訂閱（如 `useIsAuthenticated`/`useCanEdit`）。
+- **URL-state**：篩選反映到 query string 用 react-router `useSearchParams`（如 `useJobUrlSync` 雙向同步）。
+- store 不直接依賴 router；路由操作留在 hooks / pages。純衍生邏輯抽成可測試的 pure function（如 `deriveJobWhere`、`computeCanEdit`）。
+- env 一律從 `config/env` 讀取，勿直接用 `import.meta.env`。
 
 ---
 
-## Template 寫法規則
+## JSX 寫法規則
 
-### 避免 v-for 搭配 inline 物件陣列重複三次以上
+### 避免幾乎相同的元素複製三次以上
 
-```html
-<!-- ❌ 三個幾乎相同的 <button> 複製貼上 -->
-<button @click="store.fetchListJobs({ preference: 'like' })">喜歡</button>
-<button @click="store.fetchListJobs({ preference: 'dislike' })">不喜歡</button>
-...
-
-<!-- ✅ 用 computed 定義設定陣列 + v-for -->
-<button v-for="tab in viewTabs" :key="tab.pref" @click="tab.onClick()">{{ tab.label }}</button>
+```tsx
+// ❌ 三個幾乎相同的 <button> 複製貼上
+// ✅ 以設定陣列 + map 渲染
+{viewTabs.map(tab => (
+  <button key={tab.pref} onClick={tab.onClick}>{tab.label}</button>
+))}
 ```
 
-### 條件渲染：三層以上改用 computed
+### 條件渲染：三層以上抽成變數 / 函式
 
-```ts
-// ❌ 在 template 裡的巢狀三元
-store.pref === 'like' ? store.loading ? A : B : C
-
-// ✅ 抽成 computed
-const displayCount = computed(() => ...)
+```tsx
+// ❌ JSX 裡的巢狀三元
+// ✅ 在 render 前以 const / useMemo 算好
+const displayCount = useMemo(() => ..., [deps]);
 ```
 
-### 效能：避免在 v-for 的 :class / :style 裡做 O(N×M) 計算
+### Vue → React 對映速查
+
+- `v-model` → 受控 `value` + `onChange`；`@click` → `onClick`；`:class` 三元 → 模板字串 `className`
+- `v-html` → `dangerouslySetInnerHTML`；slot → `children` / render-prop；`<Teleport>` → `createPortal`
+- 為對等遷移保留原 className（含硬編碼色票），不改樣式
+
+### 效能：避免在 map 的 className 裡做 O(N×M) 計算
 
 ```ts
 // ❌ 每次 render 建立陣列再 includes
-m.value.map(v => v.toLowerCase()).includes(k)
+list.map(v => v.toLowerCase()).includes(k)
 
 // ✅ 用 Set.has()（O(1)）
-m.value.some(v => selectedKeywordsSet.has(v.toLowerCase()))
+selectedKeywordsSet.has(v.toLowerCase())
 ```
 
 ---
 
 ## 骨架屏 / 載入狀態規則
 
-- 骨架屏應獨立成子元件（e.g., `JobCardSkeleton.vue`、`JobListSkeleton.vue`）
+- 骨架屏應獨立成子元件（e.g., `JobCardSkeleton.tsx`、`JobListSkeleton.tsx`）
 - 骨架屏色票：`bg-[#001f2a]/[0.08]` + `animate-pulse`
 - 空狀態固定結構：大 icon → 標題（`font-black`）→ 說明文 → 操作按鈕
 
@@ -145,9 +149,9 @@ m.value.some(v => selectedKeywordsSet.has(v.toLowerCase()))
 
 這是專案級強制原則，已內建於框架層級，新功能不需也不應自行重新實作：
 
-- **切換頁面**：`router/index.ts` 的 `scrollBehavior` 統一處理（路徑變化即捲到頂部；瀏覽器上一頁/下一頁還原原位置；同路徑下的 query 變化如篩選、抽屜、分頁不觸發，避免誤跳）。
-- **切換 pagination**：共用元件 `src/components/Pagination.vue` 內建呼叫 `utils/scroll.ts` 的 `scrollToTop()`，任何 feature 只要使用 `<Pagination>` 即自動具備此行為。
-- **新增捲動重置情境**（例如非 `<Pagination>` 的自訂分頁 UI）一律呼叫 `utils/scroll.ts` 的 `scrollToTop()`，禁止在元件內各自寫 `window.scrollTo` / `useWindowScroll` 重新實作。
+- **切換頁面**：`app/ScrollManager.tsx`（掛載於 `RootLayout`）統一處理（路徑變化即捲到頂部；瀏覽器上一頁/下一頁還原原位置；同路徑下的 query 變化如篩選、抽屜、分頁不觸發，避免誤跳；hash 深連結捲至區塊並保留 80px 頂部偏移）。
+- **切換 pagination**：共用元件 `src/components/Pagination.tsx` 內建呼叫 `utils/scroll.ts` 的 `scrollToTop()`，任何 feature 只要使用 `<Pagination>` 即自動具備此行為。
+- **新增捲動重置情境**（例如非 `<Pagination>` 的自訂分頁 UI）一律呼叫 `utils/scroll.ts` 的 `scrollToTop()`，禁止在元件內各自寫 `window.scrollTo` 重新實作。
 
 ---
 
@@ -164,6 +168,6 @@ m.value.some(v => selectedKeywordsSet.has(v.toLowerCase()))
 ## 薪資範圍分隔符
 
 統一使用 `–`（en dash），不使用 `~`（tilde）：
-```
-{{ toWan(min) }}–{{ toWan(max) }}
+```tsx
+{toWan(min)}–{toWan(max)}
 ```

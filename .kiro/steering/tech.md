@@ -2,7 +2,7 @@
 
 ## Monorepo
 
-- **Nx 21.x** 管理 monorepo，包含 `frontend`（Vue）與 `backend`（NestJS）兩個專案
+- **Nx 21.x** 管理 monorepo，包含 `frontend`（React）與 `backend`（NestJS）兩個專案
 - 所有依賴集中在根目錄 `package.json`（無獨立 apps 層 package.json）
 - Node 22.x（engines 固定）
 
@@ -10,15 +10,15 @@
 
 | 類型 | 技術 |
 |------|------|
-| 框架 | Vue 3.5，Composition API + `<script setup>` |
-| 路由 | Vue Router 4.x |
-| 狀態管理 | Pinia 3.x，setup-store 風格 |
+| 框架 | React 19，function components + hooks |
+| 路由 | react-router 7.x（library mode，`createBrowserRouter`，純 SPA） |
+| 狀態管理 | server-state → TanStack Query 5.x；UI/filter-state → Zustand 5.x |
 | 樣式 | Tailwind CSS 4.x（PostCSS），搭配 `prettier-plugin-tailwindcss` 自動排序 |
-| HTTP | Axios |
-| 資料庫連線 | Supabase JS client |
-| 工具 composables | VueUse (`@vueuse/core`) |
-| 打包 | Vite 7.x + `@vitejs/plugin-vue` |
-| 測試 | Vitest 1.x + `@vue/test-utils` |
+| HTTP | Axios（`httpClient` + interceptors） |
+| 資料庫連線 | Supabase JS client（client-side 驗證） |
+| 工具 hooks | 自寫 hooks（如 `useDebouncedValue`，取代既有 VueUse） |
+| 打包 | Vite 7.x + `@vitejs/plugin-react` |
+| 測試 | Vitest 1.x + `@testing-library/react` + jsdom |
 
 ## Backend
 
