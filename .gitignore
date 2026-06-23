@@ -50,3 +50,12 @@ storage
 
 .cache
 .kiro/specs/*
+
+# design-sync (claude.ai/design): staged scripts, build output, machine state.
+# The durable set under .design-sync/ (config.json, NOTES.md, conventions.md,
+# entry.tsx, compile-css.mjs, previews/, overrides/) IS committed.
+.ds-sync/
+ds-bundle/
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules

@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "baseUrl": "..",
+    "paths": {
+      "@supabase/supabase-js": ["./.design-sync/shims/supabase.ts"],
+      "@codeshore/data-types": ["libs/data-types/src/index.ts"],
+      "@codeshore/data-utils": ["libs/data-utils/src/index.ts"],
+      "@codeshore/shared-utils": ["libs/shared-utils/src/index.ts"]
+    }
+  }
+}
