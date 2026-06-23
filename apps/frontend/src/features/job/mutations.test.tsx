@@ -3,9 +3,11 @@ import { act, renderHook } from '@testing-library/react';
 import { type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('./service', () => ({
-  setJobPreference: vi.fn().mockResolvedValue({}),
+const { setJobPreference } = vi.hoisted(() => ({
+  setJobPreference: vi.fn(),
 }));
+
+vi.mock('./service', () => ({ setJobPreference }));
 
 import { useJobFilterStore } from './jobFilterStore';
 import { adjustCounts, usePreferenceMutation } from './mutations';
@@ -55,6 +57,8 @@ describe('usePreferenceMutation', () => {
   ];
 
   beforeEach(() => {
+    setJobPreference.mockReset();
+    setJobPreference.mockResolvedValue({});
     client = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
@@ -93,5 +97,36 @@ describe('usePreferenceMutation', () => {
         'preferencedCount',
       ])?.liked_count,
     ).toBe(1);
+  });
+
+  it('rolls back the optimistic change when the request fails (req 3.3)', async () => {
+    setJobPreference.mockRejectedValue(new Error('boom'));
+    client.setQueryData(listKey, {
+      result: [{ id: 'j1' }, { id: 'j2' }],
+      count: 2,
+    });
+    client.setQueryData(['job', 'preferencedCount'], {
+      liked_count: 0,
+      disliked_count: 0,
+    });
+
+    const { result } = renderHook(() => usePreferenceMutation(), {
+      wrapper,
+    });
+
+    await act(async () => {
+      await result.current
+        .mutateAsync({ id: 'j1', preference: 'like' })
+        .catch(() => undefined);
+    });
+
+    const list = client.getQueryData<{ result: { id: string }[] }>(listKey);
+    expect(list?.result.map(j => j.id)).toEqual(['j1', 'j2']);
+    expect(
+      client.getQueryData<{ liked_count: number }>([
+        'job',
+        'preferencedCount',
+      ])?.liked_count,
+    ).toBe(0);
   });
 });
