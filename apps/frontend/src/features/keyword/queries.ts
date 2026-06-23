@@ -7,12 +7,63 @@ import { useMemo } from 'react';
 
 import { SupabaseView } from '@codeshore/data-types';
 
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { CATEGORY_LABEL_MAP } from '../../utils/constants';
+import { useKeywordGroupStore, type GroupFilter } from './keywordGroupStore';
 import {
   fetchKeywordGroupCategories,
   fetchMvKeywordGroup,
   updateKeywordGroup,
 } from './service';
+
+export const KEYWORD_ADMIN_PAGE_SIZE = 20;
+
+const GROUPS_FILTER_BASE: Record<GroupFilter, Record<string, unknown>> = {
+  all: {},
+  grouped: { $or: 'category.not.is.null' },
+  ungrouped: { $or: 'category.is.null' },
+};
+
+// Builds the admin group-list `where` clause (task 8.1), mirroring the Vue
+// useKeywordGroupStore.buildWhere: grouped/ungrouped base + keyword_group ilike.
+export function buildKeywordAdminWhere(
+  filter: GroupFilter,
+  search: string,
+): string | undefined {
+  const conditions: Record<string, unknown> = { ...GROUPS_FILTER_BASE[filter] };
+  if (search.trim()) {
+    conditions.keyword_group = { ilike: `%${search.trim()}%` };
+  }
+  return Object.keys(conditions).length > 0
+    ? JSON.stringify(conditions)
+    : undefined;
+}
+
+// Paginated admin group list (task 8.1). queryKey carries filter/search/page so
+// the list refetches automatically (replaces the Vue store's watch + loadGroups).
+export function useKeywordGroupAdminQuery() {
+  const groupsFilter = useKeywordGroupStore(s => s.groupsFilter);
+  const search = useKeywordGroupStore(s => s.search);
+  const page = useKeywordGroupStore(s => s.currentPage);
+
+  const debouncedSearch = useDebouncedValue(search, 400);
+  const where = buildKeywordAdminWhere(groupsFilter, debouncedSearch);
+
+  const query = useQuery({
+    queryKey: ['keyword', 'admin', groupsFilter, debouncedSearch.trim(), page],
+    queryFn: async () => {
+      const from = (page - 1) * KEYWORD_ADMIN_PAGE_SIZE;
+      const to = page * KEYWORD_ADMIN_PAGE_SIZE - 1;
+      return fetchMvKeywordGroup({ from, to, where });
+    },
+  });
+
+  const keywordGroups = query.data?.result ?? [];
+  const totalCount = query.data?.count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / KEYWORD_ADMIN_PAGE_SIZE));
+
+  return { keywordGroups, totalCount, totalPages, loading: query.isLoading };
+}
 
 export interface KeywordTab {
   label: string;
