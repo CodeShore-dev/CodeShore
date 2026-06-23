@@ -1,4 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { useMemo } from 'react';
 
 import { SupabaseView } from '@codeshore/data-types';
@@ -7,6 +11,7 @@ import { CATEGORY_LABEL_MAP } from '../../utils/constants';
 import {
   fetchKeywordGroupCategories,
   fetchMvKeywordGroup,
+  updateKeywordGroup,
 } from './service';
 
 export interface KeywordTab {
@@ -74,4 +79,27 @@ export function useKeywordCategoriesQuery() {
   const categories = query.data ?? [];
   const tabs = useMemo(() => deriveTabs(categories), [categories]);
   return { categories, tabs, loading: query.isLoading };
+}
+
+// Assigns a keyword to a (possibly new) keyword group, then refreshes the
+// catalog and the job list (a remapped JD changes which jobs match a tag).
+// Ported from useKeywordStore.saveKeywordToGroup (used by the job-detail
+// keyword popover, task 7.5).
+export function useSaveKeywordToGroupMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      groupId,
+      keyword,
+      category,
+    }: {
+      groupId: string;
+      keyword: string;
+      category?: string | null;
+    }) => updateKeywordGroup(groupId, { keywords: [keyword], category }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['keyword', 'groups'] });
+      queryClient.invalidateQueries({ queryKey: ['job', 'list'] });
+    },
+  });
 }

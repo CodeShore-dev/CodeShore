@@ -6,7 +6,7 @@ import {
 import { SupabaseView } from '@codeshore/data-types';
 
 import { useJobFilterStore } from './jobFilterStore';
-import { setJobPreference } from './service';
+import { clearJobPreferences, setJobPreference } from './service';
 
 export interface PreferenceCounts {
   liked_count: number;
@@ -91,6 +91,22 @@ export function usePreferenceMutation() {
       }
     },
     onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['job', 'list'] });
+      queryClient.invalidateQueries({
+        queryKey: ['job', 'preferencedCount'],
+      });
+    },
+  });
+}
+
+// Clears every like/dislike mark for a bucket, then refreshes the list and
+// counts (task 7.5), ported from useJobStore.clearPreferences.
+export function useClearPreferencesMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (preference: 'like' | 'dislike') =>
+      clearJobPreferences(preference),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['job', 'list'] });
       queryClient.invalidateQueries({
         queryKey: ['job', 'preferencedCount'],

@@ -10,6 +10,10 @@ import { afterEach } from 'vitest';
 // may still spyOn(window, 'scrollTo') to assert calls.
 window.scrollTo = () => undefined;
 
+// jsdom does not implement Element.scrollIntoView either; the job list keeps
+// the selected row in view via scrollIntoView, so stub it as a no-op.
+Element.prototype.scrollIntoView = () => undefined;
+
 afterEach(() => {
   cleanup();
 });

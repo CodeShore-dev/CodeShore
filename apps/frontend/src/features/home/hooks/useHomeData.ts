@@ -66,5 +66,13 @@ export function useHomeData() {
     year: formatNumber(jc.year_salary_type_jobs),
   };
 
-  return { loading, salaryBenchmarks, salaryWeightedRatios, jobCountText };
+  return {
+    loading,
+    salaryBenchmarks,
+    salaryWeightedRatios,
+    jobCountText,
+    // Raw open-jobs count: the job page derives its "總數" tab from
+    // open_jobs − liked − disliked (task 7.5).
+    openJobs: jc.open_jobs,
+  };
 }

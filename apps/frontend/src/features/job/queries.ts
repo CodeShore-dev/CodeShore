@@ -4,6 +4,7 @@ import {
   DEFAULT_JOB_ORDERS,
   fetchJobPreferencedCount,
   fetchJobs,
+  fetchLocationGroups,
 } from './service';
 
 export const JOB_PAGE_SIZE = 10;
@@ -48,5 +49,13 @@ export function usePreferencedCountQuery() {
   return useQuery({
     queryKey: ['job', 'preferencedCount'],
     queryFn: fetchJobPreferencedCount,
+  });
+}
+
+// Location filter options (task 7.5), ported from useJobStore.getLocationGroups.
+export function useLocationGroupsQuery() {
+  return useQuery({
+    queryKey: ['job', 'locationGroups'],
+    queryFn: async () => (await fetchLocationGroups()).result,
   });
 }
