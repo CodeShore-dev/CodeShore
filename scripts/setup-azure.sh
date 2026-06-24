@@ -65,6 +65,15 @@ success "Azure 已登入: $ACCOUNT"
 # containerapp 擴充功能（不存在會自動裝）
 az config set extension.use_dynamic_install=yes_without_prompt -o none
 
+# ---- Step 0.5: 註冊資源供應者（訂閱層一次性，需 Owner/Contributor）-----------
+# Container Apps 首次使用需註冊 Microsoft.App。
+# 此步用你本人的登入身分執行（有訂閱權限）；GitHub Actions 的 RG-scoped SP 無法做這件事，
+# 所以一定要先在這裡（或 Cloud Shell）跑過一次。
+# 註：environment 用 --logs-destination none（不建 Log Analytics），故不需 Microsoft.OperationalInsights。
+info "註冊資源供應者 Microsoft.App（約 1-2 分鐘）..."
+az provider register -n Microsoft.App --wait -o none
+success "資源供應者已註冊"
+
 # ---- Step 1: Resource group --------------------------------------------------
 echo ""
 echo "------------------------------------------------------------"
@@ -85,8 +94,9 @@ echo "------------------------------------------------------------"
 if az containerapp env show -n "$ENVIRONMENT" -g "$RESOURCE_GROUP" >/dev/null 2>&1; then
   warn "Environment '$ENVIRONMENT' 已存在，沿用"
 else
-  info "建立 environment（含 Log Analytics，免費額度 5GB/月）..."
-  az containerapp env create -n "$ENVIRONMENT" -g "$RESOURCE_GROUP" -l "$LOCATION" -o none
+  info "建立 environment（--logs-destination none，不建 Log Analytics、零計費風險）..."
+  az containerapp env create -n "$ENVIRONMENT" -g "$RESOURCE_GROUP" -l "$LOCATION" \
+    --logs-destination none -o none
   success "Environment 建立完成: $ENVIRONMENT"
 fi
 

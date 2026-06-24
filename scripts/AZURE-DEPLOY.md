@@ -47,9 +47,22 @@
 
 > 大前提：所有檔案（尤其 `.github/workflows/*.yml`）要先 commit + push 到 GitHub，Actions 才會跑。
 
-### 1. 建立 Service Principal（一次性）
+### 1. 註冊資源供應者（一次性，需訂閱 Owner/Contributor）
 
-在 [Azure Portal Cloud Shell](https://portal.azure.com/#cloudshell/) 或本機 `az login` 後執行：
+Container Apps 第一次使用需要在**訂閱層級**註冊資源供應者。RG-scoped 的 Service Principal
+**沒有**訂閱層權限做這件事（會報 `AuthorizationFailed: Microsoft.App/register/action`），
+所以要先用你自己的帳號在 [Azure Portal Cloud Shell](https://portal.azure.com/#cloudshell/) 註冊一次：
+
+```bash
+az provider register -n Microsoft.App --wait   # Container Apps 本體
+```
+
+> 約 1～2 分鐘，跑完應印出 `Registered`。註冊是訂閱層一次性動作，之後永遠不用再做。
+> 本方案 environment 用 `--logs-destination none`（不建 Log Analytics），故**不需**註冊 `Microsoft.OperationalInsights`。
+
+### 2. 建立 Service Principal（一次性）
+
+接著在同一個 Cloud Shell（或本機 `az login` 後）執行：
 
 ```bash
 SUB_ID=$(az account show --query id -o tsv)
@@ -62,7 +75,7 @@ az ad sp create-for-rbac --name codeshore-ci \
 
 把輸出的**整段 JSON**（含 `clientId` / `clientSecret` / `subscriptionId` / `tenantId`）存成 GitHub Secret `AZURE_CREDENTIALS`。
 
-### 2. GitHub Secrets
+### 3. GitHub Secrets
 
 ```
 AZURE_CREDENTIALS                            # 上一步的 JSON
@@ -72,12 +85,12 @@ VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY / VITE_ADMIN_EMAILS  # 前端 build
 
 > 不需要額外的 registry secret：映像推到 ghcr.io 用內建的 `GITHUB_TOKEN`。
 
-### 3. 部署
+### 4. 部署
 
 Actions → **Deploy to Azure (Container Apps)** → Run。
 首次會自動建 resource group + environment + Container App，並在 workflow summary 印出 **FQDN**。
 
-### 4. 接上 Cloudflare
+### 5. 接上 Cloudflare
 
 把 `cloudflare/worker/main.js` 的 `azure` 改成輸出的 FQDN（去掉結尾 `/`），重新部署 worker：
 
@@ -111,6 +124,12 @@ workflow 建立時帶的 `GITHUB_TOKEN` 是短效的（job 結束就失效），
 curl https://<fqdn>/api      # 後端 /api
 curl https://<fqdn>/         # 前端 SPA
 ```
+
+## 成本與 log
+- environment 用 `--logs-destination none`：**不建 Log Analytics workspace**，徹底避開「log 寫入超過 5GB/月」的計費風險。
+- 搭配 `min-replicas=0`（閒置縮到零）與 Container Apps 永久免費月額度，低流量下基本為 **$0**。
+- 沒有 Log Analytics 不影響除錯：即時 log 用 `az containerapp logs show -n codeshore -g codeshore-rg --follow` 看（只是沒有可查詢的歷史儲存）。
+- 仍建議到 Cost Management → Budgets 設個每月小額預算 + email 警示，求安心。
 
 ## 備註
 - `cpu 0.5 / memory 1.0Gi` 對純 serve 前端 + /api 綽綽有餘；映像在 GitHub Actions 上 build，不佔 Azure 運算資源。

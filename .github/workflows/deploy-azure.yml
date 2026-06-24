@@ -7,6 +7,11 @@ name: Deploy to Azure (Container Apps)
 # 流程：build image -> push 到 ghcr.io -> 建立/更新 Container App + 對外 ingress。
 # 第一次執行會自動建立 resource group / environment / app；之後只更新映像與環境變數。
 #
+# 前置（一次性，需訂閱 Owner，見 scripts/AZURE-DEPLOY.md）：先用你本人帳號在 Cloud Shell 註冊
+# 資源供應者，否則 RG-scoped 的 SP 會報 AuthorizationFailed: Microsoft.App/register/action：
+#   az provider register -n Microsoft.App --wait
+# （不用 Log Analytics，故不需註冊 Microsoft.OperationalInsights）
+#
 # 預設「只手動觸發」(workflow_dispatch)，避免在未設定 AZURE_CREDENTIALS 時隨每次 push 失敗。
 # 若要改回 push 自動部署，取消下方 push 區塊的註解。
 on:
@@ -97,9 +102,11 @@ jobs:
             # 確保 resource group
             az group create -n "$RESOURCE_GROUP" -l "$LOCATION" -o none
 
-            # 確保 Container Apps 環境（內含 Log Analytics，免費額度 5GB/月）
+            # 確保 Container Apps 環境。--logs-destination none：不建 Log Analytics
+            # （省掉超過 5GB/月的計費風險）；即時 log 仍可用 az containerapp logs show 看。
             az containerapp env show -n "$ENVIRONMENT" -g "$RESOURCE_GROUP" >/dev/null 2>&1 \
-              || az containerapp env create -n "$ENVIRONMENT" -g "$RESOURCE_GROUP" -l "$LOCATION" -o none
+              || az containerapp env create -n "$ENVIRONMENT" -g "$RESOURCE_GROUP" -l "$LOCATION" \
+                   --logs-destination none -o none
 
             if az containerapp show -n "$APP_NAME" -g "$RESOURCE_GROUP" >/dev/null 2>&1; then
               echo "更新既有 Container App ..."

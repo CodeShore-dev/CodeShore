@@ -2,7 +2,7 @@ const ACTIVE_BACKEND = 'aws';
 
 const BACKENDS = {
   gcp:   'codeshore-539494821071.asia-east1.run.app',
-  azure: '',
+  azure: 'codeshore.kindhill-22520ac4.eastasia.azurecontainerapps.io',
   aws:   'd2mbhmftzmon28.cloudfront.net',
 };
 
