@@ -6,9 +6,9 @@
  * 皆只讀此模組，從根本保證雙視角與文字版內容一致。
  *
  * 內容對齊實際多雲部署設定（cloudflare worker / deploy-*.yml / cloudbuild.yaml
- * / Dockerfile.*）；Cloudflare Worker 為對外唯一入口，目前主力後端為 AWS
- * （worker `ACTIVE_BACKEND='aws'`），GCP／Azure 為可切換備選、EC2 為備援，
- * Supabase 與 GitHub 為四雲共用。
+ * / Dockerfile.*）；Cloudflare Worker 為對外唯一入口，依健康狀態自動容錯選擇後端
+ * （依 PRIORITY [aws, azure, gcp] 順序探測，取第一個存活者），AWS 為主力、
+ * GCP／Azure 為容錯備選、EC2 為備援，Supabase 與 GitHub 為四雲共用。
  *
  * 安全：本檔不得含任何金鑰、憑證、連線字串、FQDN 或內部主機名。
  * 語系：zh-TW。
@@ -226,8 +226,24 @@ export const cloudArchitecture: CloudArchitecture = {
     traffic: {
       id: 'traffic',
       title: '流量視角',
-      tiers: [],
-      edges: [],
+      tiers: [
+        ['cf-dns'],
+        ['cf-worker'],
+        ['aws-cloudfront', 'azure-container-apps', 'gcp-cloudrun'],
+        ['aws-s3', 'aws-lambda'],
+        ['supabase'],
+      ],
+      edges: [
+        { from: 'cf-dns', to: 'cf-worker', label: '解析 codeshore.dev' },
+        { from: 'cf-worker', to: 'aws-cloudfront', label: '主力 · 健康容錯切換' },
+        { from: 'cf-worker', to: 'azure-container-apps', label: '容錯備選' },
+        { from: 'cf-worker', to: 'gcp-cloudrun', label: '容錯備選' },
+        { from: 'aws-cloudfront', to: 'aws-s3', label: '預設 · 靜態前端' },
+        { from: 'aws-cloudfront', to: 'aws-lambda', label: '/api/*' },
+        { from: 'aws-lambda', to: 'supabase' },
+        { from: 'azure-container-apps', to: 'supabase' },
+        { from: 'gcp-cloudrun', to: 'supabase' },
+      ],
     },
     cicd: {
       id: 'cicd',
