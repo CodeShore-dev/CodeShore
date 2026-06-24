@@ -1,5 +1,5 @@
 # -------- Build Stage --------
-FROM asia-east1-docker.pkg.dev/codeshore-brlgfu/cloud-run-source-deploy/node:22.14.0-slim AS builder
+FROM asia-east1-docker.pkg.dev/codeshore-brlgfu/cloud-run-source-deploy/node:22.14.0-alpine AS builder
 
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 
@@ -17,14 +17,14 @@ COPY nx.json tsconfig.base.json env.d.ts ./
 COPY libs/ ./libs
 COPY apps/ ./apps
 
-RUN pnpm nx run-many --target=build --projects=frontend,backend,crawler --parallel=3
+RUN pnpm nx run-many --target=build --projects=frontend,backend --parallel=2
 
 # -------- Prune Stage --------
 FROM builder AS pruner
 RUN pnpm prune --prod
 
 # -------- Runtime Stage --------
-FROM asia-east1-docker.pkg.dev/codeshore-brlgfu/cloud-run-source-deploy/node:22.14.0-slim AS runtime
+FROM asia-east1-docker.pkg.dev/codeshore-brlgfu/cloud-run-source-deploy/node:22.14.0-alpine AS runtime
 
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 ENV PORT=8080

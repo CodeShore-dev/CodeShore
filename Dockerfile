@@ -1,5 +1,5 @@
 # -------- Build Stage --------
-FROM node:22-slim as builder
+FROM node:22-alpine as builder
 
 ARG VER
 ARG REPO
@@ -20,7 +20,7 @@ FROM builder AS pruner
 RUN pnpm prune --prod  # removes devDependencies
 
 # -------- Runtime Stage --------
-FROM nginx:stable-slim as runtime
+FROM nginx:stable-alpine as runtime
 
 ARG REPO
 
