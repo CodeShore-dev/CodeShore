@@ -2,6 +2,8 @@
 # 編譯階段依然可以使用 alpine 確保環境一致
 FROM node:22.14.0-alpine AS builder
 
+ENV PUPPETEER_SKIP_DOWNLOAD=true
+
 WORKDIR /app
 
 RUN npm install --global pnpm@10.7.1
@@ -30,6 +32,7 @@ RUN pnpm prune --prod
 # ⚡ 核心優化：改用極輕量的 alpine 鏡像，且完全移除 apt/chrome 安裝步驟
 FROM node:22.14.0-alpine AS runtime
 
+ENV PUPPETEER_SKIP_DOWNLOAD=true
 ENV PORT=8080
 
 WORKDIR /app
