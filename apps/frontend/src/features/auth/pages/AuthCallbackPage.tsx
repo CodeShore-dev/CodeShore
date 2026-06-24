@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 
@@ -7,36 +8,37 @@ import { supabase } from '../../../lib/supabase';
 // client-side session and routes the user home, or shows an error and
 // returns to login on failure.
 export function AuthCallbackPage() {
+  const {
+    data,
+    error: sessionError,
+    isLoading,
+  } = useQuery({
+    queryKey: ['authSession'],
+    queryFn: () => supabase.auth.getSession(),
+    retry: false,
+  });
+
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (isLoading) return;
+
     let timer: ReturnType<typeof setTimeout> | undefined;
 
-    (async () => {
-      const { data, error: sessionError } =
-        await supabase.auth.getSession();
-
-      if (sessionError) {
-        setError(sessionError.message);
-        return;
-      }
-
-      if (data.session) {
-        navigate('/', { replace: true });
-      } else {
-        setError('登入失敗，請再試一次。');
-        timer = setTimeout(
-          () => navigate('/login', { replace: true }),
-          2000,
-        );
-      }
-    })();
+    if (sessionError) {
+      setError(sessionError.message);
+    } else if (data?.data.session) {
+      navigate('/', { replace: true });
+    } else {
+      setError('登入失敗，請再試一次。');
+      timer = setTimeout(() => navigate('/login', { replace: true }), 2000);
+    }
 
     return () => {
       if (timer) clearTimeout(timer);
     };
-  }, [navigate]);
+  }, [data, sessionError, isLoading, navigate]);
 
   return (
     <div className="flex min-h-[80vh] items-center justify-center">
@@ -51,3 +53,4 @@ export function AuthCallbackPage() {
     </div>
   );
 }
+
