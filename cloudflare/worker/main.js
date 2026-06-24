@@ -1,9 +1,9 @@
 const ACTIVE_BACKEND = 'aws';
 
 const BACKENDS = {
-  gcp:   'codeshore-ppbtmrwfxa-de.a.run.app',
+  gcp:   'codeshore-539494821071.asia-east1.run.app',
   azure: '',
-  aws:   'd2mbhmftzmon28.cloudfront.net/',
+  aws:   'd2mbhmftzmon28.cloudfront.net',
 };
 
 function resolveOrigin(value) {

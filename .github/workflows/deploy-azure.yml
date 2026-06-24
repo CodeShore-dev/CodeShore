@@ -1,0 +1,137 @@
+name: Deploy to Azure (Container Apps)
+
+# 對應 GCP Cloud Run 的長駐容器方案，但目標是 Azure Container Apps
+# （scale-to-zero、永久免費月額度：18萬 vCPU-秒 + 36萬 GiB-秒 + 200萬請求/月）。
+# 與 AWS EC2 路徑共用同一顆映像（Dockerfile.aws：frontend + backend，不裝 Chrome），
+# 映像一樣推到 ghcr.io（免費），Container Apps 直接拉。
+# 流程：build image -> push 到 ghcr.io -> 建立/更新 Container App + 對外 ingress。
+# 第一次執行會自動建立 resource group / environment / app；之後只更新映像與環境變數。
+#
+# 預設「只手動觸發」(workflow_dispatch)，避免在未設定 AZURE_CREDENTIALS 時隨每次 push 失敗。
+# 若要改回 push 自動部署，取消下方 push 區塊的註解。
+on:
+  workflow_dispatch: {}
+  # push:
+  #   branches: [main]
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}/codeshore
+  RESOURCE_GROUP: codeshore-rg
+  LOCATION: eastasia            # 東亞（台北/香港），離 GCP asia-east1 最近
+  ENVIRONMENT: codeshore-env
+  APP_NAME: codeshore
+  TARGET_PORT: 8080             # bootstrap() 固定 listen 8080
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0   # 取得 tags 以計算版本號
+
+      - name: Compute version
+        id: ver
+        run: echo "value=$(git describe --tags --always)" >> "$GITHUB_OUTPUT"
+
+      - name: Lowercase image name
+        id: img
+        run: echo "name=${IMAGE,,}" >> "$GITHUB_OUTPUT"
+
+      # 前端 VITE_* 變數在 build 時就會被打包進 JS bundle，必須先寫好 .env
+      - name: Create frontend .env
+        run: |
+          cat > apps/frontend/.env <<EOF
+          VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_ADMIN_EMAILS=${{ secrets.VITE_ADMIN_EMAILS }}
+          EOF
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 與 AWS EC2 路徑共用同一顆映像（Dockerfile.aws：frontend + backend，不含 crawler / Chrome）
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.aws
+          build-args: |
+            VER=${{ steps.ver.outputs.value }}
+          push: true
+          tags: |
+            ${{ steps.img.outputs.name }}:${{ github.sha }}
+            ${{ steps.img.outputs.name }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to Container Apps
+        uses: azure/cli@v2
+        env:
+          IMAGE_REF: ${{ steps.img.outputs.name }}:${{ github.sha }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        with:
+          azcliversion: latest
+          inlineScript: |
+            set -e
+            az config set extension.use_dynamic_install=yes_without_prompt -o none
+
+            # 確保 resource group
+            az group create -n "$RESOURCE_GROUP" -l "$LOCATION" -o none
+
+            # 確保 Container Apps 環境（內含 Log Analytics，免費額度 5GB/月）
+            az containerapp env show -n "$ENVIRONMENT" -g "$RESOURCE_GROUP" >/dev/null 2>&1 \
+              || az containerapp env create -n "$ENVIRONMENT" -g "$RESOURCE_GROUP" -l "$LOCATION" -o none
+
+            if az containerapp show -n "$APP_NAME" -g "$RESOURCE_GROUP" >/dev/null 2>&1; then
+              echo "更新既有 Container App ..."
+              # 校正 registry 憑證（GHCR 私有套件用；公開套件則此步無妨）
+              az containerapp registry set -n "$APP_NAME" -g "$RESOURCE_GROUP" \
+                --server ghcr.io --username "$GHCR_USER" --password "$GHCR_TOKEN" -o none || true
+              az containerapp update -n "$APP_NAME" -g "$RESOURCE_GROUP" \
+                --image "$IMAGE_REF" \
+                --set-env-vars \
+                  NODE_ENV=production \
+                  SUPABASE_URL="$SUPABASE_URL" \
+                  SUPABASE_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY" -o none
+            else
+              echo "首次建立 Container App ..."
+              az containerapp create -n "$APP_NAME" -g "$RESOURCE_GROUP" \
+                --environment "$ENVIRONMENT" \
+                --image "$IMAGE_REF" \
+                --registry-server ghcr.io \
+                --registry-username "$GHCR_USER" \
+                --registry-password "$GHCR_TOKEN" \
+                --target-port "$TARGET_PORT" \
+                --ingress external \
+                --min-replicas 0 --max-replicas 1 \
+                --cpu 0.5 --memory 1.0Gi \
+                --env-vars \
+                  NODE_ENV=production \
+                  SUPABASE_URL="$SUPABASE_URL" \
+                  SUPABASE_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY" -o none
+            fi
+
+            FQDN=$(az containerapp show -n "$APP_NAME" -g "$RESOURCE_GROUP" \
+              --query properties.configuration.ingress.fqdn -o tsv)
+            echo "### Azure Container App URL: https://$FQDN" >> "$GITHUB_STEP_SUMMARY"
+            echo "把這個網址（去掉結尾的 /）填進 cloudflare/worker/main.js 的 azure 欄位"
+            echo "FQDN = https://$FQDN"
