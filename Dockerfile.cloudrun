@@ -1,26 +1,25 @@
 # -------- Build Stage --------
-FROM asia-east1-docker.pkg.dev/codeshore-brlgfu/cloud-run-source-deploy/node:22.14.0-slim AS builder
-
-ENV PUPPETEER_SKIP_DOWNLOAD=true
+# 編譯階段依然可以使用 alpine 確保環境一致
+FROM asia-east1-docker.pkg.dev/codeshore-brlgfu/cloud-run-source-deploy/node:22.14.0-alpine AS builder
 
 WORKDIR /app
 
 RUN npm install --global pnpm@10.7.1
 
-# 複製設定檔並安裝所有依賴（ARG VER 放這裡之前，才能讓 pnpm install 被 cache）
+# 複製設定檔並安裝所有依賴
 COPY package.json .npmrc pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 
-# ARG VER 移到 install 之後：每次 commit SHA 不同，只會 invalidate 從這行起的 cache
+# ARG VER 移到 install 之後：最大化 layer cache
 ARG VER=0.0.0
 ENV VITE_APP_VER=${VER}
 
-# 複製 Monorepo 原始碼（由最少變動到最多變動，最大化 layer cache）
+# 複製 Monorepo 原始碼
 COPY nx.json tsconfig.base.json env.d.ts ./
 COPY libs/ ./libs
 COPY apps/ ./apps
 
-# 執行 Nx 編譯（frontend + backend + crawler 並行跑）
+# 執行 Nx 編譯
 RUN pnpm nx run-many --target=build --projects=frontend,backend,crawler --parallel=3
 
 # -------- Prune Stage --------
@@ -28,25 +27,17 @@ FROM builder AS pruner
 RUN pnpm prune --prod
 
 # -------- Runtime Stage --------
-# 修正 2：運行環境同樣改為 slim，這樣才能安裝和運行官方版本的 Google Chrome
-FROM asia-east1-docker.pkg.dev/codeshore-brlgfu/cloud-run-source-deploy/node:22.14.0-slim AS runtime
+# ⚡ 核心優化：改用極輕量的 alpine 鏡像，且完全移除 apt/chrome 安裝步驟
+FROM asia-east1-docker.pkg.dev/codeshore-brlgfu/cloud-run-source-deploy/node:22.14.0-alpine AS runtime
 
-# 修正 3：將 Chrome 的安裝與環境變數移到最終的 Runtime 階段
-ENV PUPPETEER_SKIP_DOWNLOAD=true
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
 ENV PORT=8080
-
-# 在最終會被部署到 Cloud Run 的環境裡安裝 Chrome
-RUN apt-get update && apt-get install -y wget gnupg curl \
-    && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/googlechrome-keyring.gpg \
-    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/googlechrome-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
-    && apt-get update && apt-get install -y google-chrome-stable \
-    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# 從 pruner 階段複製編譯後的產物與生產環境的 node_modules
-COPY --from=pruner /app/dist ./dist
+# 只複製 backend 的編譯產物，不複製 frontend 和 crawler 的產物
+COPY --from=pruner /app/dist/apps/backend ./dist/apps/backend
+
+# 複製生產環境 node_modules 與 package.json
 COPY --from=pruner /app/node_modules ./node_modules
 COPY --from=pruner /app/package.json ./
 
