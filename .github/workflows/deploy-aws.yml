@@ -1,11 +1,12 @@
 name: Deploy to AWS (EC2)
 
-# 對應 GCP 的 Cloud Build trigger：push 到 main 自動 build + 部署。
-# 流程：build image -> push 到 GitHub Container Registry (ghcr.io) -> SSH 進 EC2 pull & 重啟。
+# EC2 方案（備用）：build image -> push 到 ghcr.io -> SSH 進 EC2 pull & 重啟。
+# 預設「只手動觸發」(workflow_dispatch)，避免在未設定 EC2_HOST/EC2_SSH_KEY 時
+# 隨每次 push 自動失敗。若要改回 push 自動部署，取消下方 push 區塊的註解。
 on:
-  push:
-    branches: [main]
   workflow_dispatch: {}
+  # push:
+  #   branches: [main]
 
 env:
   IMAGE: ghcr.io/${{ github.repository }}/codeshore
