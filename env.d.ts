@@ -5,7 +5,6 @@ declare const runtimeConfig: {
 interface ImportMetaEnv
   extends Readonly<Record<string, string>> {
   VITE_APP_VER: string;
-  VITE_APP_TITLE: string;
 }
 
 interface ImportMeta {

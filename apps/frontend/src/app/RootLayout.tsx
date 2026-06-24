@@ -18,7 +18,7 @@ export function RootLayout() {
           <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-1.5">
             <span>
               <span className="text-[#fd7700]">● </span>
-              我們不收履歷，也不是另一個職缺平台。看完分析後，請再回 104 / Cake 投履歷。
+              我們不會取代任何職缺平台。看完分析後，請透過連結自行回原站投遞履歷。
             </span>
             <span className="font-medium text-white/50">資料每週自動更新</span>
           </div>

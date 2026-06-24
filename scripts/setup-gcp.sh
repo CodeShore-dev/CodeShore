@@ -364,7 +364,6 @@ if [[ -f "$FRONTEND_ENV" ]]; then
     ENV_VALS["$key"]="$val"
   done < <(grep -v '^#' "$FRONTEND_ENV" | grep '=')
 
-  save_frontend_secret "vite-app-title"         "${ENV_VALS[VITE_APP_TITLE]:-}"
   save_frontend_secret "vite-supabase-url"       "${ENV_VALS[VITE_SUPABASE_URL]:-}"
   save_frontend_secret "vite-supabase-anon-key"  "${ENV_VALS[VITE_SUPABASE_ANON_KEY]:-}"
   save_frontend_secret "vite-admin-emails"       "${ENV_VALS[VITE_ADMIN_EMAILS]:-}"
@@ -372,7 +371,6 @@ else
   warn "apps/frontend/.env not found -- enter values manually (or skip and set later)."
   echo "  Characters will not be shown while typing"
   echo ""
-  create_or_update_secret "vite-app-title"         "  VITE_APP_TITLE"
   create_or_update_secret "vite-supabase-url"      "  VITE_SUPABASE_URL"
   create_or_update_secret "vite-supabase-anon-key" "  VITE_SUPABASE_ANON_KEY"
   create_or_update_secret "vite-admin-emails"      "  VITE_ADMIN_EMAILS"

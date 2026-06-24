@@ -1,0 +1,189 @@
+name: Deploy frontend to AWS (S3 + CloudFront)
+
+# 前端靜態檔 -> S3，CloudFront 當 CDN/HTTPS 入口；/api 由 Lambda 提供，CloudFront 依路徑分流。
+# 此 workflow 會「自動建立」S3 bucket 與 CloudFront distribution（不存在才建），
+# 因此不需事先用 AWS CLI / Console 開好，也不需 S3_BUCKET / CLOUDFRONT_DISTRIBUTION_ID secret。
+# 前置：deploy-aws-lambda.yml 至少跑過一次（CloudFront 的 /api origin 需要 Lambda Function URL）。
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/frontend/**'
+      - 'libs/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+  workflow_dispatch: {}
+
+env:
+  FUNCTION_NAME: codeshore
+  # CloudFront 受管政策 ID（全帳號通用固定值）
+  CACHE_OPTIMIZED: 658327ea-f89d-4fab-a63d-7e88639e58f6
+  CACHE_DISABLED: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+  ORP_ALLVIEWER_NOHOST: b689b0a8-53d0-40ab-baf2-68738e2966ac
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.7.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Compute version
+        id: ver
+        run: echo "value=$(git describe --tags --always)" >> "$GITHUB_OUTPUT"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      # 自動建立 / 沿用 S3 bucket + CloudFront distribution，並把 bucket / distribution id 寫進 $GITHUB_ENV
+      - name: Provision S3 + CloudFront
+        run: |
+          set -e
+          REGION="${{ secrets.AWS_REGION }}"
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          BUCKET="codeshore-frontend-${ACCOUNT_ID}"
+          S3_DOMAIN="${BUCKET}.s3.${REGION}.amazonaws.com"
+
+          # --- S3 bucket（私有）---
+          if ! aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
+            if [ "$REGION" = "us-east-1" ]; then
+              aws s3api create-bucket --bucket "$BUCKET" --region "$REGION" >/dev/null
+            else
+              aws s3api create-bucket --bucket "$BUCKET" --region "$REGION" \
+                --create-bucket-configuration LocationConstraint="$REGION" >/dev/null
+            fi
+            aws s3api put-public-access-block --bucket "$BUCKET" \
+              --public-access-block-configuration \
+              BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true >/dev/null
+            echo "建立 S3 bucket: $BUCKET"
+          fi
+
+          # --- 後端 API origin（Lambda Function URL）---
+          FN_URL=$(aws lambda get-function-url-config --function-name "$FUNCTION_NAME" \
+            --query FunctionUrl --output text 2>/dev/null || true)
+          if [ -z "$FN_URL" ] || [ "$FN_URL" = "None" ]; then
+            echo "::error::找不到 Lambda Function URL，請先成功跑過 'Deploy to AWS Lambda' workflow"; exit 1
+          fi
+          API_ORIGIN=$(echo "$FN_URL" | sed -E 's#^https?://##; s#/$##')
+
+          # --- 找既有 distribution（以 S3 origin 比對）---
+          DIST_ID=$(aws cloudfront list-distributions \
+            --query "DistributionList.Items[?Origins.Items[?DomainName=='${S3_DOMAIN}']].Id | [0]" \
+            --output text 2>/dev/null || true)
+
+          if [ -z "$DIST_ID" ] || [ "$DIST_ID" = "None" ]; then
+            # --- Origin Access Control ---
+            OAC_ID=$(aws cloudfront list-origin-access-controls \
+              --query "OriginAccessControlList.Items[?Name=='codeshore-oac'].Id | [0]" --output text 2>/dev/null || true)
+            if [ -z "$OAC_ID" ] || [ "$OAC_ID" = "None" ]; then
+              OAC_ID=$(aws cloudfront create-origin-access-control --origin-access-control-config \
+                "Name=codeshore-oac,Description=CodeShore S3 OAC,SigningProtocol=sigv4,SigningBehavior=always,OriginAccessControlOriginType=s3" \
+                --query 'OriginAccessControl.Id' --output text)
+            fi
+
+            cat > /tmp/cf.json <<JSON
+          {
+            "CallerReference": "codeshore-$(date +%s)",
+            "Comment": "CodeShore frontend (S3) + /api -> Lambda",
+            "Enabled": true,
+            "DefaultRootObject": "index.html",
+            "Origins": { "Quantity": 2, "Items": [
+              { "Id": "s3-frontend", "DomainName": "${S3_DOMAIN}",
+                "OriginAccessControlId": "${OAC_ID}", "S3OriginConfig": { "OriginAccessIdentity": "" } },
+              { "Id": "lambda-api", "DomainName": "${API_ORIGIN}",
+                "CustomOriginConfig": { "HTTPPort": 80, "HTTPSPort": 443,
+                  "OriginProtocolPolicy": "https-only",
+                  "OriginSslProtocols": { "Quantity": 1, "Items": ["TLSv1.2"] } } }
+            ]},
+            "DefaultCacheBehavior": {
+              "TargetOriginId": "s3-frontend",
+              "ViewerProtocolPolicy": "redirect-to-https",
+              "CachePolicyId": "${CACHE_OPTIMIZED}",
+              "Compress": true,
+              "AllowedMethods": { "Quantity": 2, "Items": ["GET", "HEAD"] }
+            },
+            "CacheBehaviors": { "Quantity": 1, "Items": [
+              { "PathPattern": "/api/*", "TargetOriginId": "lambda-api",
+                "ViewerProtocolPolicy": "redirect-to-https",
+                "CachePolicyId": "${CACHE_DISABLED}",
+                "OriginRequestPolicyId": "${ORP_ALLVIEWER_NOHOST}",
+                "Compress": true,
+                "AllowedMethods": { "Quantity": 7,
+                  "Items": ["GET","HEAD","OPTIONS","PUT","POST","PATCH","DELETE"] } }
+            ]},
+            "CustomErrorResponses": { "Quantity": 2, "Items": [
+              { "ErrorCode": 403, "ResponseCode": "200", "ResponsePagePath": "/index.html", "ErrorCachingMinTTL": 10 },
+              { "ErrorCode": 404, "ResponseCode": "200", "ResponsePagePath": "/index.html", "ErrorCachingMinTTL": 10 }
+            ]},
+            "PriceClass": "PriceClass_200"
+          }
+          JSON
+            DIST_ID=$(aws cloudfront create-distribution --distribution-config file:///tmp/cf.json \
+              --query 'Distribution.Id' --output text)
+            echo "建立 CloudFront distribution: $DIST_ID（首次部署需 5-15 分鐘 ready）"
+
+            # bucket policy：只允許這個 distribution 透過 OAC 讀
+            DIST_ARN="arn:aws:cloudfront::${ACCOUNT_ID}:distribution/${DIST_ID}"
+            cat > /tmp/bp.json <<JSON
+          { "Version": "2012-10-17", "Statement": [{
+            "Sid": "AllowCloudFrontOAC", "Effect": "Allow",
+            "Principal": { "Service": "cloudfront.amazonaws.com" },
+            "Action": "s3:GetObject", "Resource": "arn:aws:s3:::${BUCKET}/*",
+            "Condition": { "StringEquals": { "AWS:SourceArn": "${DIST_ARN}" } } }] }
+          JSON
+            aws s3api put-bucket-policy --bucket "$BUCKET" --policy file:///tmp/bp.json
+          fi
+
+          DIST_DOMAIN=$(aws cloudfront get-distribution --id "$DIST_ID" \
+            --query 'Distribution.DomainName' --output text)
+
+          echo "BUCKET=$BUCKET" >> "$GITHUB_ENV"
+          echo "DIST_ID=$DIST_ID" >> "$GITHUB_ENV"
+          echo "### CloudFront 網址: https://$DIST_DOMAIN" >> "$GITHUB_STEP_SUMMARY"
+          echo "把這個網址填進 cloudflare/worker/main.js 的 aws 欄位（https://$DIST_DOMAIN）"
+
+      # 前端 VITE_* 變數在 build 時打包進 JS bundle
+      - name: Create frontend .env
+        run: |
+          cat > apps/frontend/.env <<EOF
+          VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_ADMIN_EMAILS=${{ secrets.VITE_ADMIN_EMAILS }}
+          EOF
+
+      - name: Build frontend
+        env:
+          VITE_APP_VER: ${{ steps.ver.outputs.value }}
+        run: pnpm nx build frontend
+
+      - name: Sync to S3
+        run: |
+          # 帶 hash 的資產長快取、index.html 不快取（部署後立即生效）
+          aws s3 sync dist/apps/frontend "s3://${BUCKET}" \
+            --delete \
+            --cache-control "public,max-age=31536000,immutable" \
+            --exclude "index.html"
+          aws s3 cp dist/apps/frontend/index.html "s3://${BUCKET}/index.html" \
+            --cache-control "no-cache,no-store,must-revalidate"
+
+      - name: Invalidate CloudFront
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${DIST_ID}" --paths "/*" >/dev/null

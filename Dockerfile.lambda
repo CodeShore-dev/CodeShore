@@ -1,0 +1,50 @@
+# =============================================================================
+# Dockerfile.lambda -- CodeShore AWS Lambda 容器映像（永久免費額度）
+#
+# 此映像為「純 API」：前端改放 S3 + CloudFront，CloudFront 把 /api/* 導到本 Lambda。
+# 與 Dockerfile.cloudrun / Dockerfile.aws 的差異：
+#   1. 入口改用 lambda.ts（export handler，不呼叫 listen）
+#   2. runtime 改用 AWS Lambda Node base image，CMD 指向 handler
+#   3. 不 build frontend（交給 S3）、不裝 Chrome、不 build crawler（爬蟲本地跑）
+# 註：ServeStaticModule 找不到前端目錄也不會崩（僅對非 /api 路徑回 404，
+#     而那些路徑根本不會經由 CloudFront 進到 Lambda）。
+# =============================================================================
+
+# -------- Build Stage --------
+FROM node:22.14.0-slim AS builder
+
+ENV PUPPETEER_SKIP_DOWNLOAD=true
+
+WORKDIR /app
+
+RUN npm install --global pnpm@10.7.1
+
+COPY package.json .npmrc pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
+
+ARG VER=0.0.0
+ENV VITE_APP_VER=${VER}
+ENV VER=${VER}
+
+COPY nx.json tsconfig.base.json env.d.ts ./
+COPY libs/ ./libs
+COPY apps/ ./apps
+
+# 只 build Lambda handler bundle（純 API，不含 frontend / crawler / Chrome）
+RUN pnpm nx build-lambda backend
+
+# -------- Prune Stage --------
+FROM builder AS pruner
+RUN pnpm prune --prod
+
+# -------- Runtime Stage (AWS Lambda base) --------
+FROM public.ecr.aws/lambda/nodejs:22 AS runtime
+
+# Lambda 程式碼根目錄為 ${LAMBDA_TASK_ROOT} (=/var/task)
+WORKDIR ${LAMBDA_TASK_ROOT}
+
+COPY --from=pruner /app/dist ./dist
+COPY --from=pruner /app/node_modules ./node_modules
+
+# handler 位置：dist/apps/backend-lambda/index.js 的 `handler` export
+CMD ["dist/apps/backend-lambda/index.handler"]

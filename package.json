@@ -13,6 +13,7 @@
   "private": true,
   "dependencies": {
     "@anthropic-ai/sdk": "^0.91.1",
+    "@codegenie/serverless-express": "^4.16.0",
     "@langchain/core": "^1.1.44",
     "@langchain/langgraph": "^1.2.9",
     "@langchain/openrouter": "^0.2.4",
@@ -58,6 +59,7 @@
   },
   "devDependencies": {
     "@apify/tsconfig": "^0.1.1",
+    "@types/aws-lambda": "^8.10.145",
     "@nestjs/schematics": "^11.0.7",
     "@nestjs/testing": "^11.1.6",
     "@nx/esbuild": "21.4.1",

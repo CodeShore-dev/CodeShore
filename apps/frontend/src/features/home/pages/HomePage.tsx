@@ -41,20 +41,13 @@ export function HomePage() {
       <HomeHighSalaryTech type="month" />
       <section className="mt-10">
         <div className="mb-2 flex items-baseline gap-3">
-          <div className="text-xs font-bold tracking-[0.18em] text-[#434653]">
-            熱門技術組合
-          </div>
+          <div className="text-xs font-bold tracking-[0.18em] text-[#434653]">熱門技術組合</div>
           <Link
             to="/techs/combos"
             className="flex items-center gap-0.5 text-xs font-bold text-[#003d92] transition-colors hover:text-[#001f2a]"
           >
             更多
-            <span
-              className="material-symbols-outlined"
-              style={{ fontSize: '14px' }}
-            >
-              arrow_forward
-            </span>
+            <span className="material-symbols-outlined text-sm">arrow_forward</span>
           </Link>
         </div>
         <div className="mb-4 text-lg font-black text-[#001f2a]">

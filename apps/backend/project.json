@@ -5,6 +5,19 @@
   "projectType": "application",
   "tags": [],
   "targets": {
+    "build-lambda": {
+      "executor": "@nx/webpack:webpack",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/apps/backend-lambda",
+        "main": "apps/backend/src/lambda.ts",
+        "tsConfig": "apps/backend/tsconfig.app.json",
+        "target": "node",
+        "compiler": "tsc",
+        "webpackConfig": "apps/backend/webpack.lambda.config.js",
+        "generatePackageJson": false
+      }
+    },
     "serve": {
       "executor": "@nx/js:node",
       "defaultConfiguration": "development",

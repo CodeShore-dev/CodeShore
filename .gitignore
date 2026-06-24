@@ -48,6 +48,9 @@ vitest.config.*.timestamp*
 storage
 .env
 
+# AWS EC2 SSH private key (由 scripts/setup-aws.sh 產生，切勿提交)
+*.pem
+
 .cache
 .kiro/specs/*
 

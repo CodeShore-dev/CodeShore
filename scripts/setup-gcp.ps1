@@ -425,7 +425,6 @@ if (Test-Path $FRONTEND_ENV) {
     }
 
     $FRONTEND_SECRETS = @{
-        "vite-app-title"       = $envVals["VITE_APP_TITLE"]
         "vite-supabase-url"    = $envVals["VITE_SUPABASE_URL"]
         "vite-supabase-anon-key" = $envVals["VITE_SUPABASE_ANON_KEY"]
         "vite-admin-emails"    = $envVals["VITE_ADMIN_EMAILS"]
@@ -451,7 +450,6 @@ if (Test-Path $FRONTEND_ENV) {
     Write-Warn "apps/frontend/.env not found -- enter values manually (or skip and set later)."
     Write-Host "  Characters will not be shown while typing" -ForegroundColor Gray
     Write-Host ""
-    Set-GcpSecret -SecretName "vite-app-title"         -PromptMsg "  VITE_APP_TITLE"
     Set-GcpSecret -SecretName "vite-supabase-url"      -PromptMsg "  VITE_SUPABASE_URL"
     Set-GcpSecret -SecretName "vite-supabase-anon-key" -PromptMsg "  VITE_SUPABASE_ANON_KEY"
     Set-GcpSecret -SecretName "vite-admin-emails"      -PromptMsg "  VITE_ADMIN_EMAILS"

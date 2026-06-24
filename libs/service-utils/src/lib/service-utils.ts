@@ -11,13 +11,18 @@ import {
 import { ServiceLogger } from '@codeshore/service-logger';
 import { AllExceptionsFilter, InboundInterceptor } from '@codeshore/service-transport';
 
-export async function bootstrap(
+/**
+ * 建立並完整設定好 Nest app，但「不呼叫 listen」。
+ * 給兩種 runtime 共用：
+ *   - bootstrap()：傳統長駐伺服器（GCP Cloud Run / EC2）
+ *   - Lambda handler：app.init() 後交給 serverless-express 包裝
+ */
+export async function createApp(
   AppModule: IEntryNestModule,
   {
     repo = 'unknown-service',
-    port = 8080,
     ver = '0.0.0',
-  }: { repo?: string; port?: number; ver?: string },
+  }: { repo?: string; ver?: string } = {},
 ) {
   process.on('uncaughtException', err => {
     console.error('❌ Uncaught Exception:', err);
@@ -57,6 +62,19 @@ export async function bootstrap(
     options,
   );
   SwaggerModule.setup(prefix, app, document);
+
+  return { app, prefix };
+}
+
+export async function bootstrap(
+  AppModule: IEntryNestModule,
+  {
+    repo = 'unknown-service',
+    port = 8080,
+    ver = '0.0.0',
+  }: { repo?: string; port?: number; ver?: string },
+) {
+  const { app, prefix } = await createApp(AppModule, { repo, ver });
 
   await app.listen(port);
   Logger.log(

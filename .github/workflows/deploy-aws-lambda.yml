@@ -1,0 +1,104 @@
+name: Deploy to AWS Lambda
+
+# 對應 GCP 的 Cloud Build trigger，但目標是 AWS Lambda（容器映像、scale-to-zero、永久免費額度）。
+# 流程：build Lambda 映像 -> push 到 ECR -> 建立/更新 Lambda function + Function URL。
+# 第一次執行會自動建立 function；之後只更新 code 與環境變數。
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+env:
+  FUNCTION_NAME: codeshore
+  ECR_REPO: codeshore
+  LAMBDA_MEMORY: 1024
+  LAMBDA_TIMEOUT: 30
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute version
+        id: ver
+        run: echo "value=$(git describe --tags --always)" >> "$GITHUB_OUTPUT"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # 自動建立 ECR repository（不存在才建），不需事先用 CLI / Console 開好
+      - name: Ensure ECR repository
+        run: |
+          aws ecr describe-repositories --repository-names "$ECR_REPO" >/dev/null 2>&1 \
+            || aws ecr create-repository --repository-name "$ECR_REPO" \
+                 --image-scanning-configuration scanOnPush=false >/dev/null
+
+      # 此映像為純 API，前端由 deploy-aws-frontend.yml 部署到 S3，故不需 VITE_* 與 .env
+      - name: Build and push image to ECR
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          IMAGE="$REGISTRY/$ECR_REPO:${{ github.sha }}"
+          docker build \
+            --build-arg VER=${{ steps.ver.outputs.value }} \
+            -f Dockerfile.lambda \
+            -t "$IMAGE" \
+            -t "$REGISTRY/$ECR_REPO:latest" .
+          docker push "$IMAGE"
+          docker push "$REGISTRY/$ECR_REPO:latest"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Create or update Lambda function
+        run: |
+          set -e
+          ENV_VARS="Variables={NODE_ENV=production,SUPABASE_URL=${{ secrets.SUPABASE_URL }},SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}}"
+          if aws lambda get-function --function-name "$FUNCTION_NAME" >/dev/null 2>&1; then
+            echo "更新既有 function ..."
+            aws lambda update-function-code \
+              --function-name "$FUNCTION_NAME" --image-uri "$IMAGE" >/dev/null
+            aws lambda wait function-updated --function-name "$FUNCTION_NAME"
+            aws lambda update-function-configuration \
+              --function-name "$FUNCTION_NAME" \
+              --memory-size "$LAMBDA_MEMORY" --timeout "$LAMBDA_TIMEOUT" \
+              --environment "$ENV_VARS" >/dev/null
+            aws lambda wait function-updated --function-name "$FUNCTION_NAME"
+          else
+            echo "首次建立 function ..."
+            aws lambda create-function \
+              --function-name "$FUNCTION_NAME" \
+              --package-type Image \
+              --code ImageUri="$IMAGE" \
+              --role "${{ secrets.LAMBDA_ROLE_ARN }}" \
+              --memory-size "$LAMBDA_MEMORY" --timeout "$LAMBDA_TIMEOUT" \
+              --environment "$ENV_VARS" >/dev/null
+            aws lambda wait function-active --function-name "$FUNCTION_NAME"
+          fi
+
+      - name: Ensure public Function URL
+        run: |
+          set -e
+          if ! aws lambda get-function-url-config --function-name "$FUNCTION_NAME" >/dev/null 2>&1; then
+            aws lambda create-function-url-config \
+              --function-name "$FUNCTION_NAME" --auth-type NONE >/dev/null
+            aws lambda add-permission \
+              --function-name "$FUNCTION_NAME" \
+              --statement-id FunctionURLAllowPublicAccess \
+              --action lambda:InvokeFunctionUrl \
+              --principal "*" --function-url-auth-type NONE >/dev/null || true
+          fi
+          URL=$(aws lambda get-function-url-config \
+            --function-name "$FUNCTION_NAME" --query FunctionUrl --output text)
+          echo "### Lambda Function URL: $URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "把這個網址（去掉結尾的 /）填進 cloudflare/worker/main.js 的 aws 欄位"
+          echo "Function URL = $URL"
