@@ -4,8 +4,12 @@ import { getSupabaseClient } from '@codeshore/supabase';
 
 import { TableService } from '../shared-services/supabase/table.service';
 
-export class KeywordGroupService extends TableService<SupabaseTable.KeywordGroup> {
+export class TechKeywordService extends TableService<SupabaseTable.Tech_.Keyword> {
   constructor(logger?: ServiceLogger) {
-    super(getSupabaseClient(), 'keyword_group', logger);
+    super(
+      getSupabaseClient(),
+      'tech_keyword',
+      logger,
+    );
   }
 }

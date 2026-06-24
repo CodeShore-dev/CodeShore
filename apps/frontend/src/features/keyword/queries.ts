@@ -9,11 +9,11 @@ import { SupabaseView } from '@codeshore/data-types';
 
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { CATEGORY_LABEL_MAP } from '../../utils/constants';
-import { useKeywordGroupStore, type GroupFilter } from './keywordGroupStore';
+import { useTechStore, type GroupFilter } from './techStore';
 import {
-  fetchKeywordGroupCategories,
-  fetchMvKeywordGroup,
-  updateKeywordGroup,
+  fetchTechCategories,
+  fetchMvTech,
+  updateTech,
 } from './service';
 
 export const KEYWORD_ADMIN_PAGE_SIZE = 20;
@@ -25,14 +25,14 @@ const GROUPS_FILTER_BASE: Record<GroupFilter, Record<string, unknown>> = {
 };
 
 // Builds the admin group-list `where` clause (task 8.1), mirroring the Vue
-// useKeywordGroupStore.buildWhere: grouped/ungrouped base + keyword_group ilike.
+// useTechStore.buildWhere: grouped/ungrouped base + tech ilike.
 export function buildKeywordAdminWhere(
   filter: GroupFilter,
   search: string,
 ): string | undefined {
   const conditions: Record<string, unknown> = { ...GROUPS_FILTER_BASE[filter] };
   if (search.trim()) {
-    conditions.keyword_group = { ilike: `%${search.trim()}%` };
+    conditions.tech = { ilike: `%${search.trim()}%` };
   }
   return Object.keys(conditions).length > 0
     ? JSON.stringify(conditions)
@@ -41,10 +41,10 @@ export function buildKeywordAdminWhere(
 
 // Paginated admin group list (task 8.1). queryKey carries filter/search/page so
 // the list refetches automatically (replaces the Vue store's watch + loadGroups).
-export function useKeywordGroupAdminQuery() {
-  const groupsFilter = useKeywordGroupStore(s => s.groupsFilter);
-  const search = useKeywordGroupStore(s => s.search);
-  const page = useKeywordGroupStore(s => s.currentPage);
+export function useTechAdminQuery() {
+  const groupsFilter = useTechStore(s => s.groupsFilter);
+  const search = useTechStore(s => s.search);
+  const page = useTechStore(s => s.currentPage);
 
   const debouncedSearch = useDebouncedValue(search, 400);
   const where = buildKeywordAdminWhere(groupsFilter, debouncedSearch);
@@ -54,15 +54,15 @@ export function useKeywordGroupAdminQuery() {
     queryFn: async () => {
       const from = (page - 1) * KEYWORD_ADMIN_PAGE_SIZE;
       const to = page * KEYWORD_ADMIN_PAGE_SIZE - 1;
-      return fetchMvKeywordGroup({ from, to, where });
+      return fetchMvTech({ from, to, where });
     },
   });
 
-  const keywordGroups = query.data?.result ?? [];
+  const techs = query.data?.result ?? [];
   const totalCount = query.data?.count ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / KEYWORD_ADMIN_PAGE_SIZE));
 
-  return { keywordGroups, totalCount, totalPages, loading: query.isLoading };
+  return { techs, totalCount, totalPages, loading: query.isLoading };
 }
 
 export interface KeywordTab {
@@ -76,7 +76,7 @@ export interface KeywordTab {
 // categories in CATEGORY_LABEL_MAP order, then a trailing "其他" bucket
 // aggregating everything else. Pure for testability.
 export function deriveTabs(
-  categories: SupabaseView.MvKeywordGroupCategory[],
+  categories: SupabaseView.MvTechCategory[],
 ): KeywordTab[] {
   const countMap = Object.fromEntries(
     categories.map(({ category, count }) => [category, count]),
@@ -106,12 +106,12 @@ export function deriveTabs(
 
 // Shared keyword-group catalog (prerequisite for Company/Job/Keyword features).
 // Returns the keyword groups that have a category.
-export function useKeywordGroupsQuery() {
+export function useTechsQuery() {
   return useQuery({
     queryKey: ['keyword', 'groups'],
     queryFn: async () =>
       (
-        await fetchMvKeywordGroup({
+        await fetchMvTech({
           from: 0,
           to: -1,
           where: JSON.stringify({ $or: 'category.not.is.null' }),
@@ -125,7 +125,7 @@ export function useKeywordCategoriesQuery() {
   const query = useQuery({
     queryKey: ['keyword', 'categories'],
     queryFn: async () =>
-      (await fetchKeywordGroupCategories({ from: 0, to: -1 })).result,
+      (await fetchTechCategories({ from: 0, to: -1 })).result,
   });
   const categories = query.data ?? [];
   const tabs = useMemo(() => deriveTabs(categories), [categories]);
@@ -147,7 +147,7 @@ export function useSaveKeywordToGroupMutation() {
       groupId: string;
       keyword: string;
       category?: string | null;
-    }) => updateKeywordGroup(groupId, { keywords: [keyword], category }),
+    }) => updateTech(groupId, { keywords: [keyword], category }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['keyword', 'groups'] });
       queryClient.invalidateQueries({ queryKey: ['job', 'list'] });

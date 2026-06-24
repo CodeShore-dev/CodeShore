@@ -4,9 +4,9 @@ import { SupabaseView } from '@codeshore/data-types';
 
 interface CompanyCardProps {
   company: SupabaseView.MvCompany;
-  keywordGroups: SupabaseView.MvKeywordGroup[];
+  techs: SupabaseView.MvTech[];
   categoryLabelMap: Record<string, string>;
-  selectedKeywordGroups?: string[];
+  selectedTechs?: string[];
   onClick: (companyName: string) => void;
 }
 
@@ -21,31 +21,31 @@ const CATEGORY_PRIORITY: Record<string, number> = {
 
 export function CompanyCard({
   company,
-  keywordGroups,
+  techs,
   categoryLabelMap,
-  selectedKeywordGroups = [],
+  selectedTechs = [],
   onClick,
 }: CompanyCardProps) {
   const { categoryMap, labelMap, countMap } = useMemo(() => {
     const categoryMap = new Map<string, string>();
     const labelMap = new Map<string, string>();
     const countMap = new Map<string, number>();
-    for (const m of keywordGroups) {
-      categoryMap.set(m.keyword_group, m.category ?? '');
-      labelMap.set(m.keyword_group, m.label);
-      countMap.set(m.keyword_group, m.count);
+    for (const m of techs) {
+      categoryMap.set(m.tech, m.category ?? '');
+      labelMap.set(m.tech, m.label);
+      countMap.set(m.tech, m.count);
     }
     return { categoryMap, labelMap, countMap };
-  }, [keywordGroups]);
+  }, [techs]);
 
   const selectedSet = useMemo(
-    () => new Set(selectedKeywordGroups),
-    [selectedKeywordGroups],
+    () => new Set(selectedTechs),
+    [selectedTechs],
   );
 
-  const groupedKeywordGroups = useMemo(() => {
+  const groupedTechs = useMemo(() => {
     const buckets = new Map<string, string[]>();
-    for (const kg of company.keyword_groups) {
+    for (const kg of company.techs) {
       const raw = categoryMap.get(kg) ?? '';
       const cat = raw in CATEGORY_PRIORITY ? raw : '';
       if (!buckets.has(cat)) buckets.set(cat, []);
@@ -66,7 +66,7 @@ export function CompanyCard({
           remaining: Math.max(0, sorted.length - 5),
         };
       });
-  }, [company.keyword_groups, categoryMap, countMap, categoryLabelMap]);
+  }, [company.techs, categoryMap, countMap, categoryLabelMap]);
 
   let host = '';
   try {
@@ -105,9 +105,9 @@ export function CompanyCard({
         </div>
       </div>
 
-      {company.keyword_groups.length > 0 && (
+      {company.techs.length > 0 && (
         <div className="space-y-2">
-          {groupedKeywordGroups.map(group => (
+          {groupedTechs.map(group => (
             <div key={group.label}>
               <div className="mb-1.5 text-[10px] font-bold tracking-[0.15em] text-[#434653]">
                 {group.label}

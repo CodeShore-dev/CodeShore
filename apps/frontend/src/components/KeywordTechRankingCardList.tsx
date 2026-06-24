@@ -8,13 +8,13 @@ import { TechIcon } from './TechIcon';
 
 interface KeywordTechRankingCardListProps {
   title: string;
-  items: SupabaseView.MvKeywordGroupRanking[];
+  items: SupabaseView.MvTechRanking[];
   loading: boolean;
   getItems: (category: string) => void;
   moreTo?: string;
   titleHint?: ReactNode;
   renderMetric?: (
-    item: SupabaseView.MvKeywordGroupRanking,
+    item: SupabaseView.MvTechRanking,
   ) => ReactNode;
 }
 
@@ -130,12 +130,12 @@ export function KeywordTechRankingCardList({
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
           {items.map((item, i) => (
             <button
-              key={item.keyword_group}
+              key={item.tech}
               type="button"
               className={`group cursor-pointer flex-col rounded-xl bg-white p-4 text-left shadow-[0_24px_40px_rgba(0,31,42,0.06)] transition-all hover:-translate-y-0.5 active:scale-[0.98] ${
                 CARD_VISIBILITY[i] ?? 'hidden'
               }`}
-              onClick={() => goJobs({ tags: item.keyword_group })}
+              onClick={() => goJobs({ tags: item.tech })}
             >
               <div className="mb-2 flex flex-col items-start gap-1">
                 <div className="font-mono text-[10px] tracking-[0.15em] text-[#434653]">

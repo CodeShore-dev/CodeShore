@@ -8,7 +8,7 @@ import { renderWithProviders } from '../../../test/renderWithProviders';
 // factory below.
 const { rankingItem, comboItem } = vi.hoisted(() => ({
   rankingItem: {
-    keyword_group: 'react',
+    tech: 'react',
     label: 'React',
     icon_slugs: [],
     tags: [],
@@ -37,7 +37,7 @@ const { rankingItem, comboItem } = vi.hoisted(() => ({
 }));
 
 vi.mock('../../home/service', () => ({
-  fetchMvKeywordGroupRanking: vi
+  fetchMvTechRanking: vi
     .fn()
     .mockResolvedValue({ result: [rankingItem], count: 1 }),
   fetchMvTechComboStats: vi

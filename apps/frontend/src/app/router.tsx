@@ -6,7 +6,7 @@ import { LoginPage } from '../features/auth/pages/LoginPage';
 import { CompanyListPage } from '../features/company/pages/CompanyListPage';
 import { HomePage } from '../features/home/pages/HomePage';
 import { JobPreferencePage } from '../features/job/pages/JobPreferencePage';
-import { KeywordGroupManagerPage } from '../features/keyword/pages/KeywordGroupManagerPage';
+import { TechManagerPage } from '../features/keyword/pages/TechManagerPage';
 import { MethodologyPage } from '../features/methodology/pages/MethodologyPage';
 import { TechCombosPage } from '../features/techs/pages/TechCombosPage';
 import { TechRankingPage } from '../features/techs/pages/TechRankingPage';
@@ -49,7 +49,7 @@ export const router = createBrowserRouter(
           children: [
             { path: '/jobs', element: <JobPreferencePage /> },
             { path: '/companies', element: <CompanyListPage /> },
-            { path: '/keywords', element: <KeywordGroupManagerPage /> },
+            { path: '/keywords', element: <TechManagerPage /> },
             // Admin-only (nested below ProtectedRoute so anonymous users go to
             // /login first, then non-admins are sent home)
             {

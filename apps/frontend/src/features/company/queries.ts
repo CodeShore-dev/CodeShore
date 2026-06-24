@@ -7,7 +7,7 @@ import { fetchCompanies } from './service';
 const PAGE_SIZE = 18;
 
 // Builds the company list `where` clause (task 6.1), mirroring the Vue store:
-// company_name ilike search + keyword_groups contains/overlaps the selection.
+// company_name ilike search + techs contains/overlaps the selection.
 export function buildCompanyWhere(
   search: string,
   groups: string[],
@@ -19,7 +19,7 @@ export function buildCompanyWhere(
   }
   if (groups.length > 0) {
     const op = operator === 'or' ? 'ov' : 'cs';
-    conditions.keyword_groups = { [op]: `{${groups.join(',')}}` };
+    conditions.techs = { [op]: `{${groups.join(',')}}` };
   }
   return Object.keys(conditions).length > 0
     ? JSON.stringify(conditions)
@@ -28,8 +28,8 @@ export function buildCompanyWhere(
 
 export function useCompaniesQuery() {
   const search = useCompanyFilterStore(s => s.search);
-  const groups = useCompanyFilterStore(s => s.selectedKeywordGroups);
-  const operator = useCompanyFilterStore(s => s.keywordGroupOperator);
+  const groups = useCompanyFilterStore(s => s.selectedTechs);
+  const operator = useCompanyFilterStore(s => s.techOperator);
   const page = useCompanyFilterStore(s => s.page);
 
   const debouncedSearch = useDebouncedValue(search, 400);

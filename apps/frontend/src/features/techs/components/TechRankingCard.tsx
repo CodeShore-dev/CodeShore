@@ -8,7 +8,7 @@ import { toWanInt } from '../../../utils/format';
 import type { RankingMode } from '../hooks/useTechRanking';
 
 interface TechRankingCardProps {
-  item: SupabaseView.MvKeywordGroupRanking;
+  item: SupabaseView.MvTechRanking;
   rank: number;
   mode: RankingMode;
 }
@@ -28,7 +28,7 @@ export function TechRankingCard({ item, rank, mode }: TechRankingCardProps) {
   ];
 
   const goJobs = () =>
-    navigate(`/jobs?${new URLSearchParams({ tags: item.keyword_group })}`);
+    navigate(`/jobs?${new URLSearchParams({ tags: item.tech })}`);
 
   return (
     <button

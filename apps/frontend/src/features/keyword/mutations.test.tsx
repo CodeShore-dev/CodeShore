@@ -3,18 +3,18 @@ import { act, renderHook } from '@testing-library/react';
 import { type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { deleteKeywordGroup, deleteKeyword } = vi.hoisted(() => ({
-  deleteKeywordGroup: vi.fn(),
+const { deleteTech, deleteKeyword } = vi.hoisted(() => ({
+  deleteTech: vi.fn(),
   deleteKeyword: vi.fn(),
 }));
 
 vi.mock('./service', () => ({
-  deleteKeywordGroup,
+  deleteTech,
   deleteKeyword,
-  createKeywordGroup: vi.fn(),
-  updateKeywordGroup: vi.fn(),
-  updateKeywordGroupIconSlugs: vi.fn(),
-  resetMvKeywordGroup: vi.fn(),
+  createTech: vi.fn(),
+  updateTech: vi.fn(),
+  updateTechIconSlugs: vi.fn(),
+  resetMvTech: vi.fn(),
 }));
 
 import { useDeleteKeywordItemMutation } from './mutations';
@@ -37,9 +37,9 @@ describe('useDeleteKeywordItemMutation', () => {
   }
 
   it('optimistically removes the group and decrements the count', async () => {
-    deleteKeywordGroup.mockResolvedValue(undefined);
+    deleteTech.mockResolvedValue(undefined);
     client.setQueryData(adminKey, {
-      result: [{ keyword_group: 'g1' }, { keyword_group: 'g2' }],
+      result: [{ tech: 'g1' }, { tech: 'g2' }],
       count: 2,
     });
 
@@ -52,19 +52,19 @@ describe('useDeleteKeywordItemMutation', () => {
     });
 
     const data = client.getQueryData<{
-      result: { keyword_group: string }[];
+      result: { tech: string }[];
       count: number;
     }>(adminKey);
-    expect(data?.result.map(g => g.keyword_group)).toEqual(['g2']);
+    expect(data?.result.map(g => g.tech)).toEqual(['g2']);
     expect(data?.count).toBe(1);
-    expect(deleteKeywordGroup).toHaveBeenCalledWith('g1');
+    expect(deleteTech).toHaveBeenCalledWith('g1');
     expect(deleteKeyword).not.toHaveBeenCalled();
   });
 
   it('rolls back the optimistic removal when the request fails', async () => {
     deleteKeyword.mockRejectedValue(new Error('boom'));
     client.setQueryData(adminKey, {
-      result: [{ keyword_group: 'k1' }, { keyword_group: 'k2' }],
+      result: [{ tech: 'k1' }, { tech: 'k2' }],
       count: 2,
     });
 
@@ -79,10 +79,10 @@ describe('useDeleteKeywordItemMutation', () => {
     });
 
     const data = client.getQueryData<{
-      result: { keyword_group: string }[];
+      result: { tech: string }[];
       count: number;
     }>(adminKey);
-    expect(data?.result.map(g => g.keyword_group)).toEqual(['k1', 'k2']);
+    expect(data?.result.map(g => g.tech)).toEqual(['k1', 'k2']);
     expect(data?.count).toBe(2);
     expect(deleteKeyword).toHaveBeenCalledWith('k1');
   });

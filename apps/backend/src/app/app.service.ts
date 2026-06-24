@@ -3,7 +3,7 @@ import { Injectable } from '@nestjs/common';
 import type { SupabaseFunction } from '@codeshore/data-types';
 import { SCHEMA_SQL } from '@codeshore/data-types';
 import {
-  MvKeywordGroupRankingService,
+  MvTechRankingService,
   MvSalaryTypeMedianRatioService,
   MvSalaryWeightedRatioService,
   MvTechComboStatsService,
@@ -22,7 +22,7 @@ export class AppService {
     private readonly cacheService: CacheService,
     private readonly mvSalaryTypeMedianRatioService: MvSalaryTypeMedianRatioService,
     private readonly mvSalaryWeightedRatioService: MvSalaryWeightedRatioService,
-    private readonly mvKeywordGroupRankingService: MvKeywordGroupRankingService,
+    private readonly mvTechRankingService: MvTechRankingService,
     private readonly mvTechComboStatsService: MvTechComboStatsService,
   ) {}
 
@@ -50,17 +50,17 @@ export class AppService {
     return SCHEMA_SQL;
   }
 
-  async getMvKeywordGroupRanking(query: QueryDto) {
+  async getMvTechRanking(query: QueryDto) {
     const isTheRequestFromHomePage =
       query.from === 0 && query.to === 9;
     if (isTheRequestFromHomePage) {
       return this.cacheService.getOrSet(
-        `${MvKeywordGroupRankingService.name}:${JSON.stringify(query.where)}`,
+        `${MvTechRankingService.name}:${JSON.stringify(query.where)}`,
         () =>
-          this.mvKeywordGroupRankingService.fetchAll(query),
+          this.mvTechRankingService.fetchAll(query),
       );
     }
-    return this.mvKeywordGroupRankingService.fetchAll(
+    return this.mvTechRankingService.fetchAll(
       query,
     );
   }

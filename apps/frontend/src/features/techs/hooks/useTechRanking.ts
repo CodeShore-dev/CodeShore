@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 
 import { SupabaseView } from '@codeshore/data-types';
 
-import { fetchMvKeywordGroupRanking } from '../../home/service';
+import { fetchMvTechRanking } from '../../home/service';
 
 export type RankingMode = 'popular' | 'salary-year' | 'salary-month';
 
@@ -12,7 +12,7 @@ export type RankingMode = 'popular' | 'salary-year' | 'salary-month';
 export function useTechRanking() {
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<
-    SupabaseView.MvKeywordGroupRanking[]
+    SupabaseView.MvTechRanking[]
   >([]);
   const [totalCount, setTotalCount] = useState(0);
 
@@ -41,7 +41,7 @@ export function useTechRanking() {
       }
 
       try {
-        const { result, count } = await fetchMvKeywordGroupRanking({
+        const { result, count } = await fetchMvTechRanking({
           from,
           to,
           where: JSON.stringify(where),

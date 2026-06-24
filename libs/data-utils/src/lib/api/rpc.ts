@@ -38,7 +38,7 @@ export async function getJobPreferenceCount(
 }
 
 /**
- * job_keyword + keyword_group => keyword
+ * job_keyword + tech => keyword
  */
 export async function resetKeywords() {
   return getSupabaseClient().rpc('reset_keywords');

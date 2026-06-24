@@ -49,7 +49,7 @@ export const methodologySections: readonly MethodologySection[] =
             ],
             [
               '關鍵字重算（job-keyword）',
-              '不重新連線抓取，針對既有職缺描述以最新的關鍵字群組字典重新萃取技術關鍵字。',
+              '不重新連線抓取，針對既有職缺描述以最新的技術字典重新萃取技術關鍵字。',
             ],
           ],
         },
@@ -96,12 +96,12 @@ export const methodologySections: readonly MethodologySection[] =
               '每筆職缺萃取出的關鍵字陣列與中英文比例，供技術熱度分析使用。',
             ],
             [
-              'keyword / keyword_group / keyword_group_keyword / keyword_group_parent',
-              '關鍵字字典與群組映射：把零散關鍵字歸併為可分析的技術群組，並維護群組之間的階層關係（供技術組合分析）。',
+              'keyword / tech / tech_keyword / tech_parent',
+              '關鍵字字典與技術映射：把零散關鍵字歸併為可分析的技術，並維護技術之間的階層關係（供技術組合分析）。',
             ],
             [
-              'job_keyword_group',
-              '職缺與技術群組的對應表，是技術排行與技術組合統計的連結基礎。',
+              'job_tech',
+              '職缺與技術的對應表，是技術排行與技術組合統計的連結基礎。',
             ],
             [
               'location_group / location_group_location',
@@ -130,11 +130,11 @@ export const methodologySections: readonly MethodologySection[] =
           rows: [
             [
               'mv_job',
-              '對外呈現的職缺視圖：併入公司資訊、正規化地點、技術群組陣列，並對「面議 / 以上」薪資以市場加權比率補上推估平均薪資，供職缺列表與篩選。',
+              '對外呈現的職缺視圖：併入公司資訊、正規化地點、技術陣列，並對「面議 / 以上」薪資以市場加權比率補上推估平均薪資，供職缺列表與篩選。',
             ],
             [
               'mv_company',
-              '公司彙總：每間公司的有效職缺數與技術群組分布，供公司列表。',
+              '公司彙總：每間公司的有效職缺數與技術分布，供公司列表。',
             ],
             [
               'mv_salary_type_median_ratio',
@@ -149,20 +149,20 @@ export const methodologySections: readonly MethodologySection[] =
               '技術「兩兩組合」的職缺數與月 / 年薪各百分位統計，供熱門技術組合分析。',
             ],
             [
-              'mv_keyword_group',
-              '關鍵字群組彙總：每個群組的總出現次數、所屬關鍵字、階層關係與標籤 / 圖示，供技術熱度排行。',
+              'mv_tech',
+              '技術彙總：每個技術的總出現次數、所屬關鍵字、階層關係與標籤 / 圖示，供技術熱度排行。',
             ],
             [
-              'mv_keyword_group_ranking',
-              '各技術群組的職缺數與月 / 年薪各百分位（PR50 / PR75 / PR88）統計，供技術排行頁。',
+              'mv_tech_ranking',
+              '各技術的職缺數與月 / 年薪各百分位（PR50 / PR75 / PR88）統計，供技術排行頁。',
             ],
             [
-              'mv_keyword_group_category',
-              '技術群組的分類計數，供分類維度的彙總。',
+              'mv_tech_category',
+              '技術的分類計數，供分類維度的彙總。',
             ],
             [
-              'mv_keyword_group_tags',
-              '技術群組標籤的計數，供標籤維度的彙總。',
+              'mv_tech_tags',
+              '技術標籤的計數，供標籤維度的彙總。',
             ],
             [
               'mv_location_group',
@@ -202,7 +202,7 @@ export const methodologySections: readonly MethodologySection[] =
         },
         {
           kind: 'paragraph',
-          text: 'Index 設計目的：針對最常見的篩選與排序建立索引以加速查詢，避免全表掃描。例如：依「是否關閉」與「公司」過濾開放職缺、依薪資與更新時間排序（min_salary / max_salary / updated_at 複合索引）、依地點與薪資字串查詢、職缺與技術群組的關聯查詢、以及使用者偏好（user_id）查詢。物化視圖上的唯一索引同時讓視圖能以 CONCURRENTLY 方式重新整理；技術群組陣列等欄位另以 GIN 索引加速包含式查詢。',
+          text: 'Index 設計目的：針對最常見的篩選與排序建立索引以加速查詢，避免全表掃描。例如：依「是否關閉」與「公司」過濾開放職缺、依薪資與更新時間排序（min_salary / max_salary / updated_at 複合索引）、依地點與薪資字串查詢、職缺與技術的關聯查詢、以及使用者偏好（user_id）查詢。物化視圖上的唯一索引同時讓視圖能以 CONCURRENTLY 方式重新整理；技術陣列等欄位另以 GIN 索引加速包含式查詢。',
         },
         {
           kind: 'paragraph',

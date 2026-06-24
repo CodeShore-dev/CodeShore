@@ -3,15 +3,15 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ListResponse, SupabaseView } from '@codeshore/data-types';
 
 import {
-  createKeywordGroup,
+  createTech,
   deleteKeyword,
-  deleteKeywordGroup,
-  resetMvKeywordGroup,
-  updateKeywordGroup,
-  updateKeywordGroupIconSlugs,
+  deleteTech,
+  resetMvTech,
+  updateTech,
+  updateTechIconSlugs,
 } from './service';
 
-type AdminListData = ListResponse<SupabaseView.MvKeywordGroup>;
+type AdminListData = ListResponse<SupabaseView.MvTech>;
 
 export interface DeletableItem {
   id: string;
@@ -45,7 +45,7 @@ async function optimisticRemove(
     old => {
       if (!old) return old;
       const result = old.result.filter(
-        g => !idSet.has(g.keyword_group),
+        g => !idSet.has(g.tech),
       );
       const removed = old.result.length - result.length;
       return { ...old, result, count: Math.max(0, old.count - removed) };
@@ -62,13 +62,13 @@ function rollback(
 }
 
 // Deletes one item — a bare keyword (category === null) via deleteKeyword,
-// otherwise the whole group via deleteKeywordGroup (parity with the Vue card's
+// otherwise the whole group via deleteTech (parity with the Vue card's
 // handleDelete). Optimistic removal, rollback on error, invalidate on settle.
 export function useDeleteKeywordItemMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, isKeyword }: DeletableItem) =>
-      isKeyword ? deleteKeyword(id) : deleteKeywordGroup(id),
+      isKeyword ? deleteKeyword(id) : deleteTech(id),
     onMutate: ({ id }) => optimisticRemove(queryClient, [id]),
     onError: (_e, _v, prev) => prev && rollback(queryClient, prev),
     onSettled: () => invalidateCatalog(queryClient),
@@ -83,7 +83,7 @@ export function useBulkDeleteKeywordItemsMutation() {
     mutationFn: async (items: DeletableItem[]) => {
       for (const { id, isKeyword } of items) {
         if (isKeyword) await deleteKeyword(id);
-        else await deleteKeywordGroup(id);
+        else await deleteTech(id);
       }
     },
     onMutate: items => optimisticRemove(queryClient, items.map(i => i.id)),
@@ -99,7 +99,7 @@ export function useUpdateIconSlugsMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, iconSlugs }: { id: string; iconSlugs: string[] }) =>
-      updateKeywordGroupIconSlugs(id, iconSlugs),
+      updateTechIconSlugs(id, iconSlugs),
     onMutate: async ({ id, iconSlugs }) => {
       await queryClient.cancelQueries({ queryKey: ['keyword', 'admin'] });
       const prev = queryClient.getQueriesData<AdminListData>({
@@ -112,7 +112,7 @@ export function useUpdateIconSlugsMutation() {
             ? {
                 ...old,
                 result: old.result.map(g =>
-                  g.keyword_group === id
+                  g.tech === id
                     ? { ...g, icon_slugs: iconSlugs }
                     : g,
                 ),
@@ -129,13 +129,13 @@ export function useUpdateIconSlugsMutation() {
 export function useRefreshCatalogMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => resetMvKeywordGroup(),
+    mutationFn: () => resetMvTech(),
     onSuccess: () => invalidateCatalog(queryClient),
   });
 }
 
 // Creates a new keyword group (task 8.2).
-export function useCreateKeywordGroupMutation() {
+export function useCreateTechMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({
@@ -148,14 +148,14 @@ export function useCreateKeywordGroupMutation() {
       keywords?: string[];
       category?: string | null;
       parent?: string | null;
-    }) => createKeywordGroup(id, keywords, category, parent),
+    }) => createTech(id, keywords, category, parent),
     onSuccess: () => invalidateCatalog(queryClient),
   });
 }
 
 // Updates a group's keywords / category / parent (edit + category assignment +
 // parent hierarchy, task 8.2).
-export function useUpdateKeywordGroupMutation() {
+export function useUpdateTechMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({
@@ -168,7 +168,7 @@ export function useUpdateKeywordGroupMutation() {
         category?: string | null;
         parent?: string | null;
       };
-    }) => updateKeywordGroup(id, data),
+    }) => updateTech(id, data),
     onSuccess: () => invalidateCatalog(queryClient),
   });
 }
@@ -183,9 +183,9 @@ export function useAssignKeywordToGroupMutation() {
       group,
     }: {
       keyword: string;
-      group: SupabaseView.MvKeywordGroup;
+      group: SupabaseView.MvTech;
     }) =>
-      updateKeywordGroup(group.keyword_group, {
+      updateTech(group.tech, {
         keywords: [...(group.keywords ?? []), keyword],
         category: group.category ?? null,
         parent: group.parents?.[0] ?? null,

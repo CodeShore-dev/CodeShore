@@ -7,7 +7,7 @@ import { SupabaseView } from '@codeshore/data-types';
 
 import { formatDateInfo } from '../../../utils/format';
 import { useCanEdit } from '../../auth/authStore';
-import { useKeywordGroupsQuery } from '../../keyword/queries';
+import { useTechsQuery } from '../../keyword/queries';
 import { useKeywordFilterStore } from '../../keyword/keywordFilterStore';
 import type { useCrawlStream } from '../hooks/useCrawlStream';
 import { JobCardSkeleton } from './JobCardSkeleton';
@@ -29,7 +29,7 @@ interface JobCardProps {
 // Full job detail card shown in the drawer (task 7.5), ported from JobCard.vue.
 export function JobCard({ job = {}, loading, crawl }: JobCardProps) {
   const canEdit = useCanEdit();
-  const { data: keywordGroups = [] } = useKeywordGroupsQuery();
+  const { data: techs = [] } = useTechsQuery();
   const selectedTags = useKeywordFilterStore(s => s.selectedTags);
 
   const [keywordTooltip, setKeywordTooltip] =
@@ -40,25 +40,25 @@ export function JobCard({ job = {}, loading, crawl }: JobCardProps) {
     y: number;
   } | null>(null);
 
-  const keywordGroupMapping = useMemo(
+  const techMapping = useMemo(
     () =>
-      job.keyword_group_mappings
+      job.tech_mappings
         ?.filter(Boolean)
         .map(x => x.split(':'))
         .map(([key, value]) => {
-          const group = keywordGroups.find(g => g.keyword_group === key);
+          const group = techs.find(g => g.tech === key);
           return { key, label: group?.label, value: value.split(',') };
         }) ?? [],
-    [job.keyword_group_mappings, keywordGroups],
+    [job.tech_mappings, techs],
   );
 
   const allKeywords = useMemo(
     () =>
-      keywordGroupMapping
-        .filter(x => keywordGroups.some(y => y.keyword_group === x.key))
+      techMapping
+        .filter(x => techs.some(y => y.tech === x.key))
         .flatMap(m => m.value)
         .sort((a, b) => b.length - a.length),
-    [keywordGroupMapping, keywordGroups],
+    [techMapping, techs],
   );
 
   const selectedKeywordsSet = useMemo(
@@ -66,11 +66,11 @@ export function JobCard({ job = {}, loading, crawl }: JobCardProps) {
       new Set(
         selectedTags
           .flatMap(
-            x => keywordGroupMapping.find(y => y.key === x)?.value ?? [],
+            x => techMapping.find(y => y.key === x)?.value ?? [],
           )
           .map(k => k.toLowerCase()),
       ),
-    [selectedTags, keywordGroupMapping],
+    [selectedTags, techMapping],
   );
 
   const updatedAt = useMemo(() => dayjs(job.updated_at), [job.updated_at]);
@@ -156,7 +156,7 @@ export function JobCard({ job = {}, loading, crawl }: JobCardProps) {
             </div>
 
             <JobKeywordChips
-              mapping={keywordGroupMapping}
+              mapping={techMapping}
               selectedKeywordsSet={selectedKeywordsSet}
             />
             <JobHandoffCTA detailLink={job.detail_link} />
@@ -217,7 +217,7 @@ export function JobCard({ job = {}, loading, crawl }: JobCardProps) {
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-[#434653]">尚無群組資料</p>
+                <p className="text-sm text-[#434653]">尚無技術資料</p>
               )}
             </div>
           </div>,

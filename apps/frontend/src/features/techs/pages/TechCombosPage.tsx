@@ -37,9 +37,9 @@ export function TechCombosPage() {
     initialized.current = true;
     const queryTech = searchParams.get('tech');
     const initial =
-      queryTech && languages.some(l => l.keyword_group === queryTech)
+      queryTech && languages.some(l => l.tech === queryTech)
         ? queryTech
-        : languages[0]?.keyword_group;
+        : languages[0]?.tech;
     if (initial) setSelectedTech(initial);
   }, [languages, searchParams]);
 
@@ -50,7 +50,7 @@ export function TechCombosPage() {
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const selectedLabel =
-    languages.find(l => l.keyword_group === selectedTech)?.label ??
+    languages.find(l => l.tech === selectedTech)?.label ??
     selectedTech;
 
   const setTech = (value: string) => {
@@ -104,14 +104,14 @@ export function TechCombosPage() {
         <div className="mb-6 flex flex-wrap gap-2">
           {languages.map(lang => (
             <button
-              key={lang.keyword_group}
+              key={lang.tech}
               type="button"
               className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-bold transition-colors ${
-                selectedTech === lang.keyword_group
+                selectedTech === lang.tech
                   ? 'border-[#003d92] bg-[#003d92] text-white'
                   : 'border-[#c9e7f7] bg-white text-[#434653] hover:bg-[#d9f2ff]'
               }`}
-              onClick={() => setTech(lang.keyword_group)}
+              onClick={() => setTech(lang.tech)}
             >
               {lang.label}
             </button>

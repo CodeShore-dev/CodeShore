@@ -10,13 +10,13 @@ import { KeywordTechRankingCardList } from './KeywordTechRankingCardList';
 
 const items = [
   {
-    keyword_group: 'react',
+    tech: 'react',
     label: 'React',
     icon_slugs: [],
     tags: [],
     job_count: 1234,
   },
-] as unknown as SupabaseView.MvKeywordGroupRanking[];
+] as unknown as SupabaseView.MvTechRanking[];
 
 function renderList(getItems = vi.fn()) {
   render(

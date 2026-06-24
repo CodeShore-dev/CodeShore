@@ -44,7 +44,7 @@ export function deriveJobWhere(
     if (hasExclude) {
       conditions['not.ov'] = `{${input.excludedTags.join(',')}}`;
     }
-    where.keyword_groups = conditions;
+    where.techs = conditions;
   }
 
   if (input.salaryFilter === 'excluding') {

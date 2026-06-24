@@ -143,7 +143,7 @@ export function TechRankingPage() {
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
             {items.map((item, i) => (
               <TechRankingCard
-                key={item.keyword_group}
+                key={item.tech}
                 item={item}
                 rank={(page - 1) * PAGE_SIZE + i + 1}
                 mode={mode}

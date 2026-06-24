@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import {
-  MvKeywordGroupRankingService,
+  MvTechRankingService,
   MvSalaryTypeMedianRatioService,
   MvSalaryWeightedRatioService,
   MvTechComboStatsService,
@@ -37,7 +37,7 @@ import { AppService } from './app.service';
     AppService,
     provideWithLogger(MvSalaryTypeMedianRatioService),
     provideWithLogger(MvSalaryWeightedRatioService),
-    provideWithLogger(MvKeywordGroupRankingService),
+    provideWithLogger(MvTechRankingService),
     provideWithLogger(MvTechComboStatsService),
   ],
 })

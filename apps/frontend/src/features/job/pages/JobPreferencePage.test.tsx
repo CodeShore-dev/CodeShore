@@ -20,7 +20,7 @@ vi.mock('../service', () => ({
         detail_link: 'https://example.com/1',
         updated_at: '2026-06-23T00:00:00Z',
         description: '',
-        keyword_group_mappings: [],
+        tech_mappings: [],
       },
       {
         id: 'job-2',
@@ -32,7 +32,7 @@ vi.mock('../service', () => ({
         detail_link: 'https://example.com/2',
         updated_at: '2026-06-23T00:00:00Z',
         description: '',
-        keyword_group_mappings: [],
+        tech_mappings: [],
       },
     ],
     count: 2,
@@ -60,9 +60,9 @@ vi.mock('../../home/service', () => ({
 }));
 
 vi.mock('../../keyword/service', () => ({
-  fetchMvKeywordGroup: vi.fn().mockResolvedValue({ result: [] }),
-  fetchKeywordGroupCategories: vi.fn().mockResolvedValue({ result: [] }),
-  updateKeywordGroup: vi.fn().mockResolvedValue(undefined),
+  fetchMvTech: vi.fn().mockResolvedValue({ result: [] }),
+  fetchTechCategories: vi.fn().mockResolvedValue({ result: [] }),
+  updateTech: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { JobPreferencePage } from './JobPreferencePage';

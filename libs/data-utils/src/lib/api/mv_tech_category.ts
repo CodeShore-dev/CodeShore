@@ -6,11 +6,11 @@ import { getSupabaseClient } from '@codeshore/supabase';
 
 import { MaterializedViewService } from '../shared-services/supabase/materialized-view.service';
 
-export class MvKeywordGroupTagsService extends MaterializedViewService<SupabaseView.MvKeywordGroupTags> {
+export class MvTechCategoryService extends MaterializedViewService<SupabaseView.MvTechCategory> {
   constructor(logger?: ServiceLogger) {
     super(
       getSupabaseClient(),
-      'mv_keyword_group_tags',
+      'mv_tech_category',
       logger,
     );
   }

@@ -28,11 +28,11 @@ export const fetchJobCount = async () => {
   return res.data;
 };
 
-export const fetchMvKeywordGroupRanking = async (
+export const fetchMvTechRanking = async (
   query: ListQuery,
 ) => {
   const res = await httpClient.get<
-    ListResponse<SupabaseView.MvKeywordGroupRanking>
+    ListResponse<SupabaseView.MvTechRanking>
   >('/api/keyword/group/ranking', { params: query });
   return res.data;
 };

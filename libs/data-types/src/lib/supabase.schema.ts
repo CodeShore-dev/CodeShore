@@ -152,46 +152,6 @@ export type Database = {
           },
         ]
       }
-      job_keyword_group: {
-        Row: {
-          job_id: string
-          keyword_group: string
-          keywords: string
-        }
-        Insert: {
-          job_id: string
-          keyword_group: string
-          keywords: string
-        }
-        Update: {
-          job_id?: string
-          keyword_group?: string
-          keywords?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "job_join_keyword_group_job_id_fkey"
-            columns: ["job_id"]
-            isOneToOne: false
-            referencedRelation: "job"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "job_join_keyword_group_job_id_fkey"
-            columns: ["job_id"]
-            isOneToOne: false
-            referencedRelation: "mv_job"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "job_join_keyword_group_keyword_group_fkey"
-            columns: ["keyword_group"]
-            isOneToOne: false
-            referencedRelation: "keyword_group"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       job_preference: {
         Row: {
           job_id: string
@@ -258,6 +218,46 @@ export type Database = {
         }
         Relationships: []
       }
+      job_tech: {
+        Row: {
+          job_id: string
+          keywords: string
+          tech: string
+        }
+        Insert: {
+          job_id: string
+          keywords: string
+          tech: string
+        }
+        Update: {
+          job_id?: string
+          keywords?: string
+          tech?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_join_tech_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_join_tech_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mv_job"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_join_tech_tech_fkey"
+            columns: ["tech"]
+            isOneToOne: false
+            referencedRelation: "tech"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       keyword: {
         Row: {
           count: number
@@ -284,90 +284,6 @@ export type Database = {
           id?: string
         }
         Relationships: []
-      }
-      keyword_group: {
-        Row: {
-          category: string
-          icon_slugs: string[] | null
-          id: string
-          label: string
-          tags: string[] | null
-        }
-        Insert: {
-          category: string
-          icon_slugs?: string[] | null
-          id: string
-          label: string
-          tags?: string[] | null
-        }
-        Update: {
-          category?: string
-          icon_slugs?: string[] | null
-          id?: string
-          label?: string
-          tags?: string[] | null
-        }
-        Relationships: []
-      }
-      keyword_group_keyword: {
-        Row: {
-          keyword: string
-          keyword_group: string
-        }
-        Insert: {
-          keyword: string
-          keyword_group: string
-        }
-        Update: {
-          keyword?: string
-          keyword_group?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "keyword_group_join_keyword_keyword_group_fkey"
-            columns: ["keyword_group"]
-            isOneToOne: false
-            referencedRelation: "keyword_group"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "keyword_group_keyword_mapping_keyword_fkey"
-            columns: ["keyword"]
-            isOneToOne: false
-            referencedRelation: "keyword"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      keyword_group_parent: {
-        Row: {
-          child: string
-          parent: string
-        }
-        Insert: {
-          child: string
-          parent: string
-        }
-        Update: {
-          child?: string
-          parent?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "keyword_group_parent_child_fkey"
-            columns: ["child"]
-            isOneToOne: false
-            referencedRelation: "keyword_group"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "keyword_group_parent_parent_fkey"
-            columns: ["parent"]
-            isOneToOne: false
-            referencedRelation: "keyword_group"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       location_group: {
         Row: {
@@ -411,6 +327,90 @@ export type Database = {
           },
         ]
       }
+      tech: {
+        Row: {
+          category: string
+          icon_slugs: string[] | null
+          id: string
+          label: string
+          tags: string[] | null
+        }
+        Insert: {
+          category: string
+          icon_slugs?: string[] | null
+          id: string
+          label: string
+          tags?: string[] | null
+        }
+        Update: {
+          category?: string
+          icon_slugs?: string[] | null
+          id?: string
+          label?: string
+          tags?: string[] | null
+        }
+        Relationships: []
+      }
+      tech_keyword: {
+        Row: {
+          keyword: string
+          tech: string
+        }
+        Insert: {
+          keyword: string
+          tech: string
+        }
+        Update: {
+          keyword?: string
+          tech?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tech_keyword_join_tech_fkey"
+            columns: ["tech"]
+            isOneToOne: false
+            referencedRelation: "tech"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tech_keyword_mapping_keyword_fkey"
+            columns: ["keyword"]
+            isOneToOne: false
+            referencedRelation: "keyword"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tech_parent: {
+        Row: {
+          child: string
+          parent: string
+        }
+        Insert: {
+          child: string
+          parent: string
+        }
+        Update: {
+          child?: string
+          parent?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tech_parent_child_fkey"
+            columns: ["child"]
+            isOneToOne: false
+            referencedRelation: "tech"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tech_parent_parent_fkey"
+            columns: ["parent"]
+            isOneToOne: false
+            referencedRelation: "tech"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       mv_company: {
@@ -420,7 +420,7 @@ export type Database = {
           company_name: string | null
           company_type: string | null
           job_count: number | null
-          keyword_groups: string[] | null
+          techs: string[] | null
         }
         Relationships: []
       }
@@ -437,69 +437,15 @@ export type Database = {
           description_ch_en_ratio: number | null
           detail_link: string | null
           id: string | null
-          keyword_group_mappings: string[] | null
-          keyword_groups: string[] | null
           location: string | null
           max_salary: number | null
           min_salary: number | null
           salary: string | null
           salary_type: string | null
+          tech_mappings: string[] | null
+          techs: string[] | null
           title: string | null
           updated_at: string | null
-        }
-        Relationships: []
-      }
-      mv_keyword_group: {
-        Row: {
-          category: string | null
-          children: string[] | null
-          count: number | null
-          icon_slugs: string[] | null
-          keyword_group: string | null
-          keywords: string[] | null
-          label: string | null
-          parents: string[] | null
-          tags: string[] | null
-        }
-        Relationships: []
-      }
-      mv_keyword_group_category: {
-        Row: {
-          category: string | null
-          count: number | null
-        }
-        Relationships: []
-      }
-      mv_keyword_group_ranking: {
-        Row: {
-          category: string | null
-          icon_slugs: string[] | null
-          job_count: number | null
-          keyword_group: string | null
-          label: string | null
-          month_median_avg: number | null
-          month_pr75_avg: number | null
-          month_pr88_avg: number | null
-          tags: string[] | null
-          year_median_avg: number | null
-          year_pr75_avg: number | null
-          year_pr88_avg: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "job_join_keyword_group_keyword_group_fkey"
-            columns: ["keyword_group"]
-            isOneToOne: false
-            referencedRelation: "keyword_group"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      mv_keyword_group_tags: {
-        Row: {
-          category: string | null
-          count: number | null
-          tag: string | null
         }
         Relationships: []
       }
@@ -523,6 +469,27 @@ export type Database = {
         Row: {
           ratio: number | null
           salary_type: string | null
+        }
+        Relationships: []
+      }
+      mv_tech: {
+        Row: {
+          category: string | null
+          children: string[] | null
+          count: number | null
+          icon_slugs: string[] | null
+          keywords: string[] | null
+          label: string | null
+          parents: string[] | null
+          tags: string[] | null
+          tech: string | null
+        }
+        Relationships: []
+      }
+      mv_tech_category: {
+        Row: {
+          category: string | null
+          count: number | null
         }
         Relationships: []
       }
@@ -557,6 +524,39 @@ export type Database = {
           year_median_avg: number | null
           year_pr75_avg: number | null
           year_pr88_avg: number | null
+        }
+        Relationships: []
+      }
+      mv_tech_ranking: {
+        Row: {
+          category: string | null
+          icon_slugs: string[] | null
+          job_count: number | null
+          label: string | null
+          month_median_avg: number | null
+          month_pr75_avg: number | null
+          month_pr88_avg: number | null
+          tags: string[] | null
+          tech: string | null
+          year_median_avg: number | null
+          year_pr75_avg: number | null
+          year_pr88_avg: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_join_tech_tech_fkey"
+            columns: ["tech"]
+            isOneToOne: false
+            referencedRelation: "tech"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mv_tech_tags: {
+        Row: {
+          category: string | null
+          count: number | null
+          tag: string | null
         }
         Relationships: []
       }
@@ -602,14 +602,14 @@ export type Database = {
           description_ch_en_ratio: number
           detail_link: string
           id: string
-          keyword_group_mappings: string[]
-          keyword_groups: string[]
           location: string
           max_salary: number
           min_salary: number
           preference_updated_at: string
           salary: string
           salary_type: string
+          tech_mappings: string[]
+          techs: string[]
           title: string
           updated_at: string
         }[]
@@ -669,13 +669,13 @@ export type Database = {
           description_ch_en_ratio: number | null
           detail_link: string | null
           id: string | null
-          keyword_group_mappings: string[] | null
-          keyword_groups: string[] | null
           location: string | null
           max_salary: number | null
           min_salary: number | null
           salary: string | null
           salary_type: string | null
+          tech_mappings: string[] | null
+          techs: string[] | null
           title: string | null
           updated_at: string | null
         }[]
@@ -695,14 +695,14 @@ export type Database = {
       }
       refresh_mv_company: { Args: never; Returns: undefined }
       refresh_mv_job: { Args: never; Returns: undefined }
-      refresh_mv_keyword_group: { Args: never; Returns: undefined }
-      refresh_mv_keyword_group_category: { Args: never; Returns: undefined }
-      refresh_mv_keyword_group_ranking: { Args: never; Returns: undefined }
-      refresh_mv_keyword_group_tags: { Args: never; Returns: undefined }
       refresh_mv_location_group: { Args: never; Returns: undefined }
       refresh_mv_salary_type_median_ratio: { Args: never; Returns: undefined }
       refresh_mv_salary_weighted_ratio: { Args: never; Returns: undefined }
+      refresh_mv_tech: { Args: never; Returns: undefined }
+      refresh_mv_tech_category: { Args: never; Returns: undefined }
       refresh_mv_tech_combo_stats: { Args: never; Returns: undefined }
+      refresh_mv_tech_ranking: { Args: never; Returns: undefined }
+      refresh_mv_tech_tags: { Args: never; Returns: undefined }
       reset_keywords: { Args: never; Returns: undefined }
     }
     Enums: {

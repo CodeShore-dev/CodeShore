@@ -32,8 +32,8 @@ export class Controller {
     description:
       'Reads from the keyword-group materialized view. When from=0 and to=-1 (fetch all), the result is served from the server-side cache. Example: /keyword/group?from=0&to=-1 returns the full grouping; /keyword/group?from=0&to=20&orders=count:desc returns the top 20.',
   })
-  async getMvKeywordGroup(@Query() query: QueryDto) {
-    return this.service.getMvKeywordGroup(query);
+  async getMvTech(@Query() query: QueryDto) {
+    return this.service.getMvTech(query);
   }
 
   @Get('group/category')
@@ -42,21 +42,21 @@ export class Controller {
     description:
       'Returns the aggregated categories of keyword groups. Cached. Uses the shared QueryDto for from/to pagination, orders sorting and where filtering. Example: /keyword/group/category?orders=count:desc',
   })
-  async getKeywordGroupCategories(
+  async getTechCategories(
     @Query() query: QueryDto,
   ) {
-    return this.service.getKeywordGroupCategories(query);
+    return this.service.getTechCategories(query);
   }
 
   @Post('group/reset')
   @ApiOperation({
     summary: 'Rebuild keyword-related tables (admin only)',
     description:
-      'Recomputes and rebuilds the relations between job_keywords, keywords and job_keyword_group. This is an expensive maintenance operation, restricted to admin users, and takes no parameters.',
+      'Recomputes and rebuilds the relations between job_keywords, keywords and job_tech. This is an expensive maintenance operation, restricted to admin users, and takes no parameters.',
   })
   @AdminOnly()
-  resetJobKeywords_Keywords_JobKeywordGroup() {
-    return this.service.resetJobKeywords_Keywords_JobKeywordGroup();
+  resetJobKeywords_Keywords_JobTech() {
+    return this.service.resetJobKeywords_Keywords_JobTech();
   }
 
   @Patch('group/icon-slugs')
@@ -64,13 +64,13 @@ export class Controller {
     summary:
       'Update the ordered icon sources of a keyword group (admin only)',
     description:
-      "Replaces keyword_group.icon_slugs with the given ordered list ('source:slug', earlier = higher priority) and refreshes the keyword-group materialized view. The id is in the body so keyword ids containing slashes are handled.",
+      "Replaces tech.icon_slugs with the given ordered list ('source:slug', earlier = higher priority) and refreshes the keyword-group materialized view. The id is in the body so keyword ids containing slashes are handled.",
   })
   @AdminOnly()
-  updateKeywordGroupIconSlugs(
+  updateTechIconSlugs(
     @Body() dto: UpdateIconSlugsDto,
   ) {
-    return this.service.updateKeywordGroupIconSlugs(
+    return this.service.updateTechIconSlugs(
       dto.id,
       dto.icon_slugs,
     );

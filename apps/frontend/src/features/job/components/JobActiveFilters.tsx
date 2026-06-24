@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 
-import { useKeywordGroupsQuery } from '../../keyword/queries';
+import { useTechsQuery } from '../../keyword/queries';
 import { useKeywordFilterStore } from '../../keyword/keywordFilterStore';
 import { useJobFilterStore } from '../jobFilterStore';
 
@@ -37,7 +37,7 @@ interface JobActiveFiltersProps {
 
 // Active filter chip bar (task 7.5), ported from JobActiveFilters.vue.
 export function JobActiveFilters({ onClearAll }: JobActiveFiltersProps) {
-  const { data: keywordGroups = [] } = useKeywordGroupsQuery();
+  const { data: techs = [] } = useTechsQuery();
 
   const searchText = useJobFilterStore(s => s.searchText);
   const companySearchText = useJobFilterStore(s => s.companySearchText);
@@ -59,8 +59,8 @@ export function JobActiveFilters({ onClearAll }: JobActiveFiltersProps) {
 
   const groupLabelMap = useMemo(
     () =>
-      Object.fromEntries(keywordGroups.map(g => [g.keyword_group, g.label])),
-    [keywordGroups],
+      Object.fromEntries(techs.map(g => [g.tech, g.label])),
+    [techs],
   );
   const kwLabel = (tag: string) => groupLabelMap[tag] ?? tag;
 

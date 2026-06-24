@@ -4,18 +4,18 @@ import { parseKeywordsOut } from '@codeshore/shared-utils';
 import { JobService } from './api/job.service';
 import { JobDescriptionBinService } from './api/job_description_bin.service';
 import { JobKeywordService } from './api/job_keyword.service';
-import { JobKeywordGroupService } from './api/job_keyword_group.service';
-import { MvKeywordGroupService } from './api/mv_keyword_group';
+import { JobTechService } from './api/job_tech.service';
+import { MvTechService } from './api/mv_tech';
 import { resetKeywords } from './api/rpc';
 
 export async function resetJobKeywords(
-  keywordGroup?: string,
+  tech?: string,
   keyword?: string,
 ) {
   const { result: jobDescriptionBins } =
     await new JobDescriptionBinService().fetchAll();
-  const { result: keywordGroups } =
-    await new MvKeywordGroupService().fetchAll({
+  const { result: techs } =
+    await new MvTechService().fetchAll({
       where: { category: { 'not.is': null } },
     });
   const { result: jobs } =
@@ -27,10 +27,10 @@ export async function resetJobKeywords(
         jobDescriptionBins.reduce((prev, curr) => {
           return prev.replace(curr.content, '');
         }, x.description),
-        keywordGroups
+        techs
           .flatMap(m => m.keywords)
           .concat(
-            [keywordGroup, keyword].filter(
+            [tech, keyword].filter(
               Boolean,
             ) as string[],
           ),
@@ -39,12 +39,12 @@ export async function resetJobKeywords(
   return new JobKeywordService().upsert(jobKeywords);
 }
 
-export async function resetJobKeywords_Keywords_JobKeywordGroup(
-  keywordGroup?: string,
+export async function resetJobKeywords_Keywords_JobTech(
+  tech?: string,
   keyword?: string,
 ) {
-  await resetJobKeywords(keywordGroup, keyword);
+  await resetJobKeywords(tech, keyword);
   await resetKeywords();
-  await new MvKeywordGroupService().refresh();
-  await new JobKeywordGroupService().resetByJobKeywords();
+  await new MvTechService().refresh();
+  await new JobTechService().resetByJobKeywords();
 }

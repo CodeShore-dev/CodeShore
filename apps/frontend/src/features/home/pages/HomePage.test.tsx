@@ -35,7 +35,7 @@ vi.mock('../service', () => ({
       year_salary_type_jobs: 2000,
     },
   ]),
-  fetchMvKeywordGroupRanking: vi.fn().mockResolvedValue({ result: [] }),
+  fetchMvTechRanking: vi.fn().mockResolvedValue({ result: [] }),
   fetchMvTechComboStats: vi.fn().mockResolvedValue({ result: [] }),
 }));
 

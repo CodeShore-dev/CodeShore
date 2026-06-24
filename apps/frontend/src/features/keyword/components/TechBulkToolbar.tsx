@@ -2,22 +2,22 @@ import { SupabaseView } from '@codeshore/data-types';
 
 import { useCanEdit } from '../../auth/authStore';
 import { useBulkDeleteKeywordItemsMutation } from '../mutations';
-import { useKeywordGroupStore } from '../keywordGroupStore';
+import { useTechStore } from '../techStore';
 
-interface KeywordGroupBulkToolbarProps {
-  groups: SupabaseView.MvKeywordGroup[];
+interface TechBulkToolbarProps {
+  groups: SupabaseView.MvTech[];
 }
 
 // Bulk-selection toolbar (task 8.3). Shown only to editors while select mode is
 // on; select-all toggles the current page, delete removes the selected items.
-export function KeywordGroupBulkToolbar({
+export function TechBulkToolbar({
   groups,
-}: KeywordGroupBulkToolbarProps) {
+}: TechBulkToolbarProps) {
   const canEdit = useCanEdit();
-  const selectMode = useKeywordGroupStore(s => s.selectMode);
-  const selectedIds = useKeywordGroupStore(s => s.selectedIds);
-  const selectAll = useKeywordGroupStore(s => s.selectAll);
-  const clearSelection = useKeywordGroupStore(s => s.clearSelection);
+  const selectMode = useTechStore(s => s.selectMode);
+  const selectedIds = useTechStore(s => s.selectedIds);
+  const selectAll = useTechStore(s => s.selectAll);
+  const clearSelection = useTechStore(s => s.clearSelection);
   const bulkDelete = useBulkDeleteKeywordItemsMutation();
 
   if (!canEdit || !selectMode) return null;
@@ -27,7 +27,7 @@ export function KeywordGroupBulkToolbar({
 
   const handleToggleSelectAll = (): void => {
     if (allSelected) clearSelection();
-    else selectAll(groups.map(g => g.keyword_group));
+    else selectAll(groups.map(g => g.tech));
   };
 
   const handleDeleteSelected = async (): Promise<void> => {
@@ -39,8 +39,8 @@ export function KeywordGroupBulkToolbar({
     )
       return;
     const items = groups
-      .filter(g => selectedIds.has(g.keyword_group))
-      .map(g => ({ id: g.keyword_group, isKeyword: g.category === null }));
+      .filter(g => selectedIds.has(g.tech))
+      .map(g => ({ id: g.tech, isKeyword: g.category === null }));
     await bulkDelete.mutateAsync(items);
     clearSelection();
   };
