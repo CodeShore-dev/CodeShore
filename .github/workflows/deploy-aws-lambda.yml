@@ -88,15 +88,20 @@ jobs:
       - name: Ensure public Function URL
         run: |
           set -e
-          if ! aws lambda get-function-url-config --function-name "$FUNCTION_NAME" >/dev/null 2>&1; then
+          # 每次都校正 auth-type = NONE（建立或更新），避免既有 URL 卡在 IAM 授權
+          if aws lambda get-function-url-config --function-name "$FUNCTION_NAME" >/dev/null 2>&1; then
+            aws lambda update-function-url-config \
+              --function-name "$FUNCTION_NAME" --auth-type NONE >/dev/null
+          else
             aws lambda create-function-url-config \
               --function-name "$FUNCTION_NAME" --auth-type NONE >/dev/null
-            aws lambda add-permission \
-              --function-name "$FUNCTION_NAME" \
-              --statement-id FunctionURLAllowPublicAccess \
-              --action lambda:InvokeFunctionUrl \
-              --principal "*" --function-url-auth-type NONE >/dev/null || true
           fi
+          # 確保有公開呼叫權限（已存在會回 ResourceConflictException，忽略即可）
+          aws lambda add-permission \
+            --function-name "$FUNCTION_NAME" \
+            --statement-id FunctionURLAllowPublicAccess \
+            --action lambda:InvokeFunctionUrl \
+            --principal "*" --function-url-auth-type NONE >/dev/null 2>&1 || true
           URL=$(aws lambda get-function-url-config \
             --function-name "$FUNCTION_NAME" --query FunctionUrl --output text)
           echo "### Lambda Function URL: $URL" >> "$GITHUB_STEP_SUMMARY"
