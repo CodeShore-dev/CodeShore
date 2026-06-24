@@ -15,6 +15,8 @@ on:
   workflow_dispatch: {}
 
 env:
+  # AWS 端不需要 Chrome 爬蟲，跳過 puppeteer / rebrowser-puppeteer 的 Chrome 下載
+  PUPPETEER_SKIP_DOWNLOAD: 'true'
   FUNCTION_NAME: codeshore
   # CloudFront 受管政策 ID（全帳號通用固定值）
   CACHE_OPTIMIZED: 658327ea-f89d-4fab-a63d-7e88639e58f6
