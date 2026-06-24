@@ -12,12 +12,12 @@ name: Deploy to Azure (Container Apps)
 #   az provider register -n Microsoft.App --wait
 # （不用 Log Analytics，故不需註冊 Microsoft.OperationalInsights）
 #
-# 預設「只手動觸發」(workflow_dispatch)，避免在未設定 AZURE_CREDENTIALS 時隨每次 push 失敗。
-# 若要改回 push 自動部署，取消下方 push 區塊的註解。
+# 觸發：push 到 main 自動部署，外加 workflow_dispatch 可手動 Run。
+# 注意：必須先設好 AZURE_CREDENTIALS 等 Secrets，否則每次 push 都會失敗。
 on:
   workflow_dispatch: {}
-  # push:
-  #   branches: [main]
+  push:
+    branches: [main]
 
 env:
   IMAGE: ghcr.io/${{ github.repository }}/codeshore
