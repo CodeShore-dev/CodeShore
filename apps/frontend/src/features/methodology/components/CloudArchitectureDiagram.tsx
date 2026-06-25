@@ -11,10 +11,10 @@ export interface CloudArchitectureDiagramProps {
 }
 
 /**
- * 雲端架構關係圖（單一視角）：依供應商分「區塊」框起來（Cloudflare／AWS／GCP／Azure／
+ * 雲端與 CI/CD 架構（單一視角）：依供應商分「區塊」框起來（Cloudflare／AWS／GCP／Azure／
  * 共用），區塊內節點以品牌圖示 + 名稱 + 負責任務呈現；節點間以箭頭表達關係。疊層繪製：
  * 底層 SVG 畫區塊框與箭頭，上層為可點的 HTML 節點按鈕。整張圖原始尺寸排版，外層容器在
- * 窄螢幕水平捲動，頁面版面不破；文字等價內容由 CloudArchitectureSummary 提供。
+ * 窄螢幕水平捲動，頁面版面不破
  */
 export function CloudArchitectureDiagram({
   view,
@@ -37,7 +37,7 @@ export function CloudArchitectureDiagram({
           hideIfNotFound={false}
         />
         <span className="min-w-0 leading-tight">
-          <span className="block truncate text-[12px] font-bold text-[#001f2a]">
+          <span className="block text-[12px] font-bold text-[#001f2a]">
             {node.label}
           </span>
           {node.detail ? (
@@ -53,7 +53,7 @@ export function CloudArchitectureDiagram({
   return (
     <div
       role="group"
-      aria-label={`雲端架構關係圖：${view.title}`}
+      aria-label={`雲端與 CI/CD 架構：${view.title}`}
       className="space-y-2"
     >
       <div
@@ -101,12 +101,22 @@ export function CloudArchitectureDiagram({
             })}
             {layout.edges.map((edge) => (
               <path
+                key={`halo-${edge.key}`}
+                d={edge.d}
+                fill="none"
+                stroke="#f4faff"
+                strokeWidth={5}
+                strokeLinecap="round"
+              />
+            ))}
+            {layout.edges.map((edge) => (
+              <path
                 key={edge.key}
                 data-edge
                 d={edge.d}
                 fill="none"
-                stroke="#94a0b4"
-                strokeWidth={1.6}
+                stroke="#7a8aa0"
+                strokeWidth={1.7}
                 markerEnd="url(#arch-arrow)"
               />
             ))}
@@ -154,7 +164,7 @@ export function CloudArchitectureDiagram({
                 aria-pressed={selected}
                 aria-label={node.label}
                 onClick={() => onSelectNode(node.id)}
-                className={`absolute flex items-center gap-2 rounded-lg border px-2.5 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#003d92] ${
+                className={`cursor-pointer absolute flex items-center gap-2 rounded-lg border px-2.5 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#003d92] ${
                   selected
                     ? 'border-[#003d92] bg-[#d9f2ff]'
                     : 'border-[#c3c6d5] bg-white hover:bg-[#f4faff]'

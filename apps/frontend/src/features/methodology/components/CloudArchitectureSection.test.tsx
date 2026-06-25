@@ -39,7 +39,7 @@ describe('CloudArchitectureSection', () => {
 
     const toggle = screen.getByRole('group', { name: '切換視角' });
     const cicdButton = within(toggle).getByRole('button', {
-      name: 'CI/CD 視角',
+      name: 'CI/CD',
     });
     await user.click(cicdButton);
 
@@ -78,7 +78,7 @@ describe('CloudArchitectureSection', () => {
 
     const toggle = screen.getByRole('group', { name: '切換視角' });
     await user.click(
-      within(toggle).getByRole('button', { name: 'CI/CD 視角' }),
+      within(toggle).getByRole('button', { name: 'CI/CD' }),
     );
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -137,7 +137,7 @@ describe('CloudArchitectureSection', () => {
 
     const dialog = screen.getByRole('dialog');
     expect(
-      within(dialog).getByText('目前主力對外 CDN／HTTPS 入口'),
+      within(dialog).getByText('對外 CDN／HTTPS 入口'),
     ).toBeInTheDocument();
     expect(
       within(dialog).queryByText('對外唯一入口與反向代理'),
@@ -150,7 +150,7 @@ describe('CloudArchitectureSection', () => {
 
     const toggle = screen.getByRole('group', { name: '切換視角' });
     const cicdButton = within(toggle).getByRole('button', {
-      name: 'CI/CD 視角',
+      name: 'CI/CD',
     });
     cicdButton.focus();
     await user.keyboard('{Enter}');
@@ -161,19 +161,12 @@ describe('CloudArchitectureSection', () => {
     ).toBeInTheDocument();
   });
 
-  it('文字摘要區一律存在於 DOM', () => {
-    render(<CloudArchitectureSection />);
-    expect(
-      screen.getByRole('region', { name: '架構文字摘要' }),
-    ).toBeInTheDocument();
-  });
-
   it('視角切換按鈕具可見焦點樣式（focus-visible:ring-2）', () => {
     const { container } = render(<CloudArchitectureSection />);
     const toggle = container.querySelector('[aria-label="切換視角"]');
     expect(toggle).not.toBeNull();
     const button = within(toggle as HTMLElement).getByRole('button', {
-      name: '流量視角',
+      name: '流量',
     });
     expect(button.className).toContain('focus-visible:ring-2');
   });

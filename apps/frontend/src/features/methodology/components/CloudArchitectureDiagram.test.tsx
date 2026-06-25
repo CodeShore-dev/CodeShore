@@ -13,15 +13,12 @@ vi.mock('../../../components/TechIcon', () => ({
 const traffic = cloudArchitecture.views.traffic;
 const cicd = cloudArchitecture.views.cicd;
 
-const escapeRe = (value: string): string =>
-  value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const escapeRe = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // Accessible name of an interactive node button is exactly its label.
-const nodeButtonName = (label: string): RegExp =>
-  new RegExp(`^${escapeRe(label)}$`);
+const nodeButtonName = (label: string): RegExp => new RegExp(`^${escapeRe(label)}$`);
 
-const labelOf = (id: string): string =>
-  cloudArchitecture.nodes.find((node) => node.id === id)?.label ?? id;
+const labelOf = (id: string): string => cloudArchitecture.nodes.find(node => node.id === id)?.label ?? id;
 
 describe('CloudArchitectureDiagram', () => {
   it('renders every node of the given view tiers', () => {
@@ -34,9 +31,7 @@ describe('CloudArchitectureDiagram', () => {
       />,
     );
     for (const id of traffic.tiers.flat()) {
-      expect(
-        screen.getByRole('button', { name: nodeButtonName(labelOf(id)) }),
-      ).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: nodeButtonName(labelOf(id)) })).toBeInTheDocument();
     }
   });
 
@@ -51,9 +46,7 @@ describe('CloudArchitectureDiagram', () => {
         onSelectNode={onSelectNode}
       />,
     );
-    await user.click(
-      screen.getByRole('button', { name: nodeButtonName('Cloudflare Worker') }),
-    );
+    await user.click(screen.getByRole('button', { name: nodeButtonName('Cloudflare Worker') }));
     expect(onSelectNode).toHaveBeenCalledWith('cf-worker');
   });
 
@@ -66,12 +59,14 @@ describe('CloudArchitectureDiagram', () => {
         onSelectNode={vi.fn()}
       />,
     );
-    expect(
-      screen.getByRole('button', { name: nodeButtonName('Cloudflare Worker') }),
-    ).toHaveAttribute('aria-pressed', 'true');
-    expect(
-      screen.getByRole('button', { name: nodeButtonName('AWS CloudFront') }),
-    ).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: nodeButtonName('Cloudflare Worker') })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.getByRole('button', { name: nodeButtonName('AWS CloudFront') })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
   });
 
   it('draws one arrow connector per edge and never leaks raw ids as text', () => {
@@ -86,9 +81,7 @@ describe('CloudArchitectureDiagram', () => {
     // One SVG <path data-edge> per relationship, each with an arrowhead marker.
     const edges = container.querySelectorAll('[data-edge]');
     expect(edges).toHaveLength(traffic.edges.length);
-    edges.forEach((edge) =>
-      expect(edge.getAttribute('marker-end')).toContain('arch-arrow'),
-    );
+    edges.forEach(edge => expect(edge.getAttribute('marker-end')).toContain('arch-arrow'));
     // Node labels are shown, raw ids are not.
     expect(container).toHaveTextContent('Cloudflare Worker');
     expect(container).not.toHaveTextContent('cf-worker');
@@ -103,9 +96,7 @@ describe('CloudArchitectureDiagram', () => {
         onSelectNode={vi.fn()}
       />,
     );
-    expect(
-      screen.getByRole('group', { name: /雲端架構關係圖/ }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: /雲端與 CI\/CD 架構/ })).toBeInTheDocument();
     // Narrow viewports scroll the bounded box horizontally (no page overflow).
     const scroll = screen.getByTestId('arch-scroll');
     expect(scroll.className).toMatch(/overflow-x-auto/);
@@ -136,8 +127,7 @@ describe('CloudArchitectureDiagram', () => {
         onSelectNode={vi.fn()}
       />,
     );
-    expect(
-      screen.getByRole('button', { name: nodeButtonName('GitHub Repo') }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: nodeButtonName('GitHub Repo') })).toBeInTheDocument();
   });
 });
+

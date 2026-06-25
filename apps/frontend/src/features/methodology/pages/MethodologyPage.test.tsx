@@ -39,7 +39,7 @@ describe('MethodologyPage', () => {
 
     // New cloud-architecture section is present and deep-link reachable.
     expect(container.querySelector('#cloud-architecture')).not.toBeNull();
-    expect(screen.getByText('雲端架構關係圖')).toBeInTheDocument();
+    expect(screen.getByText('雲端與 CI/CD 架構')).toBeInTheDocument();
 
     // Regression: existing content sections + source-sql still render (add, don't replace).
     expect(container.querySelector('#cloud-performance')).not.toBeNull();
@@ -69,7 +69,7 @@ describe('MethodologyPage', () => {
 
     // No auth context is needed — the section renders for an anonymous visitor.
     expect(container.querySelector('#cloud-architecture')).not.toBeNull();
-    expect(screen.getByText('雲端架構關係圖')).toBeInTheDocument();
+    expect(screen.getByText('雲端與 CI/CD 架構')).toBeInTheDocument();
   });
 
   it('shows the default view traffic node label on initial page render (req 1.1)', () => {
@@ -77,6 +77,10 @@ describe('MethodologyPage', () => {
     // when the page loads (no interaction required).
     renderWithProviders(<MethodologyPage />);
 
-    expect(screen.getByText('Cloudflare Worker')).toBeInTheDocument();
+    // The node appears as an interactive button (label also appears in the
+    // intro copy, so scope to the diagram node via its button role).
+    expect(
+      screen.getByRole('button', { name: 'Cloudflare Worker' }),
+    ).toBeInTheDocument();
   });
 });

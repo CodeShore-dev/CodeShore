@@ -1,5 +1,5 @@
 /**
- * 雲端架構關係圖的唯一可信來源（content registry）。
+ * 雲端與 CI/CD 架構的唯一可信來源（content registry）。
  *
  * 定義型別與資料：節點集（四雲與其服務）、雙視角（流量／CI/CD）的分層與邊、
  * 以及每個可互動節點在本專案中的角色／用途說明。圖表、詳情面板與文字摘要
@@ -84,7 +84,7 @@ export const cloudArchitecture: CloudArchitecture = {
       status: 'active',
       interactive: true,
       detail: {
-        role: '目前主力對外 CDN／HTTPS 入口',
+        role: '對外 CDN／HTTPS 入口',
         usage: '依路徑分流：預設取靜態前端，/api/* 轉送至後端 API。',
       },
     },
@@ -225,7 +225,7 @@ export const cloudArchitecture: CloudArchitecture = {
   views: {
     traffic: {
       id: 'traffic',
-      title: '流量視角',
+      title: '流量',
       tiers: [
         ['cf-dns'],
         ['cf-worker'],
@@ -247,7 +247,7 @@ export const cloudArchitecture: CloudArchitecture = {
     },
     cicd: {
       id: 'cicd',
-      title: 'CI/CD 視角',
+      title: 'CI/CD',
       tiers: [
         ['github-repo'],
         ['gcp-cloud-build'],

@@ -88,7 +88,7 @@ export function MethodologyPage() {
 
   return (
     <div className="w-full">
-      <div className="mx-auto w-full max-w-3xl px-4 py-10">
+      <div className="mx-auto w-full max-w-7xl px-4 py-10">
         <h1 className="mb-2 text-2xl font-black text-[#001f2a]">公開透明</h1>
         <p className="mb-10 text-sm text-[#434653]">
           本頁完整揭露 CodeShore 的資料來源、網站架構、資料庫設計與效能取捨。

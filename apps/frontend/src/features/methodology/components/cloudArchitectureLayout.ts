@@ -1,14 +1,24 @@
-import type { ArchNode, ArchView } from '../content/cloudArchitecture';
+import type { ArchNode, ArchView, ArchViewId } from '../content/cloudArchitecture';
 
-// 版面常數（座標 = px）。節點以原始可讀尺寸排版；窄螢幕由外層容器水平捲動。
+// 版面常數（座標 = px）。節點原始可讀尺寸；窄螢幕由外層容器水平捲動。
 export const NODE_W = 184;
 export const NODE_H = 66;
-const GAP_X = 18;
-const BAND_PAD_X = 14;
-const BAND_PAD_Y = 14;
-const BAND_HEADER = 26;
-const BAND_GAP_Y = 52; // 區塊之間的垂直間距（加大，避免箭頭擠在一起）
+const INNER_COL_GAP = 16; // 同一供應商、同一層的節點水平間距
+const INNER_ROW_GAP = 30; // 供應商區塊內，上下層之間的間距（給箭頭空間）
+const CLUSTER_PAD_X = 14;
+const CLUSTER_PAD_BOTTOM = 14;
+const CLUSTER_HEADER = 28;
+const CLUSTER_GAP_X = 30; // 同一列、相鄰供應商區塊的水平間距
+const ROW_GAP_Y = 72; // 流程列（上游→下游）之間的垂直間距（加大，箭頭不重疊）
 const PAD = 16;
+const PORT_PAD = 22; // 連接點在節點邊上的內縮，避免擠在角落
+
+// 各視角的供應商區塊排列（由上而下的流程列；同一列的供應商並排）。
+// 入口在上、並行的雲在中間並排、共用匯流在下 —— 箭頭只跨越列間的淨空，不會被節點擋住。
+const CLUSTER_ROWS: Record<ArchViewId, readonly (readonly string[])[]> = {
+  traffic: [['cloudflare'], ['aws', 'azure', 'gcp'], ['shared']],
+  cicd: [['shared'], ['gcp', 'aws', 'azure']],
+};
 
 export interface ArchNodeBox {
   readonly id: string;
@@ -40,10 +50,19 @@ export interface ArchLayout {
   readonly edges: readonly ArchEdgePath[];
 }
 
-/**
- * 將一個視角的節點依「雲端供應商」分組成水平區塊（band），由上而下依流程順序排列，
- * 並算出每個節點的座標與每條關係邊的 SVG 路徑（同區塊內水平連線／跨區塊垂直連線）。
- */
+interface ClusterPlan {
+  readonly provider: string;
+  readonly rows: readonly (readonly string[])[]; // 區塊內依層分組的節點
+  readonly w: number;
+  readonly h: number;
+}
+
+const portPos = (x: number, count: number, index: number): number => {
+  if (count <= 1) return x + NODE_W / 2;
+  const usable = NODE_W - PORT_PAD * 2;
+  return x + PORT_PAD + (usable * index) / (count - 1);
+};
+
 export function buildArchLayout(
   view: ArchView,
   nodes: readonly ArchNode[],
@@ -53,73 +72,138 @@ export function buildArchLayout(
   const tierOf = (id: string): number =>
     view.tiers.findIndex((tier) => tier.includes(id));
 
-  const groups = new Map<string, string[]>();
+  const byProvider = new Map<string, string[]>();
   for (const id of view.tiers.flat()) {
-    const arr = groups.get(providerOf(id)) ?? [];
+    const arr = byProvider.get(providerOf(id)) ?? [];
     arr.push(id);
-    groups.set(providerOf(id), arr);
+    byProvider.set(providerOf(id), arr);
   }
 
-  const minTier = (provider: string): number =>
-    Math.min(...(groups.get(provider) ?? []).map(tierOf));
-  const order = [...groups.keys()].sort((a, b) => minTier(a) - minTier(b));
+  // 區塊內：依層（tier）分成上下列，同層節點並排。
+  const planFor = (provider: string): ClusterPlan => {
+    const ids = byProvider.get(provider) ?? [];
+    const tiers = [...new Set(ids.map(tierOf))].sort((a, b) => a - b);
+    const rows = tiers.map((t) =>
+      ids.filter((id) => tierOf(id) === t).sort((a, b) => a.localeCompare(b)),
+    );
+    const innerW = Math.max(
+      ...rows.map((r) => r.length * NODE_W + (r.length - 1) * INNER_COL_GAP),
+    );
+    return {
+      provider,
+      rows,
+      w: innerW + CLUSTER_PAD_X * 2,
+      h:
+        CLUSTER_HEADER +
+        rows.length * NODE_H +
+        (rows.length - 1) * INNER_ROW_GAP +
+        CLUSTER_PAD_BOTTOM,
+    };
+  };
+
+  const clusterRows = (CLUSTER_ROWS[view.id] ?? []).map((row) =>
+    row.filter((p) => byProvider.has(p)).map(planFor),
+  );
+
+  const width = Math.max(
+    ...clusterRows.map(
+      (row) =>
+        row.reduce((sum, c) => sum + c.w, 0) +
+        Math.max(0, row.length - 1) * CLUSTER_GAP_X,
+    ),
+    0,
+  ) + PAD * 2;
 
   const boxes = new Map<string, ArchNodeBox>();
   const bands: ArchBand[] = [];
   let y = PAD;
-  let width = 0;
+  for (const row of clusterRows) {
+    const rowW =
+      row.reduce((sum, c) => sum + c.w, 0) +
+      Math.max(0, row.length - 1) * CLUSTER_GAP_X;
+    let x = (width - rowW) / 2;
+    const rowH = Math.max(...row.map((c) => c.h), 0);
+    for (const cluster of row) {
+      cluster.rows.forEach((ids, r) => {
+        const rw = ids.length * NODE_W + (ids.length - 1) * INNER_COL_GAP;
+        const startX = x + (cluster.w - rw) / 2;
+        const ny = y + CLUSTER_HEADER + r * (NODE_H + INNER_ROW_GAP);
+        ids.forEach((id, j) => {
+          const nx = startX + j * (NODE_W + INNER_COL_GAP);
+          boxes.set(id, { id, x: nx, y: ny, cx: nx + NODE_W / 2, cy: ny + NODE_H / 2 });
+        });
+      });
+      bands.push({
+        provider: cluster.provider,
+        x,
+        y,
+        w: cluster.w,
+        h: cluster.h,
+        ids: cluster.rows.flat(),
+      });
+      x += cluster.w + CLUSTER_GAP_X;
+    }
+    y += rowH + ROW_GAP_Y;
+  }
+  const height = y - ROW_GAP_Y + PAD;
 
-  for (const provider of order) {
-    const ids = (groups.get(provider) ?? [])
-      .slice()
-      .sort((a, b) => tierOf(a) - tierOf(b));
-    const innerW = ids.length * NODE_W + Math.max(0, ids.length - 1) * GAP_X;
-    const bandW = innerW + BAND_PAD_X * 2;
-    width = Math.max(width, bandW + PAD * 2);
-    const bx = PAD;
-    const by = y;
-    ids.forEach((id, i) => {
-      const x = bx + BAND_PAD_X + i * (NODE_W + GAP_X);
-      const ny = by + BAND_HEADER + BAND_PAD_Y;
-      boxes.set(id, { id, x, y: ny, cx: x + NODE_W / 2, cy: ny + NODE_H / 2 });
+  // 連接點分散：同一節點的多條出邊／入邊沿節點邊緣平均散開，避免重疊、看得出來源。
+  const startX = new Map<number, number>();
+  const endX = new Map<number, number>();
+  const group = (pick: (e: { from: string; to: string }) => string) => {
+    const m = new Map<string, number[]>();
+    view.edges.forEach((e, i) => {
+      const arr = m.get(pick(e)) ?? [];
+      arr.push(i);
+      m.set(pick(e), arr);
     });
-    bands.push({
-      provider,
-      x: bx,
-      y: by,
-      w: bandW,
-      h: BAND_HEADER + NODE_H + BAND_PAD_Y * 2,
-      ids,
-    });
-    y = by + BAND_HEADER + NODE_H + BAND_PAD_Y * 2 + BAND_GAP_Y;
+    return m;
+  };
+  for (const [from, idxs] of group((e) => e.from)) {
+    const a = boxes.get(from);
+    if (!a) continue;
+    idxs.sort(
+      (i, j) =>
+        (boxes.get(view.edges[i].to)?.cx ?? 0) -
+        (boxes.get(view.edges[j].to)?.cx ?? 0),
+    );
+    idxs.forEach((ei, k) => startX.set(ei, portPos(a.x, idxs.length, k)));
+  }
+  for (const [to, idxs] of group((e) => e.to)) {
+    const b = boxes.get(to);
+    if (!b) continue;
+    idxs.sort(
+      (i, j) =>
+        (boxes.get(view.edges[i].from)?.cx ?? 0) -
+        (boxes.get(view.edges[j].from)?.cx ?? 0),
+    );
+    idxs.forEach((ei, k) => endX.set(ei, portPos(b.x, idxs.length, k)));
   }
 
-  const height = y - BAND_GAP_Y + PAD;
-
-  const edges: ArchEdgePath[] = [];
-  for (const edge of view.edges) {
+  const edges: ArchEdgePath[] = view.edges.flatMap((edge, i) => {
     const a = boxes.get(edge.from);
     const b = boxes.get(edge.to);
-    if (!a || !b) continue;
+    if (!a || !b) return [];
     const key = `${edge.from}-${edge.to}-${edge.label ?? ''}`;
+    const sx = startX.get(i) ?? a.cx;
+    const ex = endX.get(i) ?? b.cx;
     let d: string;
-    if (providerOf(edge.from) === providerOf(edge.to)) {
-      const adjacent = b.x > a.x && b.x - (a.x + NODE_W) <= GAP_X + 1;
-      if (adjacent) {
-        d = `M${a.x + NODE_W},${a.cy} L${b.x},${b.cy}`;
-      } else {
-        const yy = a.y + NODE_H;
-        d = `M${a.cx},${yy} C${a.cx},${yy + 26} ${b.cx},${yy + 26} ${b.cx},${yy}`;
-      }
-    } else if (b.y > a.y) {
+    if (b.y > a.y + NODE_H - 1) {
       const my = (a.y + NODE_H + b.y) / 2;
-      d = `M${a.cx},${a.y + NODE_H} C${a.cx},${my} ${b.cx},${my} ${b.cx},${b.y}`;
-    } else {
+      d = `M${sx},${a.y + NODE_H} C${sx},${my} ${ex},${my} ${ex},${b.y}`;
+    } else if (a.y > b.y + NODE_H - 1) {
       const my = (a.y + (b.y + NODE_H)) / 2;
-      d = `M${a.cx},${a.y} C${a.cx},${my} ${b.cx},${my} ${b.cx},${b.y + NODE_H}`;
+      d = `M${sx},${a.y} C${sx},${my} ${ex},${my} ${ex},${b.y + NODE_H}`;
+    } else if (b.cx > a.cx) {
+      const sxr = a.x + NODE_W;
+      const my = a.y + NODE_H / 2;
+      d = `M${sxr},${my} C${sxr + 28},${my} ${b.x - 28},${b.y + NODE_H / 2} ${b.x},${b.y + NODE_H / 2}`;
+    } else {
+      const my = a.y + NODE_H / 2;
+      d = `M${a.x},${my} C${a.x - 28},${my} ${b.x + NODE_W + 28},${b.y + NODE_H / 2} ${b.x + NODE_W},${b.y + NODE_H / 2}`;
     }
-    edges.push({ key, d });
-  }
+    return [{ key, d }];
+  });
 
   return { width, height, bands, boxes, edges };
 }
