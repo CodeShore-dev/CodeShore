@@ -82,14 +82,14 @@ export function MethodologyPage() {
           本頁完整揭露 CodeShore 的資料來源、網站架構、資料庫設計與效能取捨。
         </p>
 
+        <CloudArchitectureSection />
+
         {methodologySections.map(section => (
           <section key={section.id} id={section.id} className="mb-12 scroll-mt-20">
             <h2 className="mb-4 text-xl font-black text-[#003d92]">{section.title}</h2>
             {section.blocks.map((block, index) => renderBlock(block, index))}
           </section>
         ))}
-
-        <CloudArchitectureSection />
 
         <section id="source-sql" className="mb-12 scroll-mt-20">
           <h2 className="mb-2 text-xl font-black text-[#003d92]">資料來源 SQL</h2>

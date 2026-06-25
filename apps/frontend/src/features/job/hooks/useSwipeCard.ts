@@ -21,7 +21,10 @@ export function useSwipeCard(options: UseSwipeCardOptions) {
 
   const commit = (preference: 'like' | 'dislike') => {
     setFlying(preference);
-    setTimeout(() => options.onCommit(preference), 250);
+    setTimeout(() => {
+      options.onCommit(preference);
+      setFlying(null);
+    }, 250);
   };
 
   const onPointerDown = (e: PointerEvent) => {
@@ -79,3 +82,4 @@ export function useSwipeCard(options: UseSwipeCardOptions) {
     dislikeOpacity,
   };
 }
+

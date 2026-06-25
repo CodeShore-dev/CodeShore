@@ -14,7 +14,7 @@
  * 語系：zh-TW。
  */
 
-export type CloudProviderId = 'cloudflare' | 'aws' | 'gcp' | 'azure' | 'shared';
+export type CloudProviderId = 'cloudflare' | 'aws' | 'gcp' | 'azure' | 'supabase' | 'github';
 export type ArchViewId = 'traffic' | 'cicd';
 
 // active=目前對外主力；alternative=可切換備選；backup=備援；shared=跨雲共用
@@ -72,8 +72,8 @@ export const cloudArchitecture: CloudArchitecture = {
       status: 'active',
       interactive: true,
       detail: {
-        role: '對外唯一入口與反向代理',
-        usage: '依請求 host 反向代理到對應雲的後端，預設導向目前主力 AWS，可切換至 GCP 或 Azure。',
+        role: '對外唯一入口與自動容錯代理',
+        usage: '網站的唯一入口。會定時探測哪朵雲還活著，自動把流量送到正常的後端；主力 AWS 掛掉就依序換 Azure、GCP，使用者無感。',
       },
     },
     {
@@ -200,7 +200,7 @@ export const cloudArchitecture: CloudArchitecture = {
     {
       id: 'supabase',
       label: 'Supabase (PostgreSQL)',
-      provider: 'shared',
+      provider: 'supabase',
       status: 'shared',
       interactive: true,
       detail: {
@@ -211,12 +211,23 @@ export const cloudArchitecture: CloudArchitecture = {
     {
       id: 'github-repo',
       label: 'GitHub Repo',
-      provider: 'shared',
+      provider: 'github',
       status: 'shared',
       interactive: true,
       detail: {
         role: '程式碼來源與 CI/CD 觸發點',
         usage: 'push 到 main 分支即觸發各雲的 CI/CD 管線。',
+      },
+    },
+    {
+      id: 'github-actions',
+      label: 'GitHub Actions',
+      provider: 'github',
+      status: 'shared',
+      interactive: true,
+      detail: {
+        role: 'AWS／Azure 的 CI/CD 部署管線',
+        usage: '只負責 AWS 與 Azure 兩條路徑：建置前端與容器映像，並部署到 S3／Lambda（AWS）與 Container Apps（Azure）。GCP 則改由 Cloud Build 處理。',
       },
     },
   ],
@@ -247,21 +258,22 @@ export const cloudArchitecture: CloudArchitecture = {
       id: 'cicd',
       title: 'CI/CD',
       tiers: [
-        ['github-repo'],
+        ['github-repo', 'github-actions'],
         ['gcp-cloud-build'],
         ['gcp-artifact-registry', 'aws-ecr', 'aws-s3', 'azure-ghcr', 'gcp-secret-manager'],
         ['gcp-cloudrun', 'aws-cloudfront', 'aws-lambda', 'azure-container-apps'],
       ],
       edges: [
         { from: 'github-repo', to: 'gcp-cloud-build', label: 'Cloud Build trigger' },
+        { from: 'github-repo', to: 'github-actions', label: 'Cloud Build trigger' },
         { from: 'gcp-cloud-build', to: 'gcp-artifact-registry', label: '建置映像' },
         { from: 'gcp-artifact-registry', to: 'gcp-cloudrun', label: 'gcloud run deploy' },
         { from: 'gcp-secret-manager', to: 'gcp-cloudrun', label: '注入密鑰' },
-        { from: 'github-repo', to: 'aws-ecr', label: 'GH Actions · Lambda 映像' },
-        { from: 'github-repo', to: 'aws-s3', label: 'GH Actions · 前端建置' },
+        { from: 'github-actions', to: 'aws-ecr', label: 'GH Actions · Lambda 映像' },
+        { from: 'github-actions', to: 'aws-s3', label: 'GH Actions · 前端建置' },
         { from: 'aws-ecr', to: 'aws-lambda', label: '更新 function' },
         { from: 'aws-s3', to: 'aws-cloudfront', label: 'CloudFront 取用 + invalidation' },
-        { from: 'github-repo', to: 'azure-ghcr', label: 'GH Actions · Dockerfile.aws 映像' },
+        { from: 'github-actions', to: 'azure-ghcr', label: 'GH Actions · Dockerfile.aws 映像' },
         { from: 'azure-ghcr', to: 'azure-container-apps', label: 'az containerapp update' },
       ],
     },

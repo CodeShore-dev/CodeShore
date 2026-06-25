@@ -8,8 +8,9 @@ export const PROVIDER_META: Record<
   cloudflare: { name: 'Cloudflare', hex: '#f38020', slugs: ['iconify:devicon:cloudflare'] },
   aws: { name: 'AWS', hex: '#ff9900', slugs: ['iconify:mdi:aws'] },
   gcp: { name: 'Google Cloud', hex: '#4285f4', slugs: ['iconify:material-icon-theme:gcp'] },
-  azure: { name: 'Azure', hex: '#0078d4', slugs: ['iconify:devicon:azure'] },
-  shared: { name: '共用', hex: '#1654b9', slugs: [] },
+  azure: { name: 'Azure', hex: '#0078D4', slugs: ['iconify:devicon:azure'] },
+  supabase: { name: 'Supabase', hex: '#3ECF8E', slugs: [] },
+  github: { name: 'Github', hex: '#181717', slugs: ['iconify:devicon:github'] },
 };
 
 // 每個節點的品牌圖示 slug（找不到時退回供應商品牌圖示）。
@@ -29,4 +30,5 @@ export const NODE_ICON_SLUGS: Record<string, readonly string[]> = {
   'azure-ghcr': ['iconify:devicon:azure'],
   supabase: ['iconify:devicon:supabase'],
   'github-repo': ['iconify:mdi:github'],
+  'github-actions':['iconify:devicon:githubactions']
 };

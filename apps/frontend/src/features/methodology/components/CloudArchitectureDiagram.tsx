@@ -36,7 +36,7 @@ export function CloudArchitectureDiagram({ view, nodes, selectedNodeId, onSelect
   };
 
   return (
-    <div role="group" aria-label={`雲端與 CI/CD 架構：${view.title}`} className="space-y-2">
+    <div role="group" aria-label={`雲端與 CI/CD 架構：${view.title}`} className="space-y-2 max-w-4xl">
       <div
         data-testid="arch-scroll"
         className="max-w-full overflow-x-auto rounded-xl border border-[#c3c6d5] bg-[#f4faff] p-3"

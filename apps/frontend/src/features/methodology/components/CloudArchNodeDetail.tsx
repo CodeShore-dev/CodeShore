@@ -50,7 +50,7 @@ export function CloudArchNodeDetail({ node, onClose }: CloudArchNodeDetailProps)
         <button
           ref={closeButtonRef}
           type="button"
-          className="-m-1 inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full text-[#9398a6] transition-colors hover:bg-[#f4faff] hover:text-[#001f2a] focus:ring-2 focus:ring-[#003d92] focus:outline-none"
+          className="-m-1 inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full text-[#9398a6] transition-colors hover:bg-[#f4faff] hover:text-[#001f2a]"
           aria-label="關閉說明"
           onClick={onClose}
         >

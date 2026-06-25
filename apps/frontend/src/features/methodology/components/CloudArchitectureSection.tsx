@@ -17,13 +17,8 @@ export function CloudArchitectureSection() {
 
   return (
     <section id="cloud-architecture" className="mb-12 scroll-mt-20">
-      <h2 className="mb-3 text-xl font-black tracking-tight text-[#003d92]">雲端與 CI/CD 架構</h2>
-      <p className="mb-6 text-sm leading-relaxed text-[#434653]">
-        以 <TechIcon slugs={['iconify:devicon:cloudflare']} size={14} /> <code>Cloudflare Worker </code>
-        為對外唯一入口，依健康狀態自動容錯切換多雲後端。
-      </p>
-
-      <div role="group" aria-label="切換視角" className="mb-6 flex flex-wrap gap-2">
+      <h2 className="mb-6 text-xl font-black tracking-tight text-[#003d92]">雲端與 CI/CD 架構</h2>
+      <div role="group" aria-label="切換視角" className="mb-3 flex flex-wrap gap-2">
         {views.map(view => {
           const selected = state.view === view.id;
           return (
@@ -44,7 +39,7 @@ export function CloudArchitectureSection() {
         })}
       </div>
 
-      <div className="space-y-6">
+      <div className="md:flex md:space-y-0 gap-2 space-y-6">
         <CloudArchitectureDiagram
           view={state.activeView}
           nodes={cloudArchitecture.nodes}
