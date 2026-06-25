@@ -46,9 +46,7 @@ export function CloudArchNodeDetail({ node, onClose }: CloudArchNodeDetailProps)
       className="rounded-xl border border-[#c3c6d5] bg-white p-4 text-left shadow-2xl"
     >
       <div className="mb-3 flex items-start justify-between gap-3 border-b border-[#e8eaf0] pb-2.5">
-        <h3 className="text-base font-black tracking-tight text-[#001f2a]">
-          {node.label}
-        </h3>
+        <h3 className="text-base font-black tracking-tight text-[#001f2a]">{node.label}</h3>
         <button
           ref={closeButtonRef}
           type="button"
@@ -56,10 +54,7 @@ export function CloudArchNodeDetail({ node, onClose }: CloudArchNodeDetailProps)
           aria-label="關閉說明"
           onClick={onClose}
         >
-          <span
-            className="material-symbols-outlined"
-            style={{ fontSize: '18px' }}
-          >
+          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
             close
           </span>
         </button>
@@ -68,15 +63,11 @@ export function CloudArchNodeDetail({ node, onClose }: CloudArchNodeDetailProps)
         <dl className="space-y-3">
           <div>
             <dt className="text-sm font-bold text-[#001f2a]">角色</dt>
-            <dd className="mt-0.5 text-sm leading-relaxed font-normal text-[#5b6070]">
-              {node.detail.role}
-            </dd>
+            <dd className="mt-0.5 text-sm leading-relaxed font-normal text-[#5b6070]">{node.detail.role}</dd>
           </div>
           <div>
             <dt className="text-sm font-bold text-[#001f2a]">用途</dt>
-            <dd className="mt-0.5 text-sm leading-relaxed font-normal text-[#5b6070]">
-              {node.detail.usage}
-            </dd>
+            <dd className="mt-0.5 text-sm leading-relaxed font-normal text-[#5b6070]">{node.detail.usage}</dd>
           </div>
         </dl>
       )}

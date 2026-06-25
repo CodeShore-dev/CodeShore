@@ -9,12 +9,10 @@ vi.mock('../../../components/TechIcon', () => ({
   TechIcon: () => null,
 }));
 
-const escapeRe = (value: string): string =>
-  value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const escapeRe = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // 互動節點按鈕的無障礙名稱即為其 label。
-const nodeButtonName = (label: string): RegExp =>
-  new RegExp(`^${escapeRe(label)}$`);
+const nodeButtonName = (label: string): RegExp => new RegExp(`^${escapeRe(label)}$`);
 
 describe('CloudArchitectureSection', () => {
   it('提供 id="cloud-architecture" 與 scroll-mt-20 的深連結錨點', () => {
@@ -44,9 +42,7 @@ describe('CloudArchitectureSection', () => {
     await user.click(cicdButton);
 
     expect(cicdButton).toHaveAttribute('aria-pressed', 'true');
-    expect(
-      screen.getByRole('button', { name: nodeButtonName('GitHub Repo') }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: nodeButtonName('GitHub Repo') })).toBeInTheDocument();
   });
 
   it('點擊互動節點開啟詳情面板並顯示其角色／用途', async () => {
@@ -60,9 +56,7 @@ describe('CloudArchitectureSection', () => {
     );
 
     const dialog = screen.getByRole('dialog');
-    expect(
-      within(dialog).getByText('對外唯一入口與反向代理'),
-    ).toBeInTheDocument();
+    expect(within(dialog).getByText('對外唯一入口與反向代理')).toBeInTheDocument();
   });
 
   it('切換視角時清除既有選取（詳情面板關閉）', async () => {
@@ -77,9 +71,7 @@ describe('CloudArchitectureSection', () => {
     expect(screen.queryByRole('dialog')).toBeInTheDocument();
 
     const toggle = screen.getByRole('group', { name: '切換視角' });
-    await user.click(
-      within(toggle).getByRole('button', { name: 'CI/CD' }),
-    );
+    await user.click(within(toggle).getByRole('button', { name: 'CI/CD' }));
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
@@ -125,9 +117,7 @@ describe('CloudArchitectureSection', () => {
         name: nodeButtonName('Cloudflare Worker'),
       }),
     );
-    expect(
-      within(screen.getByRole('dialog')).getByText('對外唯一入口與反向代理'),
-    ).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).getByText('對外唯一入口與反向代理')).toBeInTheDocument();
 
     await user.click(
       screen.getByRole('button', {
@@ -136,12 +126,8 @@ describe('CloudArchitectureSection', () => {
     );
 
     const dialog = screen.getByRole('dialog');
-    expect(
-      within(dialog).getByText('對外 CDN／HTTPS 入口'),
-    ).toBeInTheDocument();
-    expect(
-      within(dialog).queryByText('對外唯一入口與反向代理'),
-    ).not.toBeInTheDocument();
+    expect(within(dialog).getByText('對外 CDN／HTTPS 入口')).toBeInTheDocument();
+    expect(within(dialog).queryByText('對外唯一入口與反向代理')).not.toBeInTheDocument();
   });
 
   it('鍵盤可操作視角切換按鈕（Enter 觸發切換）', async () => {
@@ -156,9 +142,7 @@ describe('CloudArchitectureSection', () => {
     await user.keyboard('{Enter}');
 
     expect(cicdButton).toHaveAttribute('aria-pressed', 'true');
-    expect(
-      screen.getByRole('button', { name: nodeButtonName('GitHub Repo') }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: nodeButtonName('GitHub Repo') })).toBeInTheDocument();
   });
 
   it('視角切換按鈕具可見焦點樣式（focus-visible:ring-2）', () => {

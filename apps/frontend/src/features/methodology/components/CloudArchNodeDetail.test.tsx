@@ -13,17 +13,13 @@ const detail = cfWorker.detail;
 
 describe('CloudArchNodeDetail', () => {
   it('當 node 為 null 時不渲染任何內容', () => {
-    const { container } = render(
-      <CloudArchNodeDetail node={null} onClose={vi.fn()} />,
-    );
+    const { container } = render(<CloudArchNodeDetail node={null} onClose={vi.fn()} />);
     expect(container).toBeEmptyDOMElement();
   });
 
   it('顯示節點 label、detail.role 與 detail.usage', () => {
     render(<CloudArchNodeDetail node={node} onClose={vi.fn()} />);
-    expect(
-      screen.getByRole('heading', { name: node.label }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: node.label })).toBeInTheDocument();
     expect(screen.getByText(detail.role)).toBeInTheDocument();
     expect(screen.getByText(detail.usage)).toBeInTheDocument();
   });
@@ -31,9 +27,7 @@ describe('CloudArchNodeDetail', () => {
   it('detail 未定義時仍能優雅顯示 label 而不崩潰', () => {
     const bare = { ...node, detail: undefined };
     render(<CloudArchNodeDetail node={bare} onClose={vi.fn()} />);
-    expect(
-      screen.getByRole('heading', { name: bare.label }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: bare.label })).toBeInTheDocument();
   });
 
   it('點擊關閉按鈕呼叫 onClose', async () => {

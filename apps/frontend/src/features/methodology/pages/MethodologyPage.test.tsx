@@ -2,6 +2,8 @@ import { screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { renderWithProviders } from '../../../test/renderWithProviders';
+import { methodologySections } from '../content/sections';
+import { MethodologyPage } from './MethodologyPage';
 
 vi.mock('../service', () => ({
   fetchMethodologySql: vi.fn().mockResolvedValue({}),
@@ -12,9 +14,6 @@ vi.mock('../../../components/TechIcon', () => ({
   TechIcon: () => null,
 }));
 
-import { methodologySections } from '../content/sections';
-import { MethodologyPage } from './MethodologyPage';
-
 describe('MethodologyPage', () => {
   it('renders the heading, content sections, and SQL section (req 8.3)', () => {
     renderWithProviders(<MethodologyPage />);
@@ -22,16 +21,12 @@ describe('MethodologyPage', () => {
     expect(screen.getByText('公開透明')).toBeInTheDocument();
     expect(screen.getByText('資料來源 SQL')).toBeInTheDocument();
     // First content section title from the reused content module.
-    expect(
-      screen.getByText(methodologySections[0].title),
-    ).toBeInTheDocument();
+    expect(screen.getByText(methodologySections[0].title)).toBeInTheDocument();
   });
 
   it('gives each section an id for hash deep-linking (req 8.2)', () => {
     const { container } = renderWithProviders(<MethodologyPage />);
-    expect(
-      container.querySelector(`#${methodologySections[0].id}`),
-    ).not.toBeNull();
+    expect(container.querySelector(`#${methodologySections[0].id}`)).not.toBeNull();
   });
 
   it('renders the cloud-architecture section in addition to existing sections (req 1.1, 1.4)', () => {
@@ -79,8 +74,6 @@ describe('MethodologyPage', () => {
 
     // The node appears as an interactive button (label also appears in the
     // intro copy, so scope to the diagram node via its button role).
-    expect(
-      screen.getByRole('button', { name: 'Cloudflare Worker' }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cloudflare Worker' })).toBeInTheDocument();
   });
 });

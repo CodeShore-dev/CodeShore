@@ -1,7 +1,7 @@
 import { TechIcon } from '../../../components/TechIcon';
 import type { ArchNode, ArchView, CloudProviderId } from '../content/cloudArchitecture';
 import { NODE_ICON_SLUGS, PROVIDER_META } from './cloudArchitectureIcons';
-import { buildArchLayout, NODE_H, NODE_W } from './cloudArchitectureLayout';
+import { NODE_H, NODE_W, buildArchLayout } from './cloudArchitectureLayout';
 
 export interface CloudArchitectureDiagramProps {
   readonly view: ArchView;
@@ -16,34 +16,19 @@ export interface CloudArchitectureDiagramProps {
  * 底層 SVG 畫區塊框與箭頭，上層為可點的 HTML 節點按鈕。整張圖原始尺寸排版，外層容器在
  * 窄螢幕水平捲動，頁面版面不破
  */
-export function CloudArchitectureDiagram({
-  view,
-  nodes,
-  selectedNodeId,
-  onSelectNode,
-}: CloudArchitectureDiagramProps) {
+export function CloudArchitectureDiagram({ view, nodes, selectedNodeId, onSelectNode }: CloudArchitectureDiagramProps) {
   const layout = buildArchLayout(view, nodes);
-  const nodeOf = (id: string): ArchNode | undefined =>
-    nodes.find((n) => n.id === id);
+  const nodeOf = (id: string): ArchNode | undefined => nodes.find(n => n.id === id);
 
   const renderBody = (node: ArchNode) => {
     const slugs = NODE_ICON_SLUGS[node.id] ?? PROVIDER_META[node.provider].slugs;
     return (
       <>
-        <TechIcon
-          slugs={[...slugs]}
-          label={node.label}
-          size={22}
-          hideIfNotFound={false}
-        />
+        <TechIcon slugs={[...slugs]} label={node.label} size={22} hideIfNotFound={false} />
         <span className="min-w-0 leading-tight">
-          <span className="block text-[12px] font-bold text-[#001f2a]">
-            {node.label}
-          </span>
+          <span className="block text-[12px] font-bold text-[#001f2a]">{node.label}</span>
           {node.detail ? (
-            <span className="line-clamp-2 block text-[11px] text-[#434653]">
-              {node.detail.role}
-            </span>
+            <span className="line-clamp-2 block text-[11px] text-[#434653]">{node.detail.role}</span>
           ) : null}
         </span>
       </>
@@ -51,11 +36,7 @@ export function CloudArchitectureDiagram({
   };
 
   return (
-    <div
-      role="group"
-      aria-label={`雲端與 CI/CD 架構：${view.title}`}
-      className="space-y-2"
-    >
+    <div role="group" aria-label={`雲端與 CI/CD 架構：${view.title}`} className="space-y-2">
       <div
         data-testid="arch-scroll"
         className="max-w-full overflow-x-auto rounded-xl border border-[#c3c6d5] bg-[#f4faff] p-3"
@@ -81,7 +62,7 @@ export function CloudArchitectureDiagram({
                 <path d="M0,0 L10,5 L0,10 z" fill="#94a0b4" />
               </marker>
             </defs>
-            {layout.bands.map((band) => {
+            {layout.bands.map(band => {
               const meta = PROVIDER_META[band.provider as CloudProviderId];
               return (
                 <rect
@@ -99,7 +80,7 @@ export function CloudArchitectureDiagram({
                 />
               );
             })}
-            {layout.edges.map((edge) => (
+            {layout.edges.map(edge => (
               <path
                 key={`halo-${edge.key}`}
                 d={edge.d}
@@ -109,7 +90,7 @@ export function CloudArchitectureDiagram({
                 strokeLinecap="round"
               />
             ))}
-            {layout.edges.map((edge) => (
+            {layout.edges.map(edge => (
               <path
                 key={edge.key}
                 data-edge
@@ -122,7 +103,7 @@ export function CloudArchitectureDiagram({
             ))}
           </svg>
 
-          {layout.bands.map((band) => {
+          {layout.bands.map(band => {
             const meta = PROVIDER_META[band.provider as CloudProviderId];
             return (
               <div
@@ -130,9 +111,7 @@ export function CloudArchitectureDiagram({
                 className="absolute flex items-center gap-1.5"
                 style={{ left: band.x + 12, top: band.y + 6 }}
               >
-                {meta.slugs.length ? (
-                  <TechIcon slugs={[...meta.slugs]} label={meta.name} size={16} />
-                ) : null}
+                {meta.slugs.length ? <TechIcon slugs={[...meta.slugs]} label={meta.name} size={16} /> : null}
                 <span className="text-[12px] font-bold" style={{ color: meta.hex }}>
                   {meta.name}
                 </span>
@@ -140,7 +119,7 @@ export function CloudArchitectureDiagram({
             );
           })}
 
-          {[...layout.boxes.values()].map((box) => {
+          {[...layout.boxes.values()].map(box => {
             const node = nodeOf(box.id);
             if (!node) return null;
             const common = { left: box.x, top: box.y, width: NODE_W, height: NODE_H };
@@ -164,10 +143,8 @@ export function CloudArchitectureDiagram({
                 aria-pressed={selected}
                 aria-label={node.label}
                 onClick={() => onSelectNode(node.id)}
-                className={`cursor-pointer absolute flex items-center gap-2 rounded-lg border px-2.5 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#003d92] ${
-                  selected
-                    ? 'border-[#003d92] bg-[#d9f2ff]'
-                    : 'border-[#c3c6d5] bg-white hover:bg-[#f4faff]'
+                className={`absolute flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#003d92] ${
+                  selected ? 'border-[#003d92] bg-[#d9f2ff]' : 'border-[#c3c6d5] bg-white hover:bg-[#f4faff]'
                 }`}
               >
                 {renderBody(node)}
@@ -176,9 +153,7 @@ export function CloudArchitectureDiagram({
           })}
         </div>
       </div>
-      <p className="text-[11px] text-[#434653] md:hidden">
-        ← 可左右滑動查看完整關係圖 →
-      </p>
+      <p className="text-[11px] text-[#434653] md:hidden">← 可左右滑動查看完整關係圖 →</p>
     </div>
   );
 }

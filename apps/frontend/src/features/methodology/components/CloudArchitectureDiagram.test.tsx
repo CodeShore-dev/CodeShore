@@ -130,4 +130,3 @@ describe('CloudArchitectureDiagram', () => {
     expect(screen.getByRole('button', { name: nodeButtonName('GitHub Repo') })).toBeInTheDocument();
   });
 });
-

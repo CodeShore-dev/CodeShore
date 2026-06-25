@@ -9,9 +9,7 @@ describe('useCloudArchitectureView', () => {
     const { result } = renderHook(() => useCloudArchitectureView());
 
     expect(result.current.view).toBe(cloudArchitecture.defaultView);
-    expect(result.current.activeView).toBe(
-      cloudArchitecture.views[cloudArchitecture.defaultView],
-    );
+    expect(result.current.activeView).toBe(cloudArchitecture.views[cloudArchitecture.defaultView]);
     expect(result.current.selectedNodeId).toBeNull();
     expect(result.current.selectedNode).toBeNull();
   });
@@ -42,9 +40,7 @@ describe('useCloudArchitectureView', () => {
     });
 
     expect(result.current.selectedNodeId).toBe('cf-worker');
-    expect(result.current.selectedNode).toBe(
-      cloudArchitecture.nodes.find((node) => node.id === 'cf-worker') ?? null,
-    );
+    expect(result.current.selectedNode).toBe(cloudArchitecture.nodes.find(node => node.id === 'cf-worker') ?? null);
   });
 
   it('selectNode on an unknown id is a no-op (req 4.1)', () => {
@@ -71,9 +67,7 @@ describe('useCloudArchitectureView', () => {
     });
 
     expect(result.current.selectedNodeId).toBe('aws-s3');
-    expect(result.current.selectedNode).toBe(
-      cloudArchitecture.nodes.find((node) => node.id === 'aws-s3') ?? null,
-    );
+    expect(result.current.selectedNode).toBe(cloudArchitecture.nodes.find(node => node.id === 'aws-s3') ?? null);
   });
 
   it('clearSelection resets the selection (req 4.3)', () => {

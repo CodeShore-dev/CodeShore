@@ -73,8 +73,7 @@ export const cloudArchitecture: CloudArchitecture = {
       interactive: true,
       detail: {
         role: '對外唯一入口與反向代理',
-        usage:
-          '依請求 host 反向代理到對應雲的後端，預設導向目前主力 AWS，可切換至 GCP 或 Azure。',
+        usage: '依請求 host 反向代理到對應雲的後端，預設導向目前主力 AWS，可切換至 GCP 或 Azure。',
       },
     },
     {
@@ -184,8 +183,7 @@ export const cloudArchitecture: CloudArchitecture = {
       interactive: true,
       detail: {
         role: '可切換的容器後端',
-        usage:
-          '前端與 API 同映像執行，scale-to-zero、使用永久免費月額度，可由 Worker 切換導入。',
+        usage: '前端與 API 同映像執行，scale-to-zero、使用永久免費月額度，可由 Worker 切換導入。',
       },
     },
     {
@@ -252,7 +250,7 @@ export const cloudArchitecture: CloudArchitecture = {
         ['github-repo'],
         ['gcp-cloud-build'],
         ['gcp-artifact-registry', 'aws-ecr', 'aws-s3', 'azure-ghcr', 'gcp-secret-manager'],
-        ['gcp-cloudrun', 'aws-lambda', 'aws-cloudfront', 'azure-container-apps', 'aws-ec2'],
+        ['gcp-cloudrun', 'aws-cloudfront', 'aws-lambda', 'azure-container-apps'],
       ],
       edges: [
         { from: 'github-repo', to: 'gcp-cloud-build', label: 'Cloud Build trigger' },
@@ -260,12 +258,11 @@ export const cloudArchitecture: CloudArchitecture = {
         { from: 'gcp-artifact-registry', to: 'gcp-cloudrun', label: 'gcloud run deploy' },
         { from: 'gcp-secret-manager', to: 'gcp-cloudrun', label: '注入密鑰' },
         { from: 'github-repo', to: 'aws-ecr', label: 'GH Actions · Lambda 映像' },
-        { from: 'aws-ecr', to: 'aws-lambda', label: '更新 function' },
         { from: 'github-repo', to: 'aws-s3', label: 'GH Actions · 前端建置' },
+        { from: 'aws-ecr', to: 'aws-lambda', label: '更新 function' },
         { from: 'aws-s3', to: 'aws-cloudfront', label: 'CloudFront 取用 + invalidation' },
         { from: 'github-repo', to: 'azure-ghcr', label: 'GH Actions · Dockerfile.aws 映像' },
         { from: 'azure-ghcr', to: 'azure-container-apps', label: 'az containerapp update' },
-        { from: 'azure-ghcr', to: 'aws-ec2', label: 'SSH pull · 手動備援' },
       ],
     },
   },

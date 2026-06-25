@@ -1,10 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 
-import type {
-  ArchNode,
-  ArchView,
-  ArchViewId,
-} from '../content/cloudArchitecture';
+import type { ArchNode, ArchView, ArchViewId } from '../content/cloudArchitecture';
 import { cloudArchitecture } from '../content/cloudArchitecture';
 
 export interface CloudArchitectureViewState {
@@ -18,22 +14,13 @@ export interface CloudArchitectureViewState {
 }
 
 export function useCloudArchitectureView(): CloudArchitectureViewState {
-  const [view, setViewState] = useState<ArchViewId>(
-    cloudArchitecture.defaultView,
-  );
+  const [view, setViewState] = useState<ArchViewId>(cloudArchitecture.defaultView);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
-  const activeView = useMemo<ArchView>(
-    () => cloudArchitecture.views[view],
-    [view],
-  );
+  const activeView = useMemo<ArchView>(() => cloudArchitecture.views[view], [view]);
 
   const selectedNode = useMemo<ArchNode | null>(
-    () =>
-      selectedNodeId === null
-        ? null
-        : (cloudArchitecture.nodes.find((node) => node.id === selectedNodeId) ??
-          null),
+    () => (selectedNodeId === null ? null : (cloudArchitecture.nodes.find(node => node.id === selectedNodeId) ?? null)),
     [selectedNodeId],
   );
 
@@ -43,7 +30,7 @@ export function useCloudArchitectureView(): CloudArchitectureViewState {
   }, []);
 
   const selectNode = useCallback((id: string) => {
-    const node = cloudArchitecture.nodes.find((candidate) => candidate.id === id);
+    const node = cloudArchitecture.nodes.find(candidate => candidate.id === id);
     if (node === undefined || !node.interactive) {
       return;
     }
