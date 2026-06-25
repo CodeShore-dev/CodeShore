@@ -41,4 +41,36 @@ describe('MethodologyPage', () => {
     expect(container.querySelector('#data-crawler')).not.toBeNull();
     expect(container.querySelector('#source-sql')).not.toBeNull();
   });
+
+  it('renders the diagram responsively within the page (req 5.1, 5.2)', () => {
+    // Coverage gap: prove the embedded diagram renders responsively in page
+    // context. The tier container stacks vertically on mobile (flex-col) and
+    // lays out horizontally on desktop (md:flex-row) — both classes present.
+    const { container } = renderWithProviders(<MethodologyPage />);
+
+    const tiers = screen.getByTestId('arch-tiers');
+    expect(tiers).toBeInTheDocument();
+    expect(tiers.className).toContain('flex-col');
+    expect(tiers.className).toContain('md:flex-row');
+    expect(container.querySelector('#cloud-architecture')).not.toBeNull();
+  });
+
+  it('renders the cloud-architecture section for an unauthenticated visitor (req 1.2)', () => {
+    // Coverage gap: public / no-login access. renderWithProviders wraps the
+    // page with NO auth/login provider, so a successful render proves the page
+    // and its cloud-architecture section are reachable without authentication.
+    const { container } = renderWithProviders(<MethodologyPage />);
+
+    // No auth context is needed — the section renders for an anonymous visitor.
+    expect(container.querySelector('#cloud-architecture')).not.toBeNull();
+    expect(screen.getByText('雲端架構關係圖')).toBeInTheDocument();
+  });
+
+  it('shows the default view traffic node label on initial page render (req 1.1)', () => {
+    // Coverage gap: the diagram's default-view content is visible immediately
+    // when the page loads (no interaction required).
+    renderWithProviders(<MethodologyPage />);
+
+    expect(screen.getByText('Cloudflare Worker')).toBeInTheDocument();
+  });
 });
