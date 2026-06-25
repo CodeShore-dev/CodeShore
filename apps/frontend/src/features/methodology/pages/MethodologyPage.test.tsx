@@ -7,6 +7,11 @@ vi.mock('../service', () => ({
   fetchMethodologySql: vi.fn().mockResolvedValue({}),
 }));
 
+// TechIcon (used by the embedded diagram) fetches over the network; stub it.
+vi.mock('../../../components/TechIcon', () => ({
+  TechIcon: () => null,
+}));
+
 import { methodologySections } from '../content/sections';
 import { MethodologyPage } from './MethodologyPage';
 

@@ -1,15 +1,20 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { CloudArchitectureSection } from './CloudArchitectureSection';
+
+// TechIcon fetches brand icons over the network; stub it out in tests.
+vi.mock('../../../components/TechIcon', () => ({
+  TechIcon: () => null,
+}));
 
 const escapeRe = (value: string): string =>
   value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-// 互動節點按鈕的無障礙名稱為 `${label} — ${statusWord}`。
+// 互動節點按鈕的無障礙名稱即為其 label。
 const nodeButtonName = (label: string): RegExp =>
-  new RegExp(`^${escapeRe(label)} —`);
+  new RegExp(`^${escapeRe(label)}$`);
 
 describe('CloudArchitectureSection', () => {
   it('提供 id="cloud-architecture" 與 scroll-mt-20 的深連結錨點', () => {
