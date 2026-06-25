@@ -1,27 +1,28 @@
 import { TechIcon } from '../../../components/TechIcon';
-import type { ArchNode, ArchView, CloudProviderId } from '../content/cloudArchitecture';
-import { NODE_ICON_SLUGS, PROVIDER_META } from './cloudArchitectureIcons';
-import { NODE_H, NODE_W, buildArchLayout } from './cloudArchitectureLayout';
+import type { CrawlerGroupId, CrawlerNode, CrawlerView } from '../content/crawlerPipeline';
+import { GROUP_META, NODE_ICON_SLUGS } from './crawlerPipelineIcons';
+import { NODE_H, NODE_W, buildDiagramLayout } from './diagramLayout';
 
-export interface CloudArchitectureDiagramProps {
-  readonly view: ArchView;
-  readonly nodes: readonly ArchNode[];
+export interface CrawlerPipelineDiagramProps {
+  readonly view: CrawlerView;
+  readonly nodes: readonly CrawlerNode[];
   readonly selectedNodeId: string | null;
   readonly onSelectNode: (id: string) => void;
 }
 
 /**
- * 雲端與 CI/CD 架構（單一視角）：依供應商分「區塊」框起來（Cloudflare／AWS／GCP／Azure／
- * 共用），區塊內節點以品牌圖示 + 名稱 + 負責任務呈現；節點間以箭頭表達關係。疊層繪製：
- * 底層 SVG 畫區塊框與箭頭，上層為可點的 HTML 節點按鈕。整張圖原始尺寸排版，外層容器在
- * 窄螢幕水平捲動，頁面版面不破
+ * 資料來源與爬蟲（單一視角）：依群組分「區塊」框起來（資料來源／爬蟲引擎／處理管線／資料庫／
+ * 執行模式），區塊內節點以圖示 + 名稱 + 角色呈現；節點間以箭頭表達關係。疊層繪製：底層 SVG
+ * 畫區塊框與箭頭，上層為可點的 HTML 節點按鈕。整張圖原始尺寸排版，外層容器在窄螢幕水平捲動，
+ * 頁面版面不破。
  */
-export function CloudArchitectureDiagram({ view, nodes, selectedNodeId, onSelectNode }: CloudArchitectureDiagramProps) {
-  const layout = buildArchLayout(view, nodes);
-  const nodeOf = (id: string): ArchNode | undefined => nodes.find(n => n.id === id);
+export function CrawlerPipelineDiagram({ view, nodes, selectedNodeId, onSelectNode }: CrawlerPipelineDiagramProps) {
+  const nodeOf = (id: string): CrawlerNode | undefined => nodes.find(n => n.id === id);
+  const groupOf = (id: string): string => nodeOf(id)?.group ?? 'pipeline';
+  const layout = buildDiagramLayout(view, groupOf, view.clusterRows);
 
-  const renderBody = (node: ArchNode) => {
-    const slugs = NODE_ICON_SLUGS[node.id] ?? PROVIDER_META[node.provider].slugs;
+  const renderBody = (node: CrawlerNode) => {
+    const slugs = NODE_ICON_SLUGS[node.id] ?? GROUP_META[node.group].slugs;
     return (
       <>
         <TechIcon slugs={[...slugs]} label={node.label} size={22} hideIfNotFound={false} />
@@ -36,9 +37,9 @@ export function CloudArchitectureDiagram({ view, nodes, selectedNodeId, onSelect
   };
 
   return (
-    <div role="group" aria-label={`雲端與 CI/CD 架構：${view.title}`} className="max-w-4xl space-y-2">
+    <div role="group" aria-label={`資料來源與爬蟲：${view.title}`} className="max-w-4xl space-y-2">
       <div
-        data-testid="arch-scroll"
+        data-testid="pipeline-scroll"
         className="max-w-full overflow-x-auto rounded-xl border border-[#c3c6d5] bg-[#f4faff] p-3"
       >
         <div className="relative" style={{ width: layout.width, height: layout.height }}>
@@ -51,7 +52,7 @@ export function CloudArchitectureDiagram({ view, nodes, selectedNodeId, onSelect
           >
             <defs>
               <marker
-                id="arch-arrow"
+                id="pipeline-arrow"
                 viewBox="0 0 10 10"
                 refX="8.5"
                 refY="5"
@@ -63,7 +64,7 @@ export function CloudArchitectureDiagram({ view, nodes, selectedNodeId, onSelect
               </marker>
             </defs>
             {layout.bands.map(band => {
-              const meta = PROVIDER_META[band.group as CloudProviderId];
+              const meta = GROUP_META[band.group as CrawlerGroupId];
               return (
                 <rect
                   key={band.group}
@@ -98,13 +99,13 @@ export function CloudArchitectureDiagram({ view, nodes, selectedNodeId, onSelect
                 fill="none"
                 stroke="#7a8aa0"
                 strokeWidth={1.7}
-                markerEnd="url(#arch-arrow)"
+                markerEnd="url(#pipeline-arrow)"
               />
             ))}
           </svg>
 
           {layout.bands.map(band => {
-            const meta = PROVIDER_META[band.group as CloudProviderId];
+            const meta = GROUP_META[band.group as CrawlerGroupId];
             return (
               <div
                 key={`head-${band.group}`}
@@ -153,7 +154,7 @@ export function CloudArchitectureDiagram({ view, nodes, selectedNodeId, onSelect
           })}
         </div>
       </div>
-      <p className="text-center text-[11px] text-[#434653] md:hidden">← 可左右滑動查看完整關係圖 →</p>
+      <p className="text-[11px] text-[#434653] md:hidden">← 可左右滑動查看完整關係圖 →</p>
     </div>
   );
 }
