@@ -16,7 +16,7 @@ export interface CloudArchitectureSummaryProps {
  */
 export function CloudArchitectureSummary({
   architecture,
-}: CloudArchitectureSummaryProps): JSX.Element {
+}: CloudArchitectureSummaryProps) {
   const labelOf = (id: string): string =>
     architecture.nodes.find((node) => node.id === id)?.label ?? id;
 
