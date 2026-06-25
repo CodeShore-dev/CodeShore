@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -69,8 +69,8 @@ describe('CloudArchitectureDiagram', () => {
     ).toHaveAttribute('aria-pressed', 'false');
   });
 
-  it('renders one connector per edge using labels, not raw ids', () => {
-    render(
+  it('draws one arrow connector per edge and never leaks raw ids as text', () => {
+    const { container } = render(
       <CloudArchitectureDiagram
         view={traffic}
         nodes={cloudArchitecture.nodes}
@@ -78,16 +78,18 @@ describe('CloudArchitectureDiagram', () => {
         onSelectNode={vi.fn()}
       />,
     );
-    const list = screen.getByRole('list', { name: '關係連線' });
-    expect(within(list).getAllByRole('listitem')).toHaveLength(
-      traffic.edges.length,
+    // One SVG <path data-edge> per relationship, each with an arrowhead marker.
+    const edges = container.querySelectorAll('[data-edge]');
+    expect(edges).toHaveLength(traffic.edges.length);
+    edges.forEach((edge) =>
+      expect(edge.getAttribute('marker-end')).toContain('arch-arrow'),
     );
-    expect(list).toHaveTextContent('Cloudflare Worker');
-    expect(list).toHaveTextContent('AWS CloudFront');
-    expect(list).not.toHaveTextContent('cf-worker');
+    // Node labels are shown, raw ids are not.
+    expect(container).toHaveTextContent('Cloudflare Worker');
+    expect(container).not.toHaveTextContent('cf-worker');
   });
 
-  it('exposes a labelled diagram group and a responsive tier container', () => {
+  it('exposes a labelled diagram group inside a responsive scroll container', () => {
     render(
       <CloudArchitectureDiagram
         view={traffic}
@@ -99,9 +101,10 @@ describe('CloudArchitectureDiagram', () => {
     expect(
       screen.getByRole('group', { name: /雲端架構關係圖/ }),
     ).toBeInTheDocument();
-    const tiers = screen.getByTestId('arch-tiers');
-    expect(tiers.className).toMatch(/flex-col/);
-    expect(tiers.className).toMatch(/md:flex-row/);
+    // Narrow viewports scroll the bounded box horizontally (no page overflow).
+    const scroll = screen.getByTestId('arch-scroll');
+    expect(scroll.className).toMatch(/overflow-x-auto/);
+    expect(scroll.querySelector('svg')).not.toBeNull();
   });
 
   it('switches rendered content when a different view is passed', () => {

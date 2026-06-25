@@ -44,14 +44,15 @@ describe('MethodologyPage', () => {
 
   it('renders the diagram responsively within the page (req 5.1, 5.2)', () => {
     // Coverage gap: prove the embedded diagram renders responsively in page
-    // context. The tier container stacks vertically on mobile (flex-col) and
-    // lays out horizontally on desktop (md:flex-row) — both classes present.
+    // context. The diagram sits in a bounded box that scrolls horizontally on
+    // narrow screens (overflow-x-auto), so the page layout never overflows.
     const { container } = renderWithProviders(<MethodologyPage />);
 
-    const tiers = screen.getByTestId('arch-tiers');
-    expect(tiers).toBeInTheDocument();
-    expect(tiers.className).toContain('flex-col');
-    expect(tiers.className).toContain('md:flex-row');
+    const scroll = screen.getByTestId('arch-scroll');
+    expect(scroll).toBeInTheDocument();
+    expect(scroll.className).toContain('overflow-x-auto');
+    expect(scroll.className).toContain('max-w-full');
+    expect(scroll.querySelector('svg')).not.toBeNull();
     expect(container.querySelector('#cloud-architecture')).not.toBeNull();
   });
 
