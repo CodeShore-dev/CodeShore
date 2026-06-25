@@ -79,6 +79,83 @@ describe('CloudArchitectureSection', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
+  it('點擊關閉按鈕收合詳情面板', async () => {
+    const user = userEvent.setup();
+    render(<CloudArchitectureSection />);
+
+    await user.click(
+      screen.getByRole('button', {
+        name: nodeButtonName('Cloudflare Worker'),
+      }),
+    );
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '關閉說明' }));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('按 Escape 收合詳情面板', async () => {
+    const user = userEvent.setup();
+    render(<CloudArchitectureSection />);
+
+    await user.click(
+      screen.getByRole('button', {
+        name: nodeButtonName('Cloudflare Worker'),
+      }),
+    );
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('單選：點選另一節點時切換詳情內容', async () => {
+    const user = userEvent.setup();
+    render(<CloudArchitectureSection />);
+
+    await user.click(
+      screen.getByRole('button', {
+        name: nodeButtonName('Cloudflare Worker'),
+      }),
+    );
+    expect(
+      within(screen.getByRole('dialog')).getByText('對外唯一入口與反向代理'),
+    ).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole('button', {
+        name: nodeButtonName('AWS CloudFront'),
+      }),
+    );
+
+    const dialog = screen.getByRole('dialog');
+    expect(
+      within(dialog).getByText('目前主力對外 CDN／HTTPS 入口'),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).queryByText('對外唯一入口與反向代理'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('鍵盤可操作視角切換按鈕（Enter 觸發切換）', async () => {
+    const user = userEvent.setup();
+    render(<CloudArchitectureSection />);
+
+    const toggle = screen.getByRole('group', { name: '切換視角' });
+    const cicdButton = within(toggle).getByRole('button', {
+      name: 'CI/CD 視角',
+    });
+    cicdButton.focus();
+    await user.keyboard('{Enter}');
+
+    expect(cicdButton).toHaveAttribute('aria-pressed', 'true');
+    expect(
+      screen.getByRole('button', { name: nodeButtonName('GitHub Repo') }),
+    ).toBeInTheDocument();
+  });
+
   it('文字摘要區一律存在於 DOM', () => {
     render(<CloudArchitectureSection />);
     expect(
