@@ -28,4 +28,17 @@ describe('MethodologyPage', () => {
       container.querySelector(`#${methodologySections[0].id}`),
     ).not.toBeNull();
   });
+
+  it('renders the cloud-architecture section in addition to existing sections (req 1.1, 1.4)', () => {
+    const { container } = renderWithProviders(<MethodologyPage />);
+
+    // New cloud-architecture section is present and deep-link reachable.
+    expect(container.querySelector('#cloud-architecture')).not.toBeNull();
+    expect(screen.getByText('雲端架構關係圖')).toBeInTheDocument();
+
+    // Regression: existing content sections + source-sql still render (add, don't replace).
+    expect(container.querySelector('#cloud-performance')).not.toBeNull();
+    expect(container.querySelector('#data-crawler')).not.toBeNull();
+    expect(container.querySelector('#source-sql')).not.toBeNull();
+  });
 });

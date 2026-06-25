@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
+import { CloudArchitectureSection } from '../components/CloudArchitectureSection';
 import { metricExplanations } from '../content/metrics';
 import { methodologySections } from '../content/sections';
 import type { MethodologyBlock } from '../content/types';
@@ -105,6 +106,8 @@ export function MethodologyPage() {
             {section.blocks.map((block, index) => renderBlock(block, index))}
           </section>
         ))}
+
+        <CloudArchitectureSection />
 
         <section id="source-sql" className="mb-12 scroll-mt-20">
           <h2 className="mb-2 text-xl font-black text-[#003d92]">
