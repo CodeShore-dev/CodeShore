@@ -2,9 +2,9 @@ name: Deploy to Azure (Container Apps)
 
 # 對應 GCP Cloud Run 的長駐容器方案，但目標是 Azure Container Apps
 # （scale-to-zero、永久免費月額度：18萬 vCPU-秒 + 36萬 GiB-秒 + 200萬請求/月）。
-# 與 AWS EC2 路徑共用同一顆映像（Dockerfile.aws：frontend + backend，不裝 Chrome），
-# 映像一樣推到 ghcr.io（免費），Container Apps 直接拉。
-# 流程：build image -> push 到 ghcr.io -> 建立/更新 Container App + 對外 ingress。
+# 映像先推到 ghcr.io（快取），再同步到 Azure Container Registry（codeshoreacr.azurecr.io），
+# ACA 從 ACR 拉（Azure 內網，無 GHCR DENIED 問題）。
+# 流程：build image -> push 到 ghcr.io + ACR -> 建立/更新 Container App + 對外 ingress。
 # 第一次執行會自動建立 resource group / environment / app；之後只更新映像與環境變數。
 #
 # 前置（一次性，需訂閱 Owner，見 scripts/AZURE-DEPLOY.md）：先用你本人帳號在 Cloud Shell 註冊
@@ -13,14 +13,15 @@ name: Deploy to Azure (Container Apps)
 # （不用 Log Analytics，故不需註冊 Microsoft.OperationalInsights）
 #
 # 觸發：push 到 main 自動部署，外加 workflow_dispatch 可手動 Run。
-# 注意：必須先設好 AZURE_CREDENTIALS 等 Secrets，否則每次 push 都會失敗。
+# 注意：必須先設好 AZURE_CREDENTIALS、ACR_PASSWORD 等 Secrets，否則每次 push 都會失敗。
 on:
   workflow_dispatch: {}
   push:
     branches: [main]
 
 env:
-  IMAGE: ghcr.io/${{ github.repository }}/codeshore
+  GHCR_IMAGE: ghcr.io/${{ github.repository }}/codeshore
+  ACR_IMAGE: codeshoreacr.azurecr.io/codeshore
   RESOURCE_GROUP: codeshore-rg
   LOCATION: eastasia            # 東亞（台北/香港），離 GCP asia-east1 最近
   ENVIRONMENT: codeshore-env
@@ -42,9 +43,9 @@ jobs:
         id: ver
         run: echo "value=$(git describe --tags --always)" >> "$GITHUB_OUTPUT"
 
-      - name: Lowercase image name
+      - name: Lowercase GHCR image name
         id: img
-        run: echo "name=${IMAGE,,}" >> "$GITHUB_OUTPUT"
+        run: echo "name=${GHCR_IMAGE,,}" >> "$GITHUB_OUTPUT"
 
       # 前端 VITE_* 變數在 build 時就會被打包進 JS bundle，必須先寫好 .env
       - name: Create frontend .env
@@ -65,7 +66,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # 與 AWS EC2 路徑共用同一顆映像（Dockerfile.aws：frontend + backend，不含 crawler / Chrome）
+      - name: Log in to Azure Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: codeshoreacr.azurecr.io
+          username: codeshoreacr
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      # 同時 push 到 GHCR（快取）和 ACR（供 ACA 拉取）
       - name: Build and push image
         uses: docker/build-push-action@v6
         with:
@@ -77,6 +85,8 @@ jobs:
           tags: |
             ${{ steps.img.outputs.name }}:${{ github.sha }}
             ${{ steps.img.outputs.name }}:latest
+            ${{ env.ACR_IMAGE }}:${{ github.sha }}
+            ${{ env.ACR_IMAGE }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -88,9 +98,8 @@ jobs:
       - name: Deploy to Container Apps
         uses: azure/cli@v2
         env:
-          IMAGE_REF: ${{ steps.img.outputs.name }}:${{ github.sha }}
-          GHCR_USER: ${{ github.actor }}
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE_REF: ${{ env.ACR_IMAGE }}:${{ github.sha }}
+          ACR_PASSWORD: ${{ secrets.ACR_PASSWORD }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         with:
@@ -110,9 +119,10 @@ jobs:
 
             if az containerapp show -n "$APP_NAME" -g "$RESOURCE_GROUP" >/dev/null 2>&1; then
               echo "更新既有 Container App ..."
-              # 校正 registry 憑證（GHCR 私有套件用；公開套件則此步無妨）
               az containerapp registry set -n "$APP_NAME" -g "$RESOURCE_GROUP" \
-                --server ghcr.io --username "$GHCR_USER" --password "$GHCR_TOKEN" -o none || true
+                --server codeshoreacr.azurecr.io \
+                --username codeshoreacr \
+                --password "$ACR_PASSWORD" -o none || true
               az containerapp update -n "$APP_NAME" -g "$RESOURCE_GROUP" \
                 --image "$IMAGE_REF" \
                 --set-env-vars \
@@ -124,9 +134,9 @@ jobs:
               az containerapp create -n "$APP_NAME" -g "$RESOURCE_GROUP" \
                 --environment "$ENVIRONMENT" \
                 --image "$IMAGE_REF" \
-                --registry-server ghcr.io \
-                --registry-username "$GHCR_USER" \
-                --registry-password "$GHCR_TOKEN" \
+                --registry-server codeshoreacr.azurecr.io \
+                --registry-username codeshoreacr \
+                --registry-password "$ACR_PASSWORD" \
                 --target-port "$TARGET_PORT" \
                 --ingress external \
                 --min-replicas 0 --max-replicas 1 \
