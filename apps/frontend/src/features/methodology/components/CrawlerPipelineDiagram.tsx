@@ -18,7 +18,7 @@ export interface CrawlerPipelineDiagramProps {
  */
 export function CrawlerPipelineDiagram({ view, nodes, selectedNodeId, onSelectNode }: CrawlerPipelineDiagramProps) {
   const nodeOf = (id: string): CrawlerNode | undefined => nodes.find(n => n.id === id);
-  const groupOf = (id: string): string => nodeOf(id)?.group ?? 'pipeline';
+  const groupOf = (id: string): string => nodeOf(id)?.group ?? 'detail-pipeline';
   const layout = buildDiagramLayout(view, groupOf, view.clusterRows);
 
   const renderBody = (node: CrawlerNode) => {

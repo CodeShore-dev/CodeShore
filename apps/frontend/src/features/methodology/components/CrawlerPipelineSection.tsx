@@ -30,10 +30,9 @@ export function CrawlerPipelineSection() {
     <section id="data-crawler" className="mb-12 scroll-mt-20">
       <h2 className="mb-4 text-xl font-black tracking-tight text-[#003d92]">資料來源與爬蟲</h2>
       <p className="mb-6 max-w-4xl text-sm leading-relaxed text-[#1f2330]">
-        CodeShore
-        是工程師求職「市場分析站」，不是職缺平台。我們爬取公開招募頁面、做完分析後再把使用者導回原平台投履歷，本站不收履歷、不做媒合。
+        我們爬取公開招募頁面、做分析。
         資料來源為兩個公開職缺平台：104 人力銀行{shareSuffix(share104)}與 Cake
-        {shareSuffix(shareCake)}。點擊節點可查看其在抓取流程中的角色與用途。
+        {shareSuffix(shareCake)}。
       </p>
       <div role="group" aria-label="切換視角" className="mb-3 flex flex-wrap gap-2">
         {views.map(view => {
@@ -70,9 +69,6 @@ export function CrawlerPipelineSection() {
         />
       </div>
 
-      <p className="mt-4 max-w-4xl text-xs leading-relaxed text-[#434653]">
-        揭露範圍說明：本段僅描述「方法與架構」層級，不包含任何金鑰、憑證、連線字串或可直接重現受保護操作的機密設定。
-      </p>
     </section>
   );
 }

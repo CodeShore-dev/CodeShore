@@ -7,7 +7,9 @@ export const GROUP_META: Record<
 > = {
   source: { name: '資料來源', hex: '#0284c7', slugs: ['iconify:mdi:briefcase-search-outline'] },
   engine: { name: '爬蟲引擎', hex: '#7c3aed', slugs: ['iconify:logos:puppeteer'] },
-  pipeline: { name: '處理管線', hex: '#0891b2', slugs: ['iconify:mdi:pipe'] },
+  'list-pipeline': { name: '抓取列表', hex: '#0891b2', slugs: ['iconify:mdi:format-list-bulleted-type'] },
+  'list-pipeline-next': { name: '抓取下一頁列表', hex: '#0891b2', slugs: ['iconify:mdi:format-list-bulleted-type'] },
+  'detail-pipeline': { name: '抓取詳細', hex: '#0d9488', slugs: ['iconify:mdi:file-document-multiple-outline'] },
   database: { name: '資料庫', hex: '#3ECF8E', slugs: ['iconify:devicon:postgresql'] },
   mode: { name: '執行模式', hex: '#ea580c', slugs: ['iconify:mdi:cog-play-outline'] },
 };
@@ -18,7 +20,10 @@ export const NODE_ICON_SLUGS: Record<string, readonly string[]> = {
   'src-cake': ['iconify:mdi:cake-variant-outline'],
   'crawler-engine': ['iconify:logos:puppeteer'],
   stealth: ['iconify:mdi:incognito'],
-  'list-parser': ['iconify:mdi:format-list-bulleted'],
+  'list-api-intercept': ['iconify:mdi:radar'],
+  'list-filter': ['iconify:mdi:filter-check-outline'],
+  'list-next': ['iconify:carbon:connect-recursive'],
+  'list-enqueue': ['iconify:mdi:playlist-plus'],
   'detail-extractor': ['iconify:mdi:file-document-outline'],
   normalizer: ['iconify:mdi:auto-fix'],
   'batch-upsert': ['iconify:mdi:database-import-outline'],

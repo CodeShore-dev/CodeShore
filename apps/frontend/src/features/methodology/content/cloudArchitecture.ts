@@ -198,6 +198,17 @@ export const cloudArchitecture: CloudArchitecture = {
       },
     },
     {
+      id: 'azure-acr',
+      label: 'Azure Container Registry',
+      provider: 'azure',
+      status: 'alternative',
+      interactive: true,
+      detail: {
+        role: '容器映像登錄檔（ACR）',
+        usage: '存放並提供 Azure Container Apps 部署所用的容器映像；與 GHCR 並存，作為純 Azure 原生的映像儲存選項。',
+      },
+    },
+    {
       id: 'supabase',
       label: 'Supabase (PostgreSQL)',
       provider: 'supabase',
@@ -260,7 +271,7 @@ export const cloudArchitecture: CloudArchitecture = {
       tiers: [
         ['github-repo', 'github-actions'],
         ['gcp-cloud-build'],
-        ['gcp-artifact-registry', 'aws-ecr', 'aws-s3', 'azure-ghcr', 'gcp-secret-manager'],
+        ['gcp-artifact-registry', 'aws-ecr', 'aws-s3', 'azure-acr', 'gcp-secret-manager'],
         ['gcp-cloudrun', 'aws-cloudfront', 'aws-lambda', 'azure-container-apps'],
       ],
       edges: [
@@ -274,7 +285,8 @@ export const cloudArchitecture: CloudArchitecture = {
         { from: 'aws-ecr', to: 'aws-lambda', label: '更新 function' },
         { from: 'aws-s3', to: 'aws-cloudfront', label: 'CloudFront 取用 + invalidation' },
         { from: 'github-actions', to: 'azure-ghcr', label: 'GH Actions · Dockerfile.aws 映像' },
-        { from: 'azure-ghcr', to: 'azure-container-apps', label: 'az containerapp update' },
+        { from: 'github-actions', to: 'azure-acr', label: 'GH Actions · ACR 映像' },
+        { from: 'azure-acr', to: 'azure-container-apps', label: 'az containerapp update' },
       ],
     },
   },

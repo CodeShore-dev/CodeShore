@@ -14,7 +14,14 @@
  * 語系：zh-TW。
  */
 
-export type CrawlerGroupId = 'source' | 'engine' | 'pipeline' | 'database' | 'mode';
+export type CrawlerGroupId =
+  | 'source'
+  | 'engine'
+  | 'list-pipeline'
+  | 'list-pipeline-next'
+  | 'detail-pipeline'
+  | 'database'
+  | 'mode';
 export type CrawlerViewId = 'flow' | 'modes';
 
 // active=流程主幹；shared=被多種模式／流程共用的端點
@@ -64,7 +71,7 @@ export const crawlerPipeline: CrawlerPipeline = {
       interactive: true,
       detail: {
         role: '公開職缺來源',
-        usage: '以列表 API 取得職缺清單、再抓取詳情頁。本站做完分析後把使用者導回原平台投遞，不收履歷、不做媒合。',
+        usage: '從 /jobs/search/api/jobs API 取得資料',
         hostKey: '104.com.tw',
       },
     },
@@ -76,7 +83,7 @@ export const crawlerPipeline: CrawlerPipeline = {
       interactive: true,
       detail: {
         role: '公開職缺來源',
-        usage: '另一個公開職缺平台，與 104 各以專屬的列表解析器與詳情擷取器處理。',
+        usage: '從 /api/client/v1/jobs/search API 取得資料',
         hostKey: 'cake.me',
       },
     },
@@ -88,7 +95,8 @@ export const crawlerPipeline: CrawlerPipeline = {
       interactive: true,
       detail: {
         role: '無頭瀏覽器抓取引擎',
-        usage: '以 Crawlee 的 PuppeteerCrawler 驅動無頭 Chrome 抓取列表與詳情頁；採單一併發以減輕對來源的壓力。',
+        usage:
+          '以 Crawlee 的 PuppeteerCrawler 驅動無頭 Chrome 抓取列表與詳情頁；採單一 Tab（maxConcurrency: 1）慢速抓取，一次只開一個頁面，避免對來源平台造成壓力。',
       },
     },
     {
@@ -100,63 +108,101 @@ export const crawlerPipeline: CrawlerPipeline = {
       detail: {
         role: '反自動化偵測與穩定性',
         usage:
-          'puppeteer-extra stealth 搭配 rebrowser-puppeteer，貼近真實瀏覽器的視窗大小、語系與請求標頭；列表回應採逾時控制與多次重試，單頁失敗不中斷整體並標記為 failed。',
+          'puppeteer-extra stealth 搭配 rebrowser-puppeteer，貼近真實瀏覽器的視窗大小、語系與請求標頭；列表回應採逾時控制與多次重試，單頁失敗不中斷整體。',
       },
     },
     {
-      id: 'list-parser',
-      label: '列表解析器',
-      group: 'pipeline',
+      id: 'list-api-intercept',
+      label: '攔截列表 API',
+      group: 'list-pipeline',
       status: 'active',
       interactive: true,
       detail: {
-        role: '來源列表 API 解析',
+        role: '取得本頁職缺與分頁資訊',
         usage:
-          '依來源（104／Cake）各自解析列表頁，並先載入既有職缺 id 做比對：只有「新職缺」才排入詳情佇列，既有職缺交由更新模式處理。',
+          '監聽瀏覽器 XHR/Fetch 回應，攔截符合來源格式的列表 API；解析 pagination（目前頁／總頁數／總筆數）。最多重試 10 次、每次逾時 30 秒；重試時重載頁面，失敗不中斷整體。',
+      },
+    },
+
+    {
+      id: 'list-filter',
+      label: '過濾既有職缺',
+      group: 'list-pipeline',
+      status: 'active',
+      interactive: true,
+      detail: {
+        role: '排除資料庫中已有的職缺',
+        usage:
+          '首次執行時從資料庫一次性載入全部現有職缺 ID；之後逐筆比對，已存在者直接略過不進佇列，只有新職缺才排入詳情任務。',
+      },
+    },
+    {
+      id: 'list-enqueue',
+      label: '建立任務（遞迴）',
+      group: 'list-pipeline',
+      status: 'active',
+      interactive: true,
+      detail: {
+        role: '詳情任務 ＋ 下一頁任務（遞迴）',
+        usage:
+          '每筆新職缺以高優先度各自建立 DETAIL 任務；以低優先度建立下一頁的 LIST 任務，形成自我遞迴直到末頁。第 1 頁時，利用 pagination 資訊在資料表先預建好全部列表頁的待完成紀錄（以供斷點恢復使用），之後每頁完成後會更新該頁紀錄的狀態。',
+      },
+    },
+    {
+      id: 'list-next',
+      label: '流程同上並繼續往下遞迴',
+      group: 'list-pipeline-next',
+      status: 'active',
+      interactive: false,
+      detail: {
+        role: '',
+        usage: '',
       },
     },
     {
       id: 'detail-extractor',
-      label: '詳情頁擷取器',
-      group: 'pipeline',
+      label: '解析詳情頁 HTML',
+      group: 'detail-pipeline',
       status: 'active',
       interactive: true,
       detail: {
-        role: '職缺詳情擷取',
-        usage: '抓取單一職缺詳情頁，擷取標題、描述、薪資、地點、公司等欄位。',
+        role: '擷取職缺欄位',
+        usage:
+          '等待詳情頁就緒後，在瀏覽器內執行 evaluate 擷取標題、描述、薪資、地點、公司等欄位；描述為空視為職缺已下架，標記 closed。',
       },
     },
     {
       id: 'normalizer',
       label: '正規化',
-      group: 'pipeline',
+      group: 'detail-pipeline',
       status: 'active',
       interactive: true,
       detail: {
         role: '統一資料結構',
-        usage: '把不同來源的欄位正規化為一致的職缺資料結構，後續分析才能跨來源一致處理。',
+        usage: '把不同來源的欄位正規化為一致的職缺資料結構，後續分析才能跨來源一致處理。細節會在別區說明。',
       },
     },
     {
       id: 'batch-upsert',
-      label: '批次 Upsert',
-      group: 'pipeline',
+      label: '批次緩衝區 → DB',
+      group: 'detail-pipeline',
       status: 'active',
       interactive: true,
       detail: {
         role: '批次寫入資料庫',
-        usage: '詳情資料批次累積後一次性 upsert（批次大小依來源每頁筆數調整），降低資料庫寫入次數。',
+        usage:
+          '正規化後的公司、職缺、關鍵字先各自推入待寫緩衝；達到批次大小（依來源每頁筆數調整）即一次性 upsert 至資料庫，降低寫入次數。爬蟲結束後由呼叫端手動 flush 剩餘未滿批次的資料。',
       },
     },
     {
       id: 'db-job',
-      label: 'job 職缺資料表',
+      label: 'job / company / job_keyword 資料表',
       group: 'database',
       status: 'shared',
       interactive: true,
       detail: {
         role: '職缺事實資料',
-        usage: '正規化後的職缺寫入處，是所有分析的事實來源；離線重算模式（薪資／關鍵字）也直接讀寫此表。',
+        usage: '正規化後寫入此三張表，它們是所有分析的事實來源。',
       },
     },
     {
@@ -241,23 +287,29 @@ export const crawlerPipeline: CrawlerPipeline = {
   views: {
     flow: {
       id: 'flow',
-      title: '抓取流程',
+      title: '抓取流程(新增)',
       tiers: [
         ['src-104', 'src-cake'],
         ['crawler-engine', 'stealth'],
-        ['list-parser', 'detail-extractor'],
+        ['list-api-intercept', 'list-next'],
+        ['list-filter'],
+        ['list-enqueue'],
+        ['detail-extractor'],
         ['normalizer'],
         ['batch-upsert'],
-        ['db-job', 'db-job-source'],
+        ['db-job'],
       ],
-      clusterRows: [['source'], ['engine'], ['pipeline'], ['database']],
+      clusterRows: [['source'], ['engine'], ['list-pipeline', 'list-pipeline-next'], ['detail-pipeline'], ['database']],
       edges: [
         { from: 'src-104', to: 'crawler-engine', label: '列表 API' },
         { from: 'src-cake', to: 'crawler-engine', label: '列表 API' },
         { from: 'stealth', to: 'crawler-engine', label: '反爬・重試' },
-        { from: 'crawler-engine', to: 'list-parser', label: '列表頁' },
-        { from: 'list-parser', to: 'detail-extractor', label: '新職缺・詳情佇列' },
-        { from: 'list-parser', to: 'db-job-source', label: '頁面進度' },
+        { from: 'crawler-engine', to: 'list-api-intercept', label: '列表頁' },
+        { from: 'list-api-intercept', to: 'list-filter' },
+        { from: 'list-filter', to: 'list-enqueue' },
+        // 遞迴：下一頁任務指回攔截步驟
+        { from: 'list-enqueue', to: 'list-next', label: '下一頁（遞迴）' },
+        { from: 'list-enqueue', to: 'detail-extractor', label: '詳情任務' },
         { from: 'detail-extractor', to: 'normalizer' },
         { from: 'normalizer', to: 'batch-upsert' },
         { from: 'batch-upsert', to: 'db-job', label: '批次 upsert' },
@@ -270,7 +322,7 @@ export const crawlerPipeline: CrawlerPipeline = {
         ['mode-fresh', 'mode-resume', 'mode-recrawl', 'mode-recrawl-cond', 'mode-salary', 'mode-keyword'],
         ['crawler-engine', 'detail-extractor', 'db-job'],
       ],
-      clusterRows: [['mode'], ['engine', 'pipeline', 'database']],
+      clusterRows: [['mode'], ['engine', 'detail-pipeline', 'database']],
       edges: [
         { from: 'mode-fresh', to: 'crawler-engine', label: '全量重抓' },
         { from: 'mode-resume', to: 'crawler-engine', label: '接續 pending' },

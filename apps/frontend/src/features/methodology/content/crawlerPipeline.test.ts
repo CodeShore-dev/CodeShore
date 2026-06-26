@@ -66,7 +66,7 @@ describe('crawlerPipeline', () => {
 
   it('nodes cover all pipeline groups', () => {
     const groups = new Set<CrawlerGroupId>(nodes.map(node => node.group));
-    for (const required of ['source', 'engine', 'pipeline', 'database', 'mode'] as const) {
+    for (const required of ['source', 'engine', 'list-pipeline', 'detail-pipeline', 'database', 'mode'] as const) {
       expect(groups.has(required), `nodes must include a "${required}" group`).toBe(true);
     }
   });

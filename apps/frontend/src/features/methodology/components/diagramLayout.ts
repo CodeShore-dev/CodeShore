@@ -20,6 +20,7 @@ export const NODE_H = 66;
 const INNER_COL_GAP = 16; // 同一群組、同一層的節點水平間距
 const INNER_ROW_GAP = 40; // 群組框內，上下層之間的間距（給箭頭空間）
 const CLUSTER_PAD_X = 14;
+const CLUSTER_PAD_TOP = 20; // 群組標題與第一個節點之間的間距
 const CLUSTER_PAD_BOTTOM = 14;
 const CLUSTER_HEADER = 28;
 const CLUSTER_GAP_X = 30; // 同一列、相鄰群組框的水平間距
@@ -102,7 +103,7 @@ export function buildDiagramLayout(
       group,
       rows,
       w: innerW + CLUSTER_PAD_X * 2,
-      h: CLUSTER_HEADER + rows.length * NODE_H + (rows.length - 1) * INNER_ROW_GAP + CLUSTER_PAD_BOTTOM,
+      h: CLUSTER_HEADER + CLUSTER_PAD_TOP + rows.length * NODE_H + (rows.length - 1) * INNER_ROW_GAP + CLUSTER_PAD_BOTTOM,
     };
   };
 
@@ -126,7 +127,7 @@ export function buildDiagramLayout(
       cluster.rows.forEach((ids, r) => {
         const rw = ids.length * NODE_W + (ids.length - 1) * INNER_COL_GAP;
         const startX = x + (cluster.w - rw) / 2;
-        const ny = y + CLUSTER_HEADER + r * (NODE_H + INNER_ROW_GAP);
+        const ny = y + CLUSTER_HEADER + CLUSTER_PAD_TOP + r * (NODE_H + INNER_ROW_GAP);
         ids.forEach((id, j) => {
           const nx = startX + j * (NODE_W + INNER_COL_GAP);
           boxes.set(id, { id, x: nx, y: ny, cx: nx + NODE_W / 2, cy: ny + NODE_H / 2 });

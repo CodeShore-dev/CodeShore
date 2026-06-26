@@ -32,7 +32,6 @@ export const createRouter = <
   transformPagination,
   waitFordDetailPageSelector,
   getJobsFromResponse,
-  getUpdatedAtField,
   extractJobDetailOnHTML,
   cookRawJob,
   transformJob,
