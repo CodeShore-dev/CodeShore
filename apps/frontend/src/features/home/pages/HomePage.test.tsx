@@ -37,6 +37,10 @@ vi.mock('../service', () => ({
   ]),
   fetchMvTechRanking: vi.fn().mockResolvedValue({ result: [] }),
   fetchMvTechComboStats: vi.fn().mockResolvedValue({ result: [] }),
+  fetchJobHostStatistics: vi.fn().mockResolvedValue([
+    { host: 'www.104.com.tw', host_count: 9325, percentage: 83.83 },
+    { host: 'www.cake.me', host_count: 1799, percentage: 16.17 },
+  ]),
 }));
 
 import { HomeSalaryBenchmark } from '../components/HomeSalaryBenchmark';

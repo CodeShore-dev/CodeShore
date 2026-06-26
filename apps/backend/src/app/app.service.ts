@@ -8,6 +8,7 @@ import {
   MvSalaryWeightedRatioService,
   MvTechComboStatsService,
   getJobCount,
+  getJobHostStatistics,
 } from '@codeshore/data-utils';
 import {
   CacheService,
@@ -29,6 +30,13 @@ export class AppService {
   @Cacheable({ key: getJobCount.name, ttl: 300 })
   async getJobCount(): Promise<SupabaseFunction.JobCount> {
     return (await getJobCount()).data;
+  }
+
+  @Cacheable({ key: getJobHostStatistics.name, ttl: 300 })
+  async getJobHostStatistics(): Promise<
+    SupabaseFunction.JobHostStatistic[]
+  > {
+    return getJobHostStatistics();
   }
 
   @Cacheable({ key: MvSalaryTypeMedianRatioService.name })

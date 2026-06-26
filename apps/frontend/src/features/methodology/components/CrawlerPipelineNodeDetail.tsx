@@ -5,11 +5,14 @@ import type { CrawlerNode } from '../content/crawlerPipeline';
 export interface CrawlerPipelineNodeDetailProps {
   readonly node: CrawlerNode | null;
   readonly onClose: () => void;
+  // 來源網域 -> 即時職缺佔比（0–100 整數），來自 get_job_host_statistics。
+  // 當節點 detail.hostKey 命中時，角色說明後會附上「（約佔 N%）」。
+  readonly hostShares?: Record<string, number | undefined>;
 }
 
 // 節點詳情面板：只顯示目前選取節點的 label 與 detail.role／detail.usage（內容已無機密）。
 // 鍵盤與焦點行為：Escape 關閉、開啟時焦點移入面板，關閉時還原至開啟前的觸發元素。
-export function CrawlerPipelineNodeDetail({ node, onClose }: CrawlerPipelineNodeDetailProps) {
+export function CrawlerPipelineNodeDetail({ node, onClose, hostShares }: CrawlerPipelineNodeDetailProps) {
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const previouslyFocused = useRef<Element | null>(null);
 
@@ -38,6 +41,13 @@ export function CrawlerPipelineNodeDetail({ node, onClose }: CrawlerPipelineNode
 
   if (!node) return null;
 
+  const hostKey = node.detail?.hostKey;
+  const sharePercent = hostKey ? hostShares?.[hostKey] : undefined;
+  const roleText =
+    node.detail && sharePercent != null
+      ? `${node.detail.role}（約佔 ${sharePercent}%）`
+      : node.detail?.role;
+
   return (
     <div
       role="dialog"
@@ -62,7 +72,7 @@ export function CrawlerPipelineNodeDetail({ node, onClose }: CrawlerPipelineNode
         <dl className="space-y-3">
           <div>
             <dt className="text-sm font-bold text-[#001f2a]">角色</dt>
-            <dd className="mt-0.5 text-sm leading-relaxed font-normal text-[#5b6070]">{node.detail.role}</dd>
+            <dd className="mt-0.5 text-sm leading-relaxed font-normal text-[#5b6070]">{roleText}</dd>
           </div>
           <div>
             <dt className="text-sm font-bold text-[#001f2a]">用途</dt>

@@ -24,6 +24,15 @@ export async function getJobUpdateDateCounts(): Promise<
   return data ?? [];
 }
 
+export async function getJobHostStatistics(): Promise<
+  SupabaseFunction.JobHostStatistic[]
+> {
+  const { data } = await getSupabaseClient().rpc(
+    'get_job_host_statistics',
+  );
+  return data ?? [];
+}
+
 export async function getJobPreferenceCount(
   userId: string,
 ): Promise<SupabaseFunction.JobPreferenceCount> {

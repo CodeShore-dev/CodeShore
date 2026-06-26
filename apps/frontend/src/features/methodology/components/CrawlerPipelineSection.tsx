@@ -1,3 +1,4 @@
+import { useJobHostStatistics } from '../../../hooks/useJobHostStatistics';
 import { useCrawlerPipelineView } from '../composables/useCrawlerPipelineView';
 import { crawlerPipeline } from '../content/crawlerPipeline';
 import { CrawlerPipelineDiagram } from './CrawlerPipelineDiagram';
@@ -14,14 +15,25 @@ export function CrawlerPipelineSection() {
   const state = useCrawlerPipelineView();
   const views = Object.values(crawlerPipeline.views);
 
+  // 兩個來源平台的「真實」職缺佔比，取自 get_job_host_statistics（取代寫死的 54%／28%）。
+  const { percentFor } = useJobHostStatistics();
+  const share104 = percentFor('104.com.tw');
+  const shareCake = percentFor('cake.me');
+  const hostShares: Record<string, number | undefined> = {
+    '104.com.tw': share104,
+    'cake.me': shareCake,
+  };
+  const shareSuffix = (percent: number | undefined): string =>
+    percent != null ? `（約佔 ${percent}%）` : '';
+
   return (
     <section id="data-crawler" className="mb-12 scroll-mt-20">
       <h2 className="mb-4 text-xl font-black tracking-tight text-[#003d92]">資料來源與爬蟲</h2>
       <p className="mb-6 max-w-4xl text-sm leading-relaxed text-[#1f2330]">
         CodeShore
         是工程師求職「市場分析站」，不是職缺平台。我們爬取公開招募頁面、做完分析後再把使用者導回原平台投履歷，本站不收履歷、不做媒合。
-        資料來源為兩個公開職缺平台：104 人力銀行（約佔 54%）與 Cake（約佔
-        28%）。點擊節點可查看其在抓取流程中的角色與用途。
+        資料來源為兩個公開職缺平台：104 人力銀行{shareSuffix(share104)}與 Cake
+        {shareSuffix(shareCake)}。點擊節點可查看其在抓取流程中的角色與用途。
       </p>
       <div role="group" aria-label="切換視角" className="mb-3 flex flex-wrap gap-2">
         {views.map(view => {
@@ -51,7 +63,11 @@ export function CrawlerPipelineSection() {
           selectedNodeId={state.selectedNodeId}
           onSelectNode={state.selectNode}
         />
-        <CrawlerPipelineNodeDetail node={state.selectedNode} onClose={state.clearSelection} />
+        <CrawlerPipelineNodeDetail
+          node={state.selectedNode}
+          onClose={state.clearSelection}
+          hostShares={hostShares}
+        />
       </div>
 
       <p className="mt-4 max-w-4xl text-xs leading-relaxed text-[#434653]">

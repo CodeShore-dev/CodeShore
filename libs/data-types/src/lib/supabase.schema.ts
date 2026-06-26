@@ -580,6 +580,14 @@ export type Database = {
           updated_jobs_date: string
         }[]
       }
+      get_job_host_statistics: {
+        Args: never
+        Returns: {
+          host: string
+          host_count: number
+          percentage: number
+        }[]
+      }
       get_job_preference_count: { Args: { p_user_id: string }; Returns: Json }
       get_job_update_date_counts: {
         Args: never

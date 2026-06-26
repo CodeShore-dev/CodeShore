@@ -28,6 +28,16 @@ export class AppController {
     return this.service.getJobCount();
   }
 
+  @Get('/job-host-statistics')
+  @ApiOperation({
+    summary: 'Get the job share per source host',
+    description:
+      'Returns the number of jobs and their percentage share grouped by source host (extracted from each job detail_link), e.g. www.104.com.tw and www.cake.me. Backed by the get_job_host_statistics database function. The result is cached. This endpoint is public (no authentication required).',
+  })
+  getJobHostStatistics() {
+    return this.service.getJobHostStatistics();
+  }
+
   @Get('/salary/type/median/ratio')
   @ApiOperation({
     summary:

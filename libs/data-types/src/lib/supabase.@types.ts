@@ -85,6 +85,9 @@ export namespace SupabaseFunction {
 
   export type JobUpdateDateCount =
     Database['public']['Functions']['get_job_update_date_counts']['Returns'][number];
+
+  export type JobHostStatistic =
+    Database['public']['Functions']['get_job_host_statistics']['Returns'][number];
 }
 
 export namespace SupabaseView {

@@ -9,6 +9,21 @@ vi.mock('../../../components/TechIcon', () => ({
   TechIcon: () => null,
 }));
 
+// Host-share statistics come from the backend; stub the hook with deterministic
+// shares so the section renders real proportions without a network call.
+const hostPercents: Record<string, number> = {
+  '104.com.tw': 84,
+  'cake.me': 16,
+};
+vi.mock('../../../hooks/useJobHostStatistics', () => ({
+  useJobHostStatistics: () => ({
+    isLoading: false,
+    isError: false,
+    byHost: {},
+    percentFor: (host: string): number | undefined => hostPercents[host],
+  }),
+}));
+
 const escapeRe = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // 互動節點按鈕的無障礙名稱即為其 label。
@@ -25,6 +40,24 @@ describe('CrawlerPipelineSection', () => {
   it('首次渲染顯示預設（抓取流程）視角的節點', () => {
     render(<CrawlerPipelineSection />);
     expect(screen.getByRole('button', { name: nodeButtonName('Crawlee PuppeteerCrawler') })).toBeInTheDocument();
+  });
+
+  it('簡介以 get_job_host_statistics 的真實佔比呈現（取代寫死數據）', () => {
+    const { container } = render(<CrawlerPipelineSection />);
+    expect(container.textContent).toContain('104 人力銀行（約佔 84%）');
+    expect(container.textContent).toContain('Cake（約佔 16%）');
+    expect(container.textContent).not.toContain('54%');
+    expect(container.textContent).not.toContain('28%');
+  });
+
+  it('來源節點詳情角色附上即時佔比', async () => {
+    const user = userEvent.setup();
+    render(<CrawlerPipelineSection />);
+
+    await user.click(screen.getByRole('button', { name: nodeButtonName('104 人力銀行') }));
+
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText('公開職缺來源（約佔 84%）')).toBeInTheDocument();
   });
 
   it('點擊執行模式視角切換圖表並以 aria-pressed 反映選取狀態', async () => {

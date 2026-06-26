@@ -30,6 +30,7 @@ export interface CrawlerNode {
     // interactive 為 true 時必填（一致性測試強制）
     readonly role: string; // 在抓取流程中的角色
     readonly usage: string; // 用途說明；不得含機密
+    readonly hostKey?: string; // 設定後，詳情面板會在 role 後附上該來源的「即時」職缺佔比（取自 get_job_host_statistics）
   };
 }
 
@@ -62,8 +63,9 @@ export const crawlerPipeline: CrawlerPipeline = {
       status: 'active',
       interactive: true,
       detail: {
-        role: '公開職缺來源（約佔 54%）',
+        role: '公開職缺來源',
         usage: '以列表 API 取得職缺清單、再抓取詳情頁。本站做完分析後把使用者導回原平台投遞，不收履歷、不做媒合。',
+        hostKey: '104.com.tw',
       },
     },
     {
@@ -73,8 +75,9 @@ export const crawlerPipeline: CrawlerPipeline = {
       status: 'active',
       interactive: true,
       detail: {
-        role: '公開職缺來源（約佔 28%）',
+        role: '公開職缺來源',
         usage: '另一個公開職缺平台，與 104 各以專屬的列表解析器與詳情擷取器處理。',
+        hostKey: 'cake.me',
       },
     },
     {

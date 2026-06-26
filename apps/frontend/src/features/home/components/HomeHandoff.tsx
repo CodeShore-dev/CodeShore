@@ -1,9 +1,13 @@
+import { useJobHostStatistics } from '../../../hooks/useJobHostStatistics';
+
 const CHANNELS = [
-  { name: '104 人力銀行', share: '54%', host: 'https://104.com.tw' },
-  { name: 'Cake', share: '28%', host: 'https://cake.me' },
+  { name: '104 人力銀行', hostKey: '104.com.tw', host: 'https://104.com.tw' },
+  { name: 'Cake', hostKey: 'cake.me', host: 'https://cake.me' },
 ];
 
 export function HomeHandoff() {
+  const { percentFor } = useJobHostStatistics();
+
   return (
     <section className="mt-10">
       <div className="grid items-center gap-6 rounded-3xl bg-[#003d92] p-6 text-white md:grid-cols-[1.4fr_1fr] md:gap-8 md:p-10">
@@ -26,7 +30,9 @@ export function HomeHandoff() {
           </p>
         </div>
         <div className="grid gap-2 md:grid-cols-2">
-          {CHANNELS.map(ch => (
+          {CHANNELS.map(ch => {
+            const percent = percentFor(ch.hostKey);
+            return (
             <div
               key={ch.name}
               className="flex items-center justify-between rounded-xl bg-white/10 p-4"
@@ -34,7 +40,8 @@ export function HomeHandoff() {
               <div>
                 <div className="text-sm font-bold">{ch.name}</div>
                 <div className="font-mono text-[11px] text-white/50">
-                  {ch.host} · {ch.share}
+                  {ch.host}
+                  {percent != null ? ` · ${percent}%` : ''}
                 </div>
               </div>
               <a
@@ -46,7 +53,8 @@ export function HomeHandoff() {
                 ↗
               </a>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>

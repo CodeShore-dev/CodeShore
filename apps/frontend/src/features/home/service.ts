@@ -28,6 +28,13 @@ export const fetchJobCount = async () => {
   return res.data;
 };
 
+export const fetchJobHostStatistics = async () => {
+  const res = await httpClient.get<
+    SupabaseFunction.JobHostStatistic[]
+  >('/api/job-host-statistics');
+  return res.data;
+};
+
 export const fetchMvTechRanking = async (
   query: ListQuery,
 ) => {
