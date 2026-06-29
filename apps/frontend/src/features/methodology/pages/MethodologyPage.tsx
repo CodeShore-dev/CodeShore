@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 
 import { CloudArchitectureSection } from '../components/CloudArchitectureSection';
 import { CrawlerPipelineSection } from '../components/CrawlerPipelineSection';
+import { DataNormalizationSection } from '../components/DataNormalizationSection';
 import { metricExplanations } from '../content/metrics';
 import { methodologySections } from '../content/sections';
 import type { MethodologyBlock } from '../content/types';
@@ -86,6 +87,8 @@ export function MethodologyPage() {
         <CloudArchitectureSection />
 
         <CrawlerPipelineSection />
+
+        <DataNormalizationSection />
 
         {methodologySections.map(section => (
           <section key={section.id} id={section.id} className="mb-12 scroll-mt-20">

@@ -96,8 +96,8 @@ export function buildDiagramLayout(
   // 群組框內：依層（tier）分成上下列，同層節點並排。
   const planFor = (group: string): ClusterPlan => {
     const ids = byGroup.get(group) ?? [];
-    const tiers = [...new Set(ids.map(tierOf))].sort((a, b) => a - b);
-    const rows = tiers.map(t => ids.filter(id => tierOf(id) === t).sort((a, b) => a.localeCompare(b)));
+    const tiers = [...new Set(ids.map(tierOf))];
+    const rows = tiers.map(t => ids.filter(id => tierOf(id) === t));
     const innerW = Math.max(...rows.map(r => r.length * NODE_W + (r.length - 1) * INNER_COL_GAP));
     return {
       group,

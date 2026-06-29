@@ -12,6 +12,10 @@ export const GROUP_META: Record<
   'detail-pipeline': { name: '抓取詳細', hex: '#0d9488', slugs: ['iconify:mdi:file-document-multiple-outline'] },
   database: { name: '資料庫', hex: '#3ECF8E', slugs: ['iconify:devicon:postgresql'] },
   mode: { name: '執行模式', hex: '#ea580c', slugs: ['iconify:mdi:cog-play-outline'] },
+  'rc-scope': { name: '更新範圍', hex: '#ea580c', slugs: ['iconify:mdi:clipboard-text-clock-outline'] },
+  'rc-detail': { name: '重抓詳細頁', hex: '#0d9488', slugs: ['iconify:mdi:file-search-outline'] },
+  'rc-decide': { name: '變動判斷', hex: '#ca8a04', slugs: ['iconify:mdi:directions-fork'] },
+  'rc-write': { name: '批次寫回', hex: '#0891b2', slugs: ['iconify:mdi:database-import-outline'] },
 };
 
 // 每個節點的代表圖示 slug（找不到時退回群組圖示）。
@@ -35,4 +39,12 @@ export const NODE_ICON_SLUGS: Record<string, readonly string[]> = {
   'mode-recrawl-cond': ['iconify:mdi:filter-outline'],
   'mode-salary': ['iconify:mdi:cash-multiple'],
   'mode-keyword': ['iconify:mdi:tag-outline'],
+  'rc-scope': ['iconify:mdi:clipboard-text-clock-outline'],
+  'rc-host': ['iconify:mdi:dns-outline'],
+  'rc-extract': ['iconify:mdi:file-document-outline'],
+  'rc-decide': ['iconify:mdi:directions-fork'],
+  'rc-update': ['iconify:mdi:file-edit-outline'],
+  'rc-touch': ['iconify:mdi:clock-outline'],
+  'rc-close': ['iconify:mdi:close-circle-outline'],
+  'rc-write': ['iconify:mdi:database-import-outline'],
 };

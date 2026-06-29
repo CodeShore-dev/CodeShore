@@ -3,7 +3,7 @@ import type { MethodologySection } from '../content/types';
 /**
  * Methodology 頁四大主題段落的唯一可信來源（zh-TW）。
  * 內容對齊本專案實際的爬蟲、資料庫 schema、技術棧與部署設定，
- * 僅描述方法與架構，不含任何金鑰、憑證或連線字串。
+ * 僅職缺描述方法與架構，不含任何金鑰、憑證或連線字串。
  */
 // 註：「資料來源與爬蟲」段落已改以關係圖呈現（見 CrawlerPipelineSection 與
 // content/crawlerPipeline.ts），故不再於此文字段落清單中重複定義。
@@ -27,7 +27,7 @@ export const methodologySections: readonly MethodologySection[] =
           rows: [
             [
               'job',
-              '職缺主表：標題、地點、薪資（原字串與解析出的 min / max、薪資型態）、描述、所屬公司、是否關閉等，是所有分析的事實來源。',
+              '職缺主表：標題、地點、薪資（原字串與解析出的 min / max、薪資型態）、職缺描述、所屬公司、是否關閉等，是所有分析的事實來源。',
             ],
             [
               'company',
@@ -148,7 +148,7 @@ export const methodologySections: readonly MethodologySection[] =
         },
         {
           kind: 'paragraph',
-          text: '一致性原則：本段所述物件均對應站台實際運作中的資料庫物件，不描述不存在的物件；各分析數字的統計範圍與其背後對應的物化視圖 / function 一致。',
+          text: '一致性原則：本段所述物件均對應站台實際運作中的資料庫物件，不職缺描述不存在的物件；各分析數字的統計範圍與其背後對應的物化視圖 / function 一致。',
         },
       ],
     },

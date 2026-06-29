@@ -29,7 +29,7 @@ const CONDITION_COLUMNS = [
   { value: 'max_salary', label: '最高薪資 max_salary' },
   { value: 'location', label: '地點 location' },
   { value: 'title', label: '標題 title' },
-  { value: 'description', label: '描述 description' },
+  { value: 'description', label: '職缺描述 description' },
   { value: 'company_id', label: '公司 company_id' },
   { value: 'closed', label: '已關閉 closed' },
   { value: 'salary', label: '薪資字串 salary' },

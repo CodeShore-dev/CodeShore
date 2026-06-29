@@ -10,7 +10,7 @@
  * （依 PRIORITY [aws, azure, gcp] 順序探測，取第一個存活者），AWS 為主力、
  * GCP／Azure 為容錯備選、EC2 為備援，Supabase 與 GitHub 為四雲共用。
  *
- * 安全：本檔不得含任何金鑰、憑證、連線字串、FQDN 或內部主機名。
+ * 安全：本檔不得含任何金鑰、憑證、連線字串、FQDN 或內部 host 名。
  * 語系：zh-TW。
  */
 
@@ -272,7 +272,7 @@ export const cloudArchitecture: CloudArchitecture = {
         ['github-repo', 'github-actions'],
         ['gcp-cloud-build'],
         ['gcp-artifact-registry', 'aws-ecr', 'aws-s3', 'azure-acr', 'gcp-secret-manager'],
-        ['gcp-cloudrun', 'aws-cloudfront', 'aws-lambda', 'azure-container-apps'],
+        ['gcp-cloudrun', 'aws-lambda', 'aws-cloudfront', 'azure-container-apps'],
       ],
       edges: [
         { from: 'github-repo', to: 'gcp-cloud-build', label: 'Cloud Build trigger' },

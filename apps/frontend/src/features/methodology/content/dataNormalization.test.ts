@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { type CrawlerGroupId, type CrawlerView, crawlerPipeline } from './crawlerPipeline';
+import { type DataFlowGroupId, type DataFlowView, dataNormalization } from './dataNormalization';
 
-describe('crawlerPipeline', () => {
-  const { nodes, views } = crawlerPipeline;
+describe('dataNormalization', () => {
+  const { nodes, views } = dataNormalization;
   const nodeIds = new Set(nodes.map(node => node.id));
-  const viewList: readonly CrawlerView[] = [views.flow, views.recrawl, views.modes];
+  const viewList: readonly DataFlowView[] = [views.split, views.process];
 
-  it('every edge in both views references existing node ids (edge integrity)', () => {
+  it('every edge in every view references existing node ids (edge integrity)', () => {
     for (const view of viewList) {
       for (const edge of view.edges) {
         expect(nodeIds.has(edge.from), `view "${view.id}" edge.from "${edge.from}" must be an existing node id`).toBe(
@@ -30,7 +30,7 @@ describe('crawlerPipeline', () => {
     }
   });
 
-  it('both flow and modes views exist and are non-empty', () => {
+  it('both split and process views exist and are non-empty', () => {
     for (const view of viewList) {
       expect(view).toBeDefined();
       expect(view.tiers.length).toBeGreaterThan(0);
@@ -50,7 +50,7 @@ describe('crawlerPipeline', () => {
   });
 
   it('every group referenced in clusterRows matches an existing node group', () => {
-    const nodeGroups = new Set<CrawlerGroupId>(nodes.map(node => node.group));
+    const nodeGroups = new Set<DataFlowGroupId>(nodes.map(node => node.group));
     for (const view of viewList) {
       for (const row of view.clusterRows) {
         for (const group of row) {
@@ -61,12 +61,12 @@ describe('crawlerPipeline', () => {
   });
 
   it('defaultView is a valid key of views', () => {
-    expect(Object.keys(views)).toContain(crawlerPipeline.defaultView);
+    expect(Object.keys(views)).toContain(dataNormalization.defaultView);
   });
 
   it('nodes cover all pipeline groups', () => {
-    const groups = new Set<CrawlerGroupId>(nodes.map(node => node.group));
-    for (const required of ['source', 'engine', 'list-pipeline', 'detail-pipeline', 'database', 'mode'] as const) {
+    const groups = new Set<DataFlowGroupId>(nodes.map(node => node.group));
+    for (const required of ['raw', 'cook', 'fact', 'derive', 'derived', 'mv'] as const) {
       expect(groups.has(required), `nodes must include a "${required}" group`).toBe(true);
     }
   });
