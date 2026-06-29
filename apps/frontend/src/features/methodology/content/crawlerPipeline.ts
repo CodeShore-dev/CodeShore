@@ -4,9 +4,9 @@
  * 以與「雲端與 CI/CD 架構」相同的模式呈現：節點依群組（資料來源／爬蟲引擎／處理管線／
  * 資料庫／執行模式）框起來，節點間以箭頭表達關係；雙視角共用同一組節點：
  *  - 抓取流程（flow）：來源 → 引擎 → 解析／擷取 → 正規化 → 批次寫入 → 資料庫。
- *  - 執行模式（modes）：六種執行模式各自作用於引擎、詳情擷取或既有資料。
+ *  - 執行模式（modes）：六種執行模式各自作用於引擎、詳細擷取或既有資料。
  *
- * 圖表、詳情面板與簡介文字皆只讀此模組，從根本保證雙視角與文字版內容一致。
+ * 圖表、詳細面板與簡介文字皆只讀此模組，從根本保證雙視角與文字版內容一致。
  * 內容對齊本專案實際的爬蟲行為（Crawlee PuppeteerCrawler、stealth 反爬、來源別解析、
  * 正規化、批次 upsert、列表頁進度與多種執行模式），僅描述方法與架構。
  *
@@ -32,12 +32,12 @@ export interface CrawlerNode {
   readonly label: string; // 顯示名稱（zh-TW）
   readonly group: CrawlerGroupId;
   readonly status: CrawlerNodeStatus;
-  readonly interactive: boolean; // 是否可點看詳情
+  readonly interactive: boolean; // 是否可點看詳細
   readonly detail?: {
     // interactive 為 true 時必填（一致性測試強制）
     readonly role: string; // 在抓取流程中的角色
     readonly usage: string; // 用途說明；不得含機密
-    readonly hostKey?: string; // 設定後，詳情面板會在 role 後附上該來源的「即時」職缺佔比（取自 get_job_host_statistics）
+    readonly hostKey?: string; // 設定後，詳細面板會在 role 後附上該來源的「即時」職缺佔比（取自 get_job_host_statistics）
   };
 }
 
@@ -96,7 +96,7 @@ export const crawlerPipeline: CrawlerPipeline = {
       detail: {
         role: '無頭瀏覽器抓取引擎',
         usage:
-          '以 Crawlee 的 PuppeteerCrawler 驅動無頭 Chrome 抓取列表與詳情頁；採單一 Tab（maxConcurrency: 1）慢速抓取，一次只開一個頁面，避免對來源平台造成壓力。',
+          '以 Crawlee 的 PuppeteerCrawler 驅動無頭 Chrome 抓取列表與詳細頁；採單一 Tab（maxConcurrency: 1）慢速抓取，一次只開一個頁面，避免對來源平台造成壓力。',
       },
     },
     {
@@ -133,7 +133,7 @@ export const crawlerPipeline: CrawlerPipeline = {
       detail: {
         role: '排除資料庫中已有的職缺',
         usage:
-          '首次執行時從資料庫一次性載入全部現有職缺 ID；之後逐筆比對，已存在者直接略過不進佇列，只有新職缺才排入詳情任務。',
+          '首次執行時從資料庫一次性載入全部現有職缺 ID；之後逐筆比對，已存在者直接略過不進佇列，只有新職缺才排入詳細任務。',
       },
     },
     {
@@ -143,7 +143,7 @@ export const crawlerPipeline: CrawlerPipeline = {
       status: 'active',
       interactive: true,
       detail: {
-        role: '詳情任務 ＋ 下一頁任務（遞迴）',
+        role: '詳細任務 ＋ 下一頁任務（遞迴）',
         usage:
           '每筆新職缺以高優先度各自建立 DETAIL 任務；以低優先度建立下一頁的 LIST 任務，形成自我遞迴直到末頁。第 1 頁時，利用 pagination 資訊在資料表先預建好全部列表頁的待完成紀錄（以供斷點恢復使用），之後每頁完成後會更新該頁紀錄的狀態。',
       },
@@ -161,14 +161,14 @@ export const crawlerPipeline: CrawlerPipeline = {
     },
     {
       id: 'detail-extractor',
-      label: '解析詳情頁 HTML',
+      label: '解析詳細頁 HTML',
       group: 'detail-pipeline',
       status: 'active',
       interactive: true,
       detail: {
         role: '擷取職缺欄位',
         usage:
-          '等待詳情頁就緒後，在瀏覽器內執行 evaluate 擷取標題、描述、薪資、地點、公司等欄位；描述為空視為職缺已下架，標記 closed。',
+          '等待詳細頁就緒後，在瀏覽器內執行 evaluate 擷取標題、描述、薪資、地點、公司等欄位；描述為空視為職缺已下架，標記 closed。',
       },
     },
     {
@@ -245,9 +245,9 @@ export const crawlerPipeline: CrawlerPipeline = {
       status: 'active',
       interactive: true,
       detail: {
-        role: '重訪既有詳情頁',
+        role: '重訪既有詳細頁',
         usage:
-          '重新拜訪既有職缺的詳情頁，比對描述、薪資、地點是否變動並就地更新；頁面已不存在則標記為已關閉（closed）。預設只挑「昨日之前未更新」者，使資料滾動更新。',
+          '重新拜訪既有職缺的詳細頁，比對描述、薪資、地點是否變動並就地更新；頁面已不存在則標記為已關閉（closed）。預設只挑「昨日之前未更新」者，使資料滾動更新。',
       },
     },
     {
@@ -309,7 +309,7 @@ export const crawlerPipeline: CrawlerPipeline = {
         { from: 'list-filter', to: 'list-enqueue' },
         // 遞迴：下一頁任務指回攔截步驟
         { from: 'list-enqueue', to: 'list-next', label: '下一頁（遞迴）' },
-        { from: 'list-enqueue', to: 'detail-extractor', label: '詳情任務' },
+        { from: 'list-enqueue', to: 'detail-extractor', label: '詳細任務' },
         { from: 'detail-extractor', to: 'normalizer' },
         { from: 'normalizer', to: 'batch-upsert' },
         { from: 'batch-upsert', to: 'db-job', label: '批次 upsert' },
@@ -326,7 +326,7 @@ export const crawlerPipeline: CrawlerPipeline = {
       edges: [
         { from: 'mode-fresh', to: 'crawler-engine', label: '全量重抓' },
         { from: 'mode-resume', to: 'crawler-engine', label: '接續 pending' },
-        { from: 'mode-recrawl', to: 'detail-extractor', label: '重訪詳情' },
+        { from: 'mode-recrawl', to: 'detail-extractor', label: '重訪詳細' },
         { from: 'mode-recrawl-cond', to: 'detail-extractor', label: '條件子集' },
         { from: 'mode-salary', to: 'db-job', label: '離線重算薪資' },
         { from: 'mode-keyword', to: 'db-job', label: '離線重算關鍵字' },

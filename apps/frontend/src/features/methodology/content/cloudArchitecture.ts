@@ -2,7 +2,7 @@
  * 雲端與 CI/CD 架構的唯一可信來源（content registry）。
  *
  * 定義型別與資料：節點集（四雲與其服務）、雙視角（流量／CI/CD）的分層與邊、
- * 以及每個可互動節點在本專案中的角色／用途說明。圖表、詳情面板與文字摘要
+ * 以及每個可互動節點在本專案中的角色／用途說明。圖表、詳細面板與文字摘要
  * 皆只讀此模組，從根本保證雙視角與文字版內容一致。
  *
  * 內容對齊實際多雲部署設定（cloudflare worker / deploy-*.yml / cloudbuild.yaml
@@ -25,7 +25,7 @@ export interface ArchNode {
   readonly label: string; // 顯示名稱（zh-TW，可含服務原名）
   readonly provider: CloudProviderId;
   readonly status: NodeStatus; // 角色（R2.3）
-  readonly interactive: boolean; // 是否可點看詳情（R4.2）
+  readonly interactive: boolean; // 是否可點看詳細（R4.2）
   readonly detail?: {
     // interactive 為 true 時必填（一致性測試強制）
     readonly role: string; // 在本專案中的角色

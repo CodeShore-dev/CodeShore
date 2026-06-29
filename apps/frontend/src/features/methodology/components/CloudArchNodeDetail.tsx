@@ -7,7 +7,7 @@ export interface CloudArchNodeDetailProps {
   readonly onClose: () => void;
 }
 
-// 節點詳情面板：只顯示目前選取節點的 label 與 detail.role／detail.usage
+// 節點詳細面板：只顯示目前選取節點的 label 與 detail.role／detail.usage
 // （內容已是無機密；R4.4）。鍵盤與焦點行為對齊 InfoHint：Escape 關閉、
 // 開啟時焦點移入面板，關閉時還原至開啟前的觸發元素。
 export function CloudArchNodeDetail({ node, onClose }: CloudArchNodeDetailProps) {
