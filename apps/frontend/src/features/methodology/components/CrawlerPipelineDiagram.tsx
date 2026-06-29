@@ -8,6 +8,9 @@ export interface CrawlerPipelineDiagramProps {
   readonly nodes: readonly CrawlerNode[];
   readonly selectedNodeId: string | null;
   readonly onSelectNode: (id: string) => void;
+  // 來源網域 -> 即時職缺佔比（0–100 整數），來自 get_job_host_statistics。
+  // 當節點 detail.hostKey 命中時，label 後會附上「約佔 N%」。
+  readonly hostShares?: Record<string, number | undefined>;
 }
 
 /**
@@ -16,18 +19,31 @@ export interface CrawlerPipelineDiagramProps {
  * 畫區塊框與箭頭，上層為可點的 HTML 節點按鈕。整張圖原始尺寸排版，外層容器在窄螢幕水平捲動，
  * 頁面版面不破。
  */
-export function CrawlerPipelineDiagram({ view, nodes, selectedNodeId, onSelectNode }: CrawlerPipelineDiagramProps) {
+export function CrawlerPipelineDiagram({
+  view,
+  nodes,
+  selectedNodeId,
+  onSelectNode,
+  hostShares,
+}: CrawlerPipelineDiagramProps) {
   const nodeOf = (id: string): CrawlerNode | undefined => nodes.find(n => n.id === id);
   const groupOf = (id: string): string => nodeOf(id)?.group ?? 'detail-pipeline';
   const layout = buildDiagramLayout(view, groupOf, view.clusterRows);
 
   const renderBody = (node: CrawlerNode) => {
     const slugs = NODE_ICON_SLUGS[node.id] ?? GROUP_META[node.group].slugs;
+    const hostKey = node.detail?.hostKey;
+    const sharePercent = hostKey ? hostShares?.[hostKey] : undefined;
     return (
       <>
         <TechIcon slugs={[...slugs]} label={node.label} size={22} hideIfNotFound={false} />
         <span className="min-w-0 leading-tight">
-          <span className="block text-[12px] font-bold text-[#001f2a]">{node.label}</span>
+          <span className="block text-[12px] font-bold text-[#001f2a]">
+            {node.label}
+            {sharePercent != null ? (
+              <span className="ml-1 font-normal text-[#5b6070]"> {sharePercent}%</span>
+            ) : null}
+          </span>
           {node.detail ? (
             <span className="line-clamp-2 block text-[11px] text-[#434653]">{node.detail.role}</span>
           ) : null}

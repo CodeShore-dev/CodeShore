@@ -7,9 +7,9 @@ import { CloudArchitectureDiagram } from './CloudArchitectureDiagram';
 /**
  * 雲端架構區塊容器（深連結錨點 #cloud-architecture）。
  *
- * 自持 useCloudArchitectureView 狀態，組裝視角切換、關係圖、節點詳情與文字摘要。
+ * 自持 useCloudArchitectureView 狀態，組裝視角切換、關係圖、節點詳細與文字摘要。
  * 視角切換為純前端狀態切換（不重新掛載／載入子元件）；切換視角時 hook 會清除既有
- * 節點選取（詳情面板隨之關閉）。文字摘要為靜態內容，一律存在於 DOM（無載入間隙）。
+ * 節點選取（詳細面板隨之關閉）。文字摘要為靜態內容，一律存在於 DOM（無載入間隙）。
  */
 export function CloudArchitectureSection() {
   const state = useCloudArchitectureView();
