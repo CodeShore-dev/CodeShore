@@ -14,10 +14,10 @@ export const fetchMvSalaryTypeMedianRatio = async () => {
   return res.data;
 };
 
-export const fetchMvSalaryWeightedRatio = async () => {
+export const fetchMvSalaryRangeMultiplier = async () => {
   const res = await httpClient.get<
-    ListResponse<SupabaseView.MvSalaryWeightedRatio>
-  >('/api/salary/weighted/ratio');
+    ListResponse<SupabaseView.MvSalaryRangeMultiplier>
+  >('/api/salary/range/multiplier');
   return res.data;
 };
 

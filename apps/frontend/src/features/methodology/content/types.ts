@@ -1,7 +1,7 @@
 export type MetricKey =
   | 'home.statRow'
   | 'home.salaryBenchmark'
-  | 'home.salaryWeightedRatio'
+  | 'home.salaryRangeMultiplier'
   | 'home.popularTech'
   | 'home.highSalaryTech.year'
   | 'home.highSalaryTech.month'

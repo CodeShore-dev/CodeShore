@@ -43,7 +43,7 @@ export const metricExplanations: Record<
       {
         name: '代表薪資',
         detail:
-          '每筆職缺取薪資範圍的中間值；薪資寫「以上」則用「市場加權比率」推估。',
+          '每筆職缺取薪資範圍的中間值；薪資寫「以上」則用「薪資範圍倍率」推估。',
       },
       {
         name: '中位數（PR50）',
@@ -59,13 +59,13 @@ export const metricExplanations: Record<
         detail: '高過約 88% 職缺的薪資水準。',
       },
     ],
-    note: '「以上」職缺會先用市場加權比率推估薪資後納入；僅計入開放中、有薪資的職缺；資料定期更新。',
+    note: '「以上」職缺會先用薪資範圍倍率推估薪資後納入；僅計入開放中、有薪資的職缺；資料定期更新。',
     anchor: 'database',
     sqlObjects: ['mv_salary_type_median_ratio'],
   },
-  'home.salaryWeightedRatio': {
-    key: 'home.salaryWeightedRatio',
-    title: '市場加權比率',
+  'home.salaryRangeMultiplier': {
+    key: 'home.salaryRangeMultiplier',
+    title: '薪資範圍倍率',
     intro: '用來推估「面議／以上」職缺薪資的係數：',
     items: [
       {
@@ -86,7 +86,7 @@ export const metricExplanations: Record<
     ],
     note: '僅計入有明確薪資範圍的職缺；資料定期更新。',
     anchor: 'database',
-    sqlObjects: ['mv_salary_weighted_ratio'],
+    sqlObjects: ['mv_salary_range_multiplier'],
   },
   'home.popularTech': {
     key: 'home.popularTech',
@@ -319,15 +319,14 @@ export const metricExplanations: Record<
       {
         name: '市場行情',
         detail:
-          '全站「最高薪相對最低薪」的加權平均，當作推估係數。',
+          '全站「最高薪相對最低薪」的平均倍率，當作推估係數。',
       },
     ],
     note: '薪資隨爬蟲更新；市場行情係數定期重新計算。',
     anchor: 'database',
     sqlObjects: [
       'mv_job',
-      'mv_salary_weighted_ratio',
-      'get_weighted_market_ratio',
+      'mv_salary_range_multiplier'
     ],
   },
 };

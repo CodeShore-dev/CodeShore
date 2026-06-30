@@ -465,7 +465,7 @@ export type Database = {
         }
         Relationships: []
       }
-      mv_salary_weighted_ratio: {
+      mv_salary_range_multiplier: {
         Row: {
           ratio: number | null
           salary_type: string | null
@@ -694,18 +694,11 @@ export type Database = {
           isSetofReturn: true
         }
       }
-      get_weighted_market_ratio: {
-        Args: never
-        Returns: {
-          total_valid_samples: number
-          weighted_market_ratio: number
-        }[]
-      }
       refresh_mv_company: { Args: never; Returns: undefined }
       refresh_mv_job: { Args: never; Returns: undefined }
       refresh_mv_location_group: { Args: never; Returns: undefined }
       refresh_mv_salary_type_median_ratio: { Args: never; Returns: undefined }
-      refresh_mv_salary_weighted_ratio: { Args: never; Returns: undefined }
+      refresh_mv_salary_range_multiplier: { Args: never; Returns: undefined }
       refresh_mv_tech: { Args: never; Returns: undefined }
       refresh_mv_tech_category: { Args: never; Returns: undefined }
       refresh_mv_tech_combo_stats: { Args: never; Returns: undefined }

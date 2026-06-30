@@ -49,15 +49,15 @@ export class AppController {
     return this.service.getMvSalaryTypeMedianRatio();
   }
 
-  @Get('/salary/weighted/ratio')
+  @Get('/salary/range/multiplier')
   @ApiOperation({
     summary:
-      'Get the sample-weighted salary ratio distribution',
+      'Get the salary range multiplier distribution',
     description:
-      'Returns the materialized-view result of salary ratios weighted by sample size. Cached. This endpoint is public (no authentication required).',
+      'Returns the materialized-view result of salary range multipliers (avg max/min salary) per salary type. Cached. This endpoint is public (no authentication required).',
   })
-  getMvSalaryWeightedRatio() {
-    return this.service.getMvSalaryWeightedRatio();
+  getMvSalaryRangeMultiplier() {
+    return this.service.getMvSalaryRangeMultiplier();
   }
 
   @Get('/keyword/group/ranking')

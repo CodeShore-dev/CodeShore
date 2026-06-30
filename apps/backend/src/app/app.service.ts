@@ -5,7 +5,7 @@ import { SCHEMA_SQL } from '@codeshore/data-types';
 import {
   MvTechRankingService,
   MvSalaryTypeMedianRatioService,
-  MvSalaryWeightedRatioService,
+  MvSalaryRangeMultiplierService,
   MvTechComboStatsService,
   getJobCount,
   getJobHostStatistics,
@@ -22,7 +22,7 @@ export class AppService {
   constructor(
     private readonly cacheService: CacheService,
     private readonly mvSalaryTypeMedianRatioService: MvSalaryTypeMedianRatioService,
-    private readonly mvSalaryWeightedRatioService: MvSalaryWeightedRatioService,
+    private readonly mvSalaryRangeMultiplierService: MvSalaryRangeMultiplierService,
     private readonly mvTechRankingService: MvTechRankingService,
     private readonly mvTechComboStatsService: MvTechComboStatsService,
   ) {}
@@ -44,9 +44,9 @@ export class AppService {
     return this.mvSalaryTypeMedianRatioService.fetchAll();
   }
 
-  @Cacheable({ key: MvSalaryWeightedRatioService.name })
-  async getMvSalaryWeightedRatio() {
-    return this.mvSalaryWeightedRatioService.fetchAll();
+  @Cacheable({ key: MvSalaryRangeMultiplierService.name })
+  async getMvSalaryRangeMultiplier() {
+    return this.mvSalaryRangeMultiplierService.fetchAll();
   }
 
   /**

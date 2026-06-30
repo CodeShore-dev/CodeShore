@@ -18,7 +18,7 @@ export const NODE_ICON_SLUGS: Record<string, readonly string[]> = {
   'raw-job': ['iconify:mdi:briefcase-outline'],
   'parse-salary': ['iconify:mdi:cash-multiple'],
   'parse-keyword': ['iconify:mdi:tag-text-outline'],
-  'tbl-job': ['iconify:devicon:postgresql'],
+  'tbl-job': ['iconify:mdi:briefcase-outline'],
   'tbl-company': ['iconify:mdi:office-building-outline'],
   'tbl-job-keyword': ['iconify:mdi:tag-multiple-outline'],
   'kw-dict': ['iconify:mdi:book-open-variant-outline'],

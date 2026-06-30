@@ -1,8 +1,12 @@
 import { useJobHostStatistics } from '../../../hooks/useJobHostStatistics';
 import { useCrawlerPipelineView } from '../composables/useCrawlerPipelineView';
 import { crawlerPipeline } from '../content/crawlerPipeline';
+import type { CrawlerNode } from '../content/crawlerPipeline';
 import { CrawlerPipelineDiagram } from './CrawlerPipelineDiagram';
 import { CrawlerPipelineNodeDetail } from './CrawlerPipelineNodeDetail';
+import { GROUP_META, NODE_ICON_SLUGS } from './crawlerPipelineIcons';
+import { ViewTabBar } from './diagram/ViewTabBar';
+import { buildNodeRelations } from './nodeRelations';
 
 /**
  * 資料來源與爬蟲區塊容器（深連結錨點 #data-crawler）。
@@ -24,29 +28,27 @@ export function CrawlerPipelineSection() {
     'cake.me': shareCake,
   };
 
+  // 簡介中的來源以「即時職缺佔比」呈現（取代寫死數據）；佔比未就緒時只顯示名稱。
+  const shareLabel = (name: string, pct?: number): string => (pct != null ? `${name}（約佔 ${pct}%）` : name);
+  const introText =
+    `職缺資料由爬蟲自動抓取兩大公開來源——${shareLabel('104 人力銀行', share104)} 與 ${shareLabel('Cake', shareCake)}：` +
+    '以 headless 瀏覽器抓取列表與詳細頁，解析後正規化並批次寫入資料庫，列表頁進度可斷點續抓。' +
+    '切換下方視角，可分別了解「新增」與「更新（重抓並比對變動）」兩種流程。';
+
+  const relations = state.selectedNode
+    ? buildNodeRelations(
+        state.selectedNode.id,
+        state.activeView.edges,
+        crawlerPipeline.nodes,
+        (n: CrawlerNode) => NODE_ICON_SLUGS[n.id] ?? GROUP_META[n.group].slugs,
+      )
+    : { incoming: [], outgoing: [] };
+
   return (
     <section id="data-crawler" className="mb-12 scroll-mt-20">
       <h2 className="mb-4 text-xl font-black tracking-tight text-[#003d92]">資料來源與爬蟲</h2>
-      <div role="group" aria-label="切換視角" className="mb-3 flex flex-wrap gap-2">
-        {views.map(view => {
-          const selected = state.view === view.id;
-          return (
-            <button
-              key={view.id}
-              type="button"
-              aria-pressed={selected}
-              onClick={() => state.setView(view.id)}
-              className={`cursor-pointer rounded-full border px-4 py-1.5 text-sm font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#003d92] ${
-                selected
-                  ? 'border-[#003d92] bg-[#003d92] text-white'
-                  : 'border-[#c3c6d5] bg-white text-[#434653] hover:bg-[#f4faff]'
-              }`}
-            >
-              {view.title}
-            </button>
-          );
-        })}
-      </div>
+      <p className="mb-4 max-w-4xl text-sm leading-relaxed text-[#1f2330]">{introText}</p>
+      <ViewTabBar views={views} selectedId={state.view} onSelect={state.setView} ariaLabel="切換視角" />
 
       <div className="gap-2 space-y-6 md:flex md:space-y-0">
         <CrawlerPipelineDiagram
@@ -59,10 +61,10 @@ export function CrawlerPipelineSection() {
         <CrawlerPipelineNodeDetail
           node={state.selectedNode}
           onClose={state.clearSelection}
+          relations={relations}
           hostShares={hostShares}
         />
       </div>
-
     </section>
   );
 }

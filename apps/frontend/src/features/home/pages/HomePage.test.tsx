@@ -21,7 +21,7 @@ vi.mock('../service', () => ({
       },
     ],
   }),
-  fetchMvSalaryWeightedRatio: vi.fn().mockResolvedValue({
+  fetchMvSalaryRangeMultiplier: vi.fn().mockResolvedValue({
     result: [
       { salary_type: 'year', ratio: 1.5 },
       { salary_type: 'month', ratio: 1.2 },

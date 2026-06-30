@@ -16,11 +16,11 @@ const BENCHMARK_LABELS: Record<string, string> = {
 };
 
 export function HomeSalaryBenchmark() {
-  const { loading, salaryBenchmarks, salaryWeightedRatios } = useHomeData();
+  const { loading, salaryBenchmarks, salaryRangeMultipliers } = useHomeData();
   const [salaryUnit, setSalaryUnit] = useState<'month' | 'year'>('year');
 
-  const ratio = salaryWeightedRatios[salaryUnit];
-  const weightedRatioText = ratio ? `${ratio} 倍` : '—';
+  const multiplier = salaryRangeMultipliers[salaryUnit];
+  const rangeMultiplierText = multiplier ? `${multiplier} 倍` : '—';
 
   const benchmark = salaryBenchmarks[salaryUnit];
   const activeBenchmarks = [
@@ -58,12 +58,12 @@ export function HomeSalaryBenchmark() {
       </div>
       <div className="mb-4 inline-flex items-center gap-2 rounded-lg bg-[#f4faff] px-3 py-2">
         <span className="text-xs font-bold tracking-wide text-[#434653]">
-          市場加權比率
+          薪資範圍倍率
         </span>
         <span className="font-mono text-sm font-black text-[#003d92] tabular-nums">
-          {weightedRatioText}
+          {rangeMultiplierText}
         </span>
-        <InfoHint metric="home.salaryWeightedRatio" />
+        <InfoHint metric="home.salaryRangeMultiplier" />
       </div>
       {loading ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

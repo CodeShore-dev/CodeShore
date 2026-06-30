@@ -3,7 +3,7 @@ import { Module } from '@nestjs/common';
 import {
   MvTechRankingService,
   MvSalaryTypeMedianRatioService,
-  MvSalaryWeightedRatioService,
+  MvSalaryRangeMultiplierService,
   MvTechComboStatsService,
 } from '@codeshore/data-utils';
 import { getAppCacheModule } from '@codeshore/service-cache';
@@ -36,7 +36,7 @@ import { AppService } from './app.service';
   providers: [
     AppService,
     provideWithLogger(MvSalaryTypeMedianRatioService),
-    provideWithLogger(MvSalaryWeightedRatioService),
+    provideWithLogger(MvSalaryRangeMultiplierService),
     provideWithLogger(MvTechRankingService),
     provideWithLogger(MvTechComboStatsService),
   ],

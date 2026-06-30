@@ -1,7 +1,11 @@
 import { useDataNormalizationView } from '../composables/useDataNormalizationView';
 import { dataNormalization } from '../content/dataNormalization';
+import type { DataFlowNode } from '../content/dataNormalization';
 import { DataNormalizationDiagram } from './DataNormalizationDiagram';
 import { DataNormalizationNodeDetail } from './DataNormalizationNodeDetail';
+import { GROUP_META, NODE_ICON_SLUGS } from './dataNormalizationIcons';
+import { ViewTabBar } from './diagram/ViewTabBar';
+import { buildNodeRelations } from './nodeRelations';
 
 /**
  * 資料正規化流程區塊容器（深連結錨點 #data-normalization）。
@@ -15,34 +19,25 @@ export function DataNormalizationSection() {
   const state = useDataNormalizationView();
   const views = Object.values(dataNormalization.views);
 
+  const relations = state.selectedNode
+    ? buildNodeRelations(
+        state.selectedNode.id,
+        state.activeView.edges,
+        dataNormalization.nodes,
+        (n: DataFlowNode) => NODE_ICON_SLUGS[n.id] ?? GROUP_META[n.group].slugs,
+      )
+    : { incoming: [], outgoing: [] };
+
   return (
     <section id="data-normalization" className="mb-12 scroll-mt-20">
       <h2 className="mb-4 text-xl font-black tracking-tight text-[#003d92]">資料正規化流程</h2>
       <p className="mb-4 max-w-4xl text-sm leading-relaxed text-[#1f2330]">
-        爬蟲抓到的一筆原始職缺，並非原樣存進單一資料表，而是經過「拆表」與「加工」兩步。寫入時即拆成
-        job／company／job_keyword 三張事實表，其中薪資與關鍵字會先即時解析；之後再離線把關鍵字歸併成
-        技術、把雜亂地點歸併成地點群組，最後由物化視圖預先彙總。點選節點可看各步驟的角色與用途。
+        爬蟲抓到的原始職缺不會原樣存進單表，而是先「拆表」再「加工」：寫入時解析<strong>薪資</strong>與
+        <strong>關鍵字</strong>、拆成 job／company／job_keyword 三張事實表；之後離線把<strong>關鍵字</strong>歸併為
+        <strong>技術</strong>、雜亂<strong>地點</strong>歸併為<strong>地點群組</strong>
+        ，最後以物化視圖預先彙總供分析頁直接取用。切換下方視角，可分別了解這兩個階段。
       </p>
-      <div role="group" aria-label="切換視角" className="mb-3 flex flex-wrap gap-2">
-        {views.map(view => {
-          const selected = state.view === view.id;
-          return (
-            <button
-              key={view.id}
-              type="button"
-              aria-pressed={selected}
-              onClick={() => state.setView(view.id)}
-              className={`cursor-pointer rounded-full border px-4 py-1.5 text-sm font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#003d92] ${
-                selected
-                  ? 'border-[#003d92] bg-[#003d92] text-white'
-                  : 'border-[#c3c6d5] bg-white text-[#434653] hover:bg-[#f4faff]'
-              }`}
-            >
-              {view.title}
-            </button>
-          );
-        })}
-      </div>
+      <ViewTabBar views={views} selectedId={state.view} onSelect={state.setView} ariaLabel="切換視角" />
 
       <div className="gap-2 space-y-6 md:flex md:space-y-0">
         <DataNormalizationDiagram
@@ -51,7 +46,7 @@ export function DataNormalizationSection() {
           selectedNodeId={state.selectedNodeId}
           onSelectNode={state.selectNode}
         />
-        <DataNormalizationNodeDetail node={state.selectedNode} onClose={state.clearSelection} />
+        <DataNormalizationNodeDetail node={state.selectedNode} onClose={state.clearSelection} relations={relations} />
       </div>
     </section>
   );

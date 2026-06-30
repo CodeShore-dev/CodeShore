@@ -5,7 +5,7 @@ import { type CrawlerGroupId, type CrawlerView, crawlerPipeline } from './crawle
 describe('crawlerPipeline', () => {
   const { nodes, views } = crawlerPipeline;
   const nodeIds = new Set(nodes.map(node => node.id));
-  const viewList: readonly CrawlerView[] = [views.flow, views.recrawl, views.modes];
+  const viewList: readonly CrawlerView[] = [views.flow, views.recrawl];
 
   it('every edge in both views references existing node ids (edge integrity)', () => {
     for (const view of viewList) {
@@ -66,7 +66,7 @@ describe('crawlerPipeline', () => {
 
   it('nodes cover all pipeline groups', () => {
     const groups = new Set<CrawlerGroupId>(nodes.map(node => node.group));
-    for (const required of ['source', 'engine', 'list-pipeline', 'detail-pipeline', 'database', 'mode'] as const) {
+    for (const required of ['source', 'engine', 'list-pipeline', 'detail-pipeline', 'database'] as const) {
       expect(groups.has(required), `nodes must include a "${required}" group`).toBe(true);
     }
   });

@@ -4,11 +4,11 @@ import { getSupabaseClient } from '@codeshore/supabase';
 
 import { MaterializedViewService } from '../shared-services/supabase/materialized-view.service';
 
-export class MvSalaryWeightedRatioService extends MaterializedViewService<SupabaseView.MvSalaryWeightedRatio> {
+export class MvSalaryRangeMultiplierService extends MaterializedViewService<SupabaseView.MvSalaryRangeMultiplier> {
   constructor(logger?: ServiceLogger) {
     super(
       getSupabaseClient(),
-      'mv_salary_weighted_ratio',
+      'mv_salary_range_multiplier',
       logger,
     );
   }

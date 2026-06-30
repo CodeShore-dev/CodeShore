@@ -60,46 +60,21 @@ describe('CrawlerPipelineSection', () => {
     expect(within(dialog).getByText('公開職缺來源（約佔 84%）')).toBeInTheDocument();
   });
 
-  it('點擊執行模式視角切換圖表並以 aria-pressed 反映選取狀態', async () => {
-    const user = userEvent.setup();
-    render(<CrawlerPipelineSection />);
-
-    const toggle = screen.getByRole('group', { name: '切換視角' });
-    const modesButton = within(toggle).getByRole('button', { name: '執行模式' });
-    await user.click(modesButton);
-
-    expect(modesButton).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: nodeButtonName('全量 fresh') })).toBeInTheDocument();
-  });
-
   it('點擊互動節點開啟詳情面板並顯示其角色／用途', async () => {
     const user = userEvent.setup();
     render(<CrawlerPipelineSection />);
 
-    await user.click(screen.getByRole('button', { name: nodeButtonName('Stealth 反爬層') }));
+    await user.click(screen.getByRole('button', { name: nodeButtonName('Stealth 反爬蟲') }));
 
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByText('反自動化偵測與穩定性')).toBeInTheDocument();
-  });
-
-  it('切換視角時清除既有選取（詳情面板關閉）', async () => {
-    const user = userEvent.setup();
-    render(<CrawlerPipelineSection />);
-
-    await user.click(screen.getByRole('button', { name: nodeButtonName('Stealth 反爬層') }));
-    expect(screen.queryByRole('dialog')).toBeInTheDocument();
-
-    const toggle = screen.getByRole('group', { name: '切換視角' });
-    await user.click(within(toggle).getByRole('button', { name: '執行模式' }));
-
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('按 Escape 收合詳情面板', async () => {
     const user = userEvent.setup();
     render(<CrawlerPipelineSection />);
 
-    await user.click(screen.getByRole('button', { name: nodeButtonName('Stealth 反爬層') }));
+    await user.click(screen.getByRole('button', { name: nodeButtonName('Stealth 反爬蟲') }));
     expect(screen.getByRole('dialog')).toBeInTheDocument();
 
     await user.keyboard('{Escape}');

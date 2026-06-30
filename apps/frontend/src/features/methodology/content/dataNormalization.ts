@@ -61,76 +61,76 @@ export const dataNormalization: DataNormalization = {
     // ── 原始職缺 ──
     {
       id: 'raw-job',
-      label: '原始職缺（一筆）',
+      label: '一筆職缺',
       group: 'raw',
       status: 'active',
       interactive: true,
       detail: {
         role: '尚未正規化的來源資料',
         usage:
-          '列表 API 的欄位（標題、公司、地點）與詳細頁 HTML（職缺描述、薪資）合併成一筆原始職缺。各來源平台欄位格式不一，需先正規化才能跨來源一致分析。',
+          '把列表 API 的欄位（標題、公司、地點）與詳細頁 HTML（職缺描述、薪資）合併成一筆原始職缺。各來源平台格式不一，因此這筆資料會分頭送出：薪資字串交給「薪資解析」、職缺描述交給「關鍵字萃取」，基本欄位則直接寫入「職缺主表」與「公司主表」。',
       },
     },
     // ── 寫入時加工 ──
     {
       id: 'parse-salary',
-      label: '薪資解析 parseSalary',
+      label: '薪資解析',
       group: 'cook',
       status: 'active',
       interactive: true,
       detail: {
         role: '薪資字串 → 結構化欄位',
         usage:
-          '從薪資字串解析出 min_salary／max_salary／salary_type：含「年」判為年薪、否則月薪；外幣換算為新台幣（USD×31、JPY×0.2）；「面議」或無數字者給 0–9,999,999 的區間哨兵值，分析時再以市場加權比率推估。',
+          '從薪資字串解析出 min_salary／max_salary／salary_type：含「年」判為年薪、否則月薪；外幣換算為新台幣（USD×31、JPY×0.2）；「面議」或無數字者給 0–9,999,999 的哨兵區間，分析時再以<strong>薪資範圍倍率</strong>推估。解析出的金額與薪資類型寫回「職缺主表」。',
       },
     },
     {
       id: 'parse-keyword',
-      label: '關鍵字萃取 parseKeywordsOut',
+      label: '關鍵字萃取',
       group: 'cook',
       status: 'active',
       interactive: true,
       detail: {
         role: '職缺描述 → 關鍵字陣列',
         usage:
-          '從職缺描述萃取技術關鍵字與中英文比例：中文字比例 < 0.4 視為英文職缺，改以技術字典逐詞掃描；否則去除連結、斷詞並濾除停用字。產出 keywords[] 與 description_ch_en_ratio。',
+          '從職缺描述萃取技術關鍵字與中英文比例：中文字比例 < 0.4 視為英文職缺，改以技術字典逐詞掃描；否則去除連結、斷詞並濾除停用字。產出的 keywords[] 與中英文比例寫入「職缺關鍵字」表，成為後續技術字典與技術映射的。',
       },
     },
     // ── 寫入時的事實資料表 ──
     {
       id: 'tbl-job',
-      label: 'job 職缺主表',
+      label: '職缺主表',
       group: 'fact',
       status: 'shared',
       interactive: true,
       detail: {
         role: '所有分析的事實來源',
         usage:
-          '標題、地點、職缺描述、公司、薪資原字串，加上解析出的 min/max_salary、salary_type、closed 等。salary_manual 標記過的薪資不會被自動重算覆蓋。',
+          '彙集標題、地點、職缺描述、公司、薪資原字串，加上解析出的 min/max_salary、salary_type、closed 等，是所有分析的事實來源。事後加工時，地點字串送去「地點正規化」，整表也供「物化視圖」彙總取用。',
       },
     },
     {
       id: 'tbl-company',
-      label: 'company 公司主表',
+      label: '公司主表',
       group: 'fact',
       status: 'shared',
       interactive: true,
       detail: {
-        role: '公司事實資料（去重）',
+        role: '公司事實資料（去重複）',
         usage:
-          '名稱、連結、類型；以公司 id 與 job 關聯。同一間公司的多筆職缺只保留一筆公司資料，避免重複。',
+          '存公司名稱、連結、類型，以公司 id 與職缺關聯；同一間公司的多筆職缺只保留一筆，避免重複。供職缺主表與後續分析帶出公司資訊。',
       },
     },
     {
       id: 'tbl-job-keyword',
-      label: 'job_keyword 職缺關鍵字',
+      label: '職缺關鍵字',
       group: 'fact',
       status: 'shared',
       interactive: true,
       detail: {
-        role: '每筆職缺的關鍵字原料',
+        role: '每筆職缺關鍵字',
         usage:
-          '保存每筆職缺萃取出的 keywords[] 與中英文比例，是後續技術字典與技術映射的原料。三張事實表（job／company／job_keyword）由 cookRawJob 一次拆出、批次 upsert 寫入。',
+          '保存每筆職缺萃取出的 keywords[] 與中英文比例。事後加工時，這些關鍵字會被展開聚合成「關鍵字字典」，作為技術映射的基底。',
       },
     },
     // ── 事後加工（離線 / DB function）──
@@ -143,7 +143,7 @@ export const dataNormalization: DataNormalization = {
       detail: {
         role: '關鍵字 → 字典＋出現次數',
         usage:
-          '由 reset_keywords() 把所有 job_keyword.keywords 展開（UNNEST）後聚合成 keyword 字典表與各關鍵字的出現次數，作為技術映射的基底；可離線重跑（job-keyword 模式）以最新字典重萃。',
+          '由 reset_keywords() 把所有 job_keyword.keywords 展開（UNNEST）聚合，算出各關鍵字的出現次數；可離線重跑（job-keyword 模式）以最新字典重萃。結果一方面寫入「字典表」，一方面作為「技術映射」的基底。',
       },
     },
     {
@@ -155,7 +155,7 @@ export const dataNormalization: DataNormalization = {
       detail: {
         role: '零散關鍵字 → 標準技術',
         usage:
-          '透過 tech_keyword 字典把零散關鍵字歸併到標準技術（tech），對應結果寫入 job_tech；tech_parent 維護技術之間的階層關係，供技術組合與分類分析。',
+          '透過 tech_keyword 字典把零散關鍵字歸併到標準技術（tech），tech_parent 維護技術之間的階層關係；對應結果寫入「職缺×技術」表，供技術排行與技術組合分析。',
       },
     },
     {
@@ -167,41 +167,41 @@ export const dataNormalization: DataNormalization = {
       detail: {
         role: '雜亂地點字串 → 地點群組',
         usage:
-          'job.location 為來源平台的雜亂地點字串；透過 location_group_location 對應把它歸併到 location_group 地點群組，地點維度的彙總才能一致。',
+          '把「職缺主表」的雜亂地點字串，透過 location_group_location 對應歸併成標準的 location_group 地點群組，地點維度的彙總才能一致；結果寫入「地點群組」表。',
       },
     },
     // ── 衍生資料表 ──
     {
       id: 'tbl-keyword',
-      label: 'keyword 字典表',
+      label: '字典表',
       group: 'derived',
       status: 'active',
       interactive: true,
       detail: {
         role: '關鍵字字典＋次數',
-        usage: '彙整後的關鍵字與出現次數，供技術熱度與映射使用。',
+        usage: '彙整後的關鍵字與出現次數，供技術熱度排行與技術映射使用。',
       },
     },
     {
       id: 'tbl-job-tech',
-      label: 'job_tech 職缺×技術',
+      label: '職缺×技術',
       group: 'derived',
       status: 'active',
       interactive: true,
       detail: {
         role: '職缺與技術的對應',
-        usage: '技術排行與技術組合統計的連結基礎，把每筆職缺對應到一個或多個標準技術。',
+        usage: '把每筆職缺對應到一個或多個標準技術，是技術排行與技術組合統計的基礎；彙整後送進「物化視圖」做技術彙總。',
       },
     },
     {
       id: 'tbl-location-group',
-      label: 'location_group 地點群組',
+      label: '地點群組',
       group: 'derived',
       status: 'active',
       interactive: true,
       detail: {
         role: '正規化後的地點群組',
-        usage: '把雜亂地點歸併後的群組，供地點維度的職缺數彙總。',
+        usage: '雜亂地點歸併後的標準群組；送進「物化視圖」做地點維度的職缺數彙總。',
       },
     },
     // ── 物化視圖 ──
@@ -214,7 +214,7 @@ export const dataNormalization: DataNormalization = {
       detail: {
         role: '預先彙總並落地',
         usage:
-          'mv_job 併入公司、正規化地點與技術陣列，並對「面議／以上」薪資補上市場加權推估；mv_tech_*、mv_location_group 等預先算好技術排行、技術組合與地點分布。分析頁讀取的是這些現成結果，而非即時掃描原始表。',
+          '把事實表、職缺×技術、地點群組預先彙總並落地：mv_job 併入公司、正規化地點與技術陣列，並對「面議／以上」薪資補上<strong>薪資範圍倍率</strong>推估；mv_tech_*、mv_location_group 等預先算好技術排行、技術組合與地點分布。分析頁直接讀這些現成結果，不必即時掃描原始表。',
       },
     },
   ],
@@ -222,15 +222,15 @@ export const dataNormalization: DataNormalization = {
     split: {
       id: 'split',
       title: '寫入時拆表',
-      tiers: [['raw-job'], ['parse-salary', 'parse-keyword'], ['tbl-job', 'tbl-company', 'tbl-job-keyword']],
-      clusterRows: [['raw'], ['cook'], ['fact']],
+      tiers: [['raw-job'], ['parse-salary','tbl-job','tbl-company'], ['parse-keyword',], [ 'tbl-job-keyword']],
+      clusterRows: [['raw'], ['cook','fact']],
       edges: [
         { from: 'raw-job', to: 'parse-salary', label: '薪資字串' },
         { from: 'raw-job', to: 'parse-keyword', label: '職缺描述' },
         { from: 'raw-job', to: 'tbl-job', label: '標題／地點／描述' },
         { from: 'raw-job', to: 'tbl-company', label: '公司欄位' },
-        { from: 'parse-salary', to: 'tbl-job', label: 'min/max／型態' },
-        { from: 'parse-keyword', to: 'tbl-job-keyword', label: 'keywords[]／比例' },
+        { from: 'parse-salary', to: 'tbl-job', label: 'min/max／薪資類型' },
+        { from: 'parse-keyword', to: 'tbl-job-keyword', label: 'keywords[]／中英比例' },
       ],
     },
     process: {

@@ -42,6 +42,7 @@ export interface ArchEdge {
 export interface ArchView {
   readonly id: ArchViewId;
   readonly title: string; // 如「流量視角」「CI/CD 視角」
+  readonly description?: string; // 切到此視角時顯示的補充說明（選用，無機密）。可含 HTML（如 <strong>），由本檔靜態信任內容提供、不接受外部輸入。
   readonly tiers: readonly (readonly string[])[]; // 分層順序，每層為 node id 陣列
   readonly edges: readonly ArchEdge[];
 }
@@ -62,7 +63,7 @@ export const cloudArchitecture: CloudArchitecture = {
       interactive: true,
       detail: {
         role: '網域名稱解析',
-        usage: '管理 codeshore.dev 網域與各雲子網域（gcp.／azure.／aws.）的 DNS 解析。',
+        usage: '管理 codeshore.dev 與各雲端子網域（gcp.／azure.／aws.）的 DNS 解析；對外請求先在此解析網域，再交給 Cloudflare Worker 進入。',
       },
     },
     {
@@ -73,7 +74,7 @@ export const cloudArchitecture: CloudArchitecture = {
       interactive: true,
       detail: {
         role: '對外唯一入口與自動容錯代理',
-        usage: '網站的唯一入口。會定時探測哪朵雲還活著，自動把流量送到正常的後端；主力 AWS 掛掉就依序換 Azure、GCP，使用者無感。',
+        usage: '網站的唯一入口。定時探測各雲健康狀態，依序 [AWS, Azure, GCP] 取第一個存活者：正常時把流量送到主力 AWS CloudFront；AWS 掛掉就自動切到 Azure Container Apps 或 GCP Cloud Run 備選，使用者無感。',
       },
     },
     {
@@ -84,7 +85,7 @@ export const cloudArchitecture: CloudArchitecture = {
       interactive: true,
       detail: {
         role: '對外 CDN／HTTPS 入口',
-        usage: '依路徑分流：預設取靜態前端，/api/* 轉送至後端 API。',
+        usage: 'AWS 主路徑的對外 CDN／HTTPS 入口，依路徑分流：預設取 AWS S3 的靜態前端，/api/* 轉送到 AWS Lambda 後端 API。',
       },
     },
     {
@@ -95,7 +96,7 @@ export const cloudArchitecture: CloudArchitecture = {
       interactive: true,
       detail: {
         role: '靜態前端資產儲存',
-        usage: '存放打包後的前端靜態資產，由 CloudFront 取用。',
+        usage: '存放打包後的前端靜態資產；CI/CD 上傳新版後，由 AWS CloudFront 取用並清快取（invalidation）對外提供。',
       },
     },
     {
@@ -106,7 +107,7 @@ export const cloudArchitecture: CloudArchitecture = {
       interactive: true,
       detail: {
         role: '無伺服器後端 API',
-        usage: '以容器映像執行 NestJS API（/api/*），scale-to-zero、使用永久免費額度。',
+        usage: '以容器映像執行 NestJS API（/api/*），scale-to-zero、使用永久免費額度；處理 CloudFront 轉來的 API 請求，並讀寫 Supabase 資料庫。',
       },
     },
     {
@@ -117,7 +118,7 @@ export const cloudArchitecture: CloudArchitecture = {
       interactive: true,
       detail: {
         role: '容器映像登錄檔',
-        usage: '存放並提供 Lambda 執行所用的容器映像（registry）。',
+        usage: '存放 AWS Lambda 所用的容器映像（registry）；CI/CD 推送新映像後，據以更新 Lambda function。',
       },
     },
     {
@@ -139,7 +140,7 @@ export const cloudArchitecture: CloudArchitecture = {
       interactive: true,
       detail: {
         role: '可切換的長駐容器後端',
-        usage: '前端與 API 同容器執行，scale-to-zero、具冷啟動特性，可由 Worker 切換導入。',
+        usage: '前端與 API 同容器執行的可切換後端，scale-to-zero、具冷啟動特性；可由 Worker 容錯切換導入，並讀寫 Supabase 資料庫。',
       },
     },
     {
@@ -150,7 +151,7 @@ export const cloudArchitecture: CloudArchitecture = {
       interactive: true,
       detail: {
         role: '容器映像登錄檔',
-        usage: '存放並提供 Cloud Run 部署所用的容器映像。',
+        usage: '存放 GCP Cloud Run 所用的容器映像；Cloud Build 建好映像推來後，據以部署到 Cloud Run。',
       },
     },
     {
@@ -161,7 +162,7 @@ export const cloudArchitecture: CloudArchitecture = {
       interactive: true,
       detail: {
         role: 'GCP 端 CI／部署管線',
-        usage: '建置容器映像並部署到 Cloud Run。',
+        usage: 'GCP 端的 CI／部署管線：由 GitHub push 觸發，建置容器映像推上 Artifact Registry，再部署到 Cloud Run。',
       },
     },
     {
@@ -172,7 +173,7 @@ export const cloudArchitecture: CloudArchitecture = {
       interactive: true,
       detail: {
         role: '部署期密鑰管理',
-        usage: '於部署時注入後端所需密鑰；密鑰內容不在前端揭露。',
+        usage: '保管後端所需密鑰，於部署時注入 GCP Cloud Run；密鑰內容不在前端揭露。',
       },
     },
     {
@@ -183,7 +184,7 @@ export const cloudArchitecture: CloudArchitecture = {
       interactive: true,
       detail: {
         role: '可切換的容器後端',
-        usage: '前端與 API 同映像執行，scale-to-zero、使用永久免費月額度，可由 Worker 切換導入。',
+        usage: '前端與 API 同映像執行的可切換後端，scale-to-zero、使用永久免費月額度；可由 Worker 容錯切換導入，並讀寫 Supabase 資料庫。',
       },
     },
     {
@@ -194,7 +195,7 @@ export const cloudArchitecture: CloudArchitecture = {
       interactive: true,
       detail: {
         role: '容器映像登錄檔（ghcr.io）',
-        usage: '提供 Azure Container Apps 拉取的容器映像，亦由 EC2 備援路徑共用。',
+        usage: '存放由 GitHub Actions 以 Dockerfile.aws 建置推送的容器映像（ghcr.io），供 Azure Container Apps 拉取，亦由 EC2 備援路徑共用。',
       },
     },
     {
@@ -205,7 +206,7 @@ export const cloudArchitecture: CloudArchitecture = {
       interactive: true,
       detail: {
         role: '容器映像登錄檔（ACR）',
-        usage: '存放並提供 Azure Container Apps 部署所用的容器映像；與 GHCR 並存，作為純 Azure 原生的映像儲存選項。',
+        usage: '存放 Azure Container Apps 所用的容器映像（ACR），與 GHCR 並存作為純 Azure 原生選項；GitHub Actions 推送後，據以部署 Container Apps。',
       },
     },
     {
@@ -215,8 +216,8 @@ export const cloudArchitecture: CloudArchitecture = {
       status: 'shared',
       interactive: true,
       detail: {
-        role: '四雲共用主資料庫',
-        usage: '承載原始資料表、物化視圖與資料庫 function，供各雲後端共用。',
+        role: '三雲共用主資料庫',
+        usage: '三雲共用的主資料庫，承載原始資料表、物化視圖與資料庫 function；AWS Lambda、GCP Cloud Run、Azure Container Apps 各後端都連到這裡讀寫。',
       },
     },
     {
@@ -227,7 +228,7 @@ export const cloudArchitecture: CloudArchitecture = {
       interactive: true,
       detail: {
         role: '程式碼來源與 CI/CD 觸發點',
-        usage: 'push 到 main 分支即觸發各雲的 CI/CD 管線。',
+        usage: '程式碼來源與 CI/CD 觸發點：push 到 main 分支即同時觸發 GCP Cloud Build 與 GitHub Actions 兩條部署管線。',
       },
     },
     {
@@ -238,7 +239,7 @@ export const cloudArchitecture: CloudArchitecture = {
       interactive: true,
       detail: {
         role: 'AWS／Azure 的 CI/CD 部署管線',
-        usage: '只負責 AWS 與 Azure 兩條路徑：建置前端與容器映像，並部署到 S3／Lambda（AWS）與 Container Apps（Azure）。GCP 則改由 Cloud Build 處理。',
+        usage: '負責 AWS 與 Azure 兩條路徑（GCP 改由 Cloud Build）：建置前端上傳 AWS S3、建置 Lambda 映像推上 AWS ECR；並把容器映像推上 GHCR 與 Azure ACR，供 Azure Container Apps 部署。',
       },
     },
   ],
@@ -260,14 +261,18 @@ export const cloudArchitecture: CloudArchitecture = {
         { from: 'cf-worker', to: 'gcp-cloudrun', label: '容錯備選' },
         { from: 'aws-cloudfront', to: 'aws-s3', label: '預設 · 靜態前端' },
         { from: 'aws-cloudfront', to: 'aws-lambda', label: '/api/*' },
-        { from: 'aws-lambda', to: 'supabase' },
-        { from: 'azure-container-apps', to: 'supabase' },
-        { from: 'gcp-cloudrun', to: 'supabase' },
+        { from: 'aws-lambda', to: 'supabase', label: '讀寫資料' },
+        { from: 'azure-container-apps', to: 'supabase', label: '讀寫資料' },
+        { from: 'gcp-cloudrun', to: 'supabase', label: '讀寫資料' },
       ],
     },
     cicd: {
       id: 'cicd',
       title: 'CI/CD',
+      description:
+        '<strong>為何不是全都用 Cloud Provider 提供的 CI：</strong><br />' +
+        '<div>．GCP 沿用原生 <strong>Cloud Build</strong>——它<strong>以 vCPU-秒計費（每月 18 萬秒）</strong>，搭配 <strong>Docker 層快取可在數秒內完成建置</strong>，等於免費額度能反覆重跑上千次，最契合本專案這種容器化、頻繁小變更的流程。</div>' +
+        '<div>．AWS／Azure 則捨棄各自原生 CI：<strong>AWS CodeBuild 每月僅 100 分鐘</strong>、規格最小且大型映像易 OOM，<strong>Azure Pipelines 時數雖多但免費版僅單一序列佇列</strong>，因此<strong>統一用 GitHub Actions</strong>。</div>',
       tiers: [
         ['github-repo', 'github-actions'],
         ['gcp-cloud-build'],
@@ -275,18 +280,18 @@ export const cloudArchitecture: CloudArchitecture = {
         ['gcp-cloudrun', 'aws-lambda', 'aws-cloudfront', 'azure-container-apps'],
       ],
       edges: [
-        { from: 'github-repo', to: 'gcp-cloud-build', label: 'Cloud Build trigger' },
-        { from: 'github-repo', to: 'github-actions', label: 'Cloud Build trigger' },
+        { from: 'github-repo', to: 'gcp-cloud-build', label: '觸發 Cloud Build' },
+        { from: 'github-repo', to: 'github-actions', label: 'push main 觸發' },
         { from: 'gcp-cloud-build', to: 'gcp-artifact-registry', label: '建置映像' },
-        { from: 'gcp-artifact-registry', to: 'gcp-cloudrun', label: 'gcloud run deploy' },
+        { from: 'gcp-artifact-registry', to: 'gcp-cloudrun', label: '部署 Cloud Run' },
         { from: 'gcp-secret-manager', to: 'gcp-cloudrun', label: '注入密鑰' },
-        { from: 'github-actions', to: 'aws-ecr', label: 'GH Actions · Lambda 映像' },
-        { from: 'github-actions', to: 'aws-s3', label: 'GH Actions · 前端建置' },
+        { from: 'github-actions', to: 'aws-ecr', label: '推送 Lambda 映像' },
+        { from: 'github-actions', to: 'aws-s3', label: '上傳前端資產' },
         { from: 'aws-ecr', to: 'aws-lambda', label: '更新 function' },
-        { from: 'aws-s3', to: 'aws-cloudfront', label: 'CloudFront 取用 + invalidation' },
-        { from: 'github-actions', to: 'azure-ghcr', label: 'GH Actions · Dockerfile.aws 映像' },
-        { from: 'github-actions', to: 'azure-acr', label: 'GH Actions · ACR 映像' },
-        { from: 'azure-acr', to: 'azure-container-apps', label: 'az containerapp update' },
+        { from: 'aws-s3', to: 'aws-cloudfront', label: '取用 + 清快取' },
+        { from: 'github-actions', to: 'azure-ghcr', label: '推送 GHCR 映像' },
+        { from: 'github-actions', to: 'azure-acr', label: '推送 ACR 映像' },
+        { from: 'azure-acr', to: 'azure-container-apps', label: '部署 Container Apps' },
       ],
     },
   },

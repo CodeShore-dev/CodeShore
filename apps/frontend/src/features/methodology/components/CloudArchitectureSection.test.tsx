@@ -56,7 +56,7 @@ describe('CloudArchitectureSection', () => {
     );
 
     const dialog = screen.getByRole('dialog');
-    expect(within(dialog).getByText('對外唯一入口與反向代理')).toBeInTheDocument();
+    expect(within(dialog).getByText('對外唯一入口與自動容錯代理')).toBeInTheDocument();
   });
 
   it('切換視角時清除既有選取（詳情面板關閉）', async () => {
@@ -117,7 +117,7 @@ describe('CloudArchitectureSection', () => {
         name: nodeButtonName('Cloudflare Worker'),
       }),
     );
-    expect(within(screen.getByRole('dialog')).getByText('對外唯一入口與反向代理')).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).getByText('對外唯一入口與自動容錯代理')).toBeInTheDocument();
 
     await user.click(
       screen.getByRole('button', {
@@ -127,7 +127,7 @@ describe('CloudArchitectureSection', () => {
 
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByText('對外 CDN／HTTPS 入口')).toBeInTheDocument();
-    expect(within(dialog).queryByText('對外唯一入口與反向代理')).not.toBeInTheDocument();
+    expect(within(dialog).queryByText('對外唯一入口與自動容錯代理')).not.toBeInTheDocument();
   });
 
   it('鍵盤可操作視角切換按鈕（Enter 觸發切換）', async () => {

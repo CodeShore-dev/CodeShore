@@ -48,7 +48,7 @@ vi.mock('../service', () => ({
 
 vi.mock('../../home/service', () => ({
   fetchMvSalaryTypeMedianRatio: vi.fn().mockResolvedValue({ result: [] }),
-  fetchMvSalaryWeightedRatio: vi.fn().mockResolvedValue({ result: [] }),
+  fetchMvSalaryRangeMultiplier: vi.fn().mockResolvedValue({ result: [] }),
   fetchJobCount: vi.fn().mockResolvedValue([
     {
       jobs: 200,

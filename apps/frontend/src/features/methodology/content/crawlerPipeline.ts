@@ -78,7 +78,7 @@ export const crawlerPipeline: CrawlerPipeline = {
       interactive: true,
       detail: {
         role: '公開職缺來源',
-        usage: '從 /jobs/search/api/jobs API 取得資料',
+        usage: '本專案兩大公開職缺來源之一；爬蟲引擎會呼叫其列表 API（/jobs/search/api/jobs）逐頁取得職缺，再進入後續處理。',
         hostKey: '104.com.tw',
       },
     },
@@ -90,7 +90,7 @@ export const crawlerPipeline: CrawlerPipeline = {
       interactive: true,
       detail: {
         role: '公開職缺來源',
-        usage: '從 /api/client/v1/jobs/search API 取得資料',
+        usage: '本專案兩大公開職缺來源之一；爬蟲引擎會呼叫其列表 API（/api/client/v1/jobs/search）逐頁取得職缺，再進入後續處理。',
         hostKey: 'cake.me',
       },
     },
@@ -103,7 +103,7 @@ export const crawlerPipeline: CrawlerPipeline = {
       detail: {
         role: ' headless 瀏覽器抓取引擎',
         usage:
-          '以 Crawlee 的 PuppeteerCrawler 驅動 headless Chrome 抓取列表與詳細頁；採單一 Tab（maxConcurrency: 1）慢速抓取，一次只開一個頁面，避免對來源平台造成壓力。',
+          '以 Crawlee 的 PuppeteerCrawler 驅動 headless Chrome 抓取列表與詳細頁，搭配 Stealth 反爬；採單一 Tab（maxConcurrency: 1）慢速抓取，避免對來源平台造成壓力。<ul><li><strong>新增職缺</strong>：開啟列表頁→攔截列表 API→開啟詳細頁→取得資料→新增</li><li><strong>更新職缺</strong>：開啟詳細頁→取得資料→比對變動→更新</li></ul>',
       },
     },
     {
@@ -115,7 +115,7 @@ export const crawlerPipeline: CrawlerPipeline = {
       detail: {
         role: '反自動化偵測與穩定性',
         usage:
-          'puppeteer-extra stealth 搭配 rebrowser-puppeteer，貼近真實瀏覽器的視窗大小、語系與請求標頭；列表回應採逾時控制與多次重試，單頁失敗不中斷整體。',
+          '為爬蟲引擎加上反自動化偵測與穩定性：puppeteer-extra stealth 搭配 rebrowser-puppeteer，貼近真實瀏覽器的視窗大小、語系與請求標頭；回應採逾時控制與多次重試，單頁失敗不中斷整體。新增與更新兩種流程共用。',
       },
     },
     {
@@ -127,7 +127,7 @@ export const crawlerPipeline: CrawlerPipeline = {
       detail: {
         role: '取得本頁職缺與分頁資訊',
         usage:
-          '監聽瀏覽器 XHR/Fetch 回應，攔截符合來源格式的列表 API；解析 pagination（目前頁／總頁數／總筆數）。最多重試 10 次、每次逾時 30 秒；重試時重載頁面，失敗不中斷整體。',
+          '傳統作法：開啟列表頁→等待列表頁渲染→爬取資料；本專案改用監聽 XHR/Fetch 回應，直接攔截列表 API 取得那些即將渲染在畫面上的資料，並解析<strong>頁面概況</strong>（目前頁／總頁數／總筆數）。最多重試 10 次、每次逾時 30 秒，重試時重載頁面，失敗不中斷整體。取得的本頁職缺接著交給「過濾既有職缺」。',
       },
     },
 
@@ -140,7 +140,7 @@ export const crawlerPipeline: CrawlerPipeline = {
       detail: {
         role: '排除資料庫中已有的職缺',
         usage:
-          '首次執行時從資料庫一次性載入全部現有職缺 ID；之後逐筆比對，已存在者直接略過不進佇列，只有新職缺才排入詳細任務。',
+          '首次執行時從資料庫一次性載入全部現有職缺 ID，之後逐筆比對；已存在者直接略過，只把新職缺往下交給「建立任務」排入詳細抓取。',
       },
     },
     {
@@ -152,7 +152,7 @@ export const crawlerPipeline: CrawlerPipeline = {
       detail: {
         role: '詳細任務 ＋ 下一頁任務（遞迴）',
         usage:
-          '每筆新職缺以高優先度各自建立 DETAIL 任務；以低優先度建立下一頁的 LIST 任務，形成自我遞迴直到末頁。第 1 頁時，利用 pagination 資訊在資料表先預建好全部列表頁的待完成紀錄（以供斷點恢復使用），之後每頁完成後會更新該頁紀錄的狀態。',
+          '每筆新職缺以高優先度建立<strong>抓取詳細</strong>任務，同時以低優先度建立下一頁的<strong>抓取列表</strong>任務，形成自我遞迴直到末頁。第 1 頁時利用<strong>頁面概況</strong>的資訊在<strong>職缺來源表</strong>預建好全部列表頁的待完成紀錄、之後每頁完成即更新狀態，供斷點續抓。',
       },
     },
     {
@@ -175,7 +175,7 @@ export const crawlerPipeline: CrawlerPipeline = {
       detail: {
         role: '擷取職缺欄位',
         usage:
-          '等待詳細頁就緒後，在瀏覽器內執行 evaluate 擷取標題、職缺描述、薪資、地點、公司等欄位；職缺描述為空視為職缺已下架，標記 closed。',
+          '等待詳細頁就緒後，在瀏覽器內執行擷取標題、職缺描述、薪資、地點、公司等欄位（職缺描述為空視為職缺已下架，標記 closed）。擷取到的原始欄位接著送入「正規化」。',
       },
     },
     {
@@ -186,7 +186,7 @@ export const crawlerPipeline: CrawlerPipeline = {
       interactive: true,
       detail: {
         role: '統一資料結構',
-        usage: '把不同來源的欄位正規化為一致的職缺資料結構，後續分析才能跨來源一致處理。細節會在別區說明。',
+        usage: '把不同來源的欄位正規化為一致的職缺資料結構（薪資解析、關鍵字萃取等，細節見「資料正規化流程」），整理好的資料再交給「批次緩衝區」寫入資料庫。',
       },
     },
     {
@@ -198,97 +198,30 @@ export const crawlerPipeline: CrawlerPipeline = {
       detail: {
         role: '批次寫入資料庫',
         usage:
-          '正規化後的公司、職缺、關鍵字先各自推入待寫緩衝；達到批次大小（依來源每頁筆數調整）即一次性 upsert 至資料庫，降低寫入次數。爬蟲結束後由呼叫端手動 flush 剩餘未滿批次的資料。',
+          '正規化後的公司、職缺、關鍵字先各自推入待寫緩衝，達到批次大小（依來源每頁筆數調整）即一次性 upsert 寫入「job／company／job_keyword 資料表」，降低寫入次數；爬蟲結束後由呼叫端手動 flush 剩餘未滿批次的資料。',
       },
     },
     {
       id: 'db-job',
-      label: 'job / company / job_keyword 資料表',
+      label: '職缺 / 公司 / 關鍵字 資料表',
       group: 'database',
       status: 'shared',
       interactive: true,
       detail: {
         role: '職缺事實資料',
-        usage: '正規化後寫入此三張表，它們是所有分析的事實來源。',
+        usage: '正規化後的職缺、公司、關鍵字寫入此三張事實表，是所有分析以及「資料正規化流程」後續加工的事實來源。',
       },
     },
     {
       id: 'db-job-source',
-      label: 'job_source 抓取進度',
+      label: '職缺來源表：抓取進度',
       group: 'database',
       status: 'shared',
       interactive: true,
       detail: {
         role: '續抓機制・列表頁進度',
         usage:
-          '續抓（resume）的核心：以 status（pending／completed／failed）記錄每個列表頁的處理進度。第 1 頁時依 pagination 一次預建好全部列表頁的 pending 紀錄，每頁完成即更新為 completed。下次啟動預設為續抓模式，直接撈出仍為 pending 的頁接續處理，不重跑已完成的頁，達成中斷後的斷點恢復；唯有 fresh 模式會先清空本表、從第 1 頁重建。',
-      },
-    },
-    {
-      id: 'mode-fresh',
-      label: '全量 fresh',
-      group: 'mode',
-      status: 'active',
-      interactive: true,
-      detail: {
-        role: '重新建立待抓清單',
-        usage: '從第 1 頁起掃過來源平台所有列表頁，適用於初次建置或大規模重建。',
-      },
-    },
-    {
-      id: 'mode-resume',
-      label: '續抓 resume',
-      group: 'mode',
-      status: 'active',
-      interactive: true,
-      detail: {
-        role: '預設模式・斷點恢復',
-        usage: '沿用資料庫中尚未完成（pending）的列表頁清單接續抓取，中斷後可從斷點恢復，不重複處理已完成的頁。',
-      },
-    },
-    {
-      id: 'mode-recrawl',
-      label: '更新 re-crawl',
-      group: 'mode',
-      status: 'active',
-      interactive: true,
-      detail: {
-        role: '重抓既有詳細頁',
-        usage:
-          '重新拜訪既有職缺的詳細頁，比對職缺描述、薪資、地點是否變動並就地更新；頁面已不存在則標記為已關閉（closed）。預設只挑「昨日之前未更新」者，使資料滾動更新。',
-      },
-    },
-    {
-      id: 'mode-recrawl-cond',
-      label: '條件更新',
-      group: 'mode',
-      status: 'active',
-      interactive: true,
-      detail: {
-        role: '縮小更新範圍',
-        usage: '更新模式可帶查詢條件（如指定單筆 id 或某段更新時間區間），只重抓符合條件的職缺。',
-      },
-    },
-    {
-      id: 'mode-salary',
-      label: '薪資重算 job-salary',
-      group: 'mode',
-      status: 'active',
-      interactive: true,
-      detail: {
-        role: '離線重算薪資',
-        usage: '不重新連線抓取，直接對既有職缺的薪資字串重新解析出 min／max 與薪資型態（手動標記過的薪資則略過）。',
-      },
-    },
-    {
-      id: 'mode-keyword',
-      label: '關鍵字重算 job-keyword',
-      group: 'mode',
-      status: 'active',
-      interactive: true,
-      detail: {
-        role: '離線重萃技術關鍵字',
-        usage: '不重新連線抓取，針對既有職缺描述以最新的技術字典重新萃取技術關鍵字。',
+          '續抓的核心：以 status（pending／completed／failed）記錄每個列表頁的處理進度。第 1 頁時依<strong>頁面概況</strong>一次預建好全部列表頁的 pending 紀錄、每頁完成即標 completed。下次啟動的續抓模式會撈出仍為 pending 的頁、重新交給「攔截列表 API」接續處理，不重跑已完成的頁，達成斷點恢復；也可以重新開始讓它先清空本表、從第 1 頁拿到<strong>頁面概況</strong>後重建。',
       },
     },
     // ── 更新流程（re-crawl）：重抓既有職缺詳細頁、比對變動、就地更新 ──
@@ -301,19 +234,19 @@ export const crawlerPipeline: CrawlerPipeline = {
       detail: {
         role: '決定重抓範圍・續抓起點',
         usage:
-          '預設只挑「昨日 00:00 之前未更新」的職缺，使資料滾動更新；也可帶 re-crawl=<條件> 縮小為指定單筆 id 或某段更新時間區間。撈出後依 min_salary 由高到低排序，逐筆重抓詳細頁。續抓機制：更新流程不使用 job_source 進度表，而是以職缺的 updated_at 為續抓依據——每批寫回即把已處理職缺的 updated_at 前移，故中斷後直接重跑，預設條件會自動排除今天已更新者、只接續處理剩下的職缺。',
+          '更新流程的起點：預設只挑「昨日 00:00 之前未更新」的職缺使資料滾動更新，也可帶條件縮小為指定單筆 id 或某段更新時間區間。撈出後依 min_salary 由高到低排序，逐筆交給爬蟲引擎重抓詳細頁。續抓機制：更新流程不使用<strong>職缺來源表</strong>，而是以職缺的 updated_at 為依據——每批寫回即把已處理者的 updated_at 前移，故中斷後直接重跑，預設條件會自動排除今天已更新者、只接續剩下的職缺。',
       },
     },
     {
       id: 'rc-host',
-      label: '依 host 選解析器',
+      label: '依 host 選解析方式',
       group: 'rc-detail',
       status: 'active',
       interactive: true,
       detail: {
         role: '判斷來源平台',
         usage:
-          '依職缺 detail_link 的 host 選用 104 或 Cake 的解析器；遇到未知 host 則丟出錯誤並略過該筆，單筆失敗不中斷整體更新。',
+          '依職缺 detail_link 的 host 選用 104 或 Cake 的解析方式（未知 host 則丟錯並略過該筆、不中斷整體更新）；選定後交給「擷取詳細欄位」。',
       },
     },
     {
@@ -324,7 +257,7 @@ export const crawlerPipeline: CrawlerPipeline = {
       interactive: true,
       detail: {
         role: '取職缺描述／薪資／地點',
-        usage: '等待詳細頁就緒後，在瀏覽器內執行 evaluate 擷取職缺描述、薪資、地點等欄位，交由下一步比對。',
+        usage: '等待詳細頁就緒後，在瀏覽器內執行擷取職缺描述、薪資、地點等欄位，交給「判斷職缺狀態」比對。',
       },
     },
     {
@@ -336,7 +269,7 @@ export const crawlerPipeline: CrawlerPipeline = {
       detail: {
         role: '看職缺描述是否為空 → 再看多個欄位是否變動',
         usage:
-          '先看職缺描述是否為空；非空時再比對職缺描述、薪資、地點是否變動（薪資被手動標記者不覆蓋），據此決定走向「更新內容／僅刷新時間／標記為關閉職缺」三種結果之一。',
+          '先看職缺描述是否為空；非空時再比對職缺描述、薪資、地點是否變動（手動標記過的薪資不覆蓋）。據此三向分岔：有變動→「更新內容」、無變動→「僅刷新時間」、描述為空→「標記為關閉」。',
       },
     },
     {
@@ -348,7 +281,7 @@ export const crawlerPipeline: CrawlerPipeline = {
       detail: {
         role: '欄位有變動',
         usage:
-          '職缺描述／薪資／地點任一變動 → 套用新值；薪資變動時一併重算 min／max，並以新職缺描述重算技術關鍵字。closed=false、updated_at 設為現在。',
+          '三向結果之一（欄位有變動）：套用新值，薪資變動時一併重算 min／max、以新職缺描述重算技術關鍵字，closed=false、updated_at 設為現在，再交「批次寫回 DB」。',
       },
     },
     {
@@ -359,7 +292,7 @@ export const crawlerPipeline: CrawlerPipeline = {
       interactive: true,
       detail: {
         role: '欄位皆未變動',
-        usage: '三個欄位皆未變動 → 只把 updated_at 更新為現在、closed=false，不重算關鍵字。',
+        usage: '三向結果之一（三個欄位皆未變動）：只把 updated_at 更新為現在、closed=false，不重算關鍵字，再交「批次寫回 DB」。',
       },
     },
     {
@@ -370,7 +303,7 @@ export const crawlerPipeline: CrawlerPipeline = {
       interactive: true,
       detail: {
         role: '頁面已下架',
-        usage: '職缺描述為空視為職缺已下架 → closed=true，並更新 updated_at。',
+        usage: '三向結果之一（職缺描述為空＝已下架）：closed=true 並更新 updated_at，再交「批次寫回 DB」。',
       },
     },
     {
@@ -382,14 +315,14 @@ export const crawlerPipeline: CrawlerPipeline = {
       detail: {
         role: '批次 upsert・落地續抓進度',
         usage:
-          '三種結果都先推入待寫緩衝；每累積 20 筆即一次性 upsert（job，必要時連同 job_keyword）。全部跑完後由呼叫端再 flush 一次剩餘未滿批次的資料。續抓機制：因每 20 筆就落地、且寫回時 updated_at 前移，進度不會整批遺失——即使中途中斷，已寫回的職缺下次重跑就會被預設條件排除，等同從斷點接續。',
+          '三種結果都先推入待寫緩衝，每累積 n 筆即一次性 upsert 寫回「job／company／job_keyword 資料表」的 job（必要時連同 job_keyword），跑完再 flush 剩餘。續抓機制：因每 n 筆就落地、且寫回時 updated_at 前移，進度不會整批遺失——即使中斷，已寫回的職缺下次重跑會被預設條件排除，等同從斷點接續。',
       },
     },
   ],
   views: {
     flow: {
       id: 'flow',
-      title: '抓取流程(新增)',
+      title: '新增職缺',
       tiers: [
         ['src-104', 'src-cake'],
         ['crawler-engine', 'stealth'],
@@ -406,13 +339,13 @@ export const crawlerPipeline: CrawlerPipeline = {
         { from: 'src-cake', to: 'crawler-engine', label: '列表 API' },
         { from: 'stealth', to: 'crawler-engine', label: '反爬・重試' },
         { from: 'crawler-engine', to: 'list-api-intercept', label: '列表頁' },
-        { from: 'list-api-intercept', to: 'list-filter' },
-        { from: 'list-filter', to: 'list-enqueue' },
+        { from: 'list-api-intercept', to: 'list-filter', label: '本頁職缺' },
+        { from: 'list-filter', to: 'list-enqueue', label: '僅新職缺' },
         // 遞迴：下一頁任務指回攔截步驟
         { from: 'list-enqueue', to: 'list-next', label: '下一頁（遞迴）' },
         { from: 'list-enqueue', to: 'detail-extractor', label: '詳細任務' },
-        { from: 'detail-extractor', to: 'normalizer' },
-        { from: 'normalizer', to: 'batch-upsert' },
+        { from: 'detail-extractor', to: 'normalizer', label: '原始欄位' },
+        { from: 'normalizer', to: 'batch-upsert', label: '正規化資料' },
         { from: 'batch-upsert', to: 'db-job', label: '批次 upsert' },
         // 續抓機制：第 1 頁預建所有列表頁的 pending 紀錄，每頁完成即標 completed
         { from: 'list-enqueue', to: 'db-job-source', label: '記錄頁進度' },
@@ -422,7 +355,7 @@ export const crawlerPipeline: CrawlerPipeline = {
     },
     recrawl: {
       id: 'recrawl',
-      title: '抓取流程(更新)',
+      title: '更新職缺',
       tiers: [
         ['rc-scope'],
         ['crawler-engine', 'stealth'],
@@ -438,16 +371,16 @@ export const crawlerPipeline: CrawlerPipeline = {
         { from: 'rc-scope', to: 'crawler-engine', label: '逐筆重抓' },
         { from: 'stealth', to: 'crawler-engine', label: '反爬・重試' },
         { from: 'crawler-engine', to: 'rc-host', label: '開啟詳細頁' },
-        { from: 'rc-host', to: 'rc-extract' },
-        { from: 'rc-extract', to: 'rc-decide' },
+        { from: 'rc-host', to: 'rc-extract', label: '選定解析器' },
+        { from: 'rc-extract', to: 'rc-decide', label: '擷取結果' },
         // 三向分岐：依職缺描述是否為空與是否變動
         { from: 'rc-decide', to: 'rc-update', label: '有變動' },
         { from: 'rc-decide', to: 'rc-touch', label: '無變動' },
         { from: 'rc-decide', to: 'rc-close', label: '職缺描述為空' },
         // 三種結果匯流回批次寫入
-        { from: 'rc-update', to: 'rc-write' },
-        { from: 'rc-touch', to: 'rc-write' },
-        { from: 'rc-close', to: 'rc-write' },
+        { from: 'rc-update', to: 'rc-write', label: '更新後資料' },
+        { from: 'rc-touch', to: 'rc-write', label: '僅更新時間' },
+        { from: 'rc-close', to: 'rc-write', label: '關閉標記' },
         { from: 'rc-write', to: 'db-job', label: '批次 upsert' },
       ],
     },

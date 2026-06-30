@@ -54,7 +54,7 @@ describe('cloudArchitecture', () => {
 
   it('nodes cover all required cloud providers', () => {
     const providers = new Set<CloudProviderId>(nodes.map(node => node.provider));
-    for (const required of ['cloudflare', 'aws', 'gcp', 'azure', 'shared'] as const) {
+    for (const required of ['cloudflare', 'aws', 'gcp', 'azure'] as const) {
       expect(providers.has(required), `nodes must include a "${required}" provider`).toBe(true);
     }
   });

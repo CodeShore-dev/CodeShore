@@ -24,8 +24,8 @@ describe('DataNormalizationSection', () => {
 
   it('首次渲染顯示預設（寫入時拆表）視角的節點', () => {
     render(<DataNormalizationSection />);
-    expect(screen.getByRole('button', { name: nodeButtonName('原始職缺（一筆）') })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: nodeButtonName('job 職缺主表') })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: nodeButtonName('一筆職缺') })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: nodeButtonName('職缺主表') })).toBeInTheDocument();
   });
 
   it('點擊事後加工視角切換圖表並以 aria-pressed 反映選取狀態', async () => {
@@ -44,7 +44,7 @@ describe('DataNormalizationSection', () => {
     const user = userEvent.setup();
     render(<DataNormalizationSection />);
 
-    await user.click(screen.getByRole('button', { name: nodeButtonName('薪資解析 parseSalary') }));
+    await user.click(screen.getByRole('button', { name: nodeButtonName('薪資解析') }));
 
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByText('薪資字串 → 結構化欄位')).toBeInTheDocument();
@@ -54,7 +54,7 @@ describe('DataNormalizationSection', () => {
     const user = userEvent.setup();
     render(<DataNormalizationSection />);
 
-    await user.click(screen.getByRole('button', { name: nodeButtonName('薪資解析 parseSalary') }));
+    await user.click(screen.getByRole('button', { name: nodeButtonName('薪資解析') }));
     expect(screen.queryByRole('dialog')).toBeInTheDocument();
 
     const toggle = screen.getByRole('group', { name: '切換視角' });
@@ -67,7 +67,7 @@ describe('DataNormalizationSection', () => {
     const user = userEvent.setup();
     render(<DataNormalizationSection />);
 
-    await user.click(screen.getByRole('button', { name: nodeButtonName('薪資解析 parseSalary') }));
+    await user.click(screen.getByRole('button', { name: nodeButtonName('薪資解析') }));
     expect(screen.getByRole('dialog')).toBeInTheDocument();
 
     await user.keyboard('{Escape}');

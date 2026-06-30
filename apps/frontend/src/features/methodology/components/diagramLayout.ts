@@ -17,7 +17,7 @@ export interface DiagramLayoutView {
 
 export const NODE_W = 184;
 export const NODE_H = 66;
-const INNER_COL_GAP = 16; // 同一群組、同一層的節點水平間距
+const INNER_COL_GAP = 24; // 同一群組、同一層的節點水平間距
 const INNER_ROW_GAP = 40; // 群組框內，上下層之間的間距（給箭頭空間）
 const CLUSTER_PAD_X = 14;
 const CLUSTER_PAD_TOP = 20; // 群組標題與第一個節點之間的間距
@@ -48,7 +48,12 @@ export interface DiagramBand {
 
 export interface DiagramEdgePath {
   readonly key: string;
+  readonly from: string; // 來源 node id，供「選取節點時點亮相連的邊」判斷
+  readonly to: string; // 目標 node id
   readonly d: string;
+  readonly label?: string;
+  readonly lx: number; // 標籤錨點（曲線中段），供 hover 顯示說明用
+  readonly ly: number;
 }
 
 export interface DiagramLayout {
@@ -70,6 +75,23 @@ const portPos = (x: number, count: number, index: number): number => {
   if (count <= 1) return x + NODE_W / 2;
   const usable = NODE_W - PORT_PAD * 2;
   return x + PORT_PAD + (usable * index) / (count - 1);
+};
+
+const portPosY = (y: number, count: number, index: number): number => {
+  if (count <= 1) return y + NODE_H / 2;
+  const usable = NODE_H - PORT_PAD * 2;
+  return y + PORT_PAD + (usable * index) / (count - 1);
+};
+
+type Side = 'top' | 'bottom' | 'left' | 'right';
+
+// 依兩節點相對位置決定連線從來源哪一邊離開、進入目標哪一邊。
+// 必須與下方連線路徑的方向判斷使用相同門檻，確保連接點與實際路徑一致。
+const sidesOf = (a: DiagramNodeBox, b: DiagramNodeBox): { from: Side; to: Side } => {
+  if (b.y > a.y + NODE_H - 1) return { from: 'bottom', to: 'top' };
+  if (a.y > b.y + NODE_H - 1) return { from: 'top', to: 'bottom' };
+  if (b.cx > a.cx) return { from: 'right', to: 'left' };
+  return { from: 'left', to: 'right' };
 };
 
 /**
@@ -147,29 +169,44 @@ export function buildDiagramLayout(
   }
   const height = y - ROW_GAP_Y + PAD;
 
-  // 連接點分散：同一節點的多條出邊／入邊沿節點邊緣平均散開，避免重疊、看得出來源。
-  const startX = new Map<number, number>();
-  const endX = new Map<number, number>();
-  const group = (pick: (e: DiagramLayoutEdge) => string) => {
-    const m = new Map<string, number[]>();
-    view.edges.forEach((e, i) => {
-      const arr = m.get(pick(e)) ?? [];
-      arr.push(i);
-      m.set(pick(e), arr);
-    });
-    return m;
-  };
-  for (const [from, idxs] of group(e => e.from)) {
-    const a = boxes.get(from);
-    if (!a) continue;
-    idxs.sort((i, j) => (boxes.get(view.edges[i].to)?.cx ?? 0) - (boxes.get(view.edges[j].to)?.cx ?? 0));
-    idxs.forEach((ei, k) => startX.set(ei, portPos(a.x, idxs.length, k)));
+  // 連接點分散：同一節點同一邊上的所有連線（出邊與入邊一起計算）沿該邊平均散開，
+  // 讓「從本節點出去」與「從別的節點進來」的線各佔不同位置、不重疊，也看得出來源／去向。
+  interface PortReq {
+    readonly edge: number; // view.edges 索引
+    readonly role: 'from' | 'to';
+    readonly sort: number; // 沿邊排序鍵：對方端點的 cx（上下邊）或 cy（左右邊）
   }
-  for (const [to, idxs] of group(e => e.to)) {
-    const b = boxes.get(to);
-    if (!b) continue;
-    idxs.sort((i, j) => (boxes.get(view.edges[i].from)?.cx ?? 0) - (boxes.get(view.edges[j].from)?.cx ?? 0));
-    idxs.forEach((ei, k) => endX.set(ei, portPos(b.x, idxs.length, k)));
+  const sidePorts = new Map<string, PortReq[]>(); // key = `${nodeId}:${side}`
+  const pushPort = (nodeId: string, side: Side, req: PortReq): void => {
+    const arr = sidePorts.get(`${nodeId}:${side}`) ?? [];
+    arr.push(req);
+    sidePorts.set(`${nodeId}:${side}`, arr);
+  };
+  view.edges.forEach((e, i) => {
+    const a = boxes.get(e.from);
+    const b = boxes.get(e.to);
+    if (!a || !b) return;
+    const { from, to } = sidesOf(a, b);
+    const fromVertical = from === 'top' || from === 'bottom';
+    const toVertical = to === 'top' || to === 'bottom';
+    pushPort(e.from, from, { edge: i, role: 'from', sort: toVertical ? b.cx : b.cy });
+    pushPort(e.to, to, { edge: i, role: 'to', sort: fromVertical ? a.cx : a.cy });
+  });
+
+  // 每條邊在來源側／目標側的連接點座標（上下邊存 x、左右邊存 y，依該邊方向取用）。
+  const startPort = new Map<number, number>();
+  const endPort = new Map<number, number>();
+  for (const [key, reqs] of sidePorts) {
+    const nodeId = key.slice(0, key.lastIndexOf(':'));
+    const side = key.slice(key.lastIndexOf(':') + 1) as Side;
+    const box = boxes.get(nodeId);
+    if (!box) continue;
+    const vertical = side === 'top' || side === 'bottom';
+    reqs.sort((p, q) => p.sort - q.sort);
+    reqs.forEach((req, k) => {
+      const pos = vertical ? portPos(box.x, reqs.length, k) : portPosY(box.y, reqs.length, k);
+      (req.role === 'from' ? startPort : endPort).set(req.edge, pos);
+    });
   }
 
   // 連線在「離開來源」與「進入目標（箭頭端）」兩處各保留一段與節點邊垂直的直線
@@ -179,47 +216,63 @@ export function buildDiagramLayout(
     const b = boxes.get(edge.to);
     if (!a || !b) return [];
     const key = `${edge.from}-${edge.to}-${edge.label ?? ''}`;
-    const sx = startX.get(i) ?? a.cx;
-    const ex = endX.get(i) ?? b.cx;
     let d: string;
+    let lx: number;
+    let ly: number;
     if (b.y > a.y + NODE_H - 1) {
       // 向下：垂直離開來源底邊、垂直進入目標頂邊
+      const sx = startPort.get(i) ?? a.cx;
+      const ex = endPort.get(i) ?? b.cx;
       const y0 = a.y + NODE_H;
       const y1 = b.y;
       const s0 = y0 + EDGE_STUB;
       const s1 = y1 - EDGE_STUB;
       const my = (s0 + s1) / 2;
       d = `M${sx},${y0} L${sx},${s0} C${sx},${my} ${ex},${my} ${ex},${s1} L${ex},${y1}`;
+      lx = (sx + ex) / 2;
+      ly = my;
     } else if (a.y > b.y + NODE_H - 1) {
       // 向上
+      const sx = startPort.get(i) ?? a.cx;
+      const ex = endPort.get(i) ?? b.cx;
       const y0 = a.y;
       const y1 = b.y + NODE_H;
       const s0 = y0 - EDGE_STUB;
       const s1 = y1 + EDGE_STUB;
       const my = (s0 + s1) / 2;
       d = `M${sx},${y0} L${sx},${s0} C${sx},${my} ${ex},${my} ${ex},${s1} L${ex},${y1}`;
+      lx = (sx + ex) / 2;
+      ly = my;
     } else if (b.cx > a.cx) {
       // 同列向右：水平離開來源右邊、水平進入目標左邊
+      const sy = startPort.get(i) ?? a.cy;
+      const ey = endPort.get(i) ?? b.cy;
       const x0 = a.x + NODE_W;
-      const y0 = a.y + NODE_H / 2;
       const x1 = b.x;
-      const y1 = b.y + NODE_H / 2;
       const s0 = x0 + EDGE_STUB;
       const s1 = x1 - EDGE_STUB;
       const mx = (s0 + s1) / 2;
-      d = `M${x0},${y0} L${s0},${y0} C${mx},${y0} ${mx},${y1} ${s1},${y1} L${x1},${y1}`;
+      d = `M${x0},${sy} L${s0},${sy} C${mx},${sy} ${mx},${ey} ${s1},${ey} L${x1},${ey}`;
+      lx = mx;
+      // 同列節點間水平間距很窄，label 若擺在線上（節點中線高度）會被左右節點方塊蓋住；
+      // 改置於節點列正上方的空白帶（a.y === b.y），確保看得到。
+      ly = a.y - 9;
     } else {
       // 同列向左
+      const sy = startPort.get(i) ?? a.cy;
+      const ey = endPort.get(i) ?? b.cy;
       const x0 = a.x;
-      const y0 = a.y + NODE_H / 2;
       const x1 = b.x + NODE_W;
-      const y1 = b.y + NODE_H / 2;
       const s0 = x0 - EDGE_STUB;
       const s1 = x1 + EDGE_STUB;
       const mx = (s0 + s1) / 2;
-      d = `M${x0},${y0} L${s0},${y0} C${mx},${y0} ${mx},${y1} ${s1},${y1} L${x1},${y1}`;
+      d = `M${x0},${sy} L${s0},${sy} C${mx},${sy} ${mx},${ey} ${s1},${ey} L${x1},${ey}`;
+      lx = mx;
+      // 同列節點間水平間距很窄，label 若擺在線上（節點中線高度）會被左右節點方塊蓋住；
+      // 改置於節點列正上方的空白帶（a.y === b.y），確保看得到。
+      ly = a.y - 9;
     }
-    return [{ key, d }];
+    return [{ key, from: edge.from, to: edge.to, d, label: edge.label, lx, ly }];
   });
 
   return { width, height, bands, boxes, edges };

@@ -4,7 +4,7 @@ import { formatNumber } from '../../../utils/format';
 import {
   fetchJobCount,
   fetchMvSalaryTypeMedianRatio,
-  fetchMvSalaryWeightedRatio,
+  fetchMvSalaryRangeMultiplier,
 } from '../service';
 
 type Benchmark = { median: number; high: number; top: number };
@@ -17,9 +17,9 @@ export function useHomeData() {
     queryKey: ['home', 'salaryTypeMedianRatio'],
     queryFn: async () => (await fetchMvSalaryTypeMedianRatio()).result,
   });
-  const weightedRatio = useQuery({
-    queryKey: ['home', 'salaryWeightedRatio'],
-    queryFn: async () => (await fetchMvSalaryWeightedRatio()).result,
+  const rangeMultiplier = useQuery({
+    queryKey: ['home', 'salaryRangeMultiplier'],
+    queryFn: async () => (await fetchMvSalaryRangeMultiplier()).result,
   });
   const jobCount = useQuery({
     queryKey: ['home', 'jobCount'],
@@ -28,7 +28,7 @@ export function useHomeData() {
 
   const loading =
     medianRatio.isLoading ||
-    weightedRatio.isLoading ||
+    rangeMultiplier.isLoading ||
     jobCount.isLoading;
 
   const median = medianRatio.data ?? [];
@@ -47,10 +47,10 @@ export function useHomeData() {
     },
   };
 
-  const weighted = weightedRatio.data ?? [];
-  const salaryWeightedRatios: Record<'year' | 'month', number> = {
-    year: weighted.find(r => r.salary_type === 'year')?.ratio ?? 0,
-    month: weighted.find(r => r.salary_type === 'month')?.ratio ?? 0,
+  const multiplier = rangeMultiplier.data ?? [];
+  const salaryRangeMultipliers: Record<'year' | 'month', number> = {
+    year: multiplier.find(r => r.salary_type === 'year')?.ratio ?? 0,
+    month: multiplier.find(r => r.salary_type === 'month')?.ratio ?? 0,
   };
 
   const jc = jobCount.data ?? {
@@ -69,7 +69,7 @@ export function useHomeData() {
   return {
     loading,
     salaryBenchmarks,
-    salaryWeightedRatios,
+    salaryRangeMultipliers,
     jobCountText,
     // Raw open-jobs count: the job page derives its "總數" tab from
     // open_jobs − liked − disliked (task 7.5).
