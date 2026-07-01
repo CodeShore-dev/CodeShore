@@ -103,4 +103,38 @@ describe('MethodologyPage', () => {
     expect(container.querySelector('#dev-methodology')).not.toBeNull();
     expect(screen.getByText('開發方法論')).toBeInTheDocument();
   });
+
+  it('renders the dev-methodology section for an unauthenticated visitor (req 2.3)', () => {
+    // Coverage gap: public / no-login access. renderWithProviders wraps the
+    // page with NO auth/login provider, so a successful render proves the new
+    // dev-methodology section is reachable without authentication.
+    const { container } = renderWithProviders(<MethodologyPage />);
+
+    expect(container.querySelector('#dev-methodology')).not.toBeNull();
+    expect(screen.getByText('開發方法論')).toBeInTheDocument();
+  });
+
+  it('keeps all five existing section anchors present after the web-tech and dev-methodology content changes (req 5.2)', () => {
+    // Regression: rewriting web-tech and adding dev-methodology must be
+    // additive only — none of the pre-existing anchors may be removed.
+    const { container } = renderWithProviders(<MethodologyPage />);
+
+    expect(container.querySelector('#web-tech')).not.toBeNull();
+    expect(container.querySelector('#cloud-performance')).not.toBeNull();
+    expect(container.querySelector('#data-crawler')).not.toBeNull();
+    expect(container.querySelector('#cloud-architecture')).not.toBeNull();
+    expect(container.querySelector('#source-sql')).not.toBeNull();
+  });
+
+  it('renders at least one improvement row in the dev-methodology table (req 4.2)', () => {
+    // Coverage gap: the dev-methodology section must disclose at least one
+    // concrete, completed architecture improvement via its table's data rows.
+    const { container } = renderWithProviders(<MethodologyPage />);
+
+    const devMethodologySection = container.querySelector('#dev-methodology');
+    expect(devMethodologySection).not.toBeNull();
+
+    const rows = devMethodologySection?.querySelectorAll('table tbody tr') ?? [];
+    expect(rows.length).toBeGreaterThanOrEqual(1);
+  });
 });
