@@ -15,7 +15,7 @@ export const methodologySections: readonly MethodologySection[] = [
     blocks: [
       {
         kind: 'paragraph',
-        text: '本專案以 Nx 管理的 monorepo 組織，前端（Vue）、後端（NestJS）與爬蟲共用一套程式碼與共享套件，依賴集中於根目錄管理，並以 Node 22 為執行環境。共享套件以套件別名引用，讓前後端共用型別與資料存取邏輯、減少重複。',
+        text: '本專案以 Nx 管理的 monorepo 組織，前端（React）、後端（NestJS）與爬蟲共用一套程式碼與共享套件，依賴集中於根目錄管理，並以 Node 22 為執行環境。共享套件以套件別名引用（如 @codeshore/data-types、@codeshore/data-utils），讓前後端共用型別與資料存取邏輯、減少重複定義。',
       },
       {
         kind: 'paragraph',
@@ -27,8 +27,8 @@ export const methodologySections: readonly MethodologySection[] = [
         rows: [
           [
             '前端',
-            'Vue 3.5（Composition API + script setup）、Vue Router 4、Pinia 3、Tailwind CSS 4、Vite 7',
-            '使用者介面、路由、狀態管理、樣式與打包。',
+            'React 19（function components + hooks）、react-router 7（library mode）、TanStack Query 5、Zustand 5、Tailwind CSS 4、Vite 7',
+            '使用者介面、路由、server-state 快取、UI/filter 狀態管理、樣式與打包。',
           ],
           ['後端', 'NestJS 11（Express）', '提供分析資料 API、彙總查詢入口與快取。'],
           ['資料庫', 'Supabase（PostgreSQL）', '主資料庫，承載原始資料表、物化視圖與 function。'],
@@ -42,11 +42,11 @@ export const methodologySections: readonly MethodologySection[] = [
       },
       {
         kind: 'paragraph',
-        text: '技術選型的取捨理由：採 monorepo 是為了讓前後端與爬蟲共用同一份資料型別與存取邏輯，避免「同一張表在三處各自定義」造成的不一致；以 Supabase（PostgreSQL）為主資料庫，使我們能直接運用物化視圖與 SQL function 做伺服器端預先彙總，把昂貴計算留在資料庫一側；前端選用 Vue + Vite + Tailwind，著重開發速度與小體積產出；後端以 NestJS 提供結構化的模組與攔截器機制，便於統一掛載快取與監測。',
+        text: '技術選型的取捨理由：採 monorepo 是為了讓前後端與爬蟲共用同一份資料型別與存取邏輯，避免「同一張表在三處各自定義」造成的不一致；以 Supabase（PostgreSQL）為主資料庫，使我們能直接運用物化視圖與 SQL function 做伺服器端預先彙總，把昂貴計算留在資料庫一側；前端選用 React + TanStack Query + Zustand，將「伺服器資料快取」與「純 UI 狀態」明確分離，避免單一狀態容器混雜兩種截然不同生命週期的資料；搭配 Vite 與 Tailwind CSS 著重開發速度與小體積產出；後端以 NestJS 提供結構化的模組與攔截器機制，便於統一掛載快取與監測。',
       },
       {
         kind: 'paragraph',
-        text: '前後端與資料層如何協作產生使用者所見的分析結果：爬蟲把公開職缺正規化寫入 PostgreSQL 原始資料表；資料庫以物化視圖與 function 預先彙總出薪資基準、技術排行、技術組合與公司統計等結果；後端透過資料存取層查詢這些彙總結果並加上一層快取後以 API 提供；前端再以 Vue 元件呈現為使用者所見的圖表與列表。整條鏈路中，「計算」集中在資料庫與後端，前端只負責呈現。',
+        text: '前後端與資料層如何協作產生使用者所見的分析結果：爬蟲把公開職缺正規化寫入 PostgreSQL 原始資料表；資料庫以物化視圖與 function 預先彙總出薪資基準、技術排行、技術組合與公司統計等結果；後端透過資料存取層查詢這些彙總結果並加上一層快取後以 API 提供；前端再以 TanStack Query 取得資料並以 React 元件呈現為使用者所見的圖表與列表，其餘篩選條件等 UI 狀態則交由 Zustand 管理。整條鏈路中，「計算」集中在資料庫與後端，前端只負責呈現與互動狀態。',
       },
     ],
   },

@@ -76,4 +76,22 @@ describe('MethodologyPage', () => {
     // intro copy, so scope to the diagram node via its button role).
     expect(screen.getByRole('button', { name: 'Cloudflare Worker' })).toBeInTheDocument();
   });
+
+  it('describes the current tech stack in web-tech without stale tech mentions (req 1.1, 1.2)', () => {
+    // Coverage gap: the web-tech section must reflect the real, current stack
+    // (React/NestJS/Supabase/Crawlee) and must not retain discontinued tech
+    // descriptions (Vue, Vue Router, Pinia, VueUse) anywhere in its rendered text.
+    const { container } = renderWithProviders(<MethodologyPage />);
+
+    const webTechSection = container.querySelector('#web-tech');
+    expect(webTechSection).not.toBeNull();
+    const webTechText = webTechSection?.textContent ?? '';
+
+    // Must NOT contain any discontinued tech mentions.
+    expect(webTechText).not.toMatch(/Vue/);
+    expect(webTechText).not.toMatch(/Pinia/);
+
+    // Must contain current-stack terms.
+    expect(webTechText).toMatch(/React/);
+  });
 });
