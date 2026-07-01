@@ -147,6 +147,10 @@ export const methodologySections: readonly MethodologySection[] = [
             '數字與日期的格式化邏輯',
             '統一由 `utils/format.ts` 提供（`toWan`／`toWanInt` 萬元格式、`formatNumber` 千分位、`formatDateInfo` 相對時間），前端規範明文禁止在元件內自行實作這些格式化邏輯，避免同一種顯示規則在各處長出不同版本。',
           ],
+          [
+            '關係圖表的渲染引擎',
+            '本頁「雲端架構」「爬蟲流程」「資料正規化」「資料庫 schema」四種完全不同領域的圖表，共用同一套引擎（`components/diagram/` 下的 `DiagramCanvas.tsx`、`DiagramNodeDetail.tsx`、`useDiagramView.ts`）；新增一種圖表時只需提供該領域的 view composable、版面配置與圖示對照表，薄薄包一層即可重用整套渲染與互動邏輯，不需重寫圖表引擎。',
+          ],
         ],
       },
     ],
