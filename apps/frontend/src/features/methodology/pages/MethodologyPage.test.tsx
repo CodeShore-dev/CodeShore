@@ -94,4 +94,13 @@ describe('MethodologyPage', () => {
     // Must contain current-stack terms.
     expect(webTechText).toMatch(/React/);
   });
+
+  it('renders the dev-methodology section as an independent, deep-linkable topic (req 2.1, 2.2)', () => {
+    // Coverage gap: a new "開發方法論" section must exist, be reachable via its
+    // own #dev-methodology anchor, and render distinctly from #web-tech.
+    const { container } = renderWithProviders(<MethodologyPage />);
+
+    expect(container.querySelector('#dev-methodology')).not.toBeNull();
+    expect(screen.getByText('開發方法論')).toBeInTheDocument();
+  });
 });

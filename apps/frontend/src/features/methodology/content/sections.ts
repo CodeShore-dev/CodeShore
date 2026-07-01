@@ -103,4 +103,48 @@ export const methodologySections: readonly MethodologySection[] = [
       },
     ],
   },
+  {
+    id: 'dev-methodology',
+    title: '開發方法論',
+    blocks: [
+      {
+        kind: 'paragraph',
+        text: '「網站技術」段落談的是這個網站用了什麼技術組成；這裡談的是另一件事：這個網站怎麼被開發出來。本專案實際上是由 Claude Code 進行 AI agent coding，並採用 Kiro 風格、spec-driven 的開發流程（cc-sdd）——換句話說，程式碼的產生方式本身也是這個專案工程做法的一部分，值得與技術棧分開揭露。',
+      },
+      {
+        kind: 'paragraph',
+        text: '這套 spec-driven agent coding 工作流程為開發帶來的整體效益，可以濃縮為一個重點：把「需求 → 設計 → 任務拆解 → 實作」的每一步都先落成書面規格並經人工審核後才往下走，讓 AI agent 在有明確、經核准邊界的規格下實作，同時搭配獨立於實作者的正式審查、每次除錯都以新鮮上下文重新檢視問題、以及交付前要求可驗證的新鮮證據而非單憑agent自述——整體效果是讓 AI 產出的程式碼維持可控、可追溯，且錯誤能在流程內被攔截，而不是把「AI 寫程式」變成一個黑箱。',
+      },
+      {
+        kind: 'paragraph',
+        text: '這個開發方式是否只是口號，關鍵在於專案的程式碼架構本身有沒有為此做設計。實際上，本專案的資料夾結構、命名慣例與檔案拆分顆粒度都高度一致且可預期：前端每個 feature 都放在 `apps/frontend/src/features/{name}/` 底下，並遵循相同骨架（`components/`、`pages/`、`hooks/` 或 `composables/`、`service.ts`、`queries.ts`／`mutations.ts`、`*Store.ts`）；命名慣例全面一致（元件用 PascalCase、hook 一律以 `use` 開頭、資料存取層固定叫單數的 `service.ts`、測試檔與被測檔同目錄並以 `*.test.tsx` 命名）；後端 NestJS 每個資源模組也固定是 `controller.ts`／`service.ts`／`module.ts` 三件套。這種高度可預測的結構讓 AI agent 在任何一個 feature 內都能依循相同慣例定位程式碼、新增檔案，大幅降低「每次都要重新摸索專案風格」的成本，也讓不同任務產出的程式碼風格保持一致。',
+      },
+      {
+        kind: 'table',
+        headers: ['改善項目', '修復前', '修復後'],
+        rows: [
+          [
+            '單一元件行數上限',
+            '`apps/frontend`、`apps/backend` 皆未設定任何 lint 規則，元件行數沒有上限，容易長成難以讓 agent 安全修改的大檔案。',
+            '新增 `.eslintrc.json` 並針對 `*.tsx`（測試檔除外）設定 `max-lines` 規則（上限 200 行），從架構層面限制單一元件的複雜度。',
+          ],
+          [
+            'TechCard 元件顆粒度',
+            '`TechCard.tsx` 混雜元件渲染、icon 來源編輯邏輯與 meta 資訊顯示等多個職責於同一檔案。',
+            '拆分為 `TechCard.tsx`（渲染）、`useIconSourceEditor.ts`（icon 來源編輯邏輯 hook）、`IconSourcePopover.tsx`（icon 來源彈出視窗）與 `TechCardMeta.tsx`（meta 資訊呈現），各檔案單一職責且行數皆在限制內。',
+          ],
+          [
+            '篩選欄位的 debounce 與 store 同步邏輯',
+            '多個篩選欄位各自手動重複實作「debounce 後寫回 store」的邏輯，同樣的樣板程式碼散落在不同元件中。',
+            '抽取為共用的 `useDebouncedStoreSync` hook（`apps/frontend/src/hooks/`），各篩選欄位改為呼叫同一個 hook，消除重複實作。',
+          ],
+          [
+            '後端管理員 email 判斷邏輯',
+            '`AdminGuard` 與 `PermissionGuard` 兩處各自逐字重複解析管理員 email 清單的邏輯。',
+            '抽取為共用的 `isAdminEmail` helper（`apps/backend/src/features/auth/adminEmails.ts`），兩個 guard 改為呼叫同一個函式，避免邏輯漂移。',
+          ],
+        ],
+      },
+    ],
+  },
 ] as const;

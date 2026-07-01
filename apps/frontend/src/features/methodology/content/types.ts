@@ -16,7 +16,8 @@ export type SectionAnchor =
   | 'data-crawler'
   | 'database'
   | 'web-tech'
-  | 'cloud-performance';
+  | 'cloud-performance'
+  | 'dev-methodology';
 
 export interface MetricItem {
   readonly name: string;
