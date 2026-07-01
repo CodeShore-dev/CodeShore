@@ -456,19 +456,19 @@ export type Database = {
         }
         Relationships: []
       }
+      mv_salary_range_multiplier: {
+        Row: {
+          ratio: number | null
+          salary_type: string | null
+        }
+        Relationships: []
+      }
       mv_salary_type_median_ratio: {
         Row: {
           high_mark: number | null
           median_mark: number | null
           salary_type: string | null
           top_mark: number | null
-        }
-        Relationships: []
-      }
-      mv_salary_range_multiplier: {
-        Row: {
-          ratio: number | null
-          salary_type: string | null
         }
         Relationships: []
       }
@@ -647,22 +647,6 @@ export type Database = {
           isSetofReturn: true
         }
       }
-      get_tech_combo_stats: {
-        Args: { p_limit?: number }
-        Returns: {
-          avg_max_month: number
-          avg_max_year: number
-          avg_min_month: number
-          avg_min_year: number
-          cat1: string
-          cat2: string
-          job_count: number
-          tech1: string
-          tech1_label: string
-          tech2: string
-          tech2_label: string
-        }[]
-      }
       get_unreviewed_jobs: {
         Args: { p_user_id: string }
         Returns: {
@@ -697,8 +681,8 @@ export type Database = {
       refresh_mv_company: { Args: never; Returns: undefined }
       refresh_mv_job: { Args: never; Returns: undefined }
       refresh_mv_location_group: { Args: never; Returns: undefined }
-      refresh_mv_salary_type_median_ratio: { Args: never; Returns: undefined }
       refresh_mv_salary_range_multiplier: { Args: never; Returns: undefined }
+      refresh_mv_salary_type_median_ratio: { Args: never; Returns: undefined }
       refresh_mv_tech: { Args: never; Returns: undefined }
       refresh_mv_tech_category: { Args: never; Returns: undefined }
       refresh_mv_tech_combo_stats: { Args: never; Returns: undefined }

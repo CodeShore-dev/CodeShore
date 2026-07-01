@@ -188,7 +188,7 @@ export const metricExplanations: Record<
     ],
     note: '組合需至少出現在 2 筆職缺；資料定期更新。',
     anchor: 'database',
-    sqlObjects: ['mv_tech_combo_stats', 'get_tech_combo_stats'],
+    sqlObjects: ['mv_tech_combo_stats'],
   },
   'techs.ranking': {
     key: 'techs.ranking',

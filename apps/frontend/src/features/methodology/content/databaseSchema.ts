@@ -451,17 +451,6 @@ export const databaseSchema: DatabaseSchema = {
       },
     },
     {
-      id: 'get_tech_combo_stats',
-      label: 'get_tech_combo_stats',
-      group: 'fn',
-      status: 'active',
-      interactive: true,
-      detail: {
-        role: '熱門技術組合',
-        usage: '取職缺數最多的前 N 組技術組合。讀自 mv_tech_combo_stats。供熱門技術組合榜。',
-      },
-    },
-    {
       id: 'reset_keywords',
       label: 'reset_keywords',
       group: 'fn',
@@ -590,11 +579,10 @@ export const databaseSchema: DatabaseSchema = {
     function: {
       id: 'function',
       title: 'Function 讀寫',
-      // 兩層版面：上排＝function 讀取的資料物件（資料表＋被讀取的物化視圖 mv_job／mv_tech_combo_stats），
+      // 兩層版面：上排＝function 讀取的資料物件（資料表＋被讀取的物化視圖 mv_job），
       // 下排＝function。依「哪個 function 讀哪些物件」排列，讓讀取邊盡量短、減少交錯。
       tiers: [
         [
-          'mv_tech_combo_stats',
           'mv_job',
           'job_preference',
           'job',
@@ -604,7 +592,6 @@ export const databaseSchema: DatabaseSchema = {
           'tech_keyword',
         ],
         [
-          'get_tech_combo_stats',
           'get_jobs_by_preference',
           'get_unreviewed_jobs',
           'get_job_preference_count',
@@ -632,7 +619,6 @@ export const databaseSchema: DatabaseSchema = {
         { from: 'job_preference', to: 'get_jobs_by_preference', label: '讀取' },
         { from: 'mv_job', to: 'get_unreviewed_jobs', label: '讀取' },
         { from: 'job_preference', to: 'get_unreviewed_jobs', label: '讀取' },
-        { from: 'mv_tech_combo_stats', to: 'get_tech_combo_stats', label: '讀取' },
         // reset_keywords：讀 job_keyword／tech_keyword、寫 keyword
         { from: 'job_keyword', to: 'reset_keywords', label: '讀取' },
         { from: 'tech_keyword', to: 'reset_keywords', label: '讀取' },
