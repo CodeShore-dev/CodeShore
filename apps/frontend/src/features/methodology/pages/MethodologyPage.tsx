@@ -5,10 +5,22 @@ import { CloudArchitectureSection } from '../components/CloudArchitectureSection
 import { CrawlerPipelineSection } from '../components/CrawlerPipelineSection';
 import { DataNormalizationSection } from '../components/DataNormalizationSection';
 import { DatabaseSchemaSection } from '../components/DatabaseSchemaSection';
+import { MethodologySectionNav } from '../components/MethodologySectionNav';
 import { metricExplanations } from '../content/metrics';
 import { methodologySections } from '../content/sections';
 import type { MethodologyBlock } from '../content/types';
 import { fetchMethodologySql } from '../service';
+
+// Anchor list for the floating section nav (MethodologySectionNav). Titles
+// mirror each section's own <h2> so the nav and the page never drift apart.
+const NAV_SECTIONS = [
+  { id: 'cloud-architecture', title: '雲端與 CI/CD 架構' },
+  { id: 'data-crawler', title: '資料來源與爬蟲' },
+  { id: 'data-normalization', title: '資料正規化流程' },
+  { id: 'database', title: '資料庫架構' },
+  ...methodologySections.map(section => ({ id: section.id, title: section.title })),
+  { id: 'source-sql', title: '資料來源 SQL' },
+] as const;
 
 // Methodology / transparency page (task 5.2). Content (sections, metrics) is
 // reused from the framework-agnostic content modules; the source SQL map is
@@ -79,6 +91,7 @@ export function MethodologyPage() {
 
   return (
     <div className="w-full">
+      <MethodologySectionNav items={NAV_SECTIONS} />
       <div className="mx-auto w-full max-w-7xl px-4 py-10">
         <h1 className="mb-2 text-2xl font-black text-[#001f2a]">公開透明</h1>
         <p className="mb-10 text-sm text-[#434653]">

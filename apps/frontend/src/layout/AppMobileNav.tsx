@@ -27,9 +27,6 @@ export function AppMobileNav() {
           >
             {link.icon}
           </span>
-          <span className="mt-1 text-sm font-bold tracking-widest">
-            {link.label}
-          </span>
         </Link>
       ))}
       <Link
@@ -37,9 +34,6 @@ export function AppMobileNav() {
         className="flex flex-col items-center justify-center p-2 text-[#434653] transition hover:text-[#003d92]"
       >
         <span className="material-symbols-outlined transition">policy</span>
-        <span className="mt-1 text-sm font-bold tracking-widest">
-          公開透明
-        </span>
       </Link>
     </nav>
   );

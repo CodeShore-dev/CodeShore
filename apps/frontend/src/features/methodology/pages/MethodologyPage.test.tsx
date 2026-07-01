@@ -19,9 +19,11 @@ describe('MethodologyPage', () => {
     renderWithProviders(<MethodologyPage />);
 
     expect(screen.getByText('公開透明')).toBeInTheDocument();
-    expect(screen.getByText('資料來源 SQL')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '資料來源 SQL' })).toBeInTheDocument();
     // First content section title from the reused content module.
-    expect(screen.getByText(methodologySections[0].title)).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: methodologySections[0].title }),
+    ).toBeInTheDocument();
   });
 
   it('gives each section an id for hash deep-linking (req 8.2)', () => {
@@ -34,7 +36,7 @@ describe('MethodologyPage', () => {
 
     // New cloud-architecture section is present and deep-link reachable.
     expect(container.querySelector('#cloud-architecture')).not.toBeNull();
-    expect(screen.getByText('雲端與 CI/CD 架構')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '雲端與 CI/CD 架構' })).toBeInTheDocument();
 
     // Regression: existing content sections + source-sql still render (add, don't replace).
     expect(container.querySelector('#cloud-performance')).not.toBeNull();
@@ -64,7 +66,7 @@ describe('MethodologyPage', () => {
 
     // No auth context is needed — the section renders for an anonymous visitor.
     expect(container.querySelector('#cloud-architecture')).not.toBeNull();
-    expect(screen.getByText('雲端與 CI/CD 架構')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '雲端與 CI/CD 架構' })).toBeInTheDocument();
   });
 
   it('shows the default view traffic node label on initial page render (req 1.1)', () => {
@@ -101,7 +103,7 @@ describe('MethodologyPage', () => {
     const { container } = renderWithProviders(<MethodologyPage />);
 
     expect(container.querySelector('#dev-methodology')).not.toBeNull();
-    expect(screen.getByText('開發方法論')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '開發方法論' })).toBeInTheDocument();
   });
 
   it('renders the dev-methodology section for an unauthenticated visitor (req 2.3)', () => {
@@ -111,7 +113,7 @@ describe('MethodologyPage', () => {
     const { container } = renderWithProviders(<MethodologyPage />);
 
     expect(container.querySelector('#dev-methodology')).not.toBeNull();
-    expect(screen.getByText('開發方法論')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '開發方法論' })).toBeInTheDocument();
   });
 
   it('keeps all five existing section anchors present after the web-tech and dev-methodology content changes (req 5.2)', () => {

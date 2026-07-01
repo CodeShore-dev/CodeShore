@@ -14,6 +14,20 @@ window.scrollTo = () => undefined;
 // the selected row in view via scrollIntoView, so stub it as a no-op.
 Element.prototype.scrollIntoView = () => undefined;
 
+// jsdom does not implement IntersectionObserver (used by the methodology
+// page's scrollspy nav). Default to an inert no-op; tests that need to
+// assert scrollspy behavior replace this with a controllable mock.
+class NoopIntersectionObserver implements IntersectionObserver {
+  readonly root = null;
+  readonly rootMargin = '';
+  readonly thresholds: ReadonlyArray<number> = [];
+  observe = () => undefined;
+  unobserve = () => undefined;
+  disconnect = () => undefined;
+  takeRecords = (): IntersectionObserverEntry[] => [];
+}
+window.IntersectionObserver = NoopIntersectionObserver as unknown as typeof IntersectionObserver;
+
 afterEach(() => {
   cleanup();
 });
