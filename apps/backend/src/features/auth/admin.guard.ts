@@ -8,6 +8,7 @@ import { Reflector } from '@nestjs/core';
 import { User } from '@supabase/supabase-js';
 import { Request } from 'express';
 
+import { isAdminEmail } from './adminEmails';
 import { ADMIN_ONLY_KEY } from './auth.decorator';
 
 @Injectable()
@@ -26,14 +27,7 @@ export class AdminGuard implements CanActivate {
       .getRequest<Request & { user: User }>();
     const email = request.user?.email ?? '';
 
-    const adminEmails = (process.env['ADMIN_EMAILS'] ?? '')
-      .split(',')
-      .map(e => e.trim())
-      .filter(Boolean);
-
-    if (!adminEmails.length) return true;
-
-    if (!adminEmails.includes(email)) {
+    if (!isAdminEmail(email)) {
       throw new ForbiddenException(
         'This action is restricted to admin users',
       );

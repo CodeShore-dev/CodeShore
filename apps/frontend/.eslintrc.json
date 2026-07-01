@@ -1,0 +1,48 @@
+{
+  "extends": ["../../.eslintrc.json"],
+  "ignorePatterns": ["!**/*"],
+  "overrides": [
+    {
+      "files": ["*.ts", "*.tsx", "*.js", "*.jsx"],
+      "rules": {}
+    },
+    {
+      "files": ["*.tsx"],
+      "excludedFiles": ["*.test.tsx", "*.spec.tsx"],
+      "rules": {
+        "max-lines": [
+          "error",
+          { "max": 200, "skipBlankLines": true, "skipComments": true }
+        ]
+      }
+    },
+    {
+      "files": [
+        "src/features/admin/pages/JobMonitorPage.tsx",
+        "src/features/job/pages/JobPreferencePage.tsx",
+        "src/features/admin/components/AnomalyTable.tsx",
+        "src/features/techs/pages/TechCombosPage.tsx",
+        "src/features/job/components/JobCard.tsx",
+        "src/features/home/components/HomeHotCombos.tsx",
+        "src/features/keyword/pages/TechManagerPage.tsx",
+        "src/features/job/components/JobKeywordFilterPanel.tsx",
+        "src/features/job/components/JobActiveFilters.tsx"
+      ],
+      "rules": {
+        // Pre-existing 200-line violations found when this rule was
+        // introduced (2026-07-01). Not touched in this pass to avoid
+        // rewriting untested, business-critical components blind. Remove
+        // an entry here once its file is refactored under the limit.
+        "max-lines": "off"
+      }
+    },
+    {
+      "files": ["*.ts", "*.tsx"],
+      "rules": {}
+    },
+    {
+      "files": ["*.js", "*.jsx"],
+      "rules": {}
+    }
+  ]
+}

@@ -8,6 +8,7 @@ import { Reflector } from '@nestjs/core';
 import { User } from '@supabase/supabase-js';
 import { Request } from 'express';
 
+import { isAdminEmail } from './adminEmails';
 import { REQUIRE_PERMISSION_KEY } from './auth.decorator';
 
 @Injectable()
@@ -27,15 +28,7 @@ export class PermissionGuard implements CanActivate {
       .getRequest<Request & { user: User }>();
     const email = request.user?.email ?? '';
 
-    const adminEmails = (process.env['ADMIN_EMAILS'] ?? '')
-      .split(',')
-      .map(e => e.trim())
-      .filter(Boolean);
-
-    // If no list is configured, allow all authenticated users
-    if (!adminEmails.length) return true;
-
-    if (!adminEmails.includes(email)) {
+    if (!isAdminEmail(email)) {
       throw new ForbiddenException(
         'You do not have permission to perform this action',
       );
