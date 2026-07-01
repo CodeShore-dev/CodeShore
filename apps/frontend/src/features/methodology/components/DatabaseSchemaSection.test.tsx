@@ -48,7 +48,7 @@ describe('DatabaseSchemaSection', () => {
     await user.click(within(toggle).getByRole('button', { name: 'Function 讀寫' }));
 
     expect(screen.getByRole('button', { name: nodeButtonName('get_job_count') })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: nodeButtonName('refresh_mv_job') })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: nodeButtonName('reset_keywords') })).toBeInTheDocument();
   });
 
   it('點擊節點開啟詳情面板並顯示其角色／說明', async () => {

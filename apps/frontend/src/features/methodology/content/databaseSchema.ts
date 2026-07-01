@@ -5,7 +5,7 @@
  * 表達關係；多視角（tab）共用同一組節點。三個 tab 分別揭露資料庫三層物件的關聯：
  *  - table：原始資料表之間的外鍵（FK）關聯。
  *  - matview：每個物化視圖（mv_*）由哪些資料表／物化視圖彙總而來。
- *  - function：每個 function 讀取哪些物件、或重新整理哪個物化視圖。
+ *  - function：每個 function 讀取哪些資料表／物化視圖（reset_keywords 另寫回 keyword）。
  *
  * 圖表、詳細面板皆只讀此模組，內容對齊 supabase/schema.sql 中實際存在的物件與關聯
  * （CREATE TABLE 的外鍵、CREATE MATERIALIZED VIEW 的來源表、CREATE FUNCTION 讀寫的物件）。
@@ -473,116 +473,6 @@ export const databaseSchema: DatabaseSchema = {
           '把 job_keyword.keywords 展開聚合重算次數、補上 tech_keyword 中未出現的關鍵字，重建 keyword 表。讀自 job_keyword、tech_keyword，寫入 keyword。',
       },
     },
-    {
-      id: 'refresh_mv_job',
-      label: 'refresh_mv_job',
-      group: 'fn',
-      status: 'active',
-      interactive: true,
-      detail: {
-        role: '重新整理物化視圖',
-        usage: 'CONCURRENTLY 重新整理 mv_job，使彙總反映最新資料且重整期間不阻塞讀取。',
-      },
-    },
-    {
-      id: 'refresh_mv_company',
-      label: 'refresh_mv_company',
-      group: 'fn',
-      status: 'active',
-      interactive: true,
-      detail: {
-        role: '重新整理物化視圖',
-        usage: 'CONCURRENTLY 重新整理 mv_company。',
-      },
-    },
-    {
-      id: 'refresh_mv_location_group',
-      label: 'refresh_mv_location_group',
-      group: 'fn',
-      status: 'active',
-      interactive: true,
-      detail: {
-        role: '重新整理物化視圖',
-        usage: 'CONCURRENTLY 重新整理 mv_location_group。',
-      },
-    },
-    {
-      id: 'refresh_mv_salary_type_median_ratio',
-      label: 'refresh_mv_salary_type_median_ratio',
-      group: 'fn',
-      status: 'active',
-      interactive: true,
-      detail: {
-        role: '重新整理物化視圖',
-        usage: 'CONCURRENTLY 重新整理 mv_salary_type_median_ratio。',
-      },
-    },
-    {
-      id: 'refresh_mv_salary_range_multiplier',
-      label: 'refresh_mv_salary_range_multiplier',
-      group: 'fn',
-      status: 'active',
-      interactive: true,
-      detail: {
-        role: '重新整理物化視圖',
-        usage: 'CONCURRENTLY 重新整理 mv_salary_range_multiplier。',
-      },
-    },
-    {
-      id: 'refresh_mv_tech',
-      label: 'refresh_mv_tech',
-      group: 'fn',
-      status: 'active',
-      interactive: true,
-      detail: {
-        role: '重新整理物化視圖',
-        usage: 'CONCURRENTLY 重新整理 mv_tech。',
-      },
-    },
-    {
-      id: 'refresh_mv_tech_category',
-      label: 'refresh_mv_tech_category',
-      group: 'fn',
-      status: 'active',
-      interactive: true,
-      detail: {
-        role: '重新整理物化視圖',
-        usage: 'CONCURRENTLY 重新整理 mv_tech_category。',
-      },
-    },
-    {
-      id: 'refresh_mv_tech_combo_stats',
-      label: 'refresh_mv_tech_combo_stats',
-      group: 'fn',
-      status: 'active',
-      interactive: true,
-      detail: {
-        role: '重新整理物化視圖',
-        usage: 'CONCURRENTLY 重新整理 mv_tech_combo_stats。',
-      },
-    },
-    {
-      id: 'refresh_mv_tech_ranking',
-      label: 'refresh_mv_tech_ranking',
-      group: 'fn',
-      status: 'active',
-      interactive: true,
-      detail: {
-        role: '重新整理物化視圖',
-        usage: 'CONCURRENTLY 重新整理 mv_tech_ranking。',
-      },
-    },
-    {
-      id: 'refresh_mv_tech_tags',
-      label: 'refresh_mv_tech_tags',
-      group: 'fn',
-      status: 'active',
-      interactive: true,
-      detail: {
-        role: '重新整理物化視圖',
-        usage: 'CONCURRENTLY 重新整理 mv_tech_tags。',
-      },
-    },
   ],
   views: {
     // tab 1：資料表外鍵關聯（依領域分群組框，箭頭 parent → child 表示被哪張表以哪個欄位參照）
@@ -696,50 +586,37 @@ export const databaseSchema: DatabaseSchema = {
         { from: 'tech', to: 'mv_tech_tags' },
       ],
     },
-    // tab 3：function 讀寫（讀取型 function 由物件向下讀取；重整型 function 向上重新整理對應 mv）
+    // tab 3：function 讀寫（function 由上排資料物件向下讀取；reset_keywords 另寫回 keyword）
     function: {
       id: 'function',
       title: 'Function 讀寫',
+      // 兩層版面：上排＝function 讀取的資料物件（資料表＋被讀取的物化視圖 mv_job／mv_tech_combo_stats），
+      // 下排＝function。依「哪個 function 讀哪些物件」排列，讓讀取邊盡量短、減少交錯。
       tiers: [
-        ['job', 'job_keyword', 'keyword', 'tech_keyword', 'location_group_location', 'job_preference'],
         [
-          'mv_job',
-          'mv_company',
-          'mv_location_group',
-          'mv_salary_type_median_ratio',
-          'mv_salary_range_multiplier',
-          'mv_tech',
-          'mv_tech_category',
           'mv_tech_combo_stats',
-          'mv_tech_ranking',
-          'mv_tech_tags',
+          'mv_job',
+          'job_preference',
+          'job',
+          'job_keyword',
+          'location_group_location',
+          'keyword',
+          'tech_keyword',
         ],
         [
-          'get_job_count',
-          'get_job_crawl_stats',
-          'get_job_host_statistics',
-          'get_job_update_date_counts',
-          'get_job_preference_count',
+          'get_tech_combo_stats',
           'get_jobs_by_preference',
           'get_unreviewed_jobs',
+          'get_job_preference_count',
+          'get_job_count',
+          'get_job_host_statistics',
+          'get_job_update_date_counts',
+          'get_job_crawl_stats',
           'get_location_anomaly_jobs',
-          'get_tech_combo_stats',
           'reset_keywords',
         ],
-        [
-          'refresh_mv_job',
-          'refresh_mv_company',
-          'refresh_mv_location_group',
-          'refresh_mv_salary_type_median_ratio',
-          'refresh_mv_salary_range_multiplier',
-          'refresh_mv_tech',
-          'refresh_mv_tech_category',
-          'refresh_mv_tech_combo_stats',
-          'refresh_mv_tech_ranking',
-          'refresh_mv_tech_tags',
-        ],
       ],
-      clusterRows: [['job', 'tech', 'location', 'pref'], ['mv-salary', 'mv-job', 'mv-tech', 'mv-location'], ['fn']],
+      clusterRows: [['mv-tech', 'mv-job', 'pref', 'job', 'location', 'tech'], ['fn']],
       edges: [
         // 讀取型 function（讀自資料表）
         { from: 'job', to: 'get_job_count', label: '讀取' },
@@ -760,17 +637,6 @@ export const databaseSchema: DatabaseSchema = {
         { from: 'job_keyword', to: 'reset_keywords', label: '讀取' },
         { from: 'tech_keyword', to: 'reset_keywords', label: '讀取' },
         { from: 'reset_keywords', to: 'keyword', label: '重建' },
-        // 重整型 function → 對應物化視圖
-        { from: 'refresh_mv_job', to: 'mv_job', label: 'REFRESH' },
-        { from: 'refresh_mv_company', to: 'mv_company', label: 'REFRESH' },
-        { from: 'refresh_mv_location_group', to: 'mv_location_group', label: 'REFRESH' },
-        { from: 'refresh_mv_salary_type_median_ratio', to: 'mv_salary_type_median_ratio', label: 'REFRESH' },
-        { from: 'refresh_mv_salary_range_multiplier', to: 'mv_salary_range_multiplier', label: 'REFRESH' },
-        { from: 'refresh_mv_tech', to: 'mv_tech', label: 'REFRESH' },
-        { from: 'refresh_mv_tech_category', to: 'mv_tech_category', label: 'REFRESH' },
-        { from: 'refresh_mv_tech_combo_stats', to: 'mv_tech_combo_stats', label: 'REFRESH' },
-        { from: 'refresh_mv_tech_ranking', to: 'mv_tech_ranking', label: 'REFRESH' },
-        { from: 'refresh_mv_tech_tags', to: 'mv_tech_tags', label: 'REFRESH' },
       ],
     },
   },

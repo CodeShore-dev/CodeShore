@@ -87,15 +87,4 @@ describe('databaseSchema', () => {
   it('defaultView is a valid key of views', () => {
     expect(Object.keys(views)).toContain(databaseSchema.defaultView);
   });
-
-  it('every refresh_mv_* function refreshes exactly one matching materialized view', () => {
-    const refreshFns = nodes.filter(node => node.id.startsWith('refresh_mv_'));
-    expect(refreshFns.length).toBeGreaterThan(0);
-    for (const fn of refreshFns) {
-      const targetMv = fn.id.replace(/^refresh_/, '');
-      const edge = views.function.edges.find(e => e.from === fn.id && e.to === targetMv);
-      expect(edge, `"${fn.id}" must have an edge to "${targetMv}" in the function view`).toBeDefined();
-      expect(nodeIds.has(targetMv), `target mv "${targetMv}" must exist as a node`).toBe(true);
-    }
-  });
 });
