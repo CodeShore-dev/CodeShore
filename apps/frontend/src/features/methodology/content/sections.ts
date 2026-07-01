@@ -139,6 +139,14 @@ export const methodologySections: readonly MethodologySection[] = [
             '後端管理員 email 判斷邏輯',
             '共用的 `isAdminEmail` helper（`apps/backend/src/features/auth/adminEmails.ts`）統一判斷邏輯，`AdminGuard` 與 `PermissionGuard` 皆呼叫同一函式。',
           ],
+          [
+            '頁面／分頁的捲動重置邏輯',
+            '統一由 `utils/scroll.ts` 的 `scrollToTop()` 提供單一進入點；換頁由 `app/ScrollManager.tsx` 呼叫、換分頁由共用元件 `components/Pagination.tsx` 內建呼叫，新功能一律沿用，禁止在元件內各自寫 `window.scrollTo` 重新實作。',
+          ],
+          [
+            '數字與日期的格式化邏輯',
+            '統一由 `utils/format.ts` 提供（`toWan`／`toWanInt` 萬元格式、`formatNumber` 千分位、`formatDateInfo` 相對時間），前端規範明文禁止在元件內自行實作這些格式化邏輯，避免同一種顯示規則在各處長出不同版本。',
+          ],
         ],
       },
     ],
