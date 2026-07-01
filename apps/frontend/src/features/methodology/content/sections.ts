@@ -121,27 +121,23 @@ export const methodologySections: readonly MethodologySection[] = [
       },
       {
         kind: 'table',
-        headers: ['改善項目', '修復前', '修復後'],
+        headers: ['架構規範', '目前做法'],
         rows: [
           [
             '單一元件行數上限',
-            '`apps/frontend`、`apps/backend` 皆未設定任何 lint 規則，元件行數沒有上限，容易長成難以讓 agent 安全修改的大檔案。',
-            '新增 `.eslintrc.json` 並針對 `*.tsx`（測試檔除外）設定 `max-lines` 規則（上限 200 行），從架構層面限制單一元件的複雜度。',
+            '`apps/frontend`、`apps/backend` 皆設有 `.eslintrc.json`，針對 `*.tsx`（測試檔除外）套用 `max-lines` 規則（上限 200 行），從架構層面限制單一元件的複雜度。',
           ],
           [
             'TechCard 元件顆粒度',
-            '`TechCard.tsx` 混雜元件渲染、icon 來源編輯邏輯與 meta 資訊顯示等多個職責於同一檔案。',
-            '拆分為 `TechCard.tsx`（渲染）、`useIconSourceEditor.ts`（icon 來源編輯邏輯 hook）、`IconSourcePopover.tsx`（icon 來源彈出視窗）與 `TechCardMeta.tsx`（meta 資訊呈現），各檔案單一職責且行數皆在限制內。',
+            '`TechCard.tsx` 只負責渲染；icon 來源編輯邏輯獨立為 `useIconSourceEditor.ts` hook、icon 來源彈出視窗獨立為 `IconSourcePopover.tsx`、meta 資訊呈現獨立為 `TechCardMeta.tsx`，各檔案單一職責。',
           ],
           [
             '篩選欄位的 debounce 與 store 同步邏輯',
-            '多個篩選欄位各自手動重複實作「debounce 後寫回 store」的邏輯，同樣的樣板程式碼散落在不同元件中。',
-            '抽取為共用的 `useDebouncedStoreSync` hook（`apps/frontend/src/hooks/`），各篩選欄位改為呼叫同一個 hook，消除重複實作。',
+            '共用的 `useDebouncedStoreSync` hook（`apps/frontend/src/hooks/`）統一處理「輸入防抖後寫回 store」，各篩選欄位呼叫同一個 hook，不各自重複實作。',
           ],
           [
             '後端管理員 email 判斷邏輯',
-            '`AdminGuard` 與 `PermissionGuard` 兩處各自逐字重複解析管理員 email 清單的邏輯。',
-            '抽取為共用的 `isAdminEmail` helper（`apps/backend/src/features/auth/adminEmails.ts`），兩個 guard 改為呼叫同一個函式，避免邏輯漂移。',
+            '共用的 `isAdminEmail` helper（`apps/backend/src/features/auth/adminEmails.ts`）統一判斷邏輯，`AdminGuard` 與 `PermissionGuard` 皆呼叫同一函式。',
           ],
         ],
       },
