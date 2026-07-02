@@ -1,4 +1,15 @@
 export {
+  createStealthLaunchContext,
+  createStealthPreNavigationHook,
+} from './browser/stealth-launch';
+export type {
+  PreNavigationHook,
+  StealthLaunchContext,
+  StealthLaunchOverrides,
+  StealthNavigationOverrides,
+} from './browser/stealth-launch';
+
+export {
   setPageIndex,
   getPageIndex,
   generateNextUrlToEnqueue,
