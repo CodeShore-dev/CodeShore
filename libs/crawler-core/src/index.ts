@@ -24,3 +24,12 @@ export {
   randomViewport,
 } from './human-behavior';
 
+export type {
+  CrawlItemBase,
+  RequireDetailCrawl,
+  ListPageStatus,
+  ListPageResolvedEvent,
+  CrawlRouterConfig,
+  CrawlRouterResult,
+} from './router/types';
+
