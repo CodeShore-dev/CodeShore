@@ -5,3 +5,5 @@ export {
   getIdFromUrl,
 } from './url';
 
+export { formatDuration } from './time';
+
