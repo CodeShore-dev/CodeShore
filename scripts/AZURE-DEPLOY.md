@@ -12,7 +12,7 @@
 | 前端 | 由容器一起 serve（同 `Dockerfile.aws`） |
 | 後端 API | 同一容器 |
 | 免費額度 | 每月 **18萬 vCPU-秒 + 36萬 GiB-秒 + 200萬請求**（永久，scale-to-zero） |
-| 映像儲存 | ghcr.io（免費，**與 AWS EC2 路徑共用同一顆映像**） |
+| 映像儲存 | ghcr.io（免費，**與 AWS EC2 路徑共用同一顆映像**）。package 目前為 private，ACA 用長效 PAT（`GHCR_PAT`）拉取 |
 | 程式碼改動 | **無**（重用 `Dockerfile.aws` 與 `bootstrap()`） |
 
 > 為什麼可重用 `Dockerfile.aws`：該映像 build `frontend + backend`、不裝 Chrome、`bootstrap()` 固定 listen `8080`。
@@ -36,7 +36,7 @@
 | `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` / `VITE_ADMIN_EMAILS` | 前端 build（打包進 JS bundle） |
 | `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | 後端 runtime |
 
-基礎建設另需 `AZURE_CREDENTIALS`（Service Principal JSON），見下方。
+基礎建設另需 `AZURE_CREDENTIALS`（Service Principal JSON）與 `GHCR_PAT`，見下方。
 
 ---
 
@@ -79,11 +79,14 @@ az ad sp create-for-rbac --name codeshore-ci \
 
 ```
 AZURE_CREDENTIALS                            # 上一步的 JSON
+GHCR_PAT                                     # classic PAT，scope: read:packages（效期需 <= 366 天，組織政策限制）
 SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY     # 後端 runtime
 VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY / VITE_ADMIN_EMAILS  # 前端 build
 ```
 
-> 不需要額外的 registry secret：映像推到 ghcr.io 用內建的 `GITHUB_TOKEN`。
+> 推映像到 ghcr.io 用內建的 `GITHUB_TOKEN`（job 內短效即可）；但 Container Apps
+> 用來**拉**映像的憑證必須是長效的 `GHCR_PAT`，否則 scale-to-zero 之後重新拉取會因為
+> `GITHUB_TOKEN` 已過期而失敗（DENIED）。
 
 ### 4. 部署
 
@@ -109,12 +112,15 @@ const BACKENDS = {
 ## ⚠️ GHCR 私有套件與 scale-to-zero
 
 Container Apps 設定 `min-replicas=0`，閒置時縮到零，**之後有請求才會重新拉映像**。
-workflow 建立時帶的 `GITHUB_TOKEN` 是短效的（job 結束就失效），日後 scale-from-zero 重拉可能因憑證過期失敗。二擇一：
+workflow 建立時帶的 `GITHUB_TOKEN` 是短效的（job 結束就失效），日後 scale-from-zero 重拉會因憑證過期失敗。二擇一：
 
-- **（建議，永久免費友善）** 把 ghcr.io 上的 `codeshore` 套件設為 **public**
-  （GitHub → Packages → 該 package → Package settings → Change visibility → Public）。
-  公開後 Container Apps 匿名拉取，永遠不會過期。
-- 或建立長效 PAT（`read:packages`），在 workflow 改用該 secret 當 `--registry-password`。
+- **目前採用**：建立長效 classic PAT（scope `read:packages`），存成 `GHCR_PAT` secret，
+  workflow 用它當 `--registry-password`（見上方 `deploy-azure.yml`）。
+  注意：`CodeShore-dev` 組織限制 classic PAT 效期必須 **<= 366 天**，過期前要記得重新產生並更新
+  GitHub Secret，以及 Container App 本身的 registry 密碼（`az containerapp registry set`）。
+- 或者把 ghcr.io 上的 `codeshore` 套件設為 **public**
+  （GitHub → Packages → 該 package → Package settings → Change visibility → Public），
+  公開後 Container Apps 匿名拉取，永遠不會過期，可移除 `GHCR_PAT` 相關設定。
 
 ---
 

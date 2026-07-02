@@ -195,18 +195,7 @@ export const cloudArchitecture: CloudArchitecture = {
       interactive: true,
       detail: {
         role: '容器映像登錄檔（ghcr.io）',
-        usage: '存放由 GitHub Actions 以 Dockerfile.aws 建置推送的容器映像（ghcr.io），供 Azure Container Apps 拉取，亦由 EC2 備援路徑共用。',
-      },
-    },
-    {
-      id: 'azure-acr',
-      label: 'Azure Container Registry',
-      provider: 'azure',
-      status: 'alternative',
-      interactive: true,
-      detail: {
-        role: '容器映像登錄檔（ACR）',
-        usage: '存放 Azure Container Apps 所用的容器映像（ACR），與 GHCR 並存作為純 Azure 原生選項；GitHub Actions 推送後，據以部署 Container Apps。',
+        usage: '存放由 GitHub Actions 以 Dockerfile.aws 建置推送的容器映像（ghcr.io），Azure Container Apps 直接拉取（package 為 private，以長效 PAT 認證），亦由 EC2 備援路徑共用。原本另有 Azure Container Registry 作為中繼，因產生固定月費且非必要已移除，改為 ACA 直接拉 GHCR。',
       },
     },
     {
@@ -239,7 +228,7 @@ export const cloudArchitecture: CloudArchitecture = {
       interactive: true,
       detail: {
         role: 'AWS／Azure 的 CI/CD 部署管線',
-        usage: '負責 AWS 與 Azure 兩條路徑（GCP 改由 Cloud Build）：建置前端上傳 AWS S3、建置 Lambda 映像推上 AWS ECR；並把容器映像推上 GHCR 與 Azure ACR，供 Azure Container Apps 部署。',
+        usage: '負責 AWS 與 Azure 兩條路徑（GCP 改由 Cloud Build）：建置前端上傳 AWS S3、建置 Lambda 映像推上 AWS ECR；並把容器映像推上 GHCR，供 Azure Container Apps 直接拉取部署。',
       },
     },
   ],
@@ -276,7 +265,7 @@ export const cloudArchitecture: CloudArchitecture = {
       tiers: [
         ['github-repo', 'github-actions'],
         ['gcp-cloud-build'],
-        ['gcp-artifact-registry', 'aws-ecr', 'aws-s3', 'azure-acr', 'gcp-secret-manager'],
+        ['gcp-artifact-registry', 'aws-ecr', 'aws-s3', 'azure-ghcr', 'gcp-secret-manager'],
         ['gcp-cloudrun', 'aws-lambda', 'aws-cloudfront', 'azure-container-apps'],
       ],
       edges: [
@@ -290,8 +279,7 @@ export const cloudArchitecture: CloudArchitecture = {
         { from: 'aws-ecr', to: 'aws-lambda', label: '更新 function' },
         { from: 'aws-s3', to: 'aws-cloudfront', label: '取用 + 清快取' },
         { from: 'github-actions', to: 'azure-ghcr', label: '推送 GHCR 映像' },
-        { from: 'github-actions', to: 'azure-acr', label: '推送 ACR 映像' },
-        { from: 'azure-acr', to: 'azure-container-apps', label: '部署 Container Apps' },
+        { from: 'azure-ghcr', to: 'azure-container-apps', label: '部署 Container Apps' },
       ],
     },
   },
