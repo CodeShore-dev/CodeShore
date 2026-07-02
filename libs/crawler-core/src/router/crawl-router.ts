@@ -103,14 +103,19 @@ async function interceptListResponse<TListResponse>(
     : new Error('Failed to intercept list API response');
 }
 
+const DEFAULT_DETAIL_WAIT_SELECTOR_TIMEOUT_MS = 10000;
+
 /**
  * 建立通用清單/詳情爬蟲路由引擎。
  *
- * 此為任務 3.2-3.3 的實作切片:清單頁 API 回應攔截與可設定的逾時/重試邏輯
- * (對應需求 3.1、3.2),以及分頁中繼資訊解析、原始項目擷取、既有項目查找
+ * 此為任務 3.2-3.4 的實作切片:清單頁 API 回應攔截與可設定的逾時/重試邏輯
+ * (對應需求 3.1、3.2),分頁中繼資訊解析、原始項目擷取、既有項目查找
  * (單一引擎實例生命週期內記憶化)、詳情頁加入佇列的判斷、清單頁完成/失敗
- * 狀態回報(對應需求 3.3、3.4、3.8)。詳情頁走訪處理、批次持久化與進度追蹤
- * (任務 3.4-3.5)尚未接上,`flushPending` 目前為 no-op 佔位。
+ * 狀態回報(對應需求 3.3、3.4、3.8),以及詳情頁走訪(等待選擇器、擷取、
+ * 建構持久化項目)與批次累積/持久化,含收尾用的 `flushPending`
+ * (對應需求 3.5、3.6、3.7)。進度/ETA 追蹤與更完整的跨切面錯誤隔離
+ * (任務 3.5)尚未接上;DETAIL handler 目前僅有本身的 try/catch 隔離單筆
+ * 詳情頁失敗,不影響整體爬取執行。
  */
 export function createCrawlRouter<
   TListResponse,
@@ -129,6 +134,20 @@ export function createCrawlRouter<
 ): CrawlRouterResult {
   const log = config.logger ?? defaultLogger;
   const puppeteerRouter = createPuppeteerRouter();
+
+  // 批次持久化累積佇列與門檻,對應需求 3.6、3.7。門檻(`batchSize`)由清單頁
+  // 走訪時經由 `config.resolveBatchSize(response)` 算出後存入此 closure 變數,
+  // 供後續同一輪清單頁下所有 DETAIL 請求共用讀取——比照原 `apps/crawler/src/
+  // handler.ts` 的 `let batchSize = 1;` closure 共享模式(該值於引擎生命週期內
+  // 為單一清單頁走訪的最新結果,非逐頁重置為初始值,亦與原實作行為一致)。
+  let batchSize = 1;
+  const pendingItems: TPersistItem[] = [];
+
+  const flushPending = async (): Promise<void> => {
+    if (pendingItems.length === 0) return;
+    const batch = pendingItems.splice(0, pendingItems.length);
+    await config.onBatchReady(batch);
+  };
 
   // 記憶化 `resolveExisting()`:於此 `createCrawlRouter` 實例生命週期內僅執行
   // 一次,後續每個清單頁處理皆重用同一個已 resolve 的 Promise(對應 design.md
@@ -158,6 +177,10 @@ export function createCrawlRouter<
     let totalPages = 0;
 
     try {
+      batchSize = config.resolveBatchSize
+        ? config.resolveBatchSize(listResponse)
+        : 1;
+
       const pagination = config.parsePagination(listResponse);
       currentPage = pagination.currentPage;
       totalPages = pagination.totalPages;
@@ -215,6 +238,37 @@ export function createCrawlRouter<
     }
   });
 
+  puppeteerRouter.addHandler(
+    'DETAIL',
+    async ({ request, page }) => {
+      log.info(`Processing detail page: ${request.loadedUrl || request.url}`);
+
+      try {
+        await page
+          .waitForSelector(config.detailPageWaitSelector, {
+            timeout: DEFAULT_DETAIL_WAIT_SELECTOR_TIMEOUT_MS,
+          })
+          .catch(() => undefined);
+
+        const detail = await page.evaluate(config.extractDetailOnHTML);
+
+        const item = request.userData as TRawItem &
+          RequireDetailCrawl<TExistingMeta>;
+        const persistItem = config.buildPersistItem(item, detail);
+
+        if (persistItem !== undefined) {
+          pendingItems.push(persistItem);
+        }
+
+        if (pendingItems.length >= batchSize) {
+          await flushPending();
+        }
+      } catch (error) {
+        log.error(`Failed to extract data on ${request.url}: ${error}`);
+      }
+    },
+  );
+
   // `router/types.ts` declares `CrawlRouterResult.router` using crawlee's
   // `RouterHandler` default generic (`CrawlingContext`), matching the
   // approved public contract. `createPuppeteerRouter()` returns the more
@@ -223,10 +277,6 @@ export function createCrawlRouter<
   // request handler) — the widen-back-down here is a type-contract
   // reconciliation, not a runtime behavior change.
   const router = puppeteerRouter as unknown as CrawlRouterResult['router'];
-
-  const flushPending = async () => {
-    /* 尚無待清空的批次佇列;批次持久化將於任務 3.6/3.7 接上。 */
-  };
 
   return { router, flushPending };
 }

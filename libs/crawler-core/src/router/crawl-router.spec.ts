@@ -171,6 +171,68 @@ function createHandlerContext(page: Page, requestUrl: string) {
   };
 }
 
+/**
+ * Builds a mock Puppeteer `page` for DETAIL-handler tests: scriptable
+ * `waitForSelector` (records call order via a shared `callOrder` array) and
+ * `evaluate` (invokes the passed function directly, standing in for the real
+ * browser-context execution of `extractDetailOnHTML`).
+ */
+function createMockDetailPage(options: {
+  detail: unknown;
+  callOrder: string[];
+}) {
+  const { detail, callOrder } = options;
+  const waitForSelector = vi.fn(async (..._args: unknown[]) => {
+    callOrder.push('waitForSelector');
+    return undefined;
+  });
+  const evaluate = vi.fn(async (fn: () => unknown) => {
+    callOrder.push('evaluate');
+    void fn;
+    return detail;
+  });
+  const page = { waitForSelector, evaluate } as unknown as Page;
+  return { page, waitForSelector, evaluate };
+}
+
+/**
+ * Builds the minimal Crawlee DETAIL-handler context: a `request` carrying the
+ * enqueued item as `userData` (mirrors task 3.3's `requestsToEnqueue` shape).
+ */
+function createDetailHandlerContext(page: Page, requestUrl: string, userData: unknown) {
+  return {
+    request: { url: requestUrl, loadedUrl: requestUrl, userData, label: 'DETAIL' },
+    page,
+    log: {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warning: vi.fn(),
+      error: vi.fn(),
+    },
+    enqueueLinks: vi.fn(async () => undefined),
+  };
+}
+
+/**
+ * Drives one list-page handler invocation (to establish the `resolveBatchSize`
+ * closure state used by task 3.3's default handler) followed by one or more
+ * DETAIL handler invocations against the same router instance, mirroring how
+ * a real crawl run visits the list page once before its detail pages.
+ */
+async function runListThenDetailHandlers(
+  router: ReturnType<typeof createCrawlRouter>['router'],
+  listJson: ListResponse,
+  detailInvocations: Array<{ page: Page; userData: unknown; requestUrl: string }>,
+) {
+  const listMock = createMockPage();
+  await runListPageHandler(router, listMock, LIST_API_URL, listJson);
+
+  for (const { page, userData, requestUrl } of detailInvocations) {
+    const ctx = createDetailHandlerContext(page, requestUrl, userData);
+    await router(ctx as never);
+  }
+}
+
 describe('createCrawlRouter — list response interception & retry (3.2)', () => {
   beforeEach(() => {
     vi.useRealTimers();
@@ -531,5 +593,202 @@ describe('createCrawlRouter — pagination, extraction, existing lookup, enqueue
     expect(onListPageResolved).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'failed' }),
     );
+  });
+});
+
+describe('createCrawlRouter — detail page handling & batch persistence (3.4)', () => {
+  beforeEach(() => {
+    vi.useRealTimers();
+    openMock.mockClear();
+    addRequestsMock.mockClear();
+  });
+
+  const baseListJson: ListResponse = {
+    page: 1,
+    totalPages: 1,
+    totalEntries: 0,
+    items: [],
+  };
+
+  it('waits for detailPageWaitSelector before calling extractDetailOnHTML (order matters)', async () => {
+    const callOrder: string[] = [];
+    const extractDetailOnHTML = vi.fn(() => ({ description: 'x' }));
+    const { router } = createCrawlRouter(
+      createBaseConfig({ extractDetailOnHTML }),
+    );
+    const { page, waitForSelector, evaluate } = createMockDetailPage({
+      detail: { description: 'x' },
+      callOrder,
+    });
+
+    await runListThenDetailHandlers(router, baseListJson, [
+      { page, userData: { id: 'a' }, requestUrl: 'https://example.test/a' },
+    ]);
+
+    expect(waitForSelector).toHaveBeenCalledTimes(1);
+    expect(waitForSelector.mock.calls[0]?.[0]).toBe('.detail-root');
+    expect(evaluate).toHaveBeenCalledTimes(1);
+    expect(callOrder).toEqual(['waitForSelector', 'evaluate']);
+  });
+
+  it('calls buildPersistItem with the request userData item and the extracted detail', async () => {
+    const buildPersistItem = vi.fn(
+      (item: RawItem, detail: Detail) =>
+        ({ id: item.id, description: detail.description }) as PersistItem,
+    );
+    const { router } = createCrawlRouter(
+      createBaseConfig({ buildPersistItem }),
+    );
+    const { page } = createMockDetailPage({
+      detail: { description: 'hello' },
+      callOrder: [],
+    });
+    const userData = { id: 'item-1', title: 't', url: 'u' };
+
+    await runListThenDetailHandlers(router, baseListJson, [
+      { page, userData, requestUrl: 'https://example.test/item-1' },
+    ]);
+
+    expect(buildPersistItem).toHaveBeenCalledTimes(1);
+    expect(buildPersistItem).toHaveBeenCalledWith(userData, {
+      description: 'hello',
+    });
+  });
+
+  it('never includes an item in any onBatchReady call when buildPersistItem returns undefined for it', async () => {
+    const onBatchReady = vi.fn(async (_items: PersistItem[]) => undefined);
+    const buildPersistItem = vi.fn((item: RawItem) =>
+      item.id === 'skip-me'
+        ? undefined
+        : ({ id: item.id, description: 'ok' } as PersistItem),
+    );
+    const { router } = createCrawlRouter(
+      createBaseConfig({
+        buildPersistItem,
+        onBatchReady,
+        resolveBatchSize: () => 2,
+      }),
+    );
+
+    const detailInvocations = ['skip-me', 'keep-1', 'keep-2'].map(id => {
+      const { page } = createMockDetailPage({
+        detail: { description: 'x' },
+        callOrder: [],
+      });
+      return {
+        page,
+        userData: { id },
+        requestUrl: `https://example.test/${id}`,
+      };
+    });
+
+    await runListThenDetailHandlers(router, baseListJson, detailInvocations);
+
+    // Threshold (2) reached by keep-1 + keep-2; skip-me must never appear in
+    // any flushed batch, across the entire run.
+    expect(onBatchReady).toHaveBeenCalledTimes(1);
+    const allFlushedIds = onBatchReady.mock.calls.flatMap(([items]) =>
+      (items as PersistItem[]).map(i => i.id),
+    );
+    expect(allFlushedIds).not.toContain('skip-me');
+    expect(allFlushedIds.sort()).toEqual(['keep-1', 'keep-2']);
+  });
+
+  it('does not trigger onBatchReady while accumulated count is below the configured batch size', async () => {
+    const onBatchReady = vi.fn(async (_items: PersistItem[]) => undefined);
+    const { router } = createCrawlRouter(
+      createBaseConfig({ onBatchReady, resolveBatchSize: () => 3 }),
+    );
+
+    const detailInvocations = ['a', 'b'].map(id => {
+      const { page } = createMockDetailPage({
+        detail: { description: 'x' },
+        callOrder: [],
+      });
+      return {
+        page,
+        userData: { id },
+        requestUrl: `https://example.test/${id}`,
+      };
+    });
+
+    await runListThenDetailHandlers(router, baseListJson, detailInvocations);
+
+    expect(onBatchReady).not.toHaveBeenCalled();
+  });
+
+  it('triggers onBatchReady with exactly the accumulated batch upon reaching the threshold, then resets the accumulator', async () => {
+    const onBatchReady = vi.fn(async (_items: PersistItem[]) => undefined);
+    const { router } = createCrawlRouter(
+      createBaseConfig({ onBatchReady, resolveBatchSize: () => 2 }),
+    );
+
+    const makeInvocation = (id: string) => {
+      const { page } = createMockDetailPage({
+        detail: { description: 'x' },
+        callOrder: [],
+      });
+      return {
+        page,
+        userData: { id },
+        requestUrl: `https://example.test/${id}`,
+      };
+    };
+
+    // First two invocations reach the threshold of 2 and flush.
+    await runListThenDetailHandlers(router, baseListJson, [
+      makeInvocation('a'),
+      makeInvocation('b'),
+    ]);
+
+    expect(onBatchReady).toHaveBeenCalledTimes(1);
+    expect(onBatchReady.mock.calls[0]?.[0]).toEqual([
+      { id: 'a', description: 'x' },
+      { id: 'b', description: 'x' },
+    ]);
+
+    // A third invocation (below the next threshold) must NOT re-include
+    // already-flushed items 'a'/'b' — proving the accumulator reset.
+    await runListThenDetailHandlers(router, baseListJson, [
+      makeInvocation('c'),
+    ]);
+
+    expect(onBatchReady).toHaveBeenCalledTimes(1); // still only the first flush
+  });
+
+  it('flushPending() flushes any remaining partial batch via onBatchReady', async () => {
+    const onBatchReady = vi.fn(async (_items: PersistItem[]) => undefined);
+    const { router, flushPending } = createCrawlRouter(
+      createBaseConfig({ onBatchReady, resolveBatchSize: () => 5 }),
+    );
+
+    const { page } = createMockDetailPage({
+      detail: { description: 'partial' },
+      callOrder: [],
+    });
+
+    await runListThenDetailHandlers(router, baseListJson, [
+      { page, userData: { id: 'only-one' }, requestUrl: 'https://example.test/only-one' },
+    ]);
+
+    expect(onBatchReady).not.toHaveBeenCalled();
+
+    await flushPending();
+
+    expect(onBatchReady).toHaveBeenCalledTimes(1);
+    expect(onBatchReady).toHaveBeenCalledWith([
+      { id: 'only-one', description: 'partial' },
+    ]);
+  });
+
+  it('flushPending() does not call onBatchReady when there is nothing pending', async () => {
+    const onBatchReady = vi.fn(async (_items: PersistItem[]) => undefined);
+    const { flushPending } = createCrawlRouter(
+      createBaseConfig({ onBatchReady }),
+    );
+
+    await flushPending();
+
+    expect(onBatchReady).not.toHaveBeenCalled();
   });
 });
