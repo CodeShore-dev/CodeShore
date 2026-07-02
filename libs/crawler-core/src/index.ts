@@ -7,3 +7,9 @@ export {
 
 export { formatDuration } from './time';
 
+export {
+  humanScroll,
+  randomDelay,
+  randomViewport,
+} from './human-behavior';
+
