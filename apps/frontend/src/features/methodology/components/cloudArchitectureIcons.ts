@@ -28,7 +28,6 @@ export const NODE_ICON_SLUGS: Record<string, readonly string[]> = {
   'gcp-secret-manager': ['iconify:gcp:secret-manager'],
   'azure-container-apps': ['iconify:devicon:azure'],
   'azure-ghcr': ['iconify:devicon:azure'],
-  'azure-acr': ['iconify:devicon:azure'],
   supabase: ['iconify:devicon:supabase'],
   'github-repo': ['iconify:mdi:github'],
   'github-actions':['iconify:devicon:githubactions']
