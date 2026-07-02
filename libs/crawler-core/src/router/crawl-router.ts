@@ -1,10 +1,11 @@
-import { createPuppeteerRouter } from 'crawlee';
+import { RequestQueue, createPuppeteerRouter } from 'crawlee';
 import type { HTTPResponse, Page } from 'puppeteer';
 
 import type {
   CrawlItemBase,
   CrawlRouterConfig,
   CrawlRouterResult,
+  RequireDetailCrawl,
 } from './types';
 
 const DEFAULT_LIST_RESPONSE_TIMEOUT_MS = 30000;
@@ -105,9 +106,11 @@ async function interceptListResponse<TListResponse>(
 /**
  * 建立通用清單/詳情爬蟲路由引擎。
  *
- * 此為任務 3.2 的實作切片:僅實作清單頁 API 回應攔截與可設定的逾時/重試邏輯
- * (對應需求 3.1、3.2)。分頁解析、項目擷取、詳情頁走訪、批次持久化與進度追蹤
- * (任務 3.3-3.5)尚未接上,`flushPending` 目前為 no-op 佔位。
+ * 此為任務 3.2-3.3 的實作切片:清單頁 API 回應攔截與可設定的逾時/重試邏輯
+ * (對應需求 3.1、3.2),以及分頁中繼資訊解析、原始項目擷取、既有項目查找
+ * (單一引擎實例生命週期內記憶化)、詳情頁加入佇列的判斷、清單頁完成/失敗
+ * 狀態回報(對應需求 3.3、3.4、3.8)。詳情頁走訪處理、批次持久化與進度追蹤
+ * (任務 3.4-3.5)尚未接上,`flushPending` 目前為 no-op 佔位。
  */
 export function createCrawlRouter<
   TListResponse,
@@ -127,6 +130,17 @@ export function createCrawlRouter<
   const log = config.logger ?? defaultLogger;
   const puppeteerRouter = createPuppeteerRouter();
 
+  // 記憶化 `resolveExisting()`:於此 `createCrawlRouter` 實例生命週期內僅執行
+  // 一次,後續每個清單頁處理皆重用同一個已 resolve 的 Promise(對應 design.md
+  // 「resolveExisting 記憶化」段落;快取範圍限定在單一引擎實例,不是模組層級全域)。
+  let existingMetaPromise: Promise<Map<string, TExistingMeta>> | undefined;
+  const resolveExistingMemoized = (): Promise<Map<string, TExistingMeta>> => {
+    if (!existingMetaPromise) {
+      existingMetaPromise = config.resolveExisting();
+    }
+    return existingMetaPromise;
+  };
+
   puppeteerRouter.addDefaultHandler(async ({ request, page }) => {
     log.info(`Processing: ${request.url}`);
 
@@ -139,7 +153,66 @@ export function createCrawlRouter<
     });
 
     log.info(`Intercepted list response for: ${request.url}`);
-    void listResponse;
+
+    let currentPage = 0;
+    let totalPages = 0;
+
+    try {
+      const pagination = config.parsePagination(listResponse);
+      currentPage = pagination.currentPage;
+      totalPages = pagination.totalPages;
+
+      log.info(
+        `page ${currentPage} / ${totalPages}, total: ${pagination.totalEntries}`,
+      );
+
+      const rawItems = config.extractItems(listResponse);
+      const existingMeta = await resolveExistingMemoized();
+
+      const items = rawItems.map(item => {
+        const existingItem = existingMeta.get(item.id);
+        const needToCreate = !existingItem;
+        const withDetailCrawlFields = {
+          title: '',
+          url: '',
+          ...item,
+          existingItem,
+          needToCreate,
+        } as TRawItem & RequireDetailCrawl<TExistingMeta>;
+        return config.transformItem
+          ? config.transformItem(withDetailCrawlFields)
+          : withDetailCrawlFields;
+      });
+
+      const requestsToEnqueue = items
+        .filter(item => item.needToCreate)
+        .map(item => ({
+          url: item.url,
+          label: 'DETAIL',
+          userData: item,
+        }));
+
+      if (requestsToEnqueue.length > 0) {
+        const queue = await RequestQueue.open();
+        await queue.addRequests(requestsToEnqueue);
+        log.info(`Enqueued ${requestsToEnqueue.length} detail pages`);
+      }
+
+      await config.onListPageResolved({
+        url: request.url,
+        page: currentPage,
+        totalPages,
+        status: 'completed',
+      });
+    } catch (error) {
+      log.error(`Failed to extract data on ${request.url}: ${error}`);
+      await config.onListPageResolved({
+        url: request.url,
+        page: currentPage,
+        totalPages,
+        status: 'failed',
+      });
+    }
   });
 
   // `router/types.ts` declares `CrawlRouterResult.router` using crawlee's
