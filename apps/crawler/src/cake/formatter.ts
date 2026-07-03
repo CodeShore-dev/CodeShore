@@ -1,10 +1,11 @@
-import { Entry } from '@codeshore/data-types';
+import { Entry, SupabaseTable } from '@codeshore/data-types';
 import {
   parseKeywordsOut,
   parseSalary,
 } from '@codeshore/shared-utils';
 
 import { RequireToCrawlJob } from '../@types';
+import { PersistItem } from '../persistence';
 import { JobDetailOnHTML, JobOnAPI } from './@types';
 
 export function cookRawJob(
@@ -30,10 +31,10 @@ export function cookRawJob(
       ...parseSalary(salary),
       created_at: job.needToCreate
         ? now
-        : job.existingJob?.created_at,
+        : job.existingItem?.created_at,
       updated_at: job.needToCreate
         ? now
-        : job.existingJob?.updated_at,
+        : job.existingItem?.updated_at,
       closed: false,
     },
     company: {
@@ -52,3 +53,44 @@ export function cookRawJob(
     },
   };
 }
+
+/**
+ * `CrawlRouterConfig['buildPersistItem']`-shaped callback for the Cake site
+ * adapter. Mirrors `apps/crawler/src/104/formatter.ts`'s `buildPersistItem`:
+ * absorbs the "description 為空則以既有資料標記為 closed,否則略過" business
+ * decision that used to live in the OLD `apps/crawler/src/handler.ts` DETAIL
+ * handler (`if (job.description) { ... } else if (existingJob) { ... }`),
+ * shared generically between 104 and Cake in the old engine, per design.md's
+ * CrawlRouter 3.6 note: the engine itself no longer inspects `description` —
+ * that judgment call is entirely the call site's responsibility now.
+ *
+ * See `104/formatter.ts`'s `buildPersistItem` doc comment for the full
+ * rationale on why spreading `existingItem` (`ExistingJob`, populated by
+ * `persistence.ts`'s `resolveExisting` with `select: 'id, updated_at,
+ * created_at'`) into a `closed: true` update reproduces the exact same
+ * runtime write the OLD code performed, despite carrying fewer fields than a
+ * full `SupabaseTable.Job` row — Supabase's default `upsert` (merge-
+ * duplicates) semantics only touch the columns present in the payload.
+ */
+export const buildPersistItem =
+  (allGroupKeywords: string[] = []) =>
+  (
+    job: JobOnAPI & RequireToCrawlJob,
+    detail: JobDetailOnHTML,
+  ): PersistItem | undefined => {
+    if (detail.description) {
+      return cookRawJob(job, detail, allGroupKeywords);
+    }
+
+    if (!job.existingItem) {
+      return undefined;
+    }
+
+    return {
+      job: {
+        ...job.existingItem,
+        updated_at: new Date(),
+        closed: true,
+      } as SupabaseTable.Job,
+    };
+  };

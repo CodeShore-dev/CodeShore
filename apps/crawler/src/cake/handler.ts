@@ -1,39 +1,53 @@
-import { createRouter } from '../handler';
+import { createCrawlRouter } from '@codeshore/crawler-core';
+
+import { ExistingJob } from '../@types';
+import {
+  PersistItem,
+  onBatchReady,
+  onListPageResolved,
+  resolveExisting,
+} from '../persistence';
 import {
   JobDetailOnHTML,
   JobOnAPI,
   JobsAPIResponse,
 } from './@types';
-import { cookRawJob } from './formatter';
+import { buildPersistItem } from './formatter';
 import {
   extractJobDetailOnHTML,
   waitFordDetailPageSelector,
 } from './utils';
 
 export const createHandler = (allGroupKeywords: string[]) =>
-  createRouter<any, JobOnAPI, JobsAPIResponse, JobDetailOnHTML>({
-    waitFordDetailPageSelector,
-    checkJobsAPI: (url: string) =>
+  createCrawlRouter<
+    JobsAPIResponse,
+    JobOnAPI & { id: string },
+    JobDetailOnHTML,
+    PersistItem,
+    ExistingJob
+  >({
+    matchListResponse: (url: string) =>
       url.includes('/api/client/v1/jobs/search'),
-    transformPagination: (response: JobsAPIResponse) => ({
+    parsePagination: (response: JobsAPIResponse) => ({
       currentPage: response.current_page,
       totalPages: response.total_pages,
       totalEntries: response.total_entries,
     }),
-    getJobsFromResponse: (response: JobsAPIResponse) =>
+    extractItems: (response: JobsAPIResponse) =>
       response.data.map(x => ({
         ...x,
         id: x.path,
       })),
-    getUpdatedAtField: job => job.content_updated_at,
-    extractJobDetailOnHTML,
-    cookRawJob: (job, detail) =>
-      cookRawJob(job, detail, allGroupKeywords),
-    allGroupKeywords,
-    setUpsertBatchSize: response => response.per_page,
-    transformJob: job => ({
+    transformItem: job => ({
       ...job,
       url: `https://www.cake.me/companies/${job.page.path}/jobs/${job.path}`,
       title: job.title,
     }),
+    resolveExisting,
+    detailPageWaitSelector: waitFordDetailPageSelector,
+    extractDetailOnHTML: extractJobDetailOnHTML,
+    buildPersistItem: buildPersistItem(allGroupKeywords),
+    resolveBatchSize: response => response.per_page,
+    onBatchReady,
+    onListPageResolved,
   });
