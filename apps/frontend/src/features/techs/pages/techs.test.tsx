@@ -55,32 +55,37 @@ vi.mock('../../home/service', () => ({
   ]),
 }));
 
-import { TechCombosPage } from './TechCombosPage';
-import { TechRankingPage } from './TechRankingPage';
+import { TechsPage } from './TechsPage';
 
-describe('TechRankingPage', () => {
-  it('renders the popular heading and ranking items (req 5.1)', async () => {
-    renderWithProviders(<TechRankingPage />);
+describe('TechsPage', () => {
+  it('renders the popular heading and ranking items', async () => {
+    renderWithProviders(<TechsPage />);
     expect(screen.getByText('最多職缺要的技術')).toBeInTheDocument();
     expect(await screen.findByText('React')).toBeInTheDocument();
   });
 
-  it('switches heading when a salary mode is selected (req 5.3)', async () => {
+  it('switches heading when a salary mode is selected', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<TechRankingPage />);
+    renderWithProviders(<TechsPage />);
     await screen.findByText('React');
 
     await user.click(screen.getByText('高薪 · 年薪'));
 
     expect(screen.getByText('開最高薪的技術')).toBeInTheDocument();
   });
-});
 
-describe('TechCombosPage', () => {
-  it('renders language chips and combos for the selected tech (req 5.2)', async () => {
-    renderWithProviders(<TechCombosPage />);
-    // Language chip + combo partner both render after async load.
+  it('switches to the combos tab and shows combos across all categories by default', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<TechsPage />);
+    await screen.findByText('React');
+
+    await user.click(screen.getByText('技術組合'));
+
+    expect(
+      screen.getByText('最常一起出現的技術組合'),
+    ).toBeInTheDocument();
     expect(await screen.findByText('Node.js')).toBeInTheDocument();
-    expect(screen.getAllByText('React').length).toBeGreaterThan(0);
+    // Default category filter is "全部" (all) when entering combos.
+    expect(screen.getByText('全部')).toBeInTheDocument();
   });
 });
