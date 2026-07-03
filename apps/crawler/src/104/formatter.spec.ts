@@ -227,4 +227,117 @@ describe('buildPersistItem (new CrawlRouterConfig.buildPersistItem callback, tas
 
     expect(result).toBeUndefined();
   });
+
+  // Task 6.2 addition: proves field-value AND count consistency across a
+  // realistic multi-item batch (mirrors what a single 104 list page's worth
+  // of DETAIL results would look like: a mix of normal, closed-fallback, and
+  // skip cases). The OLD `handler.ts` DETAIL handler processed each job's
+  // `cookRawJob` result one request at a time and pushed onto module-level
+  // `pendingJobs`/`pendingCompanies`/`pendingJobKeywords` arrays (skipping
+  // the "no existing item" case entirely); this test proves the NEW
+  // per-item `buildPersistItem` callback, when mapped over a batch and
+  // filtered for `undefined`, reproduces that exact per-item field-value
+  // and array-length (筆數) behavior without cross-item interference.
+  it('(d) batch of 3 distinct jobs (normal, closed-fallback, skip) preserves per-item field values and yields the correct persisted count', () => {
+    const jobA = {
+      ...buildJobOnAPIFixture({
+        jobNo: 'job-A',
+        jobName: '前端工程師',
+        custName: 'A 公司',
+        custNo: 'cust-A',
+        link: {
+          job: 'https://www.104.com.tw/job/job-A',
+          cust: 'https://www.104.com.tw/company/cust-A',
+          applyAnalyze: '',
+        },
+      }),
+      ...buildRequireToCrawlJobFields({
+        id: 'job-A',
+        title: '前端工程師',
+        url: 'https://www.104.com.tw/job/job-A',
+        needToCreate: true,
+        existingItem: undefined,
+      }),
+    };
+    const detailA = buildDetailFixture({
+      description: '負責前端介面開發',
+    });
+
+    const existingItemB = {
+      id: 'job-B',
+      updated_at: new Date('2026-02-01T00:00:00.000Z'),
+      created_at: new Date('2025-02-01T00:00:00.000Z'),
+    };
+    const jobB = {
+      ...buildJobOnAPIFixture({
+        jobNo: 'job-B',
+        jobName: '資料工程師',
+        custName: 'B 公司',
+        custNo: 'cust-B',
+        link: {
+          job: 'https://www.104.com.tw/job/job-B',
+          cust: 'https://www.104.com.tw/company/cust-B',
+          applyAnalyze: '',
+        },
+      }),
+      ...buildRequireToCrawlJobFields({
+        id: 'job-B',
+        title: '資料工程師',
+        url: 'https://www.104.com.tw/job/job-B',
+        needToCreate: false,
+        existingItem: existingItemB,
+      }),
+    };
+    const detailB = buildDetailFixture({ description: '' });
+
+    const jobC = {
+      ...buildJobOnAPIFixture({
+        jobNo: 'job-C',
+        jobName: 'QA 工程師',
+        custName: 'C 公司',
+        custNo: 'cust-C',
+        link: {
+          job: 'https://www.104.com.tw/job/job-C',
+          cust: 'https://www.104.com.tw/company/cust-C',
+          applyAnalyze: '',
+        },
+      }),
+      ...buildRequireToCrawlJobFields({
+        id: 'job-C',
+        title: 'QA 工程師',
+        url: 'https://www.104.com.tw/job/job-C',
+        needToCreate: true,
+        existingItem: undefined,
+      }),
+    };
+    const detailC = buildDetailFixture({ description: '' });
+
+    const build = buildPersistItem(['前端']);
+    const results = [
+      build(jobA, detailA),
+      build(jobB, detailB),
+      build(jobC, detailC),
+    ].filter((r): r is NonNullable<typeof r> => r !== undefined);
+
+    // Count: 3 inputs -> 2 persisted items (jobC's skip case correctly
+    // drops out, matching the OLD handler never pushing anything for it).
+    expect(results).toHaveLength(2);
+
+    const [resultA, resultB] = results;
+    expect(resultA.job.id).toBe('job-A');
+    expect(resultA.job.description).toBe('負責前端介面開發');
+    expect(resultA.job.closed).toBe(false);
+    expect(resultA.company?.id).toBe('cust-A');
+    expect(resultA.company?.name).toBe('A 公司');
+    expect(resultA.jobKeyword?.id).toBe('job-A');
+
+    expect(resultB.job.id).toBe('job-B');
+    expect(resultB.job.closed).toBe(true);
+    expect(resultB.job.created_at).toEqual(existingItemB.created_at);
+    expect(resultB.company).toBeUndefined();
+    expect(resultB.jobKeyword).toBeUndefined();
+
+    // Cross-item isolation: job-A's fields must not leak into job-B's result.
+    expect(resultB.job.id).not.toBe(resultA.job.id);
+  });
 });

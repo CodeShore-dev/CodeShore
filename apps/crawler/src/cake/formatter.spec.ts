@@ -202,4 +202,144 @@ describe('buildPersistItem (new CrawlRouterConfig.buildPersistItem callback, tas
 
     expect(result).toBeUndefined();
   });
+
+  // Task 6.2 addition: proves field-value AND count consistency across a
+  // realistic multi-item batch (mirrors what a single Cake list page's worth
+  // of DETAIL results would look like: a mix of normal, closed-fallback, and
+  // skip cases). The OLD `handler.ts` DETAIL handler processed each job's
+  // `cookRawJob` result one request at a time and pushed onto module-level
+  // `pendingJobs`/`pendingCompanies`/`pendingJobKeywords` arrays (skipping
+  // the "no existing item" case entirely); this test proves the NEW
+  // per-item `buildPersistItem` callback, when mapped over a batch and
+  // filtered for `undefined`, reproduces that exact per-item field-value
+  // and array-length (筆數) behavior without cross-item interference.
+  it('(d) batch of 3 distinct jobs (normal, closed-fallback, skip) preserves per-item field values and yields the correct persisted count', () => {
+    const jobA = {
+      ...buildJobOnAPIFixture({
+        path: 'frontend-engineer',
+        title: '前端工程師',
+        tags: ['前端'],
+        page: {
+          path: 'cust-A',
+          name: 'A 公司',
+          highlighted_name: 'A 公司',
+          logo: '',
+          country: 'Taiwan',
+          geo: {
+            region_l: '台北市大安區',
+            city: '台北市',
+            state_name: '',
+            zip: '',
+            street_address: '',
+          },
+        },
+      }),
+      ...buildRequireToCrawlJobFields({
+        id: 'frontend-engineer',
+        title: '前端工程師',
+        url: 'https://www.cake.me/companies/cust-A/jobs/frontend-engineer',
+        needToCreate: true,
+        existingItem: undefined,
+      }),
+    };
+    const detailA = buildDetailFixture({
+      description: '負責前端介面開發',
+      company_type: '軟體及網路相關業',
+    });
+
+    const existingItemB = {
+      id: 'data-engineer',
+      updated_at: new Date('2026-02-01T00:00:00.000Z'),
+      created_at: new Date('2025-02-01T00:00:00.000Z'),
+    };
+    const jobB = {
+      ...buildJobOnAPIFixture({
+        path: 'data-engineer',
+        title: '資料工程師',
+        tags: [],
+        page: {
+          path: 'cust-B',
+          name: 'B 公司',
+          highlighted_name: 'B 公司',
+          logo: '',
+          country: 'Taiwan',
+          geo: {
+            region_l: '新北市板橋區',
+            city: '新北市',
+            state_name: '',
+            zip: '',
+            street_address: '',
+          },
+        },
+      }),
+      ...buildRequireToCrawlJobFields({
+        id: 'data-engineer',
+        title: '資料工程師',
+        url: 'https://www.cake.me/companies/cust-B/jobs/data-engineer',
+        needToCreate: false,
+        existingItem: existingItemB,
+      }),
+    };
+    const detailB = buildDetailFixture({ description: '' });
+
+    const jobC = {
+      ...buildJobOnAPIFixture({
+        path: 'qa-engineer',
+        title: 'QA 工程師',
+        tags: [],
+        page: {
+          path: 'cust-C',
+          name: 'C 公司',
+          highlighted_name: 'C 公司',
+          logo: '',
+          country: 'Taiwan',
+          geo: {
+            region_l: '台中市西屯區',
+            city: '台中市',
+            state_name: '',
+            zip: '',
+            street_address: '',
+          },
+        },
+      }),
+      ...buildRequireToCrawlJobFields({
+        id: 'qa-engineer',
+        title: 'QA 工程師',
+        url: 'https://www.cake.me/companies/cust-C/jobs/qa-engineer',
+        needToCreate: true,
+        existingItem: undefined,
+      }),
+    };
+    const detailC = buildDetailFixture({ description: '' });
+
+    const build = buildPersistItem(['前端']);
+    const results = [
+      build(jobA, detailA),
+      build(jobB, detailB),
+      build(jobC, detailC),
+    ].filter((r): r is NonNullable<typeof r> => r !== undefined);
+
+    // Count: 3 inputs -> 2 persisted items (jobC's skip case correctly
+    // drops out, matching the OLD handler never pushing anything for it).
+    expect(results).toHaveLength(2);
+
+    const [resultA, resultB] = results;
+    expect(resultA.job.id).toBe('frontend-engineer');
+    expect(resultA.job.description).toBe(
+      '負責前端介面開發\nTags: 前端',
+    );
+    expect(resultA.job.closed).toBe(false);
+    expect(resultA.company?.id).toBe('cust-A');
+    expect(resultA.company?.name).toBe('A 公司');
+    expect(resultA.jobKeyword?.id).toBe('frontend-engineer');
+
+    expect(resultB.job.id).toBe('data-engineer');
+    expect(resultB.job.closed).toBe(true);
+    expect(resultB.job.created_at).toEqual(existingItemB.created_at);
+    expect(resultB.company).toBeUndefined();
+    expect(resultB.jobKeyword).toBeUndefined();
+
+    // Cross-item isolation: job-A's fields must not leak into job-B's result.
+    expect(resultB.job.id).not.toBe(resultA.job.id);
+  });
 });
