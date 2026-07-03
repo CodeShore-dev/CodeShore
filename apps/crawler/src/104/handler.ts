@@ -1,4 +1,7 @@
-import { createCrawlRouter } from '@codeshore/crawler-core';
+import {
+  createCrawlRouter,
+  getIdFromUrl,
+} from '@codeshore/crawler-core';
 
 import { ExistingJob } from '../@types';
 import {
@@ -7,7 +10,6 @@ import {
   onListPageResolved,
   resolveExisting,
 } from '../persistence';
-import { getIdFromUrl } from '../utils';
 import {
   JobDetailOnHTML,
   JobOnAPI,

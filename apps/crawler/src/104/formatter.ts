@@ -1,4 +1,5 @@
 import { Entry, SupabaseTable } from '@codeshore/data-types';
+import { getIdFromUrl } from '@codeshore/crawler-core';
 import {
   parseKeywordsOut,
   parseSalary,
@@ -6,7 +7,6 @@ import {
 
 import { RequireToCrawlJob } from '../@types';
 import { PersistItem } from '../persistence';
-import { getIdFromUrl } from '../utils';
 import { JobDetailOnHTML, JobOnAPI } from './@types';
 
 export function cookRawJob(

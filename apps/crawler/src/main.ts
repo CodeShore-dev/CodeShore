@@ -6,6 +6,8 @@ import * as path from 'path';
 import {
   createStealthLaunchContext,
   createStealthPreNavigationHook,
+  formatDuration,
+  setPageIndex,
 } from '@codeshore/crawler-core';
 import { SupabaseTable } from '@codeshore/data-types';
 import {
@@ -32,7 +34,6 @@ import {
   isTheHost as isCakeHost,
   waitFordDetailPageSelector as waitForSelectorOnCake,
 } from './cake/utils';
-import { formatDuration, setPageIndex } from './utils';
 
 const envPath = path.resolve(__dirname, '../.env');
 
@@ -454,7 +455,7 @@ async function main() {
         );
         const {
           router: requestHandler104,
-          flushBatch: flushBatch104,
+          flushPending: flushPending104,
         } = createHandler104(keywords);
         Configuration.getGlobalConfig().set(
           'purgeOnStart',
@@ -466,7 +467,7 @@ async function main() {
         await crawler.run(
           jobSourceURLs104.map(x => x.url_with_page_index),
         );
-        await flushBatch104();
+        await flushPending104();
       }
 
       if (jobSourceURLsCake.length > 0) {
@@ -475,7 +476,7 @@ async function main() {
         );
         const {
           router: requestHandlerCake,
-          flushBatch: flushBatchCake,
+          flushPending: flushPendingCake,
         } = createHandlerCake(keywords);
         Configuration.getGlobalConfig().set(
           'purgeOnStart',
@@ -487,7 +488,7 @@ async function main() {
         await crawler.run(
           jobSourceURLsCake.map(x => x.url_with_page_index),
         );
-        await flushBatchCake();
+        await flushPendingCake();
       }
       break;
     }
