@@ -24,11 +24,16 @@ export type ExistingJobMeta = Pick<
 >;
 
 /**
- * 可持久化的項目形狀。104/Cake 的 `cookRawJob` 皆回傳 `{ job, company, jobKeyword }`
- * (見 `apps/crawler/src/104/formatter.ts`),與 `@codeshore/data-types` 既有匯出
- * 的 `Entry` 型別完全吻合,故直接重用而非另行定義。
+ * 可持久化的項目形狀。104/Cake 的 `cookRawJob` 正常情況下回傳
+ * `{ job, company, jobKeyword }`(見 `apps/crawler/src/104/formatter.ts`),
+ * 與 `@codeshore/data-types` 既有匯出的 `Entry` 型別完全吻合,故直接重用而非
+ * 另行定義。`company`/`jobKeyword` 額外放寬為可選:「description 為空、以既有
+ * 資料標記為 closed」的 fallback 案例(task 4.3 吸收自原 `handler.ts` DETAIL
+ * handler 的分支邏輯)只有 job 欄位需要更新,原邏輯本就只 push 進
+ * `pendingJobs`、不寫入 company/jobKeyword,此處放寬型別以忠實重現該行為。
  */
-export type PersistItem = Entry;
+export type PersistItem = Omit<Entry, 'company' | 'jobKeyword'> &
+  Partial<Pick<Entry, 'company' | 'jobKeyword'>>;
 
 // 模組層級記憶化:整個 `apps/crawler` 行程生命週期內,無論被哪個 router 實例
 // 呼叫幾次,底層 Supabase 查詢最多只會執行一次。104 與 Cake 兩個 router 設定物件
@@ -62,18 +67,30 @@ export function resolveExisting(): Promise<Map<string, ExistingJobMeta>> {
  * `JobKeywordService` 的 `upsert`。對應原 `handler.ts` 的 `flushBatch`
  * (L113-133),但不再持有 pending 佇列本身——佇列的累積與門檻判斷已下放
  * 至 `@codeshore/crawler-core` 的 `createCrawlRouter`,此函式只負責「佇列
- * 準備好時」的實際寫入分派。
+ * 準備好時」的實際寫入分派。`company`/`jobKeyword` 為可選(見 `PersistItem`
+ * 型別註解的 closed-fallback 案例),此處於分派前個別過濾掉未提供的項目,
+ * 避免將 `undefined` 送進對應 service 的 `upsert`。
  */
 export async function onBatchReady(items: PersistItem[]): Promise<void> {
   if (items.length === 0) return;
 
-  const companies = items.map(item => item.company);
+  const companies = items
+    .map(item => item.company)
+    .filter((company): company is SupabaseTable.Company => Boolean(company));
   const jobs = items.map(item => item.job);
-  const jobKeywords = items.map(item => item.jobKeyword);
+  const jobKeywords = items
+    .map(item => item.jobKeyword)
+    .filter((jobKeyword): jobKeyword is SupabaseTable.Job_.Keyword =>
+      Boolean(jobKeyword),
+    );
 
-  await new CompanyService().upsert(companies);
+  if (companies.length > 0) {
+    await new CompanyService().upsert(companies);
+  }
   await new JobService().upsert(jobs);
-  await new JobKeywordService().upsert(jobKeywords);
+  if (jobKeywords.length > 0) {
+    await new JobKeywordService().upsert(jobKeywords);
+  }
 }
 
 /**

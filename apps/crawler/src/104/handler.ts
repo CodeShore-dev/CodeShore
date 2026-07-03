@@ -1,41 +1,55 @@
-import { createRouter } from '../handler';
+import { createCrawlRouter } from '@codeshore/crawler-core';
+
+import { ExistingJob } from '../@types';
+import {
+  PersistItem,
+  onBatchReady,
+  onListPageResolved,
+  resolveExisting,
+} from '../persistence';
 import { getIdFromUrl } from '../utils';
 import {
   JobDetailOnHTML,
   JobOnAPI,
   JobsAPIResponse,
 } from './@types';
-import { cookRawJob } from './formatter';
+import { buildPersistItem } from './formatter';
 import {
   extractJobDetailOnHTML,
   waitFordDetailPageSelector,
 } from './utils';
 
 export const createHandler = (allGroupKeywords: string[]) =>
-  createRouter<any, JobOnAPI, JobsAPIResponse, JobDetailOnHTML>({
-    waitFordDetailPageSelector,
-    checkJobsAPI: (url: string) =>
+  createCrawlRouter<
+    JobsAPIResponse,
+    JobOnAPI & { id: string },
+    JobDetailOnHTML,
+    PersistItem,
+    ExistingJob
+  >({
+    matchListResponse: (url: string) =>
       url.includes('/jobs/search/api/jobs'),
-    transformPagination: (response: JobsAPIResponse) => ({
+    parsePagination: (response: JobsAPIResponse) => ({
       currentPage: response.metadata.pagination.currentPage,
       totalPages: response.metadata.pagination.lastPage,
       totalEntries: response.metadata.pagination.total,
     }),
-    getJobsFromResponse: (response: JobsAPIResponse) =>
+    extractItems: (response: JobsAPIResponse) =>
       response.data.map(x => ({
         ...x,
         id: getIdFromUrl(x.link.job),
       })),
-    getUpdatedAtField: job => job.appearDate,
-    extractJobDetailOnHTML,
-    setUpsertBatchSize: response =>
-      response.metadata.pagination.count,
-    cookRawJob: (job, detail) =>
-      cookRawJob(job, detail, allGroupKeywords),
-    allGroupKeywords,
-    transformJob: job => ({
+    transformItem: job => ({
       ...job,
       url: job.link.job,
       title: job.jobName,
     }),
+    resolveExisting,
+    detailPageWaitSelector: waitFordDetailPageSelector,
+    extractDetailOnHTML: extractJobDetailOnHTML,
+    buildPersistItem: buildPersistItem(allGroupKeywords),
+    resolveBatchSize: response =>
+      response.metadata.pagination.count,
+    onBatchReady,
+    onListPageResolved,
   });
