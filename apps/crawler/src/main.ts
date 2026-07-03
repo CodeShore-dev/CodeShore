@@ -2,10 +2,11 @@ import { Configuration, PuppeteerCrawler } from 'crawlee';
 import dayjs from 'dayjs';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
-import { addExtra } from 'puppeteer-extra';
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-import rebrowserPuppeteer from 'rebrowser-puppeteer';
 
+import {
+  createStealthLaunchContext,
+  createStealthPreNavigationHook,
+} from '@codeshore/crawler-core';
 import { SupabaseTable } from '@codeshore/data-types';
 import {
   JobKeywordService,
@@ -33,49 +34,11 @@ import {
 } from './cake/utils';
 import { formatDuration, setPageIndex } from './utils';
 
-const puppeteer = addExtra(rebrowserPuppeteer as any);
-puppeteer.use(StealthPlugin());
-
 const envPath = path.resolve(__dirname, '../.env');
 
 dotenv.config({
   path: envPath,
 });
-
-const stealthLaunchContext = {
-  launcher: puppeteer,
-  launchOptions: {
-    headless: true,
-    args: [
-      '--disable-blink-features=AutomationControlled',
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--window-size=1280,800',
-      '--no-first-run',
-      '--lang=zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7',
-    ],
-    executablePath:
-      process.env['PUPPETEER_EXECUTABLE_PATH'] || undefined,
-  },
-};
-
-async function applyStealthOnNavigation({
-  page,
-}: {
-  page: import('puppeteer').Page;
-  request: import('crawlee').Request;
-}) {
-  await page.setViewport({ width: 1280, height: 800 });
-
-  await page.setExtraHTTPHeaders({
-    'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8',
-    'sec-ch-ua':
-      '"Chromium";v="124", "Google Chrome";v="124"',
-    'sec-ch-ua-mobile': '?0',
-    'sec-ch-ua-platform': '"Windows"',
-  });
-}
 
 function splitTopLevel(
   expr: string,
@@ -121,8 +84,16 @@ interface PendingBatch {
   jobKeywords: Omit<SupabaseTable.Job_.Keyword, 'job'>[];
 }
 
+interface StealthCrawlConfig {
+  launchContext: ReturnType<typeof createStealthLaunchContext>;
+  preNavigationHook: ReturnType<
+    typeof createStealthPreNavigationHook
+  >;
+}
+
 async function reCrawlJobs(
   allGroupKeywords: string[],
+  stealthConfig: StealthCrawlConfig,
   where?: Record<string, any>,
 ): Promise<void> {
   const todayDayjs = dayjs();
@@ -171,8 +142,10 @@ async function reCrawlJobs(
   Configuration.getGlobalConfig().set('purgeOnStart', true);
 
   const crawler = new PuppeteerCrawler({
-    launchContext: stealthLaunchContext as any,
-    preNavigationHooks: [applyStealthOnNavigation as any],
+    launchContext: stealthConfig.launchContext as any,
+    preNavigationHooks: [
+      stealthConfig.preNavigationHook as any,
+    ],
     async requestHandler({ request, page, log }) {
       const job = request.userData[
         'job'
@@ -312,6 +285,14 @@ async function reCrawlJobs(
 }
 
 async function main() {
+  const stealthConfig: StealthCrawlConfig = {
+    launchContext: createStealthLaunchContext({
+      executablePath:
+        process.env['PUPPETEER_EXECUTABLE_PATH'] || undefined,
+    }),
+    preNavigationHook: createStealthPreNavigationHook(),
+  };
+
   const args = process.argv.slice(2);
 
   const reCrawlJobsArg = args.find(
@@ -353,6 +334,7 @@ async function main() {
         : undefined;
       await reCrawlJobs(
         keywords,
+        stealthConfig,
         whereExpr ? parseWhereExpr(whereExpr) : undefined,
       );
       break;
@@ -402,12 +384,12 @@ async function main() {
       }
 
       const makeCrawlerOptions = (requestHandler: any) => ({
-        launchContext: stealthLaunchContext as any,
+        launchContext: stealthConfig.launchContext as any,
         browserPoolOptions: {
           useFingerprints: false,
         },
         preNavigationHooks: [
-          applyStealthOnNavigation as any,
+          stealthConfig.preNavigationHook as any,
         ],
         requestHandler,
         maxConcurrency: 1,
