@@ -285,6 +285,44 @@ describe('createCrawlRouter — list response interception & retry (3.2)', () =>
     expect(mock.listenerCount()).toBe(0);
   });
 
+  it('uses the data from the eventual successful retry response (not a stale/empty first-attempt value) downstream', async () => {
+    const onListPageResolved = vi.fn(async () => undefined);
+    const { router } = createCrawlRouter(
+      createBaseConfig({
+        onListPageResolved,
+        listResponseTimeoutMs: 20,
+        maxListRetries: 3,
+      }),
+    );
+    const mock = createMockPage();
+    const ctx = createHandlerContext(mock.page, LIST_API_URL);
+
+    // The retried (post-reload) response carries distinctive pagination
+    // values that a stale/default value would never produce. Proving these
+    // exact values flow through to `onListPageResolved` demonstrates the
+    // retry's response body — not just the fact that *a* response arrived —
+    // is what the rest of the handler actually consumes.
+    mock.reload.mockImplementation(async () => {
+      setTimeout(() => {
+        mock.emitResponse(
+          createMockResponse({
+            url: LIST_API_URL,
+            json: { page: 9, totalPages: 42, totalEntries: 999, items: [] },
+          }),
+        );
+      }, 0);
+    });
+
+    await expect(router(ctx as never)).resolves.toBeUndefined();
+    expect(mock.reload).toHaveBeenCalledTimes(1);
+    expect(onListPageResolved).toHaveBeenCalledWith({
+      url: LIST_API_URL,
+      page: 9,
+      totalPages: 42,
+      status: 'completed',
+    });
+  });
+
   it('surfaces a failure once maxListRetries is exhausted without a matching response', async () => {
     const { router } = createCrawlRouter(
       createBaseConfig({ listResponseTimeoutMs: 10, maxListRetries: 2 }),
@@ -756,6 +794,50 @@ describe('createCrawlRouter — detail page handling & batch persistence (3.4)',
     expect(onBatchReady).toHaveBeenCalledTimes(1); // still only the first flush
   });
 
+  it('when 3 items are processed in one continuous run against a threshold of 2, flushes exactly the first 2 together and holds the 3rd pending until the next flush trigger', async () => {
+    const onBatchReady = vi.fn(async (_items: PersistItem[]) => undefined);
+    const { router, flushPending } = createCrawlRouter(
+      createBaseConfig({ onBatchReady, resolveBatchSize: () => 2 }),
+    );
+
+    const makeInvocation = (id: string) => {
+      const { page } = createMockDetailPage({
+        detail: { description: 'x' },
+        callOrder: [],
+      });
+      return {
+        page,
+        userData: { id },
+        requestUrl: `https://example.test/${id}`,
+      };
+    };
+
+    // All 3 detail requests are processed sequentially within a single run
+    // (unlike the test above, which splits 'a'/'b' and 'c' across two
+    // separate `runListThenDetailHandlers` calls). This proves the
+    // accumulator correctly flushes mid-run as soon as the threshold is hit
+    // by item 2, then resumes accumulating from zero for item 3 — rather
+    // than e.g. flushing all 3 together or losing track of the reset point.
+    await runListThenDetailHandlers(router, baseListJson, [
+      makeInvocation('a'),
+      makeInvocation('b'),
+      makeInvocation('c'),
+    ]);
+
+    expect(onBatchReady).toHaveBeenCalledTimes(1);
+    expect(onBatchReady).toHaveBeenNthCalledWith(1, [
+      { id: 'a', description: 'x' },
+      { id: 'b', description: 'x' },
+    ]);
+
+    // Item 'c' must still be pending (not dropped, not already flushed).
+    await flushPending();
+    expect(onBatchReady).toHaveBeenCalledTimes(2);
+    expect(onBatchReady).toHaveBeenNthCalledWith(2, [
+      { id: 'c', description: 'x' },
+    ]);
+  });
+
   it('flushPending() flushes any remaining partial batch via onBatchReady', async () => {
     const onBatchReady = vi.fn(async (_items: PersistItem[]) => undefined);
     const { router, flushPending } = createCrawlRouter(
@@ -1038,5 +1120,213 @@ describe('createCrawlRouter — progress/ETA tracking & error isolation (3.5)', 
       /error|isolat|catch|suppress|continueOnError/i.test(k),
     );
     expect(suspiciousKeys).toEqual([]);
+  });
+});
+
+describe('createCrawlRouter — end-to-end integration across a full crawl run (3.6)', () => {
+  beforeEach(() => {
+    vi.useRealTimers();
+    openMock.mockClear();
+    addRequestsMock.mockClear();
+  });
+
+  /**
+   * Exercises a realistic multi-step sequence on a single router instance,
+   * mirroring design.md's System Flows sequence diagram end-to-end rather
+   * than any one behavior in isolation:
+   *
+   * 1. List page 1 resolves with 2 new items ('a', 'b') -> both enqueued as
+   *    DETAIL requests, resolveExisting() called (memoized start).
+   * 2. Detail page 'a' processed -> accumulates (batch threshold 2, not yet
+   *    reached).
+   * 3. Detail page 'b' processed -> threshold reached -> onBatchReady([a, b]).
+   * 4. List page 2 resolves with a mix: 'a' is now (in a real system) an
+   *    existing item, and 'c' is new -> resolveExisting() must NOT be called
+   *    again (memoization holds across pages), and only 'c' is enqueued.
+   * 5. Detail page 'c' throws inside buildPersistItem -> isolated: logged via
+   *    logger.error, does not abort the run, no batch flush yet.
+   * 6. Detail page 'd' (from list page 2 as well, also new) processes
+   *    successfully -> accumulates alone (the failed 'c' never entered the
+   *    pending queue).
+   * 7. flushPending() at the end drains the remainder ('d' alone).
+   *
+   * Asserts the FULL ordered sequence of onBatchReady/onListPageResolved
+   * calls, proving the pieces work together across page boundaries within
+   * one engine instance — not just each in isolation.
+   */
+  it('processes a full list -> detail -> batch -> list -> error-isolated detail -> flushPending sequence with correct call ordering', async () => {
+    const callLog: string[] = [];
+
+    const resolveExisting = vi.fn(async () => {
+      callLog.push('resolveExisting');
+      return new Map<string, ExistingMeta>([
+        ['a', { updatedAt: '2024-01-01' }],
+      ]);
+    });
+
+    const onBatchReady = vi.fn(async (items: PersistItem[]) => {
+      callLog.push(`onBatchReady:${items.map(i => i.id).join(',')}`);
+    });
+
+    const onListPageResolved = vi.fn(async event => {
+      callLog.push(`onListPageResolved:${event.page}:${event.status}`);
+    });
+
+    const errorSpy = vi.fn((msg: string) => {
+      callLog.push('logger.error');
+      void msg;
+    });
+
+    const buildPersistItem = vi.fn(
+      (item: RawItem & { id: string }, detail: Detail) => {
+        if (item.id === 'c') {
+          throw new Error('boom: simulated detail-processing failure');
+        }
+        return { id: item.id, description: detail.description };
+      },
+    );
+
+    const { router, flushPending } = createCrawlRouter(
+      createBaseConfig({
+        resolveExisting,
+        onBatchReady,
+        onListPageResolved,
+        buildPersistItem,
+        resolveBatchSize: () => 2,
+        logger: {
+          info: () => undefined,
+          warning: () => undefined,
+          error: errorSpy,
+        },
+      }),
+    );
+
+    // Step 1: list page 1 — items 'a' (existing, per resolveExisting map) and
+    // 'b' (new). Only 'b' should be enqueued.
+    const listMock1 = createMockPage();
+    await runListPageHandler(
+      router,
+      listMock1,
+      'https://example.test/api/list?page=1',
+      {
+        page: 1,
+        totalPages: 2,
+        totalEntries: 4,
+        items: [{ id: 'a' }, { id: 'b' }],
+      },
+    );
+
+    expect(addRequestsMock).toHaveBeenCalledTimes(1);
+    const [firstEnqueued] = addRequestsMock.mock.calls[0] ?? [[]];
+    expect(
+      (firstEnqueued as Array<{ userData: { id: string } }>).map(
+        r => r.userData.id,
+      ),
+    ).toEqual(['b']);
+
+    // Step 2 + 3: detail page for 'b' processed. Threshold is 2, so this
+    // alone must NOT flush yet (only one item accumulated so far).
+    const bDetail = createMockDetailPage({
+      detail: { description: 'detail-b' },
+      callOrder: [],
+    });
+    await router(
+      createDetailHandlerContext(
+        bDetail.page,
+        'https://example.test/b',
+        { id: 'b' },
+      ) as never,
+    );
+    expect(onBatchReady).not.toHaveBeenCalled();
+
+    // Step 4: list page 2 — items 'a' (existing again) and 'c'/'d' (new).
+    // resolveExisting must remain memoized (still only 1 call total).
+    const listMock2 = createMockPage();
+    await runListPageHandler(
+      router,
+      listMock2,
+      'https://example.test/api/list?page=2',
+      {
+        page: 2,
+        totalPages: 2,
+        totalEntries: 4,
+        items: [{ id: 'a' }, { id: 'c' }, { id: 'd' }],
+      },
+    );
+
+    expect(resolveExisting).toHaveBeenCalledTimes(1);
+    expect(addRequestsMock).toHaveBeenCalledTimes(2);
+    const [secondEnqueued] = addRequestsMock.mock.calls[1] ?? [[]];
+    expect(
+      (secondEnqueued as Array<{ userData: { id: string } }>).map(
+        r => r.userData.id,
+      ),
+    ).toEqual(['c', 'd']);
+
+    // Step 5: detail page 'c' throws inside buildPersistItem. Must be
+    // isolated (logged, no throw out of the handler, no batch flush).
+    // Because 'b' was already pending (1 item) and 'c' fails before ever
+    // being pushed, the pending count stays at 1 — still below threshold 2.
+    const cDetail = createMockDetailPage({
+      detail: { description: 'detail-c' },
+      callOrder: [],
+    });
+    await expect(
+      router(
+        createDetailHandlerContext(
+          cDetail.page,
+          'https://example.test/c',
+          { id: 'c' },
+        ) as never,
+      ),
+    ).resolves.toBeUndefined();
+    expect(onBatchReady).not.toHaveBeenCalled();
+
+    // Step 6: detail page 'd' processes successfully. Combined with the
+    // still-pending 'b', this reaches threshold 2 -> flush ['b', 'd'].
+    const dDetail = createMockDetailPage({
+      detail: { description: 'detail-d' },
+      callOrder: [],
+    });
+    await router(
+      createDetailHandlerContext(
+        dDetail.page,
+        'https://example.test/d',
+        { id: 'd' },
+      ) as never,
+    );
+    expect(onBatchReady).toHaveBeenCalledTimes(1);
+    expect(onBatchReady).toHaveBeenNthCalledWith(1, [
+      { id: 'b', description: 'detail-b' },
+      { id: 'd', description: 'detail-d' },
+    ]);
+
+    // Step 7: flushPending at the end — nothing left pending, must be a no-op.
+    await flushPending();
+    expect(onBatchReady).toHaveBeenCalledTimes(1);
+
+    // Final assertion: the FULL ordered sequence of side-effecting calls
+    // across the entire run, proving correct interleaving across page
+    // boundaries within a single engine instance.
+    expect(callLog).toEqual([
+      'resolveExisting',
+      'onListPageResolved:1:completed',
+      'onListPageResolved:2:completed',
+      'logger.error',
+      'onBatchReady:b,d',
+    ]);
+
+    expect(onListPageResolved).toHaveBeenNthCalledWith(1, {
+      url: 'https://example.test/api/list?page=1',
+      page: 1,
+      totalPages: 2,
+      status: 'completed',
+    });
+    expect(onListPageResolved).toHaveBeenNthCalledWith(2, {
+      url: 'https://example.test/api/list?page=2',
+      page: 2,
+      totalPages: 2,
+      status: 'completed',
+    });
   });
 });
