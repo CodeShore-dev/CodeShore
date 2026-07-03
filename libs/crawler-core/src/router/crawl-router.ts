@@ -1,6 +1,7 @@
 import { RequestQueue, createPuppeteerRouter } from 'crawlee';
 import type { HTTPResponse, Page } from 'puppeteer';
 
+import { formatDuration } from '../time';
 import type {
   CrawlItemBase,
   CrawlRouterConfig,
@@ -108,14 +109,17 @@ const DEFAULT_DETAIL_WAIT_SELECTOR_TIMEOUT_MS = 10000;
 /**
  * 建立通用清單/詳情爬蟲路由引擎。
  *
- * 此為任務 3.2-3.4 的實作切片:清單頁 API 回應攔截與可設定的逾時/重試邏輯
+ * 此為任務 3.2-3.5 的實作切片:清單頁 API 回應攔截與可設定的逾時/重試邏輯
  * (對應需求 3.1、3.2),分頁中繼資訊解析、原始項目擷取、既有項目查找
  * (單一引擎實例生命週期內記憶化)、詳情頁加入佇列的判斷、清單頁完成/失敗
- * 狀態回報(對應需求 3.3、3.4、3.8),以及詳情頁走訪(等待選擇器、擷取、
- * 建構持久化項目)與批次累積/持久化,含收尾用的 `flushPending`
- * (對應需求 3.5、3.6、3.7)。進度/ETA 追蹤與更完整的跨切面錯誤隔離
- * (任務 3.5)尚未接上;DETAIL handler 目前僅有本身的 try/catch 隔離單筆
- * 詳情頁失敗,不影響整體爬取執行。
+ * 狀態回報(對應需求 3.3、3.4、3.8),詳情頁走訪(等待選擇器、擷取、建構
+ * 持久化項目)與批次累積/持久化,含收尾用的 `flushPending`(對應需求 3.5、
+ * 3.6、3.7),以及清單頁/詳情頁的進度追蹤與 ETA 預估、透過 `config.logger`
+ * 輸出(對應需求 3.9,完整比照原 `apps/crawler/src/handler.ts` L92-111、
+ * L296-380 的 rolling-average 與 ETA 算法)。清單頁與詳情頁的處理各自完整
+ * 包在 try/catch 中:任一項目處理失敗時,僅透過 `config.logger.error` 記錄
+ * 錯誤並繼續處理下一個請求,不會讓整個 crawl run 中斷——此為引擎固定行為,
+ * 不透過設定開放客製化(對應 6.1 行為零回歸)。
  */
 export function createCrawlRouter<
   TListResponse,
@@ -160,8 +164,39 @@ export function createCrawlRouter<
     return existingMetaPromise;
   };
 
+  // 進度/ETA 追蹤用的 closure 狀態,對應需求 3.9,完整比照原 `handler.ts`
+  // L83-111 的 rolling-average 與 ETA 算法(變數命名亦刻意保持一致以利對照)。
+  // 這些狀態於單一 `createCrawlRouter` 實例生命週期內累積,不對外匯出。
+  let listPageAvgDuration = 0;
+  let listPageCount = 0;
+  let detailPageAvgDuration = 0;
+  let detailPageCount = 0;
+  let totalDetailPages = 0;
+  let processedDetailPages = 0;
+  let lastKnownListPage = 0;
+  let lastKnownTotalListPages = 1;
+
+  const estimateFinishTime = (): string => {
+    const avgList = listPageAvgDuration;
+    const avgDetail = detailPageAvgDuration;
+    const remainingList = lastKnownTotalListPages - lastKnownListPage;
+    const projectedTotalDetail =
+      lastKnownListPage > 0
+        ? Math.round(
+            (totalDetailPages / lastKnownListPage) * lastKnownTotalListPages,
+          )
+        : totalDetailPages;
+    const remainingDetail = Math.max(
+      0,
+      projectedTotalDetail - processedDetailPages,
+    );
+    const etaMs = remainingList * avgList + remainingDetail * avgDetail;
+    return formatDuration(etaMs);
+  };
+
   puppeteerRouter.addDefaultHandler(async ({ request, page }) => {
     log.info(`Processing: ${request.url}`);
+    const pageStart = Date.now();
 
     const listResponse = await interceptListResponse<TListResponse>(page, {
       matchListResponse: config.matchListResponse,
@@ -218,6 +253,7 @@ export function createCrawlRouter<
       if (requestsToEnqueue.length > 0) {
         const queue = await RequestQueue.open();
         await queue.addRequests(requestsToEnqueue);
+        totalDetailPages += requestsToEnqueue.length;
         log.info(`Enqueued ${requestsToEnqueue.length} detail pages`);
       }
 
@@ -227,6 +263,17 @@ export function createCrawlRouter<
         totalPages,
         status: 'completed',
       });
+
+      lastKnownListPage = currentPage;
+      lastKnownTotalListPages = totalPages;
+      const pageElapsed = Date.now() - pageStart;
+      listPageCount++;
+      listPageAvgDuration =
+        (listPageAvgDuration * (listPageCount - 1) + pageElapsed) /
+        listPageCount;
+      log.info(
+        `List page ${currentPage}/${totalPages} took ${formatDuration(pageElapsed)}. Est. finish: ${estimateFinishTime()}`,
+      );
     } catch (error) {
       log.error(`Failed to extract data on ${request.url}: ${error}`);
       await config.onListPageResolved({
@@ -242,6 +289,7 @@ export function createCrawlRouter<
     'DETAIL',
     async ({ request, page }) => {
       log.info(`Processing detail page: ${request.loadedUrl || request.url}`);
+      const detailStart = Date.now();
 
       try {
         await page
@@ -263,6 +311,16 @@ export function createCrawlRouter<
         if (pendingItems.length >= batchSize) {
           await flushPending();
         }
+
+        const detailElapsed = Date.now() - detailStart;
+        detailPageCount++;
+        detailPageAvgDuration =
+          (detailPageAvgDuration * (detailPageCount - 1) + detailElapsed) /
+          detailPageCount;
+        processedDetailPages++;
+        log.info(
+          `Detail ${processedDetailPages}/${Math.max(totalDetailPages, processedDetailPages)} took ${formatDuration(detailElapsed)}. Est. finish: ${estimateFinishTime()}`,
+        );
       } catch (error) {
         log.error(`Failed to extract data on ${request.url}: ${error}`);
       }

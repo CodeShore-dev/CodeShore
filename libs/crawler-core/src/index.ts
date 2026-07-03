@@ -33,3 +33,5 @@ export type {
   CrawlRouterResult,
 } from './router/types';
 
+export { createCrawlRouter } from './router/crawl-router';
+

@@ -792,3 +792,251 @@ describe('createCrawlRouter — detail page handling & batch persistence (3.4)',
     expect(onBatchReady).not.toHaveBeenCalled();
   });
 });
+
+describe('createCrawlRouter — progress/ETA tracking & error isolation (3.5)', () => {
+  beforeEach(() => {
+    vi.useRealTimers();
+    openMock.mockClear();
+    addRequestsMock.mockClear();
+  });
+
+  const baseListJson: ListResponse = {
+    page: 1,
+    totalPages: 1,
+    totalEntries: 0,
+    items: [],
+  };
+
+  it('logs list-page progress info (page, totalPages, duration, ETA) via logger.info after a list page completes', async () => {
+    const infoSpy = vi.fn();
+    const { router } = createCrawlRouter(
+      createBaseConfig({
+        logger: { info: infoSpy, warning: () => undefined, error: () => undefined },
+      }),
+    );
+    const mock = createMockPage();
+
+    await runListPageHandler(router, mock, LIST_API_URL, {
+      page: 1,
+      totalPages: 3,
+      totalEntries: 10,
+      items: [],
+    });
+
+    // Must contain recognizable progress info: current/total page and an ETA/duration marker.
+    const progressCall = infoSpy.mock.calls.find(
+      ([msg]: [string]) =>
+        typeof msg === 'string' &&
+        msg.includes('1/3') &&
+        /took/i.test(msg) &&
+        /est\.?\s*finish/i.test(msg),
+    );
+    expect(progressCall).toBeDefined();
+  });
+
+  it('logs detail-page progress info (processed count, duration, ETA) via logger.info after a detail page completes', async () => {
+    const infoSpy = vi.fn();
+    const { router } = createCrawlRouter(
+      createBaseConfig({
+        logger: { info: infoSpy, warning: () => undefined, error: () => undefined },
+      }),
+    );
+    const { page } = createMockDetailPage({
+      detail: { description: 'x' },
+      callOrder: [],
+    });
+
+    await runListThenDetailHandlers(router, baseListJson, [
+      { page, userData: { id: 'a' }, requestUrl: 'https://example.test/a' },
+    ]);
+
+    const progressCall = infoSpy.mock.calls.find(
+      ([msg]: [string]) =>
+        typeof msg === 'string' &&
+        /^Detail /.test(msg) &&
+        /took/i.test(msg) &&
+        /est\.?\s*finish/i.test(msg),
+    );
+    expect(progressCall).toBeDefined();
+  });
+
+  it('does not throw/crash when computing progress on the very first list page (avg/count start at 0)', async () => {
+    const infoSpy = vi.fn();
+    const { router } = createCrawlRouter(
+      createBaseConfig({
+        logger: { info: infoSpy, warning: () => undefined, error: () => undefined },
+      }),
+    );
+    const mock = createMockPage();
+
+    await expect(
+      runListPageHandler(router, mock, LIST_API_URL, {
+        page: 1,
+        totalPages: 1,
+        totalEntries: 0,
+        items: [],
+      }),
+    ).resolves.toBeDefined();
+
+    const progressCall = infoSpy.mock.calls.find(
+      ([msg]: [string]) => typeof msg === 'string' && /est\.?\s*finish/i.test(msg),
+    );
+    expect(progressCall).toBeDefined();
+    // Message must not contain NaN/Infinity from a division-by-zero edge case.
+    expect(String(progressCall?.[0])).not.toMatch(/NaN|Infinity/);
+  });
+
+  it('isolates a list-page failure: logs the error via logger.error, resolves without throwing, and a subsequent list-page request on the same router still succeeds', async () => {
+    const errorSpy = vi.fn();
+    const onListPageResolved = vi.fn(async () => undefined);
+    let shouldThrow = true;
+    const parsePagination = vi.fn((response: ListResponse) => {
+      if (shouldThrow) {
+        throw new Error('boom: simulated single-item failure');
+      }
+      return {
+        currentPage: response.page,
+        totalPages: response.totalPages,
+        totalEntries: response.totalEntries,
+      };
+    });
+    const { router } = createCrawlRouter(
+      createBaseConfig({
+        parsePagination,
+        onListPageResolved,
+        logger: { info: () => undefined, warning: () => undefined, error: errorSpy },
+      }),
+    );
+
+    // First list page throws inside parsePagination.
+    const mock1 = createMockPage();
+    await expect(
+      runListPageHandler(router, mock1, LIST_API_URL, {
+        page: 1,
+        totalPages: 2,
+        totalEntries: 2,
+        items: [],
+      }),
+    ).resolves.toBeDefined();
+
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    expect(onListPageResolved).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ status: 'failed' }),
+    );
+
+    // Subsequent list page must still be processed successfully — proves the
+    // engine continues to the next item rather than aborting the crawl run.
+    shouldThrow = false;
+    const mock2 = createMockPage();
+    await expect(
+      runListPageHandler(
+        router,
+        mock2,
+        'https://example.test/api/list?page=2',
+        { page: 2, totalPages: 2, totalEntries: 2, items: [] },
+      ),
+    ).resolves.toBeDefined();
+
+    expect(onListPageResolved).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ status: 'completed', page: 2, totalPages: 2 }),
+    );
+  });
+
+  it('isolates a detail-page failure: logs the error via logger.error, resolves without throwing, and a subsequent detail-page request on the same router still succeeds', async () => {
+    const errorSpy = vi.fn();
+    const buildPersistItem = vi.fn(
+      (item: RawItem & { id: string }, detail: Detail) => {
+        if (item.id === 'boom') {
+          throw new Error('boom: simulated single-item failure');
+        }
+        return { id: item.id, description: detail.description };
+      },
+    );
+    const onBatchReady = vi.fn(async (_items: PersistItem[]) => undefined);
+    const { router } = createCrawlRouter(
+      createBaseConfig({
+        buildPersistItem,
+        onBatchReady,
+        logger: { info: () => undefined, warning: () => undefined, error: errorSpy },
+      }),
+    );
+
+    const failingDetail = createMockDetailPage({
+      detail: { description: 'irrelevant' },
+      callOrder: [],
+    });
+    const okDetail = createMockDetailPage({
+      detail: { description: 'ok' },
+      callOrder: [],
+    });
+
+    await runListThenDetailHandlers(router, baseListJson, [
+      { page: failingDetail.page, userData: { id: 'boom' }, requestUrl: 'https://example.test/boom' },
+      { page: okDetail.page, userData: { id: 'safe' }, requestUrl: 'https://example.test/safe' },
+    ]);
+
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    // The failing item must never reach onBatchReady/pendingItems, while the
+    // subsequent detail request is still fully processed (evaluate() called,
+    // buildPersistItem called with the safe item).
+    expect(buildPersistItem).toHaveBeenCalledTimes(2);
+    expect(okDetail.evaluate).toHaveBeenCalledTimes(1);
+  });
+
+  it('flushes the safe item accumulated after a failing detail-page item via flushPending', async () => {
+    const buildPersistItem = vi.fn(
+      (item: RawItem & { id: string }, detail: Detail) => {
+        if (item.id === 'boom') {
+          throw new Error('boom: simulated single-item failure');
+        }
+        return { id: item.id, description: detail.description };
+      },
+    );
+    const onBatchReady = vi.fn(async (_items: PersistItem[]) => undefined);
+    const { router, flushPending } = createCrawlRouter(
+      createBaseConfig({
+        buildPersistItem,
+        onBatchReady,
+        resolveBatchSize: () => 5,
+      }),
+    );
+
+    const failingDetail = createMockDetailPage({
+      detail: { description: 'irrelevant' },
+      callOrder: [],
+    });
+    const okDetail = createMockDetailPage({
+      detail: { description: 'ok' },
+      callOrder: [],
+    });
+
+    await runListThenDetailHandlers(router, baseListJson, [
+      { page: failingDetail.page, userData: { id: 'boom' }, requestUrl: 'https://example.test/boom' },
+      { page: okDetail.page, userData: { id: 'safe' }, requestUrl: 'https://example.test/safe' },
+    ]);
+
+    await flushPending();
+
+    expect(onBatchReady).toHaveBeenCalledTimes(1);
+    expect(onBatchReady).toHaveBeenCalledWith([
+      { id: 'safe', description: 'ok' },
+    ]);
+  });
+
+  it('does not expose any config field to disable or customize error isolation', () => {
+    // Structural guarantee: `CrawlRouterConfig` has no boolean/callback field
+    // whose name suggests error isolation could be toggled off. This is a
+    // compile-time contract check via object key inspection of a fully-typed
+    // config literal — if a future change added such a field, this test's
+    // key list assertion would need to be deliberately updated, surfacing
+    // the regression in review.
+    const config = createBaseConfig();
+    const keys = Object.keys(config);
+    const suspiciousKeys = keys.filter(k =>
+      /error|isolat|catch|suppress|continueOnError/i.test(k),
+    );
+    expect(suspiciousKeys).toEqual([]);
+  });
+});
