@@ -49,6 +49,9 @@
       "@codeshore/crawler-core": [
         "libs/crawler-core/src/index.ts"
       ],
+      "@codeshore/sync-core": [
+        "libs/sync-core/src/index.ts"
+      ],
       "@codeshore/crawler": [
         "apps/crawler/src/index.ts"
       ],
