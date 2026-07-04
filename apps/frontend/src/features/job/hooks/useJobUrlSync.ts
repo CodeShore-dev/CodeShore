@@ -43,8 +43,6 @@ export function useJobUrlSync() {
         : '';
     const search = q.get('search');
     if (search) job.setSearchText(search);
-    const company = q.get('company');
-    if (company) job.setCompanySearchText(company);
     const salaryAmt = q.get('salaryAmt');
     let amount: number | null = null;
     if (salaryAmt) {
@@ -56,8 +54,23 @@ export function useJobUrlSync() {
     }
     const locations = q.get('locations');
     if (locations) job.setSelectedLocations(locations.split(','));
+    const companies = q.get('companies');
     const notCompanies = q.get('notCompanies');
-    if (notCompanies) job.setExcludedCompanies(notCompanies.split(','));
+    if (companies || notCompanies) {
+      const includeEntries = companies
+        ? companies
+            .split(',')
+            .map(name => ({ name, mode: 'include' as const }))
+        : [];
+      const excludeEntries = notCompanies
+        ? notCompanies
+            .split(',')
+            .map(name => ({ name, mode: 'exclude' as const }))
+        : [];
+      useJobFilterStore.setState({
+        companyFilters: [...includeEntries, ...excludeEntries],
+      });
+    }
     const tab = q.get('tab');
     if (tab === 'like' || tab === 'dislike') {
       job.setListViewPreference(tab);
@@ -76,9 +89,8 @@ export function useJobUrlSync() {
   const salaryFilter = useJobFilterStore(s => s.salaryFilter);
   const salaryAmount = useJobFilterStore(s => s.salaryAmount);
   const searchText = useJobFilterStore(s => s.searchText);
-  const companySearchText = useJobFilterStore(s => s.companySearchText);
+  const companyFilters = useJobFilterStore(s => s.companyFilters);
   const selectedLocations = useJobFilterStore(s => s.selectedLocations);
-  const excludedCompanies = useJobFilterStore(s => s.excludedCompanies);
   const listViewPreference = useJobFilterStore(s => s.listViewPreference);
   const page = useJobFilterStore(s => s.page);
   const selectedJobId = useJobFilterStore(s => s.selectedJobId);
@@ -102,13 +114,17 @@ export function useJobUrlSync() {
         : null;
     if (rawAmt !== null) next.set('salaryAmt', String(rawAmt));
     if (searchText) next.set('search', searchText);
-    if (companySearchText) next.set('company', companySearchText);
     if (selectedLocations.length) {
       next.set('locations', selectedLocations.join(','));
     }
-    if (excludedCompanies.length) {
-      next.set('notCompanies', excludedCompanies.join(','));
-    }
+    const includeNames = companyFilters
+      .filter(entry => entry.mode === 'include')
+      .map(entry => entry.name);
+    const excludeNames = companyFilters
+      .filter(entry => entry.mode === 'exclude')
+      .map(entry => entry.name);
+    if (includeNames.length) next.set('companies', includeNames.join(','));
+    if (excludeNames.length) next.set('notCompanies', excludeNames.join(','));
     if (listViewPreference) next.set('tab', listViewPreference);
     if (page > 1) next.set('page', String(page));
     if (selectedJobId) next.set('jobId', selectedJobId);
@@ -120,9 +136,8 @@ export function useJobUrlSync() {
     salaryFilter,
     salaryAmount,
     searchText,
-    companySearchText,
+    companyFilters,
     selectedLocations,
-    excludedCompanies,
     listViewPreference,
     page,
     selectedJobId,

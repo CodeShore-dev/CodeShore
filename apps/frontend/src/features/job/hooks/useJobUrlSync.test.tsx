@@ -36,20 +36,48 @@ describe('useJobUrlSync', () => {
     expect(useJobFilterStore.getState().page).toBe(2);
   });
 
-  it('parses excluded companies from the query', () => {
+  it('parses excluded companies from the query into companyFilters', () => {
     render(
       <MemoryRouter initialEntries={['/jobs?notCompanies=Acme,Globex']}>
         <Harness />
       </MemoryRouter>,
     );
 
-    expect(useJobFilterStore.getState().excludedCompanies).toEqual([
-      'Acme',
-      'Globex',
+    expect(useJobFilterStore.getState().companyFilters).toEqual([
+      { name: 'Acme', mode: 'exclude' },
+      { name: 'Globex', mode: 'exclude' },
     ]);
   });
 
-  it('writes excluded companies back to the URL', () => {
+  it('parses included companies from the query into companyFilters', () => {
+    render(
+      <MemoryRouter initialEntries={['/jobs?companies=Acme,Globex']}>
+        <Harness />
+      </MemoryRouter>,
+    );
+
+    expect(useJobFilterStore.getState().companyFilters).toEqual([
+      { name: 'Acme', mode: 'include' },
+      { name: 'Globex', mode: 'include' },
+    ]);
+  });
+
+  it('parses both include and exclude company params together', () => {
+    render(
+      <MemoryRouter
+        initialEntries={['/jobs?companies=Acme&notCompanies=Globex']}
+      >
+        <Harness />
+      </MemoryRouter>,
+    );
+
+    expect(useJobFilterStore.getState().companyFilters).toEqual([
+      { name: 'Acme', mode: 'include' },
+      { name: 'Globex', mode: 'exclude' },
+    ]);
+  });
+
+  it('writes include and exclude company filters back to the URL', () => {
     render(
       <MemoryRouter initialEntries={['/jobs']}>
         <Harness />
@@ -57,12 +85,63 @@ describe('useJobUrlSync', () => {
     );
 
     act(() => {
-      useJobFilterStore.getState().setExcludedCompanies(['Acme']);
+      useJobFilterStore.getState().addCompanyFilter('Acme');
+      useJobFilterStore.getState().addCompanyFilter('Globex');
+      useJobFilterStore.getState().toggleCompanyFilterMode('Globex');
     });
 
-    expect(screen.getByTestId('search').textContent).toContain(
-      'notCompanies=Acme',
+    const search = screen.getByTestId('search').textContent ?? '';
+    expect(search).toContain('companies=Acme');
+    expect(search).toContain('notCompanies=Globex');
+  });
+
+  it('round-trips include and exclude company entries through the URL', () => {
+    const { unmount } = render(
+      <MemoryRouter initialEntries={['/jobs']}>
+        <Harness />
+      </MemoryRouter>,
     );
+
+    act(() => {
+      useJobFilterStore.getState().addCompanyFilter('Acme');
+      useJobFilterStore.getState().addCompanyFilter('Globex');
+      useJobFilterStore.getState().toggleCompanyFilterMode('Globex');
+    });
+
+    const search = screen.getByTestId('search').textContent ?? '';
+    unmount();
+    useJobFilterStore.getState().reset();
+
+    render(
+      <MemoryRouter initialEntries={[`/jobs${search}`]}>
+        <Harness />
+      </MemoryRouter>,
+    );
+
+    expect(useJobFilterStore.getState().companyFilters).toEqual(
+      expect.arrayContaining([
+        { name: 'Acme', mode: 'include' },
+        { name: 'Globex', mode: 'exclude' },
+      ]),
+    );
+    expect(useJobFilterStore.getState().companyFilters).toHaveLength(2);
+  });
+
+  it('does not write a company param when there are no company filters', () => {
+    render(
+      <MemoryRouter initialEntries={['/jobs']}>
+        <Harness />
+      </MemoryRouter>,
+    );
+
+    act(() => {
+      useJobFilterStore.getState().setSearchText('go');
+    });
+
+    const search = screen.getByTestId('search').textContent ?? '';
+    expect(search).not.toContain('companies=');
+    expect(search).not.toContain('notCompanies=');
+    expect(search).not.toContain('company=');
   });
 
   it('writes store changes back to the URL', () => {
