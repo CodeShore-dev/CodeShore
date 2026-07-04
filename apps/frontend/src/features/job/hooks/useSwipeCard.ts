@@ -1,5 +1,7 @@
 import { type CSSProperties, type PointerEvent, useRef, useState } from 'react';
 
+import { usePreferenceCommitFeedback } from './usePreferenceCommitFeedback';
+
 const SWIPE_THRESHOLD = 120;
 // Minimum travel before we commit to an axis. Below this, a touch could
 // still be either a tap, a vertical scroll, or the start of a horizontal
@@ -25,20 +27,15 @@ type Axis = 'none' | 'horizontal' | 'vertical';
 
 export function useSwipeCard(options: UseSwipeCardOptions) {
   const [dragging, setDragging] = useState(false);
-  const [flying, setFlying] = useState<'like' | 'dislike' | null>(null);
   const [offsetX, setOffsetX] = useState(0);
   const startX = useRef(0);
   const startY = useRef(0);
   const axis = useRef<Axis>('none');
   const activePointer = useRef<number | null>(null);
 
-  const commit = (preference: 'like' | 'dislike') => {
-    setFlying(preference);
-    setTimeout(() => {
-      options.onCommit(preference);
-      setFlying(null);
-    }, 250);
-  };
+  const { commit, flying } = usePreferenceCommitFeedback({
+    onCommit: options.onCommit,
+  });
 
   const onPointerDown = (e: PointerEvent) => {
     if (e.pointerType !== 'touch' && e.pointerType !== 'pen') return;
