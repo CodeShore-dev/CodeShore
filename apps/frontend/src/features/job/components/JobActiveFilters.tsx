@@ -10,8 +10,7 @@ type ChipKind =
   | 'operator'
   | 'salary'
   | 'location'
-  | 'search'
-  | 'company';
+  | 'search';
 
 interface Chip {
   key: string;
@@ -28,7 +27,6 @@ const chipClass: Record<ChipKind, string> = {
   salary: 'bg-[#003d92]/15 text-[#003d92]',
   location: 'bg-[#003d92]/15 text-[#003d92]',
   search: 'bg-[#003d92]/15 text-[#003d92]',
-  company: 'bg-[#003d92]/15 text-[#003d92]',
 };
 
 interface JobActiveFiltersProps {
@@ -40,17 +38,15 @@ export function JobActiveFilters({ onClearAll }: JobActiveFiltersProps) {
   const { data: techs = [] } = useTechsQuery();
 
   const searchText = useJobFilterStore(s => s.searchText);
-  const companySearchText = useJobFilterStore(s => s.companySearchText);
+  const companyFilters = useJobFilterStore(s => s.companyFilters);
   const salaryFilter = useJobFilterStore(s => s.salaryFilter);
   const salaryAmount = useJobFilterStore(s => s.salaryAmount);
   const selectedLocations = useJobFilterStore(s => s.selectedLocations);
-  const excludedCompanies = useJobFilterStore(s => s.excludedCompanies);
   const setSearchText = useJobFilterStore(s => s.setSearchText);
-  const setCompanySearchText = useJobFilterStore(s => s.setCompanySearchText);
+  const removeCompanyFilter = useJobFilterStore(s => s.removeCompanyFilter);
   const setSalaryFilter = useJobFilterStore(s => s.setSalaryFilter);
   const setSalaryAmount = useJobFilterStore(s => s.setSalaryAmount);
   const setSelectedLocations = useJobFilterStore(s => s.setSelectedLocations);
-  const setExcludedCompanies = useJobFilterStore(s => s.setExcludedCompanies);
 
   const selectedTags = useKeywordFilterStore(s => s.selectedTags);
   const excludedTags = useKeywordFilterStore(s => s.excludedTags);
@@ -88,13 +84,13 @@ export function JobActiveFilters({ onClearAll }: JobActiveFiltersProps) {
         remove: () => setSearchText(''),
       });
     }
-    if (companySearchText) {
+    for (const entry of companyFilters) {
       list.push({
-        key: 'company',
-        group: '公司',
-        label: companySearchText,
-        kind: 'company',
-        remove: () => setCompanySearchText(''),
+        key: `company-${entry.name}`,
+        group: entry.mode === 'exclude' ? '排除公司' : '公司',
+        label: entry.name,
+        kind: entry.mode,
+        remove: () => removeCompanyFilter(entry.name),
       });
     }
     for (const tag of selectedTags) {
@@ -134,18 +130,6 @@ export function JobActiveFilters({ onClearAll }: JobActiveFiltersProps) {
           setSelectedLocations(selectedLocations.filter(l => l !== loc)),
       });
     }
-    for (const company of excludedCompanies) {
-      list.push({
-        key: `exc-company-${company}`,
-        group: '排除公司',
-        label: company,
-        kind: 'exclude',
-        remove: () =>
-          setExcludedCompanies(
-            excludedCompanies.filter(c => c !== company),
-          ),
-      });
-    }
     if (salaryFilter !== 'none') {
       list.push({
         key: 'salaryFilter',
@@ -168,12 +152,11 @@ export function JobActiveFilters({ onClearAll }: JobActiveFiltersProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     searchText,
-    companySearchText,
+    companyFilters,
     selectedTags,
     excludedTags,
     keywordOperator,
     selectedLocations,
-    excludedCompanies,
     salaryFilter,
     salaryAmountLabel,
     groupLabelMap,
