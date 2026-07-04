@@ -184,14 +184,14 @@ function buildDetailFixture(
 describe('cake/handler.ts createHandler (post sync-core migration)', () => {
   // `./handler` transitively imports `@codeshore/sync-core`, whose barrel
   // unconditionally re-exports the staleness engine (which imports real
-  // `crawlee`/`puppeteer`). That first real module load costs ~9s, which
-  // blows past vitest's default 5000ms per-test timeout if paid lazily by
-  // whichever test happens to import './handler' first. Pre-warm it here
-  // with a generous allowance so every test below hits an already-cached
-  // module and finishes fast.
+  // `crawlee`/`puppeteer`). That first real module load costs ~9s in a quiet
+  // environment, but has been observed as high as ~14s under full-suite CPU
+  // contention (multiple validation passes flagged runs landing within
+  // ~1s of a 15000ms ceiling). Pre-warm it here with a wider allowance so
+  // every test below hits an already-cached module and finishes fast.
   beforeAll(async () => {
     await import('./handler');
-  }, 15000);
+  }, 30000);
 
   beforeEach(() => {
     vi.clearAllMocks();
