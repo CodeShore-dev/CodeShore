@@ -2,7 +2,7 @@ import { SearchInput } from '../../../components/SearchInput';
 import { useDebouncedStoreSync } from '../../../hooks/useDebouncedStoreSync';
 import { useJobFilterStore } from '../jobFilterStore';
 import { JobExcludeCompanyFilterPanel } from './JobExcludeCompanyFilterPanel';
-import { JobKeywordFilterPanel } from './JobKeywordFilterPanel';
+import { JobTechFilterPanel } from './JobTechFilterPanel';
 import { JobLocationFilterPanel } from './JobLocationFilterPanel';
 import { JobSalaryFilterPanel } from './JobSalaryFilterPanel';
 
@@ -43,7 +43,7 @@ export function JobFilterSidebar() {
       </section>
 
       <JobExcludeCompanyFilterPanel />
-      <JobKeywordFilterPanel />
+      <JobTechFilterPanel />
       <JobLocationFilterPanel />
       <JobSalaryFilterPanel />
     </div>

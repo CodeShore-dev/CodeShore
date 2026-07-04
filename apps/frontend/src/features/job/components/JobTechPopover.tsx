@@ -7,34 +7,34 @@ import {
   useSaveKeywordToGroupMutation,
 } from '../../keyword/queries';
 
-interface JobKeywordPopoverProps {
-  keyword: string;
+interface JobTechPopoverProps {
+  tech: string;
   x: number;
   y: number;
   onClose: () => void;
 }
 
-// Admin popover to assign a selected JD keyword to a keyword group (task 7.5),
+// Admin popover to assign a selected JD tech to a keyword group (task 7.5),
 // ported from JobKeywordPopover.vue. Rendered in a portal at the selection.
-export function JobKeywordPopover({
-  keyword,
+export function JobTechPopover({
+  tech,
   x,
   y,
   onClose,
-}: JobKeywordPopoverProps) {
+}: JobTechPopoverProps) {
   const { data: techs = [] } = useTechsQuery();
   const { tabs } = useKeywordCategoriesQuery();
   const saveMutation = useSaveKeywordToGroupMutation();
 
-  const [groupSearch, setGroupSearch] = useState(keyword.toLowerCase());
+  const [groupSearch, setGroupSearch] = useState(tech.toLowerCase());
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [newGroupCategory, setNewGroupCategory] = useState<string | null>(null);
 
   useEffect(() => {
-    setGroupSearch(keyword.toLowerCase());
+    setGroupSearch(tech.toLowerCase());
     setShowSuggestions(false);
     setNewGroupCategory(null);
-  }, [keyword]);
+  }, [tech]);
 
   const groupSuggestions = useMemo(() => {
     const q = groupSearch.toLowerCase();
@@ -69,10 +69,10 @@ export function JobKeywordPopover({
   };
 
   const confirmSave = async () => {
-    if (!keyword || !groupSearch.trim()) return;
+    if (!tech || !groupSearch.trim()) return;
     await saveMutation.mutateAsync({
       groupId: groupSearch.trim(),
-      keyword,
+      keyword: tech,
       category: isNewGroup ? newGroupCategory || 'Others' : undefined,
     });
     closePopover();
@@ -92,10 +92,10 @@ export function JobKeywordPopover({
       >
         <div className="mb-3">
           <span className="mb-1 block text-sm font-bold tracking-widest text-[#434653]">
-            選取的關鍵字
+            選取的技術
           </span>
           <span className="rounded-full bg-[#003d92] px-3 py-1 text-sm font-bold text-white">
-            {keyword}
+            {tech}
           </span>
         </div>
 

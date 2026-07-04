@@ -5,7 +5,7 @@ import { useLocationGroupsQuery } from '../queries';
 
 // Location filter section, extracted from JobFilterSidebar to keep that file
 // under the 200-line component limit. Self-contained: reads/writes the job
-// filter store directly, mirroring JobKeywordFilterPanel's no-props pattern.
+// filter store directly, mirroring JobTechFilterPanel's no-props pattern.
 export function JobLocationFilterPanel() {
   const selectedLocations = useJobFilterStore(s => s.selectedLocations);
   const setSelectedLocations = useJobFilterStore(s => s.setSelectedLocations);

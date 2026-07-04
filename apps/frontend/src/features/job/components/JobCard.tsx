@@ -17,8 +17,8 @@ import {
   type KeywordTooltipData,
 } from './JobDescriptionHighlighter';
 import { JobHandoffCTA } from './JobHandoffCTA';
-import { JobKeywordChips } from './JobKeywordChips';
-import { JobKeywordPopover } from './JobKeywordPopover';
+import { JobTechChips } from './JobTechChips';
+import { JobTechPopover } from './JobTechPopover';
 
 interface JobCardProps {
   job?: Partial<SupabaseView.MvJob>;
@@ -155,9 +155,9 @@ export function JobCard({ job = {}, loading, crawl }: JobCardProps) {
               </div>
             </div>
 
-            <JobKeywordChips
+            <JobTechChips
               mapping={techMapping}
-              selectedKeywordsSet={selectedKeywordsSet}
+              selectedTechsSet={selectedKeywordsSet}
             />
             <JobHandoffCTA detailLink={job.detail_link} />
 
@@ -225,8 +225,8 @@ export function JobCard({ job = {}, loading, crawl }: JobCardProps) {
         )}
 
       {popover && (
-        <JobKeywordPopover
-          keyword={popover.keyword}
+        <JobTechPopover
+          tech={popover.keyword}
           x={popover.x}
           y={popover.y}
           onClose={() => setPopover(null)}

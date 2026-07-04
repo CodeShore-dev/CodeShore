@@ -11,10 +11,10 @@ const TABS_COLLAPSED_LIMIT = 4;
 
 const tagLabel = (tag: string) => TAG_LABEL_MAP[tag] ?? tag;
 
-// Keyword filter panel: search, category tabs, AND/OR toggle, keyword list
+// Tech filter panel: search, category tabs, AND/OR toggle, tech list
 // (task 7.5), ported from JobKeywordFilterPanel.vue. Selection lives in the
 // shared keyword filter store; derived views come from useKeywordCatalogView.
-export function JobKeywordFilterPanel() {
+export function JobTechFilterPanel() {
   const {
     visibleTabs,
     selectedTab,
