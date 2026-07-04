@@ -207,6 +207,45 @@ describe('createStalenessSyncEngine', () => {
     expect(onBatchReady).toHaveBeenCalledWith([{ id: 'entity-1', value: 'same-content' }]);
   });
 
+  it("persists the specific timestamp-refreshed entity object returned by diffAndBuildUpdate's 'unchanged' outcome (requirement 3.4) — not the original pre-refresh entity reference, and not silently discarded", async () => {
+    const onBatchReady = vi.fn().mockResolvedValue(undefined);
+    // A distinct object (different reference AND an extra `refreshedAt` field)
+    // is what diffAndBuildUpdate returns for the 'unchanged' case, standing in
+    // for "same business fields, timestamp bumped" — the caller-owned shape
+    // the engine must not assume anything about, only forward verbatim.
+    const refreshedEntity = { id: 'entity-1', value: 'same-content', refreshedAt: 'ts-123' };
+    const diffAndBuildUpdate = vi.fn().mockReturnValue({ action: 'unchanged', entity: refreshedEntity });
+    const config = createBaseConfig({
+      fetchStaleEntities: async () => [{ id: 'entity-1', value: 'same-content' }],
+      extractDetailForHost: () => async () => ({ content: 'same-content' }),
+      diffAndBuildUpdate,
+      onBatchReady,
+    });
+
+    const engine = createStalenessSyncEngine(config);
+    await engine.run(STEALTH_CONFIG, PRE_NAVIGATION_HOOK);
+
+    const requestHandler = getRequestHandler();
+    const page = createFakePage();
+    const originalEntity = { id: 'entity-1', value: 'same-content' };
+    const request = {
+      url: 'https://example.test/detail/entity-1',
+      userData: { entity: originalEntity },
+    };
+
+    await requestHandler({ request, page, log: config.logger! });
+
+    // The exact refreshed object diffAndBuildUpdate returned must reach
+    // onBatchReady — proving the 'unchanged' outcome's entity is actually
+    // persisted (pushed into the batch), not merely computed and dropped.
+    expect(onBatchReady).toHaveBeenCalledTimes(1);
+    expect(onBatchReady).toHaveBeenCalledWith([refreshedEntity]);
+    const persistedBatch = onBatchReady.mock.calls[0][0] as Array<typeof refreshedEntity>;
+    expect(persistedBatch[0]).toBe(refreshedEntity);
+    expect(persistedBatch[0]).not.toBe(originalEntity);
+    expect(persistedBatch[0].refreshedAt).toBe('ts-123');
+  });
+
   it("produces the 'close' action when extraction yields no valid content (extractDetailForHost's function returns undefined)", async () => {
     const onBatchReady = vi.fn().mockResolvedValue(undefined);
     const config = createBaseConfig({
@@ -287,6 +326,84 @@ describe('createStalenessSyncEngine', () => {
     expect(onBatchReady).toHaveBeenCalledTimes(1);
     expect(onBatchReady).toHaveBeenCalledWith([{ id: 'entity-2', value: 'new-content-2' }]);
     expect(page2.waitForSelector).toHaveBeenCalledTimes(1);
+  });
+
+  it('excludes a failed entity from the batch accumulator (does not push undefined) so the accumulated count and payload only reflect successfully-processed entities, with a batchSize > 1 threshold', async () => {
+    const onBatchReady = vi.fn().mockResolvedValue(undefined);
+    const errorLogger = vi.fn();
+    // entity-1 throws, entity-2 and entity-3 succeed. With batchSize 2, if the
+    // failed entity-1 were erroneously pushed as `undefined` (instead of being
+    // excluded), the accumulator's count would reach the threshold after only
+    // entity-2 (1 failed-but-pushed + 1 success = 2), flushing prematurely
+    // with a corrupted `undefined` in the payload. The correct behavior is
+    // that only entity-2 and entity-3 (both real, successful entities) count
+    // toward the threshold and appear in the flushed batch.
+    const extractDetailForHost = vi
+      .fn()
+      .mockReturnValueOnce(async () => {
+        throw new Error('extraction blew up for entity-1');
+      })
+      .mockReturnValueOnce(async () => ({ content: 'new-content-2' }))
+      .mockReturnValueOnce(async () => ({ content: 'new-content-3' }));
+
+    const config = createBaseConfig({
+      fetchStaleEntities: async () => [
+        { id: 'entity-1', value: 'old-1' },
+        { id: 'entity-2', value: 'old-2' },
+        { id: 'entity-3', value: 'old-3' },
+      ],
+      extractDetailForHost,
+      batchSize: 2,
+      onBatchReady,
+      logger: { info: vi.fn(), warning: vi.fn(), error: errorLogger },
+    });
+
+    const engine = createStalenessSyncEngine(config);
+    await engine.run(STEALTH_CONFIG, PRE_NAVIGATION_HOOK);
+    const requestHandler = getRequestHandler();
+
+    await requestHandler({
+      request: {
+        url: 'https://example.test/detail/entity-1',
+        userData: { entity: { id: 'entity-1', value: 'old-1' } },
+      },
+      page: createFakePage(),
+      log: config.logger!,
+    });
+    expect(errorLogger).toHaveBeenCalledTimes(1);
+    expect(onBatchReady).not.toHaveBeenCalled();
+
+    await requestHandler({
+      request: {
+        url: 'https://example.test/detail/entity-2',
+        userData: { entity: { id: 'entity-2', value: 'old-2' } },
+      },
+      page: createFakePage(),
+      log: config.logger!,
+    });
+    // If the failed entity-1 had been pushed (e.g. as `undefined`), the
+    // accumulator would already be at the batchSize-2 threshold here and
+    // would have flushed a corrupted batch. It must NOT have flushed yet —
+    // only entity-2 (one successful item) has actually been pushed so far.
+    expect(onBatchReady).not.toHaveBeenCalled();
+
+    await requestHandler({
+      request: {
+        url: 'https://example.test/detail/entity-3',
+        userData: { entity: { id: 'entity-3', value: 'old-3' } },
+      },
+      page: createFakePage(),
+      log: config.logger!,
+    });
+
+    // Now the threshold of 2 real successful entities is reached, and the
+    // flushed batch contains only entity-2 and entity-3 — no `undefined`,
+    // no trace of the failed entity-1.
+    expect(onBatchReady).toHaveBeenCalledTimes(1);
+    expect(onBatchReady).toHaveBeenCalledWith([
+      { id: 'entity-2', value: 'new-content-2' },
+      { id: 'entity-3', value: 'new-content-3' },
+    ]);
   });
 
   it('runs fetchStaleEntities and passes the resulting requests into the crawler run', async () => {
