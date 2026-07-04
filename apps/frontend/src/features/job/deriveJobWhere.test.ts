@@ -8,6 +8,7 @@ const base: JobWhereInput = {
   salaryFilter: 'none',
   salaryAmount: { type: '', amount: null },
   selectedLocations: [],
+  excludedCompanies: [],
   selectedTags: [],
   excludedTags: [],
   keywordOperator: 'and',
@@ -28,6 +29,24 @@ describe('deriveJobWhere', () => {
     expect(
       deriveJobWhere({ ...base, companySearchText: 'acme' }),
     ).toEqual({ company_name: { ilike: '%acme%' } });
+  });
+
+  it('builds a company_name not.in for excluded companies', () => {
+    expect(
+      deriveJobWhere({ ...base, excludedCompanies: ['Acme', 'Globex'] }),
+    ).toEqual({ company_name: { 'not.in': '(Acme,Globex)' } });
+  });
+
+  it('merges company search and excluded companies on the same column', () => {
+    expect(
+      deriveJobWhere({
+        ...base,
+        companySearchText: 'acme',
+        excludedCompanies: ['Globex'],
+      }),
+    ).toEqual({
+      company_name: { ilike: '%acme%', 'not.in': '(Globex)' },
+    });
   });
 
   it('uses cs for AND and ov for OR on included tags', () => {

@@ -41,11 +41,13 @@ export function JobPreferencePage() {
   const salaryFilter = useJobFilterStore(s => s.salaryFilter);
   const salaryAmount = useJobFilterStore(s => s.salaryAmount);
   const selectedLocations = useJobFilterStore(s => s.selectedLocations);
+  const excludedCompanies = useJobFilterStore(s => s.excludedCompanies);
   const setSearchText = useJobFilterStore(s => s.setSearchText);
   const setCompanySearchText = useJobFilterStore(s => s.setCompanySearchText);
   const setSalaryFilter = useJobFilterStore(s => s.setSalaryFilter);
   const setSalaryAmount = useJobFilterStore(s => s.setSalaryAmount);
   const setSelectedLocations = useJobFilterStore(s => s.setSelectedLocations);
+  const setExcludedCompanies = useJobFilterStore(s => s.setExcludedCompanies);
 
   // Keyword filter state.
   const selectedTags = useKeywordFilterStore(s => s.selectedTags);
@@ -63,6 +65,7 @@ export function JobPreferencePage() {
     salaryFilter,
     salaryAmount,
     selectedLocations,
+    excludedCompanies,
     selectedTags,
     excludedTags,
     keywordOperator,
@@ -125,7 +128,8 @@ export function JobPreferencePage() {
     salaryAmount.amount !== null ||
     !!searchText ||
     !!companySearchText ||
-    selectedLocations.length > 0;
+    selectedLocations.length > 0 ||
+    excludedCompanies.length > 0;
 
   const clearAllFilters = () => {
     setSelectedTags([]);
@@ -138,6 +142,7 @@ export function JobPreferencePage() {
     setSearchText('');
     setCompanySearchText('');
     setSelectedLocations([]);
+    setExcludedCompanies([]);
   };
 
   return (
