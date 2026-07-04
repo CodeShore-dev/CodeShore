@@ -1,5 +1,7 @@
-import { type MouseEvent, useState } from 'react';
+import { type MouseEvent, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+
+import { SupabaseView } from '@codeshore/data-types';
 
 import { OperatorToggle } from '../../../components/OperatorToggle';
 import { TechIcon } from '../../../components/TechIcon';
@@ -16,6 +18,7 @@ const tagLabel = (tag: string) => TAG_LABEL_MAP[tag] ?? tag;
 // shared keyword filter store; derived views come from useKeywordCatalogView.
 export function JobTechFilterPanel() {
   const {
+    techs,
     visibleTabs,
     selectedTab,
     setSelectedTab,
@@ -24,6 +27,17 @@ export function JobTechFilterPanel() {
     categoriesWithSelections,
     filteredTechView,
   } = useKeywordCatalogView();
+
+  // Lookup from tech id to its full catalog record (task 3.1, Req 6.1-6.3),
+  // so parent references can be rendered by their resolved label instead of
+  // the raw id. Built once per techs change: O(n) to build, O(1) to query.
+  const techByTech = useMemo(() => {
+    const map = new Map<string, SupabaseView.MvTech>();
+    for (const tech of techs) {
+      map.set(tech.tech, tech);
+    }
+    return map;
+  }, [techs]);
 
   const selectedTags = useKeywordFilterStore(s => s.selectedTags);
   const excludedTags = useKeywordFilterStore(s => s.excludedTags);
@@ -166,7 +180,7 @@ export function JobTechFilterPanel() {
                         key={parent}
                         className="rounded-full border border-current/30 px-1.5 py-px text-[11px] font-medium"
                       >
-                        {parent}
+                        {techByTech.get(parent)?.label ?? parent}
                       </span>
                     ))}
                   </span>
