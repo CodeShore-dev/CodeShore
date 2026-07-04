@@ -43,7 +43,7 @@ export function HomePage() {
         <div className="mb-2 flex items-baseline gap-3">
           <div className="text-xs font-bold tracking-[0.18em] text-[#434653]">熱門技術組合</div>
           <Link
-            to="/techs/combos"
+            to="/techs?mode=combos"
             className="flex items-center gap-0.5 text-xs font-bold text-[#003d92] transition-colors hover:text-[#001f2a]"
           >
             更多

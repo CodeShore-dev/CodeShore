@@ -8,8 +8,7 @@ import { HomePage } from '../features/home/pages/HomePage';
 import { JobPreferencePage } from '../features/job/pages/JobPreferencePage';
 import { TechManagerPage } from '../features/keyword/pages/TechManagerPage';
 import { MethodologyPage } from '../features/methodology/pages/MethodologyPage';
-import { TechCombosPage } from '../features/techs/pages/TechCombosPage';
-import { TechRankingPage } from '../features/techs/pages/TechRankingPage';
+import { TechsPage } from '../features/techs/pages/TechsPage';
 import { AdminRoute } from './AdminRoute';
 import { ProtectedRoute } from './ProtectedRoute';
 import { RootLayout } from './RootLayout';
@@ -37,8 +36,11 @@ export const router = createBrowserRouter(
       children: [
         // Public routes
         { path: '/', element: <HomePage /> },
-        { path: '/techs', element: <TechRankingPage /> },
-        { path: '/techs/combos', element: <TechCombosPage /> },
+        { path: '/techs', element: <TechsPage /> },
+        {
+          path: '/techs/combos',
+          element: <Navigate to="/techs?mode=combos" replace />,
+        },
         { path: '/methodology', element: <MethodologyPage /> },
         { path: '/login', element: <LoginPage /> },
         { path: '/auth/callback', element: <AuthCallbackPage /> },
