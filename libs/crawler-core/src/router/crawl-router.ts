@@ -1,6 +1,9 @@
 import { RequestQueue, createPuppeteerRouter } from 'crawlee';
 import type { HTTPResponse, Page } from 'puppeteer';
 
+import { createBatchAccumulator } from '../progress/batch-accumulator';
+import { withErrorIsolation } from '../progress/error-isolation';
+import { createRollingAverageTracker } from '../progress/rolling-average';
 import { formatDuration } from '../time';
 import type {
   CrawlItemBase,
@@ -106,6 +109,13 @@ async function interceptListResponse<TListResponse>(
 
 const DEFAULT_DETAIL_WAIT_SELECTOR_TIMEOUT_MS = 10000;
 
+// 供 `withErrorIsolation` 包裝清單頁 try body 使用的成功哨兵值:body 本身無
+// 有意義的回傳值(純副作用),用一個模組層級的唯一 Symbol 區分「body 正常
+// 執行完畢」與「body 拋出例外、被 withErrorIsolation 攔截後回傳 undefined」
+// 這兩種情況,藉此保留原本 catch 區塊呼叫 `config.onListPageResolved` 回報
+// 失敗狀態的 follow-up 邏輯。
+const LIST_PAGE_SUCCESS = Symbol('list-page-success');
+
 /**
  * 建立通用清單/詳情爬蟲路由引擎。
  *
@@ -144,14 +154,15 @@ export function createCrawlRouter<
   // 供後續同一輪清單頁下所有 DETAIL 請求共用讀取——比照原 `apps/crawler/src/
   // handler.ts` 的 `let batchSize = 1;` closure 共享模式(該值於引擎生命週期內
   // 為單一清單頁走訪的最新結果,非逐頁重置為初始值,亦與原實作行為一致)。
+  // 累積/門檻檢查/flush 機制改用共用的 `createBatchAccumulator`;`batchSize`
+  // closure 變數本身仍由清單頁 handler 重新賦值,accumulator 透過
+  // `resolveBatchSize` 每次 push 時重新讀取最新值,行為與原本一致。
   let batchSize = 1;
-  const pendingItems: TPersistItem[] = [];
-
-  const flushPending = async (): Promise<void> => {
-    if (pendingItems.length === 0) return;
-    const batch = pendingItems.splice(0, pendingItems.length);
-    await config.onBatchReady(batch);
-  };
+  const batchAccumulator = createBatchAccumulator<TPersistItem>({
+    resolveBatchSize: () => batchSize,
+    onFlush: config.onBatchReady,
+  });
+  const flushPending = (): Promise<void> => batchAccumulator.flushRemaining();
 
   // 記憶化 `resolveExisting()`:於此 `createCrawlRouter` 實例生命週期內僅執行
   // 一次,後續每個清單頁處理皆重用同一個已 resolve 的 Promise(對應 design.md
@@ -167,18 +178,20 @@ export function createCrawlRouter<
   // 進度/ETA 追蹤用的 closure 狀態,對應需求 3.9,完整比照原 `handler.ts`
   // L83-111 的 rolling-average 與 ETA 算法(變數命名亦刻意保持一致以利對照)。
   // 這些狀態於單一 `createCrawlRouter` 實例生命週期內累積,不對外匯出。
-  let listPageAvgDuration = 0;
-  let listPageCount = 0;
-  let detailPageAvgDuration = 0;
-  let detailPageCount = 0;
+  // 清單頁、詳情頁各自的滾動平均改用共用的 `createRollingAverageTracker`——
+  // 兩階段的 tracker 各自獨立(不合併),因為下方 `estimateFinishTime` 的
+  // 兩階段 ETA 合成公式需要各自的 average/count,此公式本身維持私有、不泛化
+  // (design.md Non-Goals)。
+  const listPageTracker = createRollingAverageTracker();
+  const detailPageTracker = createRollingAverageTracker();
   let totalDetailPages = 0;
   let processedDetailPages = 0;
   let lastKnownListPage = 0;
   let lastKnownTotalListPages = 1;
 
   const estimateFinishTime = (): string => {
-    const avgList = listPageAvgDuration;
-    const avgDetail = detailPageAvgDuration;
+    const avgList = listPageTracker.getAverage();
+    const avgDetail = detailPageTracker.getAverage();
     const remainingList = lastKnownTotalListPages - lastKnownListPage;
     const projectedTotalDetail =
       lastKnownListPage > 0
@@ -211,71 +224,74 @@ export function createCrawlRouter<
     let currentPage = 0;
     let totalPages = 0;
 
-    try {
-      batchSize = config.resolveBatchSize
-        ? config.resolveBatchSize(listResponse)
-        : 1;
+    const listPageResult = await withErrorIsolation(
+      log,
+      `Failed to extract data on ${request.url}`,
+      async () => {
+        batchSize = config.resolveBatchSize
+          ? config.resolveBatchSize(listResponse)
+          : 1;
 
-      const pagination = config.parsePagination(listResponse);
-      currentPage = pagination.currentPage;
-      totalPages = pagination.totalPages;
+        const pagination = config.parsePagination(listResponse);
+        currentPage = pagination.currentPage;
+        totalPages = pagination.totalPages;
 
-      log.info(
-        `page ${currentPage} / ${totalPages}, total: ${pagination.totalEntries}`,
-      );
+        log.info(
+          `page ${currentPage} / ${totalPages}, total: ${pagination.totalEntries}`,
+        );
 
-      const rawItems = config.extractItems(listResponse);
-      const existingMeta = await resolveExistingMemoized();
+        const rawItems = config.extractItems(listResponse);
+        const existingMeta = await resolveExistingMemoized();
 
-      const items = rawItems.map(item => {
-        const existingItem = existingMeta.get(item.id);
-        const needToCreate = !existingItem;
-        const withDetailCrawlFields = {
-          title: '',
-          url: '',
-          ...item,
-          existingItem,
-          needToCreate,
-        } as TRawItem & RequireDetailCrawl<TExistingMeta>;
-        return config.transformItem
-          ? config.transformItem(withDetailCrawlFields)
-          : withDetailCrawlFields;
-      });
+        const items = rawItems.map(item => {
+          const existingItem = existingMeta.get(item.id);
+          const needToCreate = !existingItem;
+          const withDetailCrawlFields = {
+            title: '',
+            url: '',
+            ...item,
+            existingItem,
+            needToCreate,
+          } as TRawItem & RequireDetailCrawl<TExistingMeta>;
+          return config.transformItem
+            ? config.transformItem(withDetailCrawlFields)
+            : withDetailCrawlFields;
+        });
 
-      const requestsToEnqueue = items
-        .filter(item => item.needToCreate)
-        .map(item => ({
-          url: item.url,
-          label: 'DETAIL',
-          userData: item,
-        }));
+        const requestsToEnqueue = items
+          .filter(item => item.needToCreate)
+          .map(item => ({
+            url: item.url,
+            label: 'DETAIL',
+            userData: item,
+          }));
 
-      if (requestsToEnqueue.length > 0) {
-        const queue = await RequestQueue.open();
-        await queue.addRequests(requestsToEnqueue);
-        totalDetailPages += requestsToEnqueue.length;
-        log.info(`Enqueued ${requestsToEnqueue.length} detail pages`);
-      }
+        if (requestsToEnqueue.length > 0) {
+          const queue = await RequestQueue.open();
+          await queue.addRequests(requestsToEnqueue);
+          totalDetailPages += requestsToEnqueue.length;
+          log.info(`Enqueued ${requestsToEnqueue.length} detail pages`);
+        }
 
-      await config.onListPageResolved({
-        url: request.url,
-        page: currentPage,
-        totalPages,
-        status: 'completed',
-      });
+        await config.onListPageResolved({
+          url: request.url,
+          page: currentPage,
+          totalPages,
+          status: 'completed',
+        });
 
-      lastKnownListPage = currentPage;
-      lastKnownTotalListPages = totalPages;
-      const pageElapsed = Date.now() - pageStart;
-      listPageCount++;
-      listPageAvgDuration =
-        (listPageAvgDuration * (listPageCount - 1) + pageElapsed) /
-        listPageCount;
-      log.info(
-        `List page ${currentPage}/${totalPages} took ${formatDuration(pageElapsed)}. Est. finish: ${estimateFinishTime()}`,
-      );
-    } catch (error) {
-      log.error(`Failed to extract data on ${request.url}: ${error}`);
+        lastKnownListPage = currentPage;
+        lastKnownTotalListPages = totalPages;
+        const pageElapsed = Date.now() - pageStart;
+        listPageTracker.recordSample(pageElapsed);
+        log.info(
+          `List page ${currentPage}/${totalPages} took ${formatDuration(pageElapsed)}. Est. finish: ${estimateFinishTime()}`,
+        );
+        return LIST_PAGE_SUCCESS;
+      },
+    );
+
+    if (listPageResult !== LIST_PAGE_SUCCESS) {
       await config.onListPageResolved({
         url: request.url,
         page: currentPage,
@@ -291,39 +307,34 @@ export function createCrawlRouter<
       log.info(`Processing detail page: ${request.loadedUrl || request.url}`);
       const detailStart = Date.now();
 
-      try {
-        await page
-          .waitForSelector(config.detailPageWaitSelector, {
-            timeout: DEFAULT_DETAIL_WAIT_SELECTOR_TIMEOUT_MS,
-          })
-          .catch(() => undefined);
+      await withErrorIsolation(
+        log,
+        `Failed to extract data on ${request.url}`,
+        async () => {
+          await page
+            .waitForSelector(config.detailPageWaitSelector, {
+              timeout: DEFAULT_DETAIL_WAIT_SELECTOR_TIMEOUT_MS,
+            })
+            .catch(() => undefined);
 
-        const detail = await page.evaluate(config.extractDetailOnHTML);
+          const detail = await page.evaluate(config.extractDetailOnHTML);
 
-        const item = request.userData as TRawItem &
-          RequireDetailCrawl<TExistingMeta>;
-        const persistItem = config.buildPersistItem(item, detail);
+          const item = request.userData as TRawItem &
+            RequireDetailCrawl<TExistingMeta>;
+          const persistItem = config.buildPersistItem(item, detail);
 
-        if (persistItem !== undefined) {
-          pendingItems.push(persistItem);
-        }
+          if (persistItem !== undefined) {
+            await batchAccumulator.push(persistItem);
+          }
 
-        if (pendingItems.length >= batchSize) {
-          await flushPending();
-        }
-
-        const detailElapsed = Date.now() - detailStart;
-        detailPageCount++;
-        detailPageAvgDuration =
-          (detailPageAvgDuration * (detailPageCount - 1) + detailElapsed) /
-          detailPageCount;
-        processedDetailPages++;
-        log.info(
-          `Detail ${processedDetailPages}/${Math.max(totalDetailPages, processedDetailPages)} took ${formatDuration(detailElapsed)}. Est. finish: ${estimateFinishTime()}`,
-        );
-      } catch (error) {
-        log.error(`Failed to extract data on ${request.url}: ${error}`);
-      }
+          const detailElapsed = Date.now() - detailStart;
+          detailPageTracker.recordSample(detailElapsed);
+          processedDetailPages++;
+          log.info(
+            `Detail ${processedDetailPages}/${Math.max(totalDetailPages, processedDetailPages)} took ${formatDuration(detailElapsed)}. Est. finish: ${estimateFinishTime()}`,
+          );
+        },
+      );
     },
   );
 

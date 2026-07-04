@@ -35,3 +35,11 @@ export type {
 
 export { createCrawlRouter } from './router/crawl-router';
 
+export { createRollingAverageTracker } from './progress/rolling-average';
+export type { RollingAverageTracker } from './progress/rolling-average';
+
+export { createBatchAccumulator } from './progress/batch-accumulator';
+export type { BatchAccumulator } from './progress/batch-accumulator';
+
+export { withErrorIsolation } from './progress/error-isolation';
+
