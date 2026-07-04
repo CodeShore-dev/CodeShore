@@ -1,12 +1,7 @@
-import { createCrawlRouter } from '@codeshore/crawler-core';
+import { createSyncRouter } from '@codeshore/sync-core';
 
 import { ExistingJob } from '../@types';
-import {
-  PersistItem,
-  onBatchReady,
-  onListPageResolved,
-  resolveExisting,
-} from '../persistence';
+import { PersistItem, sourceRegistry, syncRepository } from '../persistence';
 import {
   JobDetailOnHTML,
   JobOnAPI,
@@ -19,7 +14,7 @@ import {
 } from './utils';
 
 export const createHandler = (allGroupKeywords: string[]) =>
-  createCrawlRouter<
+  createSyncRouter<
     JobsAPIResponse,
     JobOnAPI & { id: string },
     JobDetailOnHTML,
@@ -43,11 +38,10 @@ export const createHandler = (allGroupKeywords: string[]) =>
       url: `https://www.cake.me/companies/${job.page.path}/jobs/${job.path}`,
       title: job.title,
     }),
-    resolveExisting,
     detailPageWaitSelector: waitFordDetailPageSelector,
     extractDetailOnHTML: extractJobDetailOnHTML,
     buildPersistItem: buildPersistItem(allGroupKeywords),
     resolveBatchSize: response => response.per_page,
-    onBatchReady,
-    onListPageResolved,
+    repository: syncRepository,
+    sourceRegistry,
   });
