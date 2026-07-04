@@ -75,4 +75,28 @@ describe('JobTechFilterPanel', () => {
     // matching catalog record -- the raw id should still render (not blank).
     expect(screen.getByText('unknown-parent-id')).toBeInTheDocument();
   });
+
+  it('applies non-shrinking, tabular-number styling to the count badge so it cannot be squeezed at mobile widths (Req 3.1, 3.2)', async () => {
+    renderWithProviders(<JobTechFilterPanel />);
+
+    const countEl = await screen.findByText('10');
+
+    expect(countEl.className).toContain('shrink-0');
+    expect(countEl.className).toContain('tabular-nums');
+  });
+
+  it('protects the tech label with min-w-0/truncate so long labels do not push the count out of alignment (Req 3.1, 3.2)', async () => {
+    renderWithProviders(<JobTechFilterPanel />);
+
+    const labelEl = await screen.findByText('React');
+
+    expect(labelEl.className).toContain('truncate');
+
+    // truncate only takes effect in a flex layout if an ancestor flex
+    // container constrains its min-width via min-w-0 (flex items default to
+    // min-width: auto). The label's immediate flex-row ancestor must carry
+    // min-w-0 for the truncation to actually apply.
+    const labelRow = labelEl.parentElement;
+    expect(labelRow?.className).toContain('min-w-0');
+  });
 });

@@ -196,7 +196,7 @@ export function JobTechFilterPanel() {
                     close
                   </span>
                 ) : null}
-                <span>{tech.count}</span>
+                <span className="shrink-0 tabular-nums">{tech.count}</span>
               </span>
             </span>
           );
