@@ -1,20 +1,34 @@
 import { Entry, SupabaseTable } from '@codeshore/data-types';
 import {
   CompanyService,
-  JobService,
   JobKeywordService,
+  JobService,
+  JobSourceService,
+  JobSourceURLService,
   createJobSourceURLs,
   upsertJobSourceURL,
 } from '@codeshore/data-utils';
-import type { ListPageResolvedEvent } from '@codeshore/crawler-core';
+import type {
+  SourceLocation,
+  SourceRegistry,
+  SyncRepository,
+} from '@codeshore/sync-core';
 
 /**
- * `apps/crawler` 端符合 `@codeshore/crawler-core` 注入式 callback 合約的持久化
- * 邏輯,以既有 Supabase 服務(`CompanyService`/`JobService`/`JobKeywordService`/
- * `job_source_url` 相關函式)為後盾。104 與 Cake 兩個 router 實例皆注入這裡匯出
- * 的同一組函式參照,以重現原 `apps/crawler/src/handler.ts` 模組層級全域
- * `existingJobs` 跨 router 共享的行為(design.md「resolveExisting 記憶化」段落、
- * 「Open Questions / Risks」的跨 router 共享風險)。
+ * `apps/crawler` 端符合 `@codeshore/sync-core` 抽象介面合約的持久化邏輯,以既有
+ * Supabase 服務(`CompanyService`/`JobService`/`JobKeywordService`/
+ * `JobSourceService`/`JobSourceURLService`/`job_source_url` 相關函式)為後盾。
+ *
+ * 對外匯出兩個物件:
+ * - `syncRepository`:實作 `SyncRepository<PersistItem, ExistingJobMeta>`,供
+ *   `createSyncRouter` 轉接進 `createCrawlRouter` 的 `resolveExisting`/
+ *   `onBatchReady`。104 與 Cake 兩個 router 實例皆注入同一個 `syncRepository`
+ *   參照,以重現原 `apps/crawler/src/handler.ts` 模組層級全域 `existingJobs`
+ *   跨 router 共享的行為(design.md「resolveExisting 記憶化」段落、
+ *   「Open Questions / Risks」的跨 router 共享風險)。
+ * - `sourceRegistry`:實作 `SourceRegistry`,供 `resolveSourcesToProcess`/
+ *   `createSyncRouter` 使用,取代 `apps/crawler/src/main.ts` 手動組裝的
+ *   `JobSourceURLService`/`JobSourceService` 查詢邏輯。
  */
 
 /** 既有 Job 的最小中繼資訊,對應原 `apps/crawler/src/@types.ts` 的 `ExistingJob`。 */
@@ -37,73 +51,129 @@ export type PersistItem = Omit<Entry, 'company' | 'jobKeyword'> &
 
 // 模組層級記憶化:整個 `apps/crawler` 行程生命週期內,無論被哪個 router 實例
 // 呼叫幾次,底層 Supabase 查詢最多只會執行一次。104 與 Cake 兩個 router 設定物件
-// 都必須注入這裡匯出的同一個 `resolveExisting` 函式參照,才能達成跨 router 共享
+// 都必須注入這裡匯出的同一個 `syncRepository` 參照,才能達成跨 router 共享
 // (對應原 `handler.ts` 的 `let existingJobs: ExistingJob[] = [];` 模組層級變數)。
 let existingMetaPromise: Promise<Map<string, ExistingJobMeta>> | undefined;
 
 /**
- * 記憶化查找既有 Job 項目,轉為以 `id` 為鍵的 Map。
- * 對應原 `handler.ts` L220-226 的 `existingJobs` 查找邏輯,但改為模組層級
- * 記憶化(而非該檔案原本的「若快取為空才查」判斷),確保底層 Supabase 查詢
- * 在整個行程生命週期內最多執行一次。
+ * `SyncRepository<PersistItem, ExistingJobMeta>` 實作,供 `createSyncRouter`
+ * 轉接進 `createCrawlRouter` 的 `resolveExisting`/`onBatchReady`。
  */
-export function resolveExisting(): Promise<Map<string, ExistingJobMeta>> {
-  if (!existingMetaPromise) {
-    existingMetaPromise = new JobService()
-      .fetchAll({ select: 'id, updated_at, created_at' })
-      .then(({ result }) => {
-        const map = new Map<string, ExistingJobMeta>();
-        for (const job of result as ExistingJobMeta[]) {
-          map.set(job.id, job);
-        }
-        return map;
-      });
-  }
-  return existingMetaPromise;
-}
+export const syncRepository: SyncRepository<PersistItem, ExistingJobMeta> = {
+  /**
+   * 記憶化查找既有 Job 項目,轉為以 `id` 為鍵的 Map。
+   * 對應原 `handler.ts` L220-226 的 `existingJobs` 查找邏輯,但改為模組層級
+   * 記憶化(而非該檔案原本的「若快取為空才查」判斷),確保底層 Supabase 查詢
+   * 在整個行程生命週期內最多執行一次。
+   */
+  fetchExisting(): Promise<Map<string, ExistingJobMeta>> {
+    if (!existingMetaPromise) {
+      existingMetaPromise = new JobService()
+        .fetchAll({ select: 'id, updated_at, created_at' })
+        .then(({ result }) => {
+          const map = new Map<string, ExistingJobMeta>();
+          for (const job of result as ExistingJobMeta[]) {
+            map.set(job.id, job);
+          }
+          return map;
+        });
+    }
+    return existingMetaPromise;
+  },
+
+  /**
+   * 批次持久化:依 `entities` 內容分流呼叫 `CompanyService`/`JobService`/
+   * `JobKeywordService` 的 `upsert`。對應原 `handler.ts` 的 `flushBatch`
+   * (L113-133),但不再持有 pending 佇列本身——佇列的累積與門檻判斷已下放
+   * 至 `@codeshore/crawler-core` 的 `createCrawlRouter`,此函式只負責「佇列
+   * 準備好時」的實際寫入分派。`company`/`jobKeyword` 為可選(見 `PersistItem`
+   * 型別註解的 closed-fallback 案例),此處於分派前個別過濾掉未提供的項目,
+   * 避免將 `undefined` 送進對應 service 的 `upsert`。
+   */
+  async upsertEntities(entities: PersistItem[]): Promise<void> {
+    if (entities.length === 0) return;
+
+    const companies = entities
+      .map(item => item.company)
+      .filter((company): company is SupabaseTable.Company =>
+        Boolean(company),
+      );
+    const jobs = entities.map(item => item.job);
+    const jobKeywords = entities
+      .map(item => item.jobKeyword)
+      .filter((jobKeyword): jobKeyword is SupabaseTable.Job_.Keyword =>
+        Boolean(jobKeyword),
+      );
+
+    if (companies.length > 0) {
+      await new CompanyService().upsert(companies);
+    }
+    await new JobService().upsert(jobs);
+    if (jobKeywords.length > 0) {
+      await new JobKeywordService().upsert(jobKeywords);
+    }
+  },
+};
 
 /**
- * 批次持久化:依 `items` 內容分流呼叫 `CompanyService`/`JobService`/
- * `JobKeywordService` 的 `upsert`。對應原 `handler.ts` 的 `flushBatch`
- * (L113-133),但不再持有 pending 佇列本身——佇列的累積與門檻判斷已下放
- * 至 `@codeshore/crawler-core` 的 `createCrawlRouter`,此函式只負責「佇列
- * 準備好時」的實際寫入分派。`company`/`jobKeyword` 為可選(見 `PersistItem`
- * 型別註解的 closed-fallback 案例),此處於分派前個別過濾掉未提供的項目,
- * 避免將 `undefined` 送進對應 service 的 `upsert`。
+ * `SourceRegistry` 實作,包裝既有 `JobSourceService`/`JobSourceURLService`/
+ * `createJobSourceURLs`/`upsertJobSourceURL`,供 `resolveSourcesToProcess`/
+ * `createSyncRouter` 使用。
  */
-export async function onBatchReady(items: PersistItem[]): Promise<void> {
-  if (items.length === 0) return;
+export const sourceRegistry: SourceRegistry = {
+  /**
+   * 取得目前登記為 pending 狀態的來源分頁,依 url 再依 pageIndex 排序。
+   * 對應原 `main.ts` L400-407 的 `JobSourceURLService().fetchAll(...)` 查詢。
+   */
+  async fetchPendingSources(): Promise<SourceLocation[]> {
+    const { result } = await new JobSourceURLService().fetchAll({
+      where: { status: { eq: 'pending' } },
+      orders: [
+        { column: 'url', ascending: true },
+        { column: 'page_index', ascending: true },
+      ],
+    });
+    return result.map(row => ({
+      url: row.url,
+      pageIndex: row.page_index,
+    }));
+  },
 
-  const companies = items
-    .map(item => item.company)
-    .filter((company): company is SupabaseTable.Company => Boolean(company));
-  const jobs = items.map(item => item.job);
-  const jobKeywords = items
-    .map(item => item.jobKeyword)
-    .filter((jobKeyword): jobKeyword is SupabaseTable.Job_.Keyword =>
-      Boolean(jobKeyword),
-    );
+  /**
+   * fresh 模式起始點:取得所有來源的基底 URL(不含分頁游標)。
+   * 對應原 `main.ts` L433-434 的 `JobSourceService().fetchAll()` 查詢。
+   */
+  async fetchBaseSources(): Promise<string[]> {
+    const { result } = await new JobSourceService().fetchAll();
+    return result.map(row => row.url);
+  },
 
-  if (companies.length > 0) {
-    await new CompanyService().upsert(companies);
-  }
-  await new JobService().upsert(jobs);
-  if (jobKeywords.length > 0) {
-    await new JobKeywordService().upsert(jobKeywords);
-  }
-}
+  /**
+   * 某來源第一頁完成後,若總頁數大於一,登記其餘分頁為待處理。
+   * 對應原 `handler.ts`/`persistence.ts` 的 `onListPageResolved` 呼叫
+   * `createJobSourceURLs` 的分支。
+   */
+  registerPendingPages(url: string, totalPages: number): Promise<void> {
+    return createJobSourceURLs(url, totalPages).then(() => undefined);
+  },
 
-/**
- * 清單頁狀態回報:更新既有的進度追蹤資料。對應原 `handler.ts` L277-296:
- * - 無論成功或失敗,呼叫 `upsertJobSourceURL(url, page, status)` 更新該頁狀態。
- * - 僅在成功且為第一頁、且總頁數大於一時,呼叫 `createJobSourceURLs(url, totalPages)`
- *   預先登記其餘分頁為 `pending`,供後續清單頁走訪與斷點續傳使用。
- */
-export async function onListPageResolved(
-  event: ListPageResolvedEvent,
-): Promise<void> {
-  if (event.status === 'completed' && event.page === 1 && event.totalPages > 1) {
-    await createJobSourceURLs(event.url, event.totalPages);
-  }
-  await upsertJobSourceURL(event.url, event.page, event.status);
-}
+  /**
+   * 更新某來源某分頁的最終狀態。對應原 `handler.ts`/`persistence.ts` 的
+   * `onListPageResolved` 呼叫 `upsertJobSourceURL` 的部分。
+   */
+  markSourceStatus(
+    url: string,
+    pageIndex: number,
+    status: 'completed' | 'failed',
+  ): Promise<void> {
+    return upsertJobSourceURL(url, pageIndex, status).then(() => undefined);
+  },
+
+  /**
+   * fresh 模式:清除所有已追蹤的分頁狀態。對應原 `main.ts` L378-382 的
+   * `JobSourceURLService().clearAll()` 呼叫。
+   */
+  clearAll(): Promise<void> {
+    return new JobSourceURLService().clearAll().then(() => undefined);
+  },
+};
