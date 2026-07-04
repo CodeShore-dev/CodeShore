@@ -1,17 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
+import type { CompanyFilterEntry } from './jobFilterStore';
 import { type JobWhereInput, deriveJobWhere } from './deriveJobWhere';
 
 const base: JobWhereInput = {
   searchText: '',
-  companySearchText: '',
+  companyFilters: [],
   salaryFilter: 'none',
   salaryAmount: { type: '', amount: null },
   selectedLocations: [],
-  excludedCompanies: [],
   selectedTags: [],
   excludedTags: [],
-  keywordOperator: 'and',
+  techOperator: 'and',
 };
 
 describe('deriveJobWhere', () => {
@@ -25,28 +25,38 @@ describe('deriveJobWhere', () => {
     });
   });
 
-  it('builds a company_name ilike', () => {
-    expect(
-      deriveJobWhere({ ...base, companySearchText: 'acme' }),
-    ).toEqual({ company_name: { ilike: '%acme%' } });
-  });
-
-  it('builds a company_name not.in for excluded companies', () => {
-    expect(
-      deriveJobWhere({ ...base, excludedCompanies: ['Acme', 'Globex'] }),
-    ).toEqual({ company_name: { 'not.in': '(Acme,Globex)' } });
-  });
-
-  it('merges company search and excluded companies on the same column', () => {
-    expect(
-      deriveJobWhere({
-        ...base,
-        companySearchText: 'acme',
-        excludedCompanies: ['Globex'],
-      }),
-    ).toEqual({
-      company_name: { ilike: '%acme%', 'not.in': '(Globex)' },
+  it('builds a company_name in.(...) for include-only company filters', () => {
+    const companyFilters: CompanyFilterEntry[] = [
+      { name: 'Acme', mode: 'include' },
+      { name: 'Globex', mode: 'include' },
+    ];
+    expect(deriveJobWhere({ ...base, companyFilters })).toEqual({
+      company_name: { in: '(Acme,Globex)' },
     });
+  });
+
+  it('builds a company_name not.in(...) for exclude-only company filters', () => {
+    const companyFilters: CompanyFilterEntry[] = [
+      { name: 'Acme', mode: 'exclude' },
+      { name: 'Globex', mode: 'exclude' },
+    ];
+    expect(deriveJobWhere({ ...base, companyFilters })).toEqual({
+      company_name: { 'not.in': '(Acme,Globex)' },
+    });
+  });
+
+  it('merges include and exclude company filters on the same column', () => {
+    const companyFilters: CompanyFilterEntry[] = [
+      { name: 'Acme', mode: 'include' },
+      { name: 'Globex', mode: 'exclude' },
+    ];
+    expect(deriveJobWhere({ ...base, companyFilters })).toEqual({
+      company_name: { in: '(Acme)', 'not.in': '(Globex)' },
+    });
+  });
+
+  it('omits company_name entirely when no company filters are present', () => {
+    expect(deriveJobWhere({ ...base, companyFilters: [] })).toEqual({});
   });
 
   it('uses cs for AND and ov for OR on included tags', () => {
@@ -57,7 +67,7 @@ describe('deriveJobWhere', () => {
       deriveJobWhere({
         ...base,
         selectedTags: ['a', 'b'],
-        keywordOperator: 'or',
+        techOperator: 'or',
       }),
     ).toEqual({ techs: { ov: '{a,b}' } });
   });

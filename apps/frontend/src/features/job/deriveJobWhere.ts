@@ -1,13 +1,14 @@
+import type { CompanyFilterEntry } from './jobFilterStore';
+
 export interface JobWhereInput {
   searchText: string;
-  companySearchText: string;
+  companyFilters: CompanyFilterEntry[];
   salaryFilter: 'none' | 'excluding' | 'only';
   salaryAmount: { type: 'month' | 'year' | ''; amount: number | null };
   selectedLocations: string[];
-  excludedCompanies: string[];
   selectedTags: string[];
   excludedTags: string[];
-  keywordOperator: 'and' | 'or';
+  techOperator: 'and' | 'or';
 }
 
 const HAS_SALARY_WHERE = [
@@ -30,26 +31,33 @@ export function deriveJobWhere(
     orGroups.push(`title.ilike.%${q}%,description.ilike.%${q}%`);
   }
 
+  const includeNames = input.companyFilters
+    .filter((entry) => entry.mode === 'include')
+    .map((entry) => entry.name);
+  const excludeNames = input.companyFilters
+    .filter((entry) => entry.mode === 'exclude')
+    .map((entry) => entry.name);
+
   const companyConditions: Record<string, string> = {};
-  if (input.companySearchText.trim()) {
-    companyConditions.ilike = `%${input.companySearchText.trim()}%`;
+  if (includeNames.length > 0) {
+    companyConditions.in = `(${includeNames.join(',')})`;
   }
-  if (input.excludedCompanies.length > 0) {
-    companyConditions['not.in'] = `(${input.excludedCompanies.join(',')})`;
+  if (excludeNames.length > 0) {
+    companyConditions['not.in'] = `(${excludeNames.join(',')})`;
   }
   if (Object.keys(companyConditions).length > 0) {
     where.company_name = companyConditions;
   }
 
-  const hasInclude = input.selectedTags.length > 0;
-  const hasExclude = input.excludedTags.length > 0;
-  if (hasInclude || hasExclude) {
+  const hasIncludeTags = input.selectedTags.length > 0;
+  const hasExcludeTags = input.excludedTags.length > 0;
+  if (hasIncludeTags || hasExcludeTags) {
     const conditions: Record<string, string> = {};
-    if (hasInclude) {
-      const op = input.keywordOperator === 'or' ? 'ov' : 'cs';
+    if (hasIncludeTags) {
+      const op = input.techOperator === 'or' ? 'ov' : 'cs';
       conditions[op] = `{${input.selectedTags.join(',')}}`;
     }
-    if (hasExclude) {
+    if (hasExcludeTags) {
       conditions['not.ov'] = `{${input.excludedTags.join(',')}}`;
     }
     where.techs = conditions;
