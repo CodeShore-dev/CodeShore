@@ -1,9 +1,10 @@
 import { useMemo, useRef } from 'react';
 
 import { useTechsQuery } from '../../keyword/queries';
+import { techChipClass } from '../techChipStyle';
 
-export interface KeywordTooltipData {
-  keyword: string;
+export interface TechTooltipData {
+  tech: string;
   groups: {
     name: string;
     count: number;
@@ -15,62 +16,60 @@ export interface KeywordTooltipData {
 
 interface JobDescriptionHighlighterProps {
   htmlContent: string;
-  keywords: string[];
-  selectedKeywords: Set<string>;
-  onTooltipShow: (data: KeywordTooltipData) => void;
+  techs: string[];
+  selectedTechs: Set<string>;
+  onTooltipShow: (data: TechTooltipData) => void;
   onTooltipHide: () => void;
-  onKeywordSelect: (keyword: string) => void;
+  onTechSelect: (tech: string) => void;
 }
 
 const escapeRegExp = (str: string) =>
   str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-// Highlights matched keywords inside the JD HTML and drives the keyword tooltip
-// / admin keyword-tagging selection (task 7.5), ported from
+// Highlights matched techs inside the JD HTML and drives the tech tooltip
+// / admin tech-tagging selection (task 7.5), ported from
 // JobDescriptionHighlighter.vue. Group lookups come from the shared catalog.
 export function JobDescriptionHighlighter({
   htmlContent,
-  keywords,
-  selectedKeywords,
+  techs,
+  selectedTechs,
   onTooltipShow,
   onTooltipHide,
-  onKeywordSelect,
+  onTechSelect,
 }: JobDescriptionHighlighterProps) {
-  const { data: techs = [] } = useTechsQuery();
+  const { data: techCatalog = [] } = useTechsQuery();
   const descriptionRef = useRef<HTMLDivElement | null>(null);
-  const activeTooltipKeyword = useRef<string | null>(null);
+  const activeTooltipTech = useRef<string | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const highlightedContent = useMemo(() => {
-    if (!htmlContent || keywords.length === 0) return htmlContent;
+    if (!htmlContent || techs.length === 0) return htmlContent;
     const regex = new RegExp(
-      `(?<![\\w-])(${keywords.map(escapeRegExp).join('|')})(?![\\w-]|(\\.$)\\w)`,
+      `(?<![\\w-])(${techs.map(escapeRegExp).join('|')})(?![\\w-]|(\\.$)\\w)`,
       'gi',
     );
     return htmlContent.replace(regex, match => {
-      const isSelected = selectedKeywords.has(match.toLowerCase());
-      return `<span data-keyword="${match.toLowerCase()}" class="${
-        isSelected
-          ? 'bg-primary text-on-primary'
-          : 'bg-surface-container text-on-surface-variant'
-      } cursor-pointer rounded-full px-3 py-1 text-sm font-bold ">${match}</span>`;
+      const isSelected = selectedTechs.has(match.toLowerCase());
+      return `<span data-tech="${match.toLowerCase()}" class="${techChipClass(
+        isSelected,
+      )} cursor-pointer rounded-full px-3 py-1 text-sm font-bold ">${match}</span>`;
     });
-  }, [htmlContent, keywords, selectedKeywords]);
+  }, [htmlContent, techs, selectedTechs]);
 
-  const buildTooltipData = (span: HTMLElement): KeywordTooltipData => {
-    const keyword = span.dataset.keyword ?? '';
-    const groups = techs
+  const buildTooltipData = (span: HTMLElement): TechTooltipData => {
+    const tech = span.dataset.tech ?? '';
+    const groups = techCatalog
       .filter(g =>
-        g.keywords.map(k => k.toLowerCase()).includes(keyword.toLowerCase()),
+        g.keywords.map(k => k.toLowerCase()).includes(tech.toLowerCase()),
       )
       .map(g => ({ name: g.label, count: g.count, category: g.category }));
     const rect = span.getBoundingClientRect();
-    return { keyword, groups, x: rect.left + rect.width / 2, y: rect.top };
+    return { tech, groups, x: rect.left + rect.width / 2, y: rect.top };
   };
 
   const scheduleHide = () => {
     hideTimer.current = setTimeout(() => {
-      activeTooltipKeyword.current = null;
+      activeTooltipTech.current = null;
       onTooltipHide();
     }, 120);
   };
@@ -79,24 +78,24 @@ export function JobDescriptionHighlighter({
     if (hideTimer.current) clearTimeout(hideTimer.current);
     const data = buildTooltipData(span);
     span.addEventListener('mouseleave', scheduleHide);
-    activeTooltipKeyword.current = data.keyword;
+    activeTooltipTech.current = data.tech;
     onTooltipShow(data);
   };
 
   const handleMouseOver = (event: React.MouseEvent) => {
     const span = (event.target as HTMLElement).closest(
-      '[data-keyword]',
+      '[data-tech]',
     ) as HTMLElement | null;
     if (span) showTooltip(span);
   };
 
   const handleClick = (event: React.MouseEvent) => {
     const span = (event.target as HTMLElement).closest(
-      '[data-keyword]',
+      '[data-tech]',
     ) as HTMLElement | null;
     if (!span) return;
-    if (activeTooltipKeyword.current === span.dataset.keyword) {
-      activeTooltipKeyword.current = null;
+    if (activeTooltipTech.current === span.dataset.tech) {
+      activeTooltipTech.current = null;
       onTooltipHide();
     } else {
       showTooltip(span);
@@ -105,12 +104,12 @@ export function JobDescriptionHighlighter({
 
   const handleMouseUp = () => {
     const selection = window.getSelection();
-    const keyword = selection?.toString().trim();
-    if (!keyword || !descriptionRef.current) return;
+    const tech = selection?.toString().trim();
+    if (!tech || !descriptionRef.current) return;
     const range = selection?.getRangeAt(0);
     if (!range || !descriptionRef.current.contains(range.commonAncestorContainer))
       return;
-    onKeywordSelect(keyword);
+    onTechSelect(tech);
   };
 
   return (

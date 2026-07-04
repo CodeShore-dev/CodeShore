@@ -14,7 +14,7 @@ import { JobCardSkeleton } from './JobCardSkeleton';
 import { JobCrawlPanel } from './JobCrawlPanel';
 import {
   JobDescriptionHighlighter,
-  type KeywordTooltipData,
+  type TechTooltipData,
 } from './JobDescriptionHighlighter';
 import { JobHandoffCTA } from './JobHandoffCTA';
 import { JobTechChips } from './JobTechChips';
@@ -33,7 +33,7 @@ export function JobCard({ job = {}, loading, crawl }: JobCardProps) {
   const selectedTags = useKeywordFilterStore(s => s.selectedTags);
 
   const [keywordTooltip, setKeywordTooltip] =
-    useState<KeywordTooltipData | null>(null);
+    useState<TechTooltipData | null>(null);
   const [popover, setPopover] = useState<{
     keyword: string;
     x: number;
@@ -166,11 +166,11 @@ export function JobCard({ job = {}, loading, crawl }: JobCardProps) {
             </div>
             <JobDescriptionHighlighter
               htmlContent={description}
-              keywords={allKeywords}
-              selectedKeywords={selectedKeywordsSet}
+              techs={allKeywords}
+              selectedTechs={selectedKeywordsSet}
               onTooltipShow={setKeywordTooltip}
               onTooltipHide={() => setKeywordTooltip(null)}
-              onKeywordSelect={handleKeywordSelect}
+              onTechSelect={handleKeywordSelect}
             />
           </div>
         )}
@@ -189,7 +189,7 @@ export function JobCard({ job = {}, loading, crawl }: JobCardProps) {
           >
             <div className="min-w-44 rounded-xl border-2 border-[#c3c6d5] bg-white p-3 shadow-xl">
               <p className="mb-2 text-sm font-black tracking-widest text-[#003d92]">
-                {keywordTooltip.keyword}
+                {keywordTooltip.tech}
               </p>
               {keywordTooltip.groups.length ? (
                 <div className="space-y-1.5">
