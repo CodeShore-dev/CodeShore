@@ -1,10 +1,14 @@
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { renderWithProviders } from '../../../test/renderWithProviders';
 import { useJobFilterStore } from '../jobFilterStore';
 import { useKeywordFilterStore } from '../../keyword/keywordFilterStore';
+
+const { clearJobPreferencesMock } = vi.hoisted(() => ({
+  clearJobPreferencesMock: vi.fn().mockResolvedValue({}),
+}));
 
 vi.mock('../service', () => ({
   DEFAULT_JOB_ORDERS: 'avg_salary:desc',
@@ -42,7 +46,7 @@ vi.mock('../service', () => ({
     .mockResolvedValue({ liked_count: 7, disliked_count: 5 }),
   fetchLocationGroups: vi.fn().mockResolvedValue({ result: [] }),
   setJobPreference: vi.fn().mockResolvedValue({}),
-  clearJobPreferences: vi.fn().mockResolvedValue({}),
+  clearJobPreferences: clearJobPreferencesMock,
   createCrawlEventSource: vi.fn(() => ({ close: vi.fn() })),
 }));
 
@@ -75,6 +79,19 @@ beforeEach(() => {
 afterEach(() => {
   vi.clearAllMocks();
 });
+
+async function clickClearButton(label: string) {
+  const user = userEvent.setup();
+  renderWithProviders(<JobPreferencePage />, { route: '/jobs' });
+
+  // Wait for the tab counts to load so the clear button (hidden at count '0') renders.
+  await screen.findByText('7');
+
+  const clearButton = screen.getByTitle(`清空${label}`);
+  await user.click(clearButton);
+
+  return user;
+}
 
 describe('JobPreferencePage', () => {
   it('renders the job list, filter sidebar, and preference tabs (req 3.1)', async () => {
@@ -124,5 +141,91 @@ describe('JobPreferencePage filtering', () => {
     await user.click(screen.getByText('清除全部'));
 
     expect(useJobFilterStore.getState().searchText).toBe('');
+  });
+
+  it('clears company filters and resets the page when clearing all filters (req 3.2)', async () => {
+    const user = userEvent.setup();
+    useJobFilterStore.setState({
+      companyFilters: [{ name: 'Acme 科技', mode: 'include' }],
+      page: 3,
+    });
+
+    // Spy on the store's setState directly: other clearAllFilters setters
+    // (setSearchText, setSalaryFilter, etc.) call the store's internal `set`
+    // closure captured at store-creation time, NOT this public setState
+    // method, so this spy only observes the literal
+    // `useJobFilterStore.setState({ companyFilters: [], page: 1 })` call in
+    // JobPreferencePage's clearAllFilters. That isolates the assertion from
+    // every other setter's independent page-reset side effect.
+    const setStateSpy = vi.spyOn(useJobFilterStore, 'setState');
+
+    renderWithProviders(<JobPreferencePage />, { route: '/jobs' });
+
+    expect(await screen.findByText('清除全部')).toBeInTheDocument();
+
+    await user.click(screen.getByText('清除全部'));
+
+    expect(setStateSpy).toHaveBeenCalledWith({ companyFilters: [], page: 1 });
+    expect(useJobFilterStore.getState().companyFilters).toEqual([]);
+    expect(useJobFilterStore.getState().page).toBe(1);
+
+    setStateSpy.mockRestore();
+  });
+});
+
+describe('JobPreferencePage clear-preferences confirmation (req 7)', () => {
+  it('opens a confirm dialog instead of clearing immediately when the clear button is clicked (req 7.1)', async () => {
+    await clickClearButton('喜歡');
+
+    // The dialog should be visible, and no mutation call should have happened yet.
+    expect(
+      await screen.findByRole('button', { name: '確認' }),
+    ).toBeInTheDocument();
+    expect(clearJobPreferencesMock).not.toHaveBeenCalled();
+  });
+
+  it('clears the "like" preferences only after the user confirms (req 7.2)', async () => {
+    const user = await clickClearButton('喜歡');
+
+    await user.click(await screen.findByRole('button', { name: '確認' }));
+
+    await waitFor(() => {
+      expect(clearJobPreferencesMock).toHaveBeenCalledWith('like');
+    });
+    expect(clearJobPreferencesMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('clears the "dislike" preferences only after the user confirms (req 7.2)', async () => {
+    const user = await clickClearButton('不喜歡');
+
+    await user.click(await screen.findByRole('button', { name: '確認' }));
+
+    await waitFor(() => {
+      expect(clearJobPreferencesMock).toHaveBeenCalledWith('dislike');
+    });
+    expect(clearJobPreferencesMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes the dialog without calling the mutation when the user cancels (req 7.3)', async () => {
+    const user = await clickClearButton('喜歡');
+
+    await user.click(await screen.findByRole('button', { name: '取消' }));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('button', { name: '確認' }),
+      ).not.toBeInTheDocument();
+    });
+    expect(clearJobPreferencesMock).not.toHaveBeenCalled();
+  });
+
+  it('does not show the clear button for a preference type with zero count (req 7.4)', async () => {
+    renderWithProviders(<JobPreferencePage />, { route: '/jobs' });
+
+    await screen.findByText('7');
+
+    // The "總數" (total) tab has no onClear wired up, so it never shows a clear button
+    // regardless of count -- only 喜歡/不喜歡 tabs (with onClear) are gated on count !== '0'.
+    expect(screen.queryByTitle('清空總數')).not.toBeInTheDocument();
   });
 });

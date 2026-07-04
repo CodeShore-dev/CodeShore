@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import { formatNumber } from '../../../utils/format';
+import { ConfirmDialog } from '../../../components/ConfirmDialog';
 import { useKeywordFilterStore } from '../../keyword/keywordFilterStore';
 import { useHomeData } from '../../home/hooks/useHomeData';
 import { InfoHint } from '../../methodology/components/InfoHint';
@@ -26,6 +27,9 @@ export function JobPreferencePage() {
   useJobUrlSync();
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [pendingClear, setPendingClear] = useState<'like' | 'dislike' | null>(
+    null,
+  );
 
   // Job filter state.
   const page = useJobFilterStore(s => s.page);
@@ -37,17 +41,14 @@ export function JobPreferencePage() {
   const selectedJobId = useJobFilterStore(s => s.selectedJobId);
   const setSelectedJobId = useJobFilterStore(s => s.setSelectedJobId);
   const searchText = useJobFilterStore(s => s.searchText);
-  const companySearchText = useJobFilterStore(s => s.companySearchText);
+  const companyFilters = useJobFilterStore(s => s.companyFilters);
   const salaryFilter = useJobFilterStore(s => s.salaryFilter);
   const salaryAmount = useJobFilterStore(s => s.salaryAmount);
   const selectedLocations = useJobFilterStore(s => s.selectedLocations);
-  const excludedCompanies = useJobFilterStore(s => s.excludedCompanies);
   const setSearchText = useJobFilterStore(s => s.setSearchText);
-  const setCompanySearchText = useJobFilterStore(s => s.setCompanySearchText);
   const setSalaryFilter = useJobFilterStore(s => s.setSalaryFilter);
   const setSalaryAmount = useJobFilterStore(s => s.setSalaryAmount);
   const setSelectedLocations = useJobFilterStore(s => s.setSelectedLocations);
-  const setExcludedCompanies = useJobFilterStore(s => s.setExcludedCompanies);
 
   // Keyword filter state.
   const selectedTags = useKeywordFilterStore(s => s.selectedTags);
@@ -61,14 +62,13 @@ export function JobPreferencePage() {
 
   const where = deriveJobWhere({
     searchText,
-    companySearchText,
+    companyFilters,
     salaryFilter,
     salaryAmount,
     selectedLocations,
-    excludedCompanies,
     selectedTags,
     excludedTags,
-    keywordOperator,
+    techOperator: keywordOperator,
   });
   const orders = jobListOrders(listViewPreference, sort);
 
@@ -108,16 +108,19 @@ export function JobPreferencePage() {
       pref: 'like' as const,
       count: countText.liked,
       onClick: () => setListViewPreference('like'),
-      onClear: () => clearPreferences.mutate('like'),
+      onClear: () => setPendingClear('like'),
     },
     {
       label: '不喜歡',
       pref: 'dislike' as const,
       count: countText.disliked,
       onClick: () => setListViewPreference('dislike'),
-      onClear: () => clearPreferences.mutate('dislike'),
+      onClear: () => setPendingClear('dislike'),
     },
   ];
+
+  const pendingClearLabel =
+    pendingClear === 'like' ? '喜歡' : pendingClear === 'dislike' ? '不喜歡' : '';
 
   const hasActiveFilters =
     selectedTags.length > 0 ||
@@ -127,9 +130,8 @@ export function JobPreferencePage() {
     salaryAmount.type !== '' ||
     salaryAmount.amount !== null ||
     !!searchText ||
-    !!companySearchText ||
     selectedLocations.length > 0 ||
-    excludedCompanies.length > 0;
+    companyFilters.length > 0;
 
   const clearAllFilters = () => {
     setSelectedTags([]);
@@ -140,9 +142,8 @@ export function JobPreferencePage() {
     setSalaryFilter('none');
     setSalaryAmount({ type: '', amount: null });
     setSearchText('');
-    setCompanySearchText('');
     setSelectedLocations([]);
-    setExcludedCompanies([]);
+    useJobFilterStore.setState({ companyFilters: [], page: 1 });
   };
 
   return (
@@ -250,13 +251,14 @@ export function JobPreferencePage() {
                 >
                   {tab.label}
                 </span>
-                <span className="text-2xl font-black tabular-nums">
-                  {listViewPreference === tab.pref && !loading
-                    ? listTotalCountText
-                    : tab.count}
+                <span className="flex flex-wrap items-baseline justify-center gap-x-1 text-2xl font-black whitespace-nowrap tabular-nums">
+                  <span className="shrink-0">
+                    {listViewPreference === tab.pref && !loading
+                      ? listTotalCountText
+                      : tab.count}
+                  </span>
                   {listViewPreference === tab.pref && (
-                    <span className="text-sm whitespace-nowrap">
-                      {' '}
+                    <span className="shrink-0 text-sm whitespace-nowrap">
                       / {tab.count}
                     </span>
                   )}
@@ -323,6 +325,19 @@ export function JobPreferencePage() {
           onClearAllFilters={clearAllFilters}
         />
       </div>
+
+      <ConfirmDialog
+        open={pendingClear !== null}
+        title={`清空${pendingClearLabel}`}
+        description={`確定要清空所有「${pendingClearLabel}」的職缺紀錄嗎？此操作無法復原。`}
+        onConfirm={() => {
+          if (pendingClear) {
+            clearPreferences.mutate(pendingClear);
+          }
+          setPendingClear(null);
+        }}
+        onCancel={() => setPendingClear(null)}
+      />
     </div>
   );
 }
