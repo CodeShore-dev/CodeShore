@@ -24,7 +24,7 @@ describe('useSwipeCard', () => {
     expect(onCommit).not.toHaveBeenCalled();
 
     act(() => {
-      vi.advanceTimersByTime(250);
+      vi.advanceTimersByTime(400);
     });
     expect(onCommit).toHaveBeenCalledWith('like');
   });

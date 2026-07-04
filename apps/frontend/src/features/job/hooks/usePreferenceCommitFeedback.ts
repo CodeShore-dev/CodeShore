@@ -1,6 +1,9 @@
 import { useState } from 'react';
 
-const DEFAULT_HOLD_MS = 250;
+// Tuned (task 5.1) so the fly-out stamp's own entrance transition (scale +
+// fade, ~300ms in JobSwipeCard) has time to fully play before onCommit fires
+// and the stamp unmounts. Previously 250ms, which could clip the animation.
+const DEFAULT_HOLD_MS = 400;
 
 export interface UsePreferenceCommitFeedbackOptions {
   onCommit: (preference: 'like' | 'dislike') => void;

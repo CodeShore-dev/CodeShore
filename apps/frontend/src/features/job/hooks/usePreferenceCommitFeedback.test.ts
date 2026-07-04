@@ -8,7 +8,7 @@ afterEach(() => {
 });
 
 describe('usePreferenceCommitFeedback', () => {
-  it('sets flying immediately on commit, then calls onCommit and clears flying after the default hold (250ms)', () => {
+  it('sets flying immediately on commit, then calls onCommit and clears flying after the default hold (400ms)', () => {
     vi.useFakeTimers();
     const onCommit = vi.fn();
     const { result } = renderHook(() => usePreferenceCommitFeedback({ onCommit }));
@@ -20,7 +20,7 @@ describe('usePreferenceCommitFeedback', () => {
     expect(onCommit).not.toHaveBeenCalled();
 
     act(() => {
-      vi.advanceTimersByTime(249);
+      vi.advanceTimersByTime(399);
     });
     expect(onCommit).not.toHaveBeenCalled();
     expect(result.current.flying).toBe('like');
