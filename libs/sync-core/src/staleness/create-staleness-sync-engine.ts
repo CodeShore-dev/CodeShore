@@ -2,7 +2,12 @@ import { PuppeteerCrawler } from 'crawlee';
 import type { Page } from 'puppeteer';
 
 import type { PreNavigationHook, StealthLaunchContext } from '@codeshore/crawler-core';
-import { withErrorIsolation } from '@codeshore/crawler-core';
+import {
+  createBatchAccumulator,
+  createRollingAverageTracker,
+  formatDuration,
+  withErrorIsolation,
+} from '@codeshore/crawler-core';
 
 import type { StalenessSyncConfig } from './types';
 
@@ -56,12 +61,18 @@ async function processStaleEntity<TEntity extends { id: string }, TDetail>(
  * 對應需求 5.2 沿用 `crawler-core` 的防偵測瀏覽器啟動設定),逐一造訪每個
  * 項目的詳情頁 URL。
  *
- * **此為任務 4.2 的實作切片**:核心回訪迴圈(host 判斷 → 等待 → 擷取 →
- * `diffAndBuildUpdate`)與錯誤隔離已完整實作;批次累積門檻
- * (`createBatchAccumulator`)與滾動平均/ETA 進度追蹤
- * (`createRollingAverageTracker`)尚未整合——目前每個項目的處理結果直接
- * 呼叫一次 `config.onBatchReady([entity])`,由任務 4.3 接手改為真正的批次
- * 累積與進度回報(詳見本檔案 CONCERNS 說明)。
+ * 核心回訪迴圈(host 判斷 → 等待 → 擷取 → `diffAndBuildUpdate`)與錯誤隔離
+ * 為任務 4.2 的實作切片;任務 4.3 在此基礎上接上真正的批次持久化
+ * (`createBatchAccumulator({resolveBatchSize: () => config.batchSize ?? 1,
+ * onFlush: config.onBatchReady})`,對應需求 3.6)——每筆處理結果透過
+ * `batchAccumulator.push(entity)` 累積,達門檻時自動觸發一次
+ * `config.onBatchReady`,`run()` 結束時呼叫 `flushRemaining()` 送出殘留項目
+ * (比照 `crawl-router.ts` 的 `flushPending` 收尾模式)——以及單一階段的
+ * 進度/ETA 追蹤(`createRollingAverageTracker()`,對應需求 3.7:`avg × 剩餘
+ * 筆數` 即為 ETA,不套用 `crawl-router.ts` 清單頁+詳情頁的雙階段合成公式,
+ * 因為此引擎只有「逐一回訪既有項目」這一個階段)。比照原 `reCrawlJobs`
+ * (`apps/crawler/src/main.ts` L262-271)的行為:每筆項目處理完(無論成功或
+ * 被 `withErrorIsolation` 攔截失敗)都無條件記錄一次耗時樣本並輸出進度。
  */
 export function createStalenessSyncEngine<TEntity extends { id: string }, TDetail>(
   config: StalenessSyncConfig<TEntity, TDetail>,
@@ -76,6 +87,15 @@ export function createStalenessSyncEngine<TEntity extends { id: string }, TDetai
   return {
     async run(stealthConfig, preNavigationHook) {
       const staleEntities = await config.fetchStaleEntities();
+      const totalCount = staleEntities.length;
+
+      const batchAccumulator = createBatchAccumulator<TEntity>({
+        resolveBatchSize: () => config.batchSize ?? 1,
+        onFlush: config.onBatchReady,
+      });
+
+      const progressTracker = createRollingAverageTracker();
+      let processedCount = 0;
 
       const crawler = new PuppeteerCrawler({
         launchContext: stealthConfig as never,
@@ -85,6 +105,7 @@ export function createStalenessSyncEngine<TEntity extends { id: string }, TDetai
         async requestHandler({ request, page, log: crawleeLog }) {
           const entity = (request.userData as { entity: TEntity }).entity;
           const handlerLog = crawleeLog ?? log;
+          const entityStart = Date.now();
 
           const result = await withErrorIsolation(
             log,
@@ -92,17 +113,27 @@ export function createStalenessSyncEngine<TEntity extends { id: string }, TDetai
             async () => processStaleEntity(page, entity, request.url, config),
           );
 
-          if (result === undefined) {
-            return;
+          if (result !== undefined) {
+            if (result.action === 'close') {
+              handlerLog.warning(`[${entity.id}] marked as closed (${request.url})`);
+            } else if (result.action === 'update') {
+              handlerLog.info(`[${entity.id}] updated`);
+            }
+
+            await batchAccumulator.push(result.entity);
           }
 
-          if (result.action === 'close') {
-            handlerLog.warning(`[${entity.id}] marked as closed (${request.url})`);
-          } else if (result.action === 'update') {
-            handlerLog.info(`[${entity.id}] updated`);
-          }
-
-          await config.onBatchReady([result.entity]);
+          // 無條件記錄耗時樣本,無論本次處理成功或被 withErrorIsolation
+          // 攔截失敗——比照原 reCrawlJobs 的 processedCount++/rollingAvgMs
+          // 更新時機(位於 try/catch 區塊之外)。
+          const elapsed = Date.now() - entityStart;
+          processedCount++;
+          progressTracker.recordSample(elapsed);
+          const avgMs = progressTracker.getAverage();
+          const etaMs = avgMs * (totalCount - processedCount);
+          handlerLog.info(
+            `[update] ${processedCount} / ${totalCount} | avg: ${formatDuration(Math.round(avgMs))} | eta: ${formatDuration(Math.round(etaMs))}`,
+          );
         },
       });
 
@@ -112,6 +143,8 @@ export function createStalenessSyncEngine<TEntity extends { id: string }, TDetai
           userData: { entity },
         })),
       );
+
+      await batchAccumulator.flushRemaining();
     },
   };
 }
