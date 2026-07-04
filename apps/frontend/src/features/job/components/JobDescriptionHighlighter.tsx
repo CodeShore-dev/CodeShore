@@ -1,7 +1,22 @@
-import { useMemo, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import { useTechsQuery } from '../../keyword/queries';
 import { techChipClass } from '../techChipStyle';
+import { TechIcon } from '../../../components/TechIcon';
+
+// Isolated so it only re-renders (and re-commits its dangerouslySetInnerHTML
+// subtree) when `html` itself changes, not on every parent re-render (e.g.
+// techCatalog resolving) -- otherwise React tears down and recreates the
+// chip DOM nodes on unrelated renders, invalidating any icon-mount portals
+// targeting them.
+const HighlightedHtml = memo(function HighlightedHtml({
+  html,
+}: {
+  html: string;
+}) {
+  return <div dangerouslySetInnerHTML={{ __html: html }} />;
+});
 
 export interface TechTooltipData {
   tech: string;
@@ -49,12 +64,40 @@ export function JobDescriptionHighlighter({
       'gi',
     );
     return htmlContent.replace(regex, match => {
-      const isSelected = selectedTechs.has(match.toLowerCase());
-      return `<span data-tech="${match.toLowerCase()}" class="${techChipClass(
+      const tech = match.toLowerCase();
+      const isSelected = selectedTechs.has(tech);
+      return `<span data-tech="${tech}" class="${techChipClass(
         isSelected,
-      )} cursor-pointer rounded-full px-3 py-1 text-sm font-bold ">${match}</span>`;
+      )} cursor-pointer rounded-full px-3 py-1 text-sm font-bold "><span data-tech-icon-mount="${tech}"></span>${match}</span>`;
     });
   }, [htmlContent, techs, selectedTechs]);
+
+  const [iconMounts, setIconMounts] = useState<
+    { tech: string; element: HTMLElement }[]
+  >([]);
+
+  // After the highlighted HTML commits, scan for the icon-mount placeholders
+  // inserted above and track them in state so each can be portaled a TechIcon
+  // (dangerouslySetInnerHTML can't embed React components directly). Runs
+  // only when highlightedContent changes, since HighlightedHtml is memoized
+  // and only touches the DOM on those changes.
+  useEffect(() => {
+    const container = descriptionRef.current;
+    if (!container) {
+      setIconMounts([]);
+      return;
+    }
+    const mounts = Array.from(
+      container.querySelectorAll<HTMLElement>('[data-tech-icon-mount]'),
+    ).map(element => ({
+      tech: element.dataset.techIconMount ?? '',
+      element,
+    }));
+    setIconMounts(mounts);
+  }, [highlightedContent]);
+
+  const findTechRecord = (tech: string) =>
+    techCatalog.find(g => g.tech?.toLowerCase() === tech.toLowerCase());
 
   const buildTooltipData = (span: HTMLElement): TechTooltipData => {
     const tech = span.dataset.tech ?? '';
@@ -123,7 +166,19 @@ export function JobDescriptionHighlighter({
       onClick={handleClick}
       onMouseUp={handleMouseUp}
     >
-      <div dangerouslySetInnerHTML={{ __html: highlightedContent }} />
+      <HighlightedHtml html={highlightedContent} />
+      {iconMounts.map(({ tech, element }, index) => {
+        const record = findTechRecord(tech);
+        return createPortal(
+          <TechIcon
+            slugs={record?.icon_slugs}
+            label={record?.label}
+            size={14}
+          />,
+          element,
+          `${tech}-${index}`,
+        );
+      })}
     </div>
   );
 }
