@@ -4,6 +4,7 @@ export interface JobWhereInput {
   salaryFilter: 'none' | 'excluding' | 'only';
   salaryAmount: { type: 'month' | 'year' | ''; amount: number | null };
   selectedLocations: string[];
+  excludedCompanies: string[];
   selectedTags: string[];
   excludedTags: string[];
   keywordOperator: 'and' | 'or';
@@ -29,8 +30,15 @@ export function deriveJobWhere(
     orGroups.push(`title.ilike.%${q}%,description.ilike.%${q}%`);
   }
 
+  const companyConditions: Record<string, string> = {};
   if (input.companySearchText.trim()) {
-    where.company_name = { ilike: `%${input.companySearchText.trim()}%` };
+    companyConditions.ilike = `%${input.companySearchText.trim()}%`;
+  }
+  if (input.excludedCompanies.length > 0) {
+    companyConditions['not.in'] = `(${input.excludedCompanies.join(',')})`;
+  }
+  if (Object.keys(companyConditions).length > 0) {
+    where.company_name = companyConditions;
   }
 
   const hasInclude = input.selectedTags.length > 0;

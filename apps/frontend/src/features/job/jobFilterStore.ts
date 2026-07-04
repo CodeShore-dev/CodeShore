@@ -6,6 +6,7 @@ interface JobFilterState {
   salaryFilter: 'none' | 'excluding' | 'only';
   salaryAmount: { type: 'month' | 'year' | ''; amount: number | null };
   selectedLocations: string[];
+  excludedCompanies: string[];
   sort: 'salary' | 'recent';
   page: number;
   listViewPreference: 'like' | 'dislike' | null;
@@ -18,6 +19,7 @@ interface JobFilterState {
     amount: number | null;
   }) => void;
   setSelectedLocations: (v: string[]) => void;
+  setExcludedCompanies: (v: string[]) => void;
   setSort: (v: 'salary' | 'recent') => void;
   setPage: (v: number) => void;
   setListViewPreference: (v: 'like' | 'dislike' | null) => void;
@@ -34,6 +36,7 @@ export const useJobFilterStore = create<JobFilterState>(set => ({
   salaryFilter: 'none',
   salaryAmount: { type: '', amount: null },
   selectedLocations: [],
+  excludedCompanies: [],
   sort: 'salary',
   page: 1,
   listViewPreference: null,
@@ -43,6 +46,7 @@ export const useJobFilterStore = create<JobFilterState>(set => ({
   setSalaryFilter: v => set({ salaryFilter: v, page: 1 }),
   setSalaryAmount: v => set({ salaryAmount: v, page: 1 }),
   setSelectedLocations: v => set({ selectedLocations: v, page: 1 }),
+  setExcludedCompanies: v => set({ excludedCompanies: v, page: 1 }),
   setSort: v => set({ sort: v, page: 1 }),
   setPage: v => set({ page: v }),
   setListViewPreference: v => set({ listViewPreference: v, page: 1 }),
@@ -54,6 +58,7 @@ export const useJobFilterStore = create<JobFilterState>(set => ({
       salaryFilter: 'none',
       salaryAmount: { type: '', amount: null },
       selectedLocations: [],
+      excludedCompanies: [],
       sort: 'salary',
       page: 1,
       listViewPreference: null,

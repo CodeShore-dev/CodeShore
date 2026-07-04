@@ -44,11 +44,13 @@ export function JobActiveFilters({ onClearAll }: JobActiveFiltersProps) {
   const salaryFilter = useJobFilterStore(s => s.salaryFilter);
   const salaryAmount = useJobFilterStore(s => s.salaryAmount);
   const selectedLocations = useJobFilterStore(s => s.selectedLocations);
+  const excludedCompanies = useJobFilterStore(s => s.excludedCompanies);
   const setSearchText = useJobFilterStore(s => s.setSearchText);
   const setCompanySearchText = useJobFilterStore(s => s.setCompanySearchText);
   const setSalaryFilter = useJobFilterStore(s => s.setSalaryFilter);
   const setSalaryAmount = useJobFilterStore(s => s.setSalaryAmount);
   const setSelectedLocations = useJobFilterStore(s => s.setSelectedLocations);
+  const setExcludedCompanies = useJobFilterStore(s => s.setExcludedCompanies);
 
   const selectedTags = useKeywordFilterStore(s => s.selectedTags);
   const excludedTags = useKeywordFilterStore(s => s.excludedTags);
@@ -132,6 +134,18 @@ export function JobActiveFilters({ onClearAll }: JobActiveFiltersProps) {
           setSelectedLocations(selectedLocations.filter(l => l !== loc)),
       });
     }
+    for (const company of excludedCompanies) {
+      list.push({
+        key: `exc-company-${company}`,
+        group: '排除公司',
+        label: company,
+        kind: 'exclude',
+        remove: () =>
+          setExcludedCompanies(
+            excludedCompanies.filter(c => c !== company),
+          ),
+      });
+    }
     if (salaryFilter !== 'none') {
       list.push({
         key: 'salaryFilter',
@@ -159,6 +173,7 @@ export function JobActiveFilters({ onClearAll }: JobActiveFiltersProps) {
     excludedTags,
     keywordOperator,
     selectedLocations,
+    excludedCompanies,
     salaryFilter,
     salaryAmountLabel,
     groupLabelMap,

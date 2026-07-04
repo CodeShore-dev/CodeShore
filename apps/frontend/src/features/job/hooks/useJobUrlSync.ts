@@ -56,6 +56,8 @@ export function useJobUrlSync() {
     }
     const locations = q.get('locations');
     if (locations) job.setSelectedLocations(locations.split(','));
+    const notCompanies = q.get('notCompanies');
+    if (notCompanies) job.setExcludedCompanies(notCompanies.split(','));
     const tab = q.get('tab');
     if (tab === 'like' || tab === 'dislike') {
       job.setListViewPreference(tab);
@@ -76,6 +78,7 @@ export function useJobUrlSync() {
   const searchText = useJobFilterStore(s => s.searchText);
   const companySearchText = useJobFilterStore(s => s.companySearchText);
   const selectedLocations = useJobFilterStore(s => s.selectedLocations);
+  const excludedCompanies = useJobFilterStore(s => s.excludedCompanies);
   const listViewPreference = useJobFilterStore(s => s.listViewPreference);
   const page = useJobFilterStore(s => s.page);
   const selectedJobId = useJobFilterStore(s => s.selectedJobId);
@@ -103,6 +106,9 @@ export function useJobUrlSync() {
     if (selectedLocations.length) {
       next.set('locations', selectedLocations.join(','));
     }
+    if (excludedCompanies.length) {
+      next.set('notCompanies', excludedCompanies.join(','));
+    }
     if (listViewPreference) next.set('tab', listViewPreference);
     if (page > 1) next.set('page', String(page));
     if (selectedJobId) next.set('jobId', selectedJobId);
@@ -116,6 +122,7 @@ export function useJobUrlSync() {
     searchText,
     companySearchText,
     selectedLocations,
+    excludedCompanies,
     listViewPreference,
     page,
     selectedJobId,

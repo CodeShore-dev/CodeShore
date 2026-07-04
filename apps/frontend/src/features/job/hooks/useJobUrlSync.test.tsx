@@ -36,6 +36,35 @@ describe('useJobUrlSync', () => {
     expect(useJobFilterStore.getState().page).toBe(2);
   });
 
+  it('parses excluded companies from the query', () => {
+    render(
+      <MemoryRouter initialEntries={['/jobs?notCompanies=Acme,Globex']}>
+        <Harness />
+      </MemoryRouter>,
+    );
+
+    expect(useJobFilterStore.getState().excludedCompanies).toEqual([
+      'Acme',
+      'Globex',
+    ]);
+  });
+
+  it('writes excluded companies back to the URL', () => {
+    render(
+      <MemoryRouter initialEntries={['/jobs']}>
+        <Harness />
+      </MemoryRouter>,
+    );
+
+    act(() => {
+      useJobFilterStore.getState().setExcludedCompanies(['Acme']);
+    });
+
+    expect(screen.getByTestId('search').textContent).toContain(
+      'notCompanies=Acme',
+    );
+  });
+
   it('writes store changes back to the URL', () => {
     render(
       <MemoryRouter initialEntries={['/jobs']}>

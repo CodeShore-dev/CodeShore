@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { fetchCompanies } from '../company/service';
 import {
   DEFAULT_JOB_ORDERS,
   fetchJobPreferencedCount,
@@ -57,5 +59,23 @@ export function useLocationGroupsQuery() {
   return useQuery({
     queryKey: ['job', 'locationGroups'],
     queryFn: async () => (await fetchLocationGroups()).result,
+  });
+}
+
+// Company name suggestions for the "exclude company" filter dropdown.
+// Debounced type-ahead against /api/company (top matches only), so it scales
+// to any number of companies without loading the whole table up front.
+export function useCompanySearchQuery(search: string) {
+  const debouncedSearch = useDebouncedValue(search.trim(), 300);
+  return useQuery({
+    queryKey: ['company', 'search', debouncedSearch],
+    queryFn: async () => {
+      const where = JSON.stringify({
+        company_name: { ilike: `%${debouncedSearch}%` },
+      });
+      const res = await fetchCompanies({ from: 0, to: 9, where });
+      return res.result;
+    },
+    enabled: debouncedSearch.length > 0,
   });
 }
