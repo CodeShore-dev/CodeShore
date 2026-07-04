@@ -74,7 +74,11 @@ export function JobSwipeCard({
           </div>
         )}
 
-        <div className="relative" style={cardStyle} {...handlers}>
+        <div
+          className="relative"
+          style={{ ...cardStyle, touchAction: 'pan-y' }}
+          {...handlers}
+        >
           <JobCard job={job} loading={loading} crawl={crawl} />
         </div>
       </div>
