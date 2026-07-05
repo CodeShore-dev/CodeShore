@@ -7,6 +7,7 @@ interface CompanyCardProps {
   techs: SupabaseView.MvTech[];
   categoryLabelMap: Record<string, string>;
   onClick: (companyName: string) => void;
+  onOpenDetail: (company: SupabaseView.MvCompany) => void;
 }
 
 const CATEGORY_PRIORITY: Record<string, number> = {
@@ -23,6 +24,7 @@ export function CompanyCard({
   techs,
   categoryLabelMap,
   onClick,
+  onOpenDetail,
 }: CompanyCardProps) {
   const categoryMap = useMemo(() => {
     const categoryMap = new Map<string, string>();
@@ -77,14 +79,32 @@ export function CompanyCard({
             </span>
           )}
         </div>
-        <div className="shrink-0 text-right">
-          <div
-            className="leading-none font-black tracking-[-0.02em] text-[#003d92] tabular-nums"
-            style={{ fontSize: '1.75rem' }}
-          >
-            {company.job_count}
+        <div className="flex shrink-0 items-start gap-2">
+          <div className="text-right">
+            <div
+              className="leading-none font-black tracking-[-0.02em] text-[#003d92] tabular-nums"
+              style={{ fontSize: '1.75rem' }}
+            >
+              {company.job_count}
+            </div>
+            <div className="mt-0.5 text-[11px] text-[#434653]">個職缺</div>
           </div>
-          <div className="mt-0.5 text-[11px] text-[#434653]">個職缺</div>
+          <button
+            type="button"
+            aria-label="查看公司詳情"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[#434653] transition-colors hover:bg-[#e6f6ff] hover:text-[#003d92]"
+            onClick={event => {
+              event.stopPropagation();
+              onOpenDetail(company);
+            }}
+          >
+            <span
+              className="material-symbols-outlined"
+              style={{ fontSize: '18px' }}
+            >
+              info
+            </span>
+          </button>
         </div>
       </div>
 

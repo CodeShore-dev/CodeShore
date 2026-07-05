@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import { SupabaseView } from '@codeshore/data-types';
@@ -115,5 +116,52 @@ describe('CompanyCard', () => {
     );
 
     expect(screen.queryByText(/工具/)).not.toBeInTheDocument();
+  });
+
+  it('opens the detail view via the dedicated action without triggering the card click-through (Req 4.1)', async () => {
+    const user = userEvent.setup();
+    const techs = [makeTech('typescript', 'language')];
+    const company = makeCompany(['typescript']);
+    const onClick = vi.fn();
+    const onOpenDetail = vi.fn();
+
+    render(
+      <CompanyCard
+        company={company}
+        techs={techs}
+        categoryLabelMap={categoryLabelMap}
+        onClick={onClick}
+        onOpenDetail={onOpenDetail}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /詳情|detail/i }));
+
+    expect(onOpenDetail).toHaveBeenCalledWith(company);
+    expect(onOpenDetail).toHaveBeenCalledTimes(1);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it('still navigates to the jobs list when clicking elsewhere on the card (regression)', async () => {
+    const user = userEvent.setup();
+    const techs = [makeTech('typescript', 'language')];
+    const company = makeCompany(['typescript']);
+    const onClick = vi.fn();
+    const onOpenDetail = vi.fn();
+
+    render(
+      <CompanyCard
+        company={company}
+        techs={techs}
+        categoryLabelMap={categoryLabelMap}
+        onClick={onClick}
+        onOpenDetail={onOpenDetail}
+      />,
+    );
+
+    await user.click(screen.getByText('Acme Corp'));
+
+    expect(onClick).toHaveBeenCalledWith('Acme Corp');
+    expect(onOpenDetail).not.toHaveBeenCalled();
   });
 });
