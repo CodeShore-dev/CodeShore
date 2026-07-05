@@ -8,6 +8,7 @@ export * from './lib/api/tech.service';
 export * from './lib/api/mv_tech_category';
 export * from './lib/api/company.service';
 export * from './lib/api/mv_company';
+export * from './lib/api/mv_company_tech';
 export * from './lib/api/keyword_bin.service';
 export * from './lib/api/job_keyword.service';
 export * from './lib/api/rpc';
