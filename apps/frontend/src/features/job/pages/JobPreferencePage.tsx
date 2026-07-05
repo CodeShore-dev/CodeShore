@@ -10,6 +10,7 @@ import { JobFilterSidebar } from '../components/JobFilterSidebar';
 import { JobList } from '../components/JobList';
 import { deriveJobWhere } from '../deriveJobWhere';
 import { useJobUrlSync } from '../hooks/useJobUrlSync';
+import { useStableNonNegative } from '../hooks/useStableNonNegative';
 import { useJobFilterStore } from '../jobFilterStore';
 import { useClearPreferencesMutation } from '../mutations';
 import { jobListOrders, useJobsQuery, usePreferencedCountQuery } from '../queries';
@@ -84,8 +85,12 @@ export function JobPreferencePage() {
 
   const liked = countQuery.data?.liked_count ?? 0;
   const disliked = countQuery.data?.disliked_count ?? 0;
+  // openJobs and liked/disliked come from independent queries that can
+  // settle out of order; guard against the transient negative total that
+  // would otherwise flash while openJobs is still at its loading default.
+  const stableTotalJobs = useStableNonNegative(openJobs - liked - disliked);
   const countText = {
-    total: formatNumber(openJobs - liked - disliked),
+    total: formatNumber(stableTotalJobs),
     liked: formatNumber(liked),
     disliked: formatNumber(disliked),
   };
