@@ -99,6 +99,13 @@ export type Database = {
             foreignKeyName: "job_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
+            referencedRelation: "mv_company_tech"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "job_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
             referencedRelation: "mv_job"
             referencedColumns: ["company_id"]
           },
@@ -424,6 +431,22 @@ export type Database = {
         }
         Relationships: []
       }
+      mv_company_tech: {
+        Row: {
+          company_id: string | null
+          job_count: number | null
+          tech: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_join_tech_tech_fkey"
+            columns: ["tech"]
+            isOneToOne: false
+            referencedRelation: "tech"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mv_job: {
         Row: {
           avg_salary: number | null
@@ -679,6 +702,7 @@ export type Database = {
         }
       }
       refresh_mv_company: { Args: never; Returns: undefined }
+      refresh_mv_company_tech: { Args: never; Returns: undefined }
       refresh_mv_job: { Args: never; Returns: undefined }
       refresh_mv_location_group: { Args: never; Returns: undefined }
       refresh_mv_salary_range_multiplier: { Args: never; Returns: undefined }

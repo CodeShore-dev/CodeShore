@@ -36,4 +36,12 @@ export namespace SupabaseJobView {
    * job_tech
    */
   export type MvCompany = NonNull<Database['public']['Views']['mv_company']['Row']>;
+
+  /**
+   * company
+   * job
+   * job_tech
+   * tech
+   */
+  export type MvCompanyTech = NonNull<Database['public']['Views']['mv_company_tech']['Row']>;
 }

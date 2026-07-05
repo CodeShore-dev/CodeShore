@@ -124,6 +124,8 @@ CREATE INDEX location_group_location_location_idx ON public.location_group_locat
 CREATE INDEX ix_mv_company_job_count ON public.mv_company USING btree (job_count);
 CREATE INDEX ix_mv_company_type ON public.mv_company USING btree (company_type);
 CREATE UNIQUE INDEX ux_mv_company_company_id ON public.mv_company USING btree (company_id);
+CREATE INDEX ix_mv_company_tech_company_id ON public.mv_company_tech USING btree (company_id);
+CREATE UNIQUE INDEX ux_mv_company_tech_company_id_tech ON public.mv_company_tech USING btree (company_id, tech);
 CREATE INDEX ix_mv_job_company_id ON public.mv_job USING btree (company_id);
 CREATE INDEX ix_mv_job_max_salary ON public.mv_job USING btree (max_salary DESC);
 CREATE INDEX ix_mv_job_min_salary ON public.mv_job USING btree (min_salary DESC);
@@ -160,6 +162,17 @@ CREATE MATERIALIZED VIEW public."mv_company" AS
      JOIN job_tech jkg ON jkg.job_id = j.id
   WHERE j.closed = false
   GROUP BY c.id, c.name, c.link, c.type
+ HAVING count(DISTINCT j.id) > 0;
+
+CREATE MATERIALIZED VIEW public."mv_company_tech" AS
+ SELECT c.id AS company_id,
+    jkg.tech AS tech,
+    COALESCE(count(DISTINCT j.id), 0::bigint) AS job_count
+   FROM company c
+     JOIN job j ON j.company_id = c.id
+     JOIN job_tech jkg ON jkg.job_id = j.id
+  WHERE j.closed = false
+  GROUP BY c.id, jkg.tech
  HAVING count(DISTINCT j.id) > 0;
 
 CREATE MATERIALIZED VIEW public."mv_job" AS
@@ -596,6 +609,17 @@ CREATE OR REPLACE FUNCTION public.refresh_mv_company()
 AS $function$
 BEGIN
   REFRESH MATERIALIZED VIEW CONCURRENTLY public.mv_company;
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.refresh_mv_company_tech()
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+BEGIN
+  REFRESH MATERIALIZED VIEW CONCURRENTLY public.mv_company_tech;
 END;
 $function$;
 

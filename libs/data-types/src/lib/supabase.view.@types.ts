@@ -19,6 +19,7 @@ export { SupabaseTechView } from './supabase.view.tech.@types';
 export namespace SupabaseView {
   export type MvJob = SupabaseJobView.MvJob;
   export type MvCompany = SupabaseJobView.MvCompany;
+  export type MvCompanyTech = SupabaseJobView.MvCompanyTech;
 
   export type MvTech = SupabaseTechView.MvTech;
   export type MvTechCategory = SupabaseTechView.MvTechCategory;
