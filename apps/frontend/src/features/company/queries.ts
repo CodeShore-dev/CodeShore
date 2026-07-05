@@ -6,6 +6,26 @@ import { fetchCompanies } from './service';
 
 const PAGE_SIZE = 18;
 
+// Company name suggestions for the company-name include/exclude filter
+// dropdown (task 2.2). Debounced type-ahead against /api/company (top
+// matches only), so it scales to any number of companies without loading
+// the whole table up front. Relocated verbatim from the job feature so the
+// company page no longer needs to borrow it from job/queries.ts.
+export function useCompanySearchQuery(search: string) {
+  const debouncedSearch = useDebouncedValue(search.trim(), 300);
+  return useQuery({
+    queryKey: ['company', 'search', debouncedSearch],
+    queryFn: async () => {
+      const where = JSON.stringify({
+        company_name: { ilike: `%${debouncedSearch}%` },
+      });
+      const res = await fetchCompanies({ from: 0, to: 9, where });
+      return res.result;
+    },
+    enabled: debouncedSearch.length > 0,
+  });
+}
+
 // Builds the company list `where` clause (task 6.1), mirroring the Vue store:
 // company_name ilike search + techs contains/overlaps the selection.
 export function buildCompanyWhere(

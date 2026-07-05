@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 
+import { useCompanySearchQuery } from '../../company/queries';
 import { useJobFilterStore } from '../jobFilterStore';
-import { useCompanySearchQuery } from '../queries';
 import { JobCompanyFilterChip } from './JobCompanyFilterChip';
 
 // Unified company filter panel (Req 4): single search-as-you-type input
