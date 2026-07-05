@@ -1,8 +1,14 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SupabaseView } from '@codeshore/data-types';
+
+const { useCompanyTechStatsQuery } = vi.hoisted(() => ({
+  useCompanyTechStatsQuery: vi.fn(),
+}));
+
+vi.mock('../queries', () => ({ useCompanyTechStatsQuery }));
 
 import { CompanyDetailModal } from './CompanyDetailModal';
 
@@ -49,7 +55,19 @@ function makeCompany(
   };
 }
 
+function makeTechStat(
+  tech: string,
+  job_count: number,
+): SupabaseView.MvCompanyTech {
+  return { company_id: '1', tech, job_count };
+}
+
 describe('CompanyDetailModal', () => {
+  beforeEach(() => {
+    useCompanyTechStatsQuery.mockReset();
+    useCompanyTechStatsQuery.mockReturnValue({ data: [] });
+  });
+
   it('renders nothing when company is null (Req 4.7 / Modal open gating)', () => {
     render(
       <CompanyDetailModal
@@ -190,5 +208,70 @@ describe('CompanyDetailModal', () => {
 
     expect(onGoToJobs).toHaveBeenCalledTimes(1);
     expect(onGoToJobs).toHaveBeenCalledWith('Acme Corp');
+  });
+
+  it('shows each technology with its job count and percentage of the company total, in the given (already-sorted) order (Req 5.1, 5.2, 5.4)', () => {
+    useCompanyTechStatsQuery.mockReturnValue({
+      data: [
+        makeTechStat('typescript', 8),
+        makeTechStat('python', 5),
+        makeTechStat('go', 2),
+      ],
+    });
+    const techs = [
+      makeTech('typescript', 'language'),
+      makeTech('python', 'language'),
+      makeTech('go', 'language'),
+    ];
+    const company = makeCompany(['typescript', 'python', 'go'], {
+      job_count: 10,
+    });
+
+    render(
+      <CompanyDetailModal
+        company={company}
+        techs={techs}
+        categoryLabelMap={categoryLabelMap}
+        onClose={vi.fn()}
+        onGoToJobs={vi.fn()}
+      />,
+    );
+
+    expect(useCompanyTechStatsQuery).toHaveBeenCalledWith('1');
+
+    const rows = screen.getAllByTestId('tech-stat-row');
+    expect(rows).toHaveLength(3);
+
+    // Order preserved exactly as returned (backend already sorts desc).
+    expect(rows[0]).toHaveTextContent('typescript');
+    expect(rows[0]).toHaveTextContent('8');
+    expect(rows[0]).toHaveTextContent('80%');
+
+    expect(rows[1]).toHaveTextContent('python');
+    expect(rows[1]).toHaveTextContent('5');
+    expect(rows[1]).toHaveTextContent('50%');
+
+    expect(rows[2]).toHaveTextContent('go');
+    expect(rows[2]).toHaveTextContent('2');
+    expect(rows[2]).toHaveTextContent('20%');
+  });
+
+  it('shows an empty-state message instead of the stats table when the company has no jobs (Req 5.3)', () => {
+    useCompanyTechStatsQuery.mockReturnValue({ data: [] });
+    const techs = [makeTech('typescript', 'language')];
+    const company = makeCompany(['typescript'], { job_count: 0 });
+
+    render(
+      <CompanyDetailModal
+        company={company}
+        techs={techs}
+        categoryLabelMap={categoryLabelMap}
+        onClose={vi.fn()}
+        onGoToJobs={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByTestId('tech-stat-row')).not.toBeInTheDocument();
+    expect(screen.getByText('目前沒有職缺')).toBeInTheDocument();
   });
 });

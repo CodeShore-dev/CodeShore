@@ -4,7 +4,7 @@ import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { useCompanyFilterStore } from './companyFilterStore';
 import { useCompanyTechFilterStore } from './companyTechFilterStore';
 import { deriveCompanyWhere } from './deriveCompanyWhere';
-import { fetchCompanies } from './service';
+import { fetchCompanies, fetchCompanyTechStats } from './service';
 
 const PAGE_SIZE = 18;
 
@@ -60,4 +60,20 @@ export function useCompaniesQuery() {
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   return { companies, totalCount, totalPages, loading: query.isLoading };
+}
+
+// Per-technology job counts for the company detail view (task 6.3 / Req
+// 5.1, 5.2, 5.4). Only fetches once a companyId is available (the modal is
+// open with a non-null company).
+export function useCompanyTechStatsQuery(companyId: string | undefined) {
+  const query = useQuery({
+    queryKey: ['company', companyId, 'tech-stats'],
+    queryFn: async () => {
+      const res = await fetchCompanyTechStats(companyId as string);
+      return res.result;
+    },
+    enabled: !!companyId,
+  });
+
+  return { data: query.data ?? [], isLoading: query.isLoading };
 }

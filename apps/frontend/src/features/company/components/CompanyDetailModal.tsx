@@ -4,6 +4,7 @@ import { SupabaseView } from '@codeshore/data-types';
 
 import { Modal } from '../../../components/Modal';
 import { TechIcon } from '../../../components/TechIcon';
+import { useCompanyTechStatsQuery } from '../queries';
 
 export interface CompanyDetailModalProps {
   company: SupabaseView.MvCompany | null;
@@ -32,6 +33,8 @@ export function CompanyDetailModal({
   onClose,
   onGoToJobs,
 }: CompanyDetailModalProps) {
+  const { data: techStats } = useCompanyTechStatsQuery(company?.company_id);
+
   const techMap = useMemo(() => {
     const map = new Map<string, SupabaseView.MvTech>();
     for (const t of techs) {
@@ -127,6 +130,44 @@ export function CompanyDetailModal({
                 </div>
               </div>
             ))}
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <div className="text-[11px] font-bold tracking-[0.15em] text-[#434653]">
+              技術佔比
+            </div>
+            {company.job_count === 0 ? (
+              <p className="text-sm text-[#434653]">目前沒有職缺</p>
+            ) : (
+              <div className="flex flex-col gap-1">
+                {techStats.map(stat => {
+                  const meta = techMap.get(stat.tech);
+                  const percentage = Math.round(
+                    (stat.job_count / company.job_count) * 100,
+                  );
+                  return (
+                    <div
+                      key={stat.tech}
+                      data-testid="tech-stat-row"
+                      className="flex items-center justify-between gap-3 rounded-lg border border-[#e8eaf0] px-3 py-2 text-sm"
+                    >
+                      <div className="flex items-center gap-1.5 font-semibold text-[#001f2a]">
+                        <TechIcon
+                          slugs={meta?.icon_slugs}
+                          label={meta?.label ?? stat.tech}
+                          size={16}
+                        />
+                        {meta?.label ?? stat.tech}
+                      </div>
+                      <div className="flex items-center gap-2 text-[#434653]">
+                        <span>{stat.job_count}</span>
+                        <span className="font-bold">{percentage}%</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}
