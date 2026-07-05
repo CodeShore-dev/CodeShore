@@ -30,6 +30,7 @@ export function CompanyDetailModal({
   techs,
   categoryLabelMap,
   onClose,
+  onGoToJobs,
 }: CompanyDetailModalProps) {
   const techMap = useMemo(() => {
     const map = new Map<string, SupabaseView.MvTech>();
@@ -91,6 +92,13 @@ export function CompanyDetailModal({
                 </span>
               </a>
             )}
+            <button
+              type="button"
+              className="mt-1 flex w-fit items-center gap-1 text-xs font-bold text-[#003d92] hover:underline"
+              onClick={() => onGoToJobs(company.company_name)}
+            >
+              查看職缺 →
+            </button>
           </div>
 
           <div className="flex flex-col gap-4">

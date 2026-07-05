@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import { SupabaseView } from '@codeshore/data-types';
@@ -165,5 +166,29 @@ describe('CompanyDetailModal', () => {
     expect(
       screen.getByRole('heading', { name: 'Acme Corp' }),
     ).toBeInTheDocument();
+  });
+
+  it('calls onGoToJobs with the open company\'s name when the jobs-list shortcut is clicked (Req 4.5 / 4.6)', async () => {
+    const user = userEvent.setup();
+    const onGoToJobs = vi.fn();
+    const techs = [makeTech('typescript', 'language')];
+    const company = makeCompany(['typescript'], {
+      company_name: 'Acme Corp',
+    });
+
+    render(
+      <CompanyDetailModal
+        company={company}
+        techs={techs}
+        categoryLabelMap={categoryLabelMap}
+        onClose={vi.fn()}
+        onGoToJobs={onGoToJobs}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: '查看職缺 →' }));
+
+    expect(onGoToJobs).toHaveBeenCalledTimes(1);
+    expect(onGoToJobs).toHaveBeenCalledWith('Acme Corp');
   });
 });
