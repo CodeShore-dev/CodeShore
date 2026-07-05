@@ -1,6 +1,6 @@
-import { create } from 'zustand';
+import { create, type StoreApi, type UseBoundStore } from 'zustand';
 
-interface KeywordFilterState {
+export interface KeywordFilterState {
   selectedTags: string[];
   excludedTags: string[];
   keywordOperator: 'and' | 'or';
@@ -18,41 +18,51 @@ interface KeywordFilterState {
   reset: () => void;
 }
 
-// Shared keyword selection state (job filtering; also used by keyword admin).
+// Factory for the shared tech-catalog selection state (job filtering; also used
+// by keyword admin). Each call produces an independent store instance so
+// multiple features (e.g. job and company pages) can hold separate selections
+// without leaking state into one another.
 // Ported from the selection part of useKeywordStore.
-export const useKeywordFilterStore = create<KeywordFilterState>(set => ({
-  selectedTags: [],
-  excludedTags: [],
-  keywordOperator: 'and',
-  keywordSearch: '',
-  selectedTab: null,
-  setSelectedTags: tags => set({ selectedTags: tags }),
-  setExcludedTags: tags => set({ excludedTags: tags }),
-  setOperator: op => set({ keywordOperator: op }),
-  setKeywordSearch: v => set({ keywordSearch: v }),
-  setSelectedTab: v => set({ selectedTab: v }),
-  // include -> exclude -> off cycle (parity with useKeywordStore.toggleLanguage)
-  toggleLanguage: language =>
-    set(state => {
-      if (state.selectedTags.includes(language)) {
-        return {
-          selectedTags: state.selectedTags.filter(x => x !== language),
-          excludedTags: [...state.excludedTags, language],
-        };
-      }
-      if (state.excludedTags.includes(language)) {
-        return {
-          excludedTags: state.excludedTags.filter(x => x !== language),
-        };
-      }
-      return { selectedTags: [...state.selectedTags, language] };
-    }),
-  reset: () =>
-    set({
-      selectedTags: [],
-      excludedTags: [],
-      keywordOperator: 'and',
-      keywordSearch: '',
-      selectedTab: null,
-    }),
-}));
+export function createTechFilterStore(): UseBoundStore<StoreApi<KeywordFilterState>> {
+  return create<KeywordFilterState>(set => ({
+    selectedTags: [],
+    excludedTags: [],
+    keywordOperator: 'and',
+    keywordSearch: '',
+    selectedTab: null,
+    setSelectedTags: tags => set({ selectedTags: tags }),
+    setExcludedTags: tags => set({ excludedTags: tags }),
+    setOperator: op => set({ keywordOperator: op }),
+    setKeywordSearch: v => set({ keywordSearch: v }),
+    setSelectedTab: v => set({ selectedTab: v }),
+    // include -> exclude -> off cycle (parity with useKeywordStore.toggleLanguage)
+    toggleLanguage: language =>
+      set(state => {
+        if (state.selectedTags.includes(language)) {
+          return {
+            selectedTags: state.selectedTags.filter(x => x !== language),
+            excludedTags: [...state.excludedTags, language],
+          };
+        }
+        if (state.excludedTags.includes(language)) {
+          return {
+            excludedTags: state.excludedTags.filter(x => x !== language),
+          };
+        }
+        return { selectedTags: [...state.selectedTags, language] };
+      }),
+    reset: () =>
+      set({
+        selectedTags: [],
+        excludedTags: [],
+        keywordOperator: 'and',
+        keywordSearch: '',
+        selectedTab: null,
+      }),
+  }));
+}
+
+// Shared keyword selection state (job filtering; also used by keyword admin).
+// One instance produced by the factory above; existing consumers are
+// unaffected since the exported symbol and its behavior stay identical.
+export const useKeywordFilterStore = createTechFilterStore();
