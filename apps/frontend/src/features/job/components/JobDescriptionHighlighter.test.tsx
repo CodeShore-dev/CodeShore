@@ -28,6 +28,17 @@ vi.mock('../../keyword/service', () => ({
         parents: [],
         tags: [],
       },
+      {
+        tech: 'javascript',
+        label: 'JavaScript',
+        category: 'frontend',
+        count: 20,
+        keywords: ['javascript', 'js'],
+        icon_slugs: ['simple-icons:javascript'],
+        children: [],
+        parents: [],
+        tags: [],
+      },
     ],
   }),
   fetchTechCategories: vi.fn().mockResolvedValue({ result: [] }),
@@ -70,6 +81,27 @@ describe('JobDescriptionHighlighter', () => {
     // would flake here.
     await waitFor(() => {
       const chip = document.querySelector('[data-tech="react"]') as HTMLElement;
+      const mount = chip.querySelector('[data-tech-icon-mount]') as HTMLElement | null;
+      expect(mount?.querySelector('.techicon')).toBeInTheDocument();
+    });
+  });
+
+  it('resolves the icon via a keyword alias that differs from the tech id', async () => {
+    renderWithProviders(
+      <JobDescriptionHighlighter
+        htmlContent="<p>We ship a lot of js in this role.</p>"
+        techs={['js']}
+        selectedTechs={new Set()}
+        onTooltipShow={() => undefined}
+        onTooltipHide={() => undefined}
+        onTechSelect={() => undefined}
+      />,
+    );
+
+    await screen.findByText('js', { selector: '[data-tech="js"]' });
+
+    await waitFor(() => {
+      const chip = document.querySelector('[data-tech="js"]') as HTMLElement;
       const mount = chip.querySelector('[data-tech-icon-mount]') as HTMLElement | null;
       expect(mount?.querySelector('.techicon')).toBeInTheDocument();
     });

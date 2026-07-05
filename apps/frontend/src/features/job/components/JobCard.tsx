@@ -5,6 +5,8 @@ import { createPortal } from 'react-dom';
 
 import { SupabaseView } from '@codeshore/data-types';
 
+import { TechIcon } from '../../../components/TechIcon';
+import { CATEGORY_LABEL_MAP } from '../../../utils/constants';
 import { formatDateInfo } from '../../../utils/format';
 import { useCanEdit } from '../../auth/authStore';
 import { useTechsQuery } from '../../keyword/queries';
@@ -47,7 +49,12 @@ export function JobCard({ job = {}, loading, crawl }: JobCardProps) {
         .map(x => x.split(':'))
         .map(([key, value]) => {
           const group = techs.find(g => g.tech === key);
-          return { key, label: group?.label, value: value.split(',') };
+          return {
+            key,
+            label: group?.label,
+            value: value.split(','),
+            icon_slugs: group?.icon_slugs,
+          };
         }) ?? [],
     [job.tech_mappings, techs],
   );
@@ -187,37 +194,36 @@ export function JobCard({ job = {}, loading, crawl }: JobCardProps) {
             }}
             onMouseLeave={() => setKeywordTooltip(null)}
           >
-            <div className="min-w-44 rounded-xl border-2 border-[#c3c6d5] bg-white p-3 shadow-xl">
-              <p className="mb-2 text-sm font-black tracking-widest text-[#003d92]">
-                {keywordTooltip.tech}
-              </p>
+            <div className="min-w-52 rounded-xl border-2 border-[#c3c6d5] bg-white p-2 shadow-xl">
               {keywordTooltip.groups.length ? (
-                <div className="space-y-1.5">
+                <div className="space-y-1">
                   {keywordTooltip.groups.map(group => (
                     <div
                       key={group.name}
-                      className="flex items-center justify-between gap-3"
+                      className="flex items-center gap-2 rounded-lg bg-[#003d92]/8 px-2 py-1.5"
                     >
-                      <div className="flex min-w-0 flex-col">
-                        <span className="truncate text-sm font-bold text-[#001f2a]">
+                      <TechIcon slugs={group.icon_slugs} label={group.name} size={18} />
+                      <span className="flex min-w-0 flex-col gap-0.5">
+                        <span className="truncate text-sm font-bold text-[#003d92]">
                           {group.name}
                         </span>
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {group.category && (
-                            <span className="rounded bg-[#f4faff] px-1.5 py-0.5 text-[9px] font-bold text-[#434653]">
-                              {group.category}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <span className="shrink-0 text-sm font-bold text-[#434653]">
+                        {group.category && (
+                          <span className="w-fit rounded-full bg-current/12 px-1.5 py-px text-[9px] font-medium text-[#434653]">
+                            {CATEGORY_LABEL_MAP[group.category] ??
+                              group.category}
+                          </span>
+                        )}
+                      </span>
+                      <span className="ml-auto shrink-0 text-sm font-bold tabular-nums text-[#434653]">
                         {group.count}
                       </span>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-[#434653]">尚無技術資料</p>
+                <p className="p-1 text-sm text-[#434653]">
+                  {keywordTooltip.tech}・尚無技術資料
+                </p>
               )}
             </div>
           </div>,

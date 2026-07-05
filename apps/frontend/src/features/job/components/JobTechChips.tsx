@@ -1,7 +1,10 @@
+import { TechIcon } from '../../../components/TechIcon';
+
 export interface TechMapping {
   key: string;
   label?: string;
   value: string[];
+  icon_slugs?: string[] | null;
 }
 
 interface JobTechChipsProps {
@@ -24,13 +27,14 @@ export function JobTechChips({
         {mapping.map(m => (
           <span
             key={m.key}
-            className={`rounded-md px-2 py-0.5 text-xs font-bold ${
+            className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-bold ${
               selectedTechsSet.size &&
               m.value.some(v => selectedTechsSet.has(v.toLowerCase()))
                 ? 'bg-[#003d92] text-white'
                 : 'bg-[#003d92]/15 text-[#003d92]'
             }`}
           >
+            <TechIcon slugs={m.icon_slugs} label={m.label ?? m.key} size={14} />
             {m.label ?? m.key}
           </span>
         ))}

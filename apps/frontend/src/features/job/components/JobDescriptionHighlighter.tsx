@@ -24,6 +24,7 @@ export interface TechTooltipData {
     name: string;
     count: number;
     category: string | null;
+    icon_slugs: string[] | null;
   }[];
   x: number;
   y: number;
@@ -68,7 +69,7 @@ export function JobDescriptionHighlighter({
       const isSelected = selectedTechs.has(tech);
       return `<span data-tech="${tech}" class="${techChipClass(
         isSelected,
-      )} cursor-pointer rounded-full px-3 py-1 text-sm font-bold "><span data-tech-icon-mount="${tech}"></span>${match}</span>`;
+      )} inline-flex cursor-pointer items-center gap-1 rounded-full px-3 py-1 text-sm font-bold align-middle"><span data-tech-icon-mount="${tech}" class="inline-flex items-center"></span>${match}</span>`;
     });
   }, [htmlContent, techs, selectedTechs]);
 
@@ -96,8 +97,13 @@ export function JobDescriptionHighlighter({
     setIconMounts(mounts);
   }, [highlightedContent]);
 
+  // `tech` here is the raw JD keyword text (e.g. "js"), not a tech's own id
+  // (e.g. "javascript") -- resolve it via each tech's keyword-alias list,
+  // same lookup buildTooltipData uses below.
   const findTechRecord = (tech: string) =>
-    techCatalog.find(g => g.tech?.toLowerCase() === tech.toLowerCase());
+    techCatalog.find(g =>
+      g.keywords.map(k => k.toLowerCase()).includes(tech.toLowerCase()),
+    );
 
   const buildTooltipData = (span: HTMLElement): TechTooltipData => {
     const tech = span.dataset.tech ?? '';
@@ -105,7 +111,12 @@ export function JobDescriptionHighlighter({
       .filter(g =>
         g.keywords.map(k => k.toLowerCase()).includes(tech.toLowerCase()),
       )
-      .map(g => ({ name: g.label, count: g.count, category: g.category }));
+      .map(g => ({
+        name: g.label,
+        count: g.count,
+        category: g.category,
+        icon_slugs: g.icon_slugs,
+      }));
     const rect = span.getBoundingClientRect();
     return { tech, groups, x: rect.left + rect.width / 2, y: rect.top };
   };
