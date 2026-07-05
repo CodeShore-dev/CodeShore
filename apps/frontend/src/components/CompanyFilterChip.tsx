@@ -1,15 +1,13 @@
-// Company filter entry mode and shape (task 1.4). Defined locally here since
-// this component owns the mode-based styling; the canonical location for
-// these types is `features/company/companyFilterStore.ts`, which task 2.1
-// will introduce. `CompanyFilterPanel.tsx` imports this type from here.
-// `jobFilterStore.ts` keeps its own local definition until task 7.2 rewires
-// the job feature to import from the canonical company location.
-export type CompanyFilterMode = 'include' | 'exclude';
+// Canonical CompanyFilterEntry/CompanyFilterMode type is defined in
+// `features/company/companyFilterStore.ts`; re-exported here (type-only, no
+// runtime coupling) so this shared component and `CompanyFilterPanel.tsx`
+// have a single source of truth instead of a structurally-duplicated copy.
+import type { CompanyFilterEntry } from '../features/company/companyFilterStore';
 
-export interface CompanyFilterEntry {
-  name: string;
-  mode: CompanyFilterMode;
-}
+export type {
+  CompanyFilterEntry,
+  CompanyFilterMode,
+} from '../features/company/companyFilterStore';
 
 export interface CompanyFilterChipProps {
   entry: CompanyFilterEntry;
