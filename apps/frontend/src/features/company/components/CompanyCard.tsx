@@ -6,7 +6,6 @@ interface CompanyCardProps {
   company: SupabaseView.MvCompany;
   techs: SupabaseView.MvTech[];
   categoryLabelMap: Record<string, string>;
-  selectedTechs?: string[];
   onClick: (companyName: string) => void;
 }
 
@@ -23,25 +22,15 @@ export function CompanyCard({
   company,
   techs,
   categoryLabelMap,
-  selectedTechs = [],
   onClick,
 }: CompanyCardProps) {
-  const { categoryMap, labelMap, countMap } = useMemo(() => {
+  const categoryMap = useMemo(() => {
     const categoryMap = new Map<string, string>();
-    const labelMap = new Map<string, string>();
-    const countMap = new Map<string, number>();
     for (const m of techs) {
       categoryMap.set(m.tech, m.category ?? '');
-      labelMap.set(m.tech, m.label);
-      countMap.set(m.tech, m.count);
     }
-    return { categoryMap, labelMap, countMap };
+    return categoryMap;
   }, [techs]);
-
-  const selectedSet = useMemo(
-    () => new Set(selectedTechs),
-    [selectedTechs],
-  );
 
   const groupedTechs = useMemo(() => {
     const buckets = new Map<string, string[]>();
@@ -56,17 +45,11 @@ export function CompanyCard({
         ([a], [b]) =>
           (CATEGORY_PRIORITY[a] ?? 6) - (CATEGORY_PRIORITY[b] ?? 6),
       )
-      .map(([cat, kgs]) => {
-        const sorted = [...kgs].sort(
-          (a, b) => (countMap.get(b) ?? 0) - (countMap.get(a) ?? 0),
-        );
-        return {
-          label: categoryLabelMap[cat] ?? '其他',
-          items: sorted.slice(0, 5),
-          remaining: Math.max(0, sorted.length - 5),
-        };
-      });
-  }, [company.techs, categoryMap, countMap, categoryLabelMap]);
+      .map(([cat, kgs]) => ({
+        label: categoryLabelMap[cat] ?? '其他',
+        count: kgs.length,
+      }));
+  }, [company.techs, categoryMap, categoryLabelMap]);
 
   let host = '';
   try {
@@ -106,31 +89,14 @@ export function CompanyCard({
       </div>
 
       {company.techs.length > 0 && (
-        <div className="space-y-2">
+        <div className="flex flex-wrap gap-x-4 gap-y-1.5">
           {groupedTechs.map(group => (
-            <div key={group.label}>
-              <div className="mb-1.5 text-[10px] font-bold tracking-[0.15em] text-[#434653]">
-                {group.label}
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {group.items.map(kg => (
-                  <span
-                    key={kg}
-                    className={`rounded px-2 py-0.5 text-xs font-bold transition-colors ${
-                      selectedSet.has(kg)
-                        ? 'bg-[#003d92]/15 text-[#003d92]'
-                        : 'bg-[#c9e7f7] text-[#434653]'
-                    }`}
-                  >
-                    {labelMap.get(kg) ?? kg}
-                  </span>
-                ))}
-                {group.remaining > 0 && (
-                  <span className="px-1 py-0.5 text-xs font-bold text-[#434653]/60">
-                    +{group.remaining}
-                  </span>
-                )}
-              </div>
+            <div
+              key={group.label}
+              className="text-[10px] font-bold tracking-[0.15em] text-[#434653]"
+            >
+              {group.label}
+              <span className="ml-1 text-[#003d92]">· {group.count}</span>
             </div>
           ))}
         </div>
