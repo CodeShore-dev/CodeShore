@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { useCompanyFilterStore } from './companyFilterStore';
+import { useCompanyTechFilterStore } from './companyTechFilterStore';
+import { deriveCompanyWhere } from './deriveCompanyWhere';
 import { fetchCompanies } from './service';
 
 const PAGE_SIZE = 18;
@@ -26,34 +28,23 @@ export function useCompanySearchQuery(search: string) {
   });
 }
 
-// Builds the company list `where` clause (task 6.1), mirroring the Vue store:
-// company_name ilike search + techs contains/overlaps the selection.
-export function buildCompanyWhere(
-  search: string,
-  groups: string[],
-  operator: 'and' | 'or',
-): string | undefined {
-  const conditions: Record<string, unknown> = {};
-  if (search.trim()) {
-    conditions.company_name = { ilike: `%${search.trim()}%` };
-  }
-  if (groups.length > 0) {
-    const op = operator === 'or' ? 'ov' : 'cs';
-    conditions.techs = { [op]: `{${groups.join(',')}}` };
-  }
-  return Object.keys(conditions).length > 0
-    ? JSON.stringify(conditions)
-    : undefined;
-}
-
 export function useCompaniesQuery() {
-  const search = useCompanyFilterStore(s => s.search);
-  const groups = useCompanyFilterStore(s => s.selectedTechs);
-  const operator = useCompanyFilterStore(s => s.techOperator);
+  const companyFilters = useCompanyFilterStore(s => s.companyFilters);
   const page = useCompanyFilterStore(s => s.page);
+  const selectedTags = useCompanyTechFilterStore(s => s.selectedTags);
+  const excludedTags = useCompanyTechFilterStore(s => s.excludedTags);
+  const techOperator = useCompanyTechFilterStore(s => s.keywordOperator);
 
-  const debouncedSearch = useDebouncedValue(search, 400);
-  const where = buildCompanyWhere(debouncedSearch, groups, operator);
+  const whereClause = deriveCompanyWhere({
+    companyFilters,
+    selectedTags,
+    excludedTags,
+    techOperator,
+  });
+  const where =
+    Object.keys(whereClause).length > 0
+      ? JSON.stringify(whereClause)
+      : undefined;
 
   const query = useQuery({
     queryKey: ['company', where ?? '', page],
