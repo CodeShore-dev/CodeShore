@@ -1,11 +1,14 @@
 import { create } from 'zustand';
 
-export type CompanyFilterMode = 'include' | 'exclude';
+import type {
+  CompanyFilterEntry,
+  CompanyFilterMode,
+} from '../company/companyFilterStore';
 
-export interface CompanyFilterEntry {
-  name: string;
-  mode: CompanyFilterMode;
-}
+// Re-exported so existing call sites (e.g. deriveJobWhere.ts) that import
+// these types from jobFilterStore.ts keep working unchanged (task 7.2). The
+// canonical definition now lives in companyFilterStore.ts (task 2.1).
+export type { CompanyFilterEntry, CompanyFilterMode };
 
 interface JobFilterState {
   searchText: string;
