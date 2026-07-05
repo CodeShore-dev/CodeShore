@@ -1,5 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
+
+import { SupabaseView } from '@codeshore/data-types';
 
 import { Pagination } from '../../../components/Pagination';
 import {
@@ -8,7 +10,9 @@ import {
 } from '../../keyword/queries';
 import { InfoHint } from '../../methodology/components/InfoHint';
 import { CompanyCard } from '../components/CompanyCard';
-import { CompanyKeywordFilter } from '../components/CompanyKeywordFilter';
+import { CompanyDetailModal } from '../components/CompanyDetailModal';
+import { CompanyNameFilterPanel } from '../components/CompanyNameFilterPanel';
+import { CompanyTechFilterPanel } from '../components/CompanyTechFilterPanel';
 import {
   selectCompanyHasActiveFilters,
   useCompanyFilterStore,
@@ -19,17 +23,15 @@ export function CompanyListPage() {
   const navigate = useNavigate();
   const { companies, totalCount, totalPages, loading } = useCompaniesQuery();
 
-  const search = useCompanyFilterStore(s => s.search);
-  const setSearch = useCompanyFilterStore(s => s.setSearch);
   const page = useCompanyFilterStore(s => s.page);
   const setPage = useCompanyFilterStore(s => s.setPage);
-  const selectedTechs = useCompanyFilterStore(
-    s => s.selectedTechs,
-  );
   const clearFilters = useCompanyFilterStore(s => s.clearFilters);
   const hasActiveFilters = useCompanyFilterStore(
     selectCompanyHasActiveFilters,
   );
+
+  const [detailCompany, setDetailCompany] =
+    useState<SupabaseView.MvCompany | null>(null);
 
   const { data: techs = [] } = useTechsQuery();
   const { tabs } = useKeywordCategoriesQuery();
@@ -74,30 +76,8 @@ export function CompanyListPage() {
       </div>
 
       <div className="mb-6 flex flex-col flex-wrap gap-2 md:flex-row md:items-start">
-        <div className="relative flex-1">
-          <span className="material-symbols-outlined pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-base! text-[#434653]/50">
-            search
-          </span>
-          <input
-            value={search}
-            type="text"
-            placeholder="搜尋公司名稱..."
-            className="w-full rounded-xl border border-[#c3c6d5] bg-white py-2.5 pr-8 pl-9 text-sm font-bold text-[#001f2a] placeholder-[#434653]/50 focus:border-[#003d92] focus:outline-none"
-            onChange={e => setSearch(e.target.value)}
-          />
-          {search && (
-            <button
-              type="button"
-              className="absolute top-1/2 right-3 flex -translate-y-1/2 cursor-pointer text-[#434653]/50 hover:text-[#001f2a]"
-              onClick={() => setSearch('')}
-            >
-              <span className="material-symbols-outlined text-base">
-                close
-              </span>
-            </button>
-          )}
-        </div>
-        <CompanyKeywordFilter />
+        <CompanyNameFilterPanel />
+        <CompanyTechFilterPanel />
       </div>
 
       {loading ? (
@@ -143,8 +123,8 @@ export function CompanyListPage() {
                 company={company}
                 techs={techs}
                 categoryLabelMap={categoryLabelMap}
-                selectedTechs={selectedTechs}
                 onClick={goToJobs}
+                onOpenDetail={setDetailCompany}
               />
             ))}
           </div>
@@ -155,6 +135,14 @@ export function CompanyListPage() {
           />
         </>
       )}
+
+      <CompanyDetailModal
+        company={detailCompany}
+        techs={techs}
+        categoryLabelMap={categoryLabelMap}
+        onClose={() => setDetailCompany(null)}
+        onGoToJobs={goToJobs}
+      />
     </div>
   );
 }
