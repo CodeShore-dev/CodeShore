@@ -34,6 +34,13 @@ function createFakeBuilder(options: {
   const { rows, insertResponses } = options;
   let filtered = [...rows];
   let pendingInsert: FakeInsertResponse | null = null;
+  // `markApproved`'s conditional-update chain: `update(values).eq(...).eq(...)
+  // .select().maybeSingle()`. Tracked separately from the insert/select state
+  // above so both call shapes can coexist on the same fake builder, following
+  // the write-chain pattern established by `tech_parent.spec.ts`.
+  let mode: 'select' | 'update' = 'select';
+  let updateValues: Partial<AiSuggestionRow> | null = null;
+  let eqFilters: Array<[string, unknown]> = [];
 
   const builder: any = {
     url: new URL('https://example.test/ai_suggestion'),
@@ -44,7 +51,25 @@ function createFakeBuilder(options: {
       };
       return builder;
     },
+    update(values: Partial<AiSuggestionRow>) {
+      mode = 'update';
+      updateValues = values;
+      eqFilters = [];
+      return builder;
+    },
+    eq(column: string, value: unknown) {
+      eqFilters.push([column, value]);
+      return builder;
+    },
+    maybeSingle() {
+      return builder;
+    },
     select() {
+      // A fresh snapshot on every `select()` call (rather than only at
+      // builder creation) so a `fetchAll()` issued after a prior
+      // `markApproved()` write on this same builder instance observes the
+      // mutated `rows` array instead of a stale pre-write snapshot.
+      filtered = [...rows];
       return builder;
     },
     single() {
@@ -89,6 +114,30 @@ function createFakeBuilder(options: {
           count: null,
           error: response.error,
           status: response.error ? 409 : 201,
+        });
+        return;
+      }
+      if (mode === 'update') {
+        let matched: AiSuggestionRow | null = null;
+        rows.forEach((row, idx) => {
+          if (
+            eqFilters.every(
+              ([col, val]) => (row as any)[col] === val,
+            )
+          ) {
+            rows[idx] = {
+              ...row,
+              ...(updateValues as Partial<AiSuggestionRow>),
+            };
+            matched = rows[idx];
+          }
+        });
+        mode = 'select';
+        resolve({
+          data: matched,
+          error: null,
+          status: 200,
+          count: null,
         });
         return;
       }
@@ -264,6 +313,95 @@ describe('AiSuggestionService', () => {
 
       expect(result).toEqual([]);
       expect(count).toBe(0);
+    });
+  });
+
+  describe('markApproved', () => {
+    it('transitions a pending suggestion to approved and writes the review/outcome metadata', async () => {
+      fakeRows = [storedRow];
+      const { AiSuggestionService } = await import('./ai_suggestion.service');
+      const service = new AiSuggestionService();
+
+      const outcome = {
+        affectedViews: ['mv_tech'],
+        beforeCounts: { mv_tech: 10 },
+        afterCounts: { mv_tech: 11 },
+        exceedsExpectedMagnitude: false,
+      };
+      const result = await service.markApproved('suggestion-1', {
+        payload: { tech: 'react', keyword: 'reactjs2' },
+        reviewedBy: 'reviewer-1',
+        resolutionNote: null,
+        outcome,
+        flaggedForReview: false,
+      });
+
+      expect(result.outcome).toBe('approved');
+      if (result.outcome === 'approved') {
+        expect(result.record.status).toBe('approved');
+        expect(result.record.reviewed_by).toBe('reviewer-1');
+        expect(result.record.payload).toEqual({
+          tech: 'react',
+          keyword: 'reactjs2',
+        });
+        expect(result.record.outcome).toEqual(outcome);
+        expect(typeof result.record.reviewed_at).toBe('string');
+      }
+
+      // the change is visible on the next query, not just in the returned row
+      const { result: rows } = await service.fetchAll({
+        where: { id: { eq: 'suggestion-1' } },
+      });
+      expect(rows[0].status).toBe('approved');
+    });
+
+    it('returns not_pending without changing the row when the suggestion is already approved', async () => {
+      fakeRows = [{ ...storedRow, status: 'approved' }];
+      const { AiSuggestionService } = await import('./ai_suggestion.service');
+      const service = new AiSuggestionService();
+
+      const result = await service.markApproved('suggestion-1', {
+        payload: { tech: 'react', keyword: 'reactjs2' },
+        reviewedBy: 'reviewer-1',
+        resolutionNote: null,
+        outcome: null,
+        flaggedForReview: false,
+      });
+
+      expect(result).toEqual({ outcome: 'not_pending' });
+      expect(fakeRows[0].payload).toEqual(storedRow.payload);
+    });
+
+    it('returns not_pending without changing the row when the suggestion is already rejected', async () => {
+      fakeRows = [{ ...storedRow, status: 'rejected' }];
+      const { AiSuggestionService } = await import('./ai_suggestion.service');
+      const service = new AiSuggestionService();
+
+      const result = await service.markApproved('suggestion-1', {
+        payload: {},
+        reviewedBy: 'reviewer-1',
+        resolutionNote: null,
+        outcome: null,
+        flaggedForReview: false,
+      });
+
+      expect(result).toEqual({ outcome: 'not_pending' });
+    });
+
+    it('returns not_pending when the id does not exist at all', async () => {
+      fakeRows = [storedRow];
+      const { AiSuggestionService } = await import('./ai_suggestion.service');
+      const service = new AiSuggestionService();
+
+      const result = await service.markApproved('does-not-exist', {
+        payload: {},
+        reviewedBy: 'reviewer-1',
+        resolutionNote: null,
+        outcome: null,
+        flaggedForReview: false,
+      });
+
+      expect(result).toEqual({ outcome: 'not_pending' });
     });
   });
 });

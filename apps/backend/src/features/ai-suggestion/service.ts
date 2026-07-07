@@ -4,9 +4,21 @@ import {
   AiSuggestionService,
   CreateAiSuggestionInput,
   CreatePendingSuggestionResult,
+  JobDescriptionBinService,
+  KeywordBinService,
   ListAiSuggestionFilter,
+  LocationGroupLocationService,
+  LocationGroupService,
+  MvLocationGroupService,
+  MvTechService,
+  refreshAllMaterializedViews,
+  TechKeywordService,
+  TechParentService,
+  TechService,
 } from '@codeshore/data-utils';
-import { SupabaseTable } from '@codeshore/data-types';
+import { AiSuggestionAction, SupabaseTable } from '@codeshore/data-types';
+
+import { detectTechParentCycle } from './validation/cycle-check';
 
 /**
  * `AiSuggestionEvidence` per design.md's "AiSuggestionService（Full Block）"
@@ -46,6 +58,162 @@ export type GetByIdResult =
   | { found: false };
 
 /**
+ * Per-approval regression check (requirement 8.5, 8.6). `beforeCounts`/
+ * `afterCounts` are single-entry records keyed by whichever materialized
+ * view is most directly relevant to the suggestion's `target_table` (see
+ * `countTargetFor` below) -- not a full snapshot of every view.
+ */
+export interface AiSuggestionOutcome {
+  affectedViews: readonly string[];
+  beforeCounts: Readonly<Record<string, number>>;
+  afterCounts: Readonly<Record<string, number>>;
+  exceedsExpectedMagnitude: boolean;
+}
+
+/**
+ * Discriminated `approve()` failure per design.md's `AiSuggestionService（Full
+ * Block）` `AiSuggestionApproveError`.
+ */
+export type AiSuggestionApproveError =
+  | { kind: 'conflict'; message: string }
+  | { kind: 'validation'; message: string }
+  | { kind: 'write_failed'; message: string }
+  | { kind: 'not_found'; message: string };
+
+export type ApproveResult =
+  | { ok: true; record: AiSuggestionRecord }
+  | { ok: false; error: AiSuggestionApproveError };
+
+/** The materialized view most directly affected by each target table. */
+type CountTarget = 'mv_tech' | 'mv_location_group';
+
+function countTargetFor(
+  targetTable: SupabaseTable.AiSuggestion['target_table'],
+): CountTarget {
+  // `job_description_bin`/`keyword_bin` both feed keyword extraction, which
+  // in turn feeds `mv_tech` -- there is no dedicated materialized view for
+  // either exclusion list itself.
+  switch (targetTable) {
+    case 'tech':
+    case 'tech_keyword':
+    case 'tech_parent':
+    case 'job_description_bin':
+    case 'keyword_bin':
+      return 'mv_tech';
+    case 'location_group':
+    case 'location_group_location':
+      return 'mv_location_group';
+  }
+}
+
+/** Result of attempting to write a suggestion's payload to its target table. */
+type WriteOutcome =
+  | { ok: true }
+  | { ok: false; kind: 'validation' | 'write_failed'; message: string };
+
+function toWriteOutcome(
+  error: { message?: string } | null | undefined,
+): WriteOutcome {
+  if (error) {
+    return {
+      ok: false,
+      kind: 'write_failed',
+      message: error.message ?? 'Unknown error writing to the target table',
+    };
+  }
+  return { ok: true };
+}
+
+/**
+ * Structural shape shared by the 4 single-`id`-primary-key target-table
+ * services (`JobDescriptionBinService`/`TechService`/`KeywordBinService`/
+ * `LocationGroupService`) -- each is a plain `TableService` subclass whose
+ * inherited `update`/`delete` filter on a single `id` column, which is
+ * exactly what these 4 tables' primary keys are.
+ */
+interface SingleIdWriter {
+  upsert(
+    records: unknown[],
+  ): PromiseLike<{ error: { message?: string } | null }>;
+  update(
+    record: Record<string, unknown>,
+  ): PromiseLike<{ error: { message?: string } | null }>;
+  delete(id: string): PromiseLike<{ error: { message?: string } | null }>;
+}
+
+async function writeSingleId(
+  writer: SingleIdWriter,
+  action: AiSuggestionAction,
+  targetKey: Readonly<Record<string, string>> | null,
+  payload: Record<string, unknown>,
+): Promise<WriteOutcome> {
+  if (action === 'insert') {
+    const { error } = await writer.upsert([payload]);
+    return toWriteOutcome(error);
+  }
+  const id = targetKey?.['id'] ?? (payload['id'] as string | undefined);
+  if (!id) {
+    return {
+      ok: false,
+      kind: 'validation',
+      message: `Cannot ${action} without an id (expected target_key.id or payload.id)`,
+    };
+  }
+  if (action === 'update') {
+    const { error } = await writer.update({ ...payload, id });
+    return toWriteOutcome(error);
+  }
+  const { error } = await writer.delete(id);
+  return toWriteOutcome(error);
+}
+
+/**
+ * Shared dispatch for the 3 composite-primary-key target-table services
+ * (`TechKeywordService`/`TechParentService`/`LocationGroupLocationService`),
+ * whose inherited `TableService.update`/`delete` cannot address a single row
+ * (see each service's `updateBy*`/`deleteBy*` doc comments) -- the caller
+ * supplies those methods directly since their signatures differ per table.
+ */
+async function writeCompositeKey(
+  action: AiSuggestionAction,
+  targetKey: Readonly<Record<string, string>> | null,
+  keyNames: readonly [string, string],
+  upsert: (
+    records: unknown[],
+  ) => PromiseLike<{ error: { message?: string } | null }>,
+  update: (
+    keyA: string,
+    keyB: string,
+    values: Record<string, unknown>,
+  ) => PromiseLike<{ error: { message?: string } | null }>,
+  del: (
+    keyA: string,
+    keyB: string,
+  ) => PromiseLike<{ error: { message?: string } | null }>,
+  payload: Record<string, unknown>,
+): Promise<WriteOutcome> {
+  if (action === 'insert') {
+    const { error } = await upsert([payload]);
+    return toWriteOutcome(error);
+  }
+  const keyA = targetKey?.[keyNames[0]];
+  const keyB = targetKey?.[keyNames[1]];
+  if (!keyA || !keyB) {
+    return {
+      ok: false,
+      kind: 'validation',
+      message: `Cannot ${action} without target_key.${keyNames[0]} and target_key.${keyNames[1]}`,
+    };
+  }
+  if (action === 'update') {
+    const { error } = await update(keyA, keyB, payload);
+    return toWriteOutcome(error);
+  }
+  const { error } = await del(keyA, keyB);
+  return toWriteOutcome(error);
+}
+
+/**
  * NestJS-layer service for the AI suggestion review queue (requirements
  * 1.1, 1.4, 7.1, 10.2). This is a thin wrapper around
  * `libs/data-utils`'s `AiSuggestionService`: dedupe-on-create is already
@@ -65,6 +233,15 @@ export type GetByIdResult =
 export class Service {
   constructor(
     private readonly aiSuggestionService: AiSuggestionService,
+    private readonly jobDescriptionBinService: JobDescriptionBinService,
+    private readonly techService: TechService,
+    private readonly keywordBinService: KeywordBinService,
+    private readonly techKeywordService: TechKeywordService,
+    private readonly techParentService: TechParentService,
+    private readonly locationGroupService: LocationGroupService,
+    private readonly locationGroupLocationService: LocationGroupLocationService,
+    private readonly mvTechService: MvTechService,
+    private readonly mvLocationGroupService: MvLocationGroupService,
   ) {}
 
   /**
@@ -121,5 +298,285 @@ export class Service {
     input: CreateAiSuggestionInput,
   ): Promise<CreatePendingSuggestionResult> {
     return this.aiSuggestionService.createPendingSuggestion(input);
+  }
+
+  /**
+   * Approves a `pending` suggestion: validates it (cycle-checking hierarchy
+   * suggestions), lands the (possibly reviewer-edited) payload on the
+   * target table directly through the `libs/data-utils` write services --
+   * never through the `apps/backend/src/features/keyword` HTTP
+   * controller/service, per design.md's "落地寫入的分工原則" -- triggers the
+   * downstream materialized-view refresh, computes the before/after
+   * regression outcome, and atomically transitions the suggestion's status
+   * (requirements 1.5, 4.2, 7.4, 8.2, 8.5, 8.6, 9.1, 9.2, 9.3).
+   */
+  async approve(
+    id: string,
+    editedPayload: Record<string, unknown> | undefined,
+    reviewerId: string,
+  ): Promise<ApproveResult> {
+    const lookup = await this.getById(id);
+    if (!lookup.found || lookup.record.status !== 'pending') {
+      return {
+        ok: false,
+        error: {
+          kind: 'not_found',
+          message: `No pending suggestion found for id "${id}" (it does not exist, or has already been approved/rejected)`,
+        },
+      };
+    }
+    const suggestion = lookup.record;
+    // Requirement 7.4: reviewer-edited content wins over the originally
+    // generated payload when present.
+    const effectivePayload = editedPayload ?? suggestion.payload;
+
+    // Requirement 4.2 / 8.2: hierarchy-type suggestions are cycle-checked
+    // before any write. A detected cycle rejects the approval outright --
+    // no write method is called and the suggestion's status is left
+    // untouched (still `pending`), so it remains resolvable/re-approvable
+    // once the conflicting data is fixed.
+    if (suggestion.target_table === 'tech_parent') {
+      const parent = effectivePayload['parent'];
+      const child = effectivePayload['child'];
+      if (typeof parent !== 'string' || typeof child !== 'string') {
+        return {
+          ok: false,
+          error: {
+            kind: 'validation',
+            message:
+              'tech_parent suggestions require string "parent" and "child" fields in the payload',
+          },
+        };
+      }
+      const cycleResult = await detectTechParentCycle(parent, child);
+      if (cycleResult.hasCycle) {
+        const conflictPath = (cycleResult.conflictPath ?? []).join(' -> ');
+        return {
+          ok: false,
+          error: {
+            kind: 'conflict',
+            message: `Approving parent "${parent}" -> child "${child}" would create a tech_parent cycle: ${conflictPath}`,
+          },
+        };
+      }
+    }
+
+    const countTarget = countTargetFor(suggestion.target_table);
+    const beforeCount = await this.countFor(countTarget);
+
+    const writeResult = await this.writeToTargetTable(
+      suggestion,
+      effectivePayload,
+    );
+    if (!writeResult.ok) {
+      // Status is intentionally left untouched (still `pending`) so a later
+      // `approve()` retry can succeed once the underlying write problem is
+      // resolved (requirement 9.3).
+      return {
+        ok: false,
+        error: { kind: writeResult.kind, message: writeResult.message },
+      };
+    }
+
+    // IMPORTANT (requirement 9.3's accepted limitation): the target-table
+    // write above has already landed by this point. There is no distributed
+    // transaction spanning the target-table write and the materialized-view
+    // refresh below; if the refresh fails, the row change is not rolled
+    // back. We still report `write_failed` (and leave the suggestion
+    // `pending`) so the suggestion stays flagged as needing a retry -- a
+    // retried `approve()` re-runs the (upsert-based, effectively idempotent)
+    // write and then retries the refresh. This is a known/accepted gap, not
+    // something this task solves with distributed transactions.
+    const affectedViews = new Set<string>();
+    let refreshSucceeded = false;
+    let refreshErrorMessage: string | undefined;
+    for await (const event of refreshAllMaterializedViews()) {
+      if (event.type === 'log' || event.type === 'error') {
+        affectedViews.add(event.step);
+      }
+      if (event.type === 'error') {
+        refreshErrorMessage = event.message;
+      }
+      if (event.type === 'done') {
+        refreshSucceeded = event.success;
+      }
+    }
+    if (!refreshSucceeded) {
+      return {
+        ok: false,
+        error: {
+          kind: 'write_failed',
+          message: `Materialized view refresh failed after the ${suggestion.target_table} write already landed: ${refreshErrorMessage ?? 'refresh pipeline did not report success'}`,
+        },
+      };
+    }
+
+    // Requirement 8.5 / 8.6: compare the pre-write and post-refresh counts
+    // for the view most relevant to this target table, and flag the
+    // suggestion for manual review if the actual change is more than 3x the
+    // originally estimated `evidence.affectedCount` (when that estimate is
+    // present).
+    const afterCount = await this.countFor(countTarget);
+    const affectedCountEstimate = suggestion.evidence.affectedCount;
+    const exceedsExpectedMagnitude =
+      typeof affectedCountEstimate === 'number' &&
+      Math.abs(afterCount - beforeCount) > affectedCountEstimate * 3;
+
+    const outcome: AiSuggestionOutcome = {
+      affectedViews: Array.from(affectedViews),
+      beforeCounts: { [countTarget]: beforeCount },
+      afterCounts: { [countTarget]: afterCount },
+      exceedsExpectedMagnitude,
+    };
+
+    const resolutionNote = editedPayload
+      ? `Reviewer edited the suggested payload before approval: ${JSON.stringify(editedPayload)}`
+      : null;
+
+    const markResult = await this.aiSuggestionService.markApproved(id, {
+      payload: effectivePayload,
+      reviewedBy: reviewerId,
+      resolutionNote,
+      outcome: outcome as unknown as Record<string, unknown>,
+      flaggedForReview: exceedsExpectedMagnitude,
+    });
+
+    if (markResult.outcome === 'error') {
+      return {
+        ok: false,
+        error: {
+          kind: 'write_failed',
+          message: `Failed to record the approval for suggestion ${id} after the write already landed: ${markResult.error.message}`,
+        },
+      };
+    }
+    if (markResult.outcome === 'not_pending') {
+      // A concurrent approve/reject won the race between this call's
+      // initial pending check and this final atomic transition (enforced by
+      // `markApproved`'s `WHERE status = 'pending'` filter, requirement
+      // 1.5). The target-table write above still landed (same accepted
+      // limitation as above); the suggestion's own status is left as
+      // whatever the concurrent caller already set.
+      return {
+        ok: false,
+        error: {
+          kind: 'write_failed',
+          message: `Suggestion ${id} was no longer pending by the time the approval completed (concurrent approve/reject)`,
+        },
+      };
+    }
+
+    return {
+      ok: true,
+      record: markResult.record as unknown as AiSuggestionRecord,
+    };
+  }
+
+  /**
+   * Reads the current row count of the materialized view most relevant to
+   * `target_table` (`countTargetFor`), used to compute `AiSuggestionOutcome`
+   * before the write and again after the refresh (requirement 8.5, 8.6).
+   */
+  private async countFor(view: CountTarget): Promise<number> {
+    const service =
+      view === 'mv_tech' ? this.mvTechService : this.mvLocationGroupService;
+    const { count } = await service.fetchAll();
+    return count;
+  }
+
+  /**
+   * Dispatches the approved write to the correct `libs/data-utils` service
+   * method for `suggestion.target_table`, based on `suggestion.action`.
+   * Single-`id`-primary-key tables use the inherited `upsert`/`update`/
+   * `delete`; composite-primary-key tables use their dedicated `updateBy*`/
+   * `deleteBy*` methods (see `writeSingleId`/`writeCompositeKey` above).
+   */
+  private async writeToTargetTable(
+    suggestion: AiSuggestionRecord,
+    payload: Record<string, unknown>,
+  ): Promise<WriteOutcome> {
+    const { target_table, action, target_key } = suggestion;
+    switch (target_table) {
+      case 'job_description_bin':
+        return writeSingleId(
+          this.jobDescriptionBinService,
+          action,
+          target_key,
+          payload,
+        );
+      case 'tech':
+        return writeSingleId(
+          this.techService,
+          action,
+          target_key,
+          payload,
+        );
+      case 'keyword_bin':
+        return writeSingleId(
+          this.keywordBinService,
+          action,
+          target_key,
+          payload,
+        );
+      case 'location_group':
+        return writeSingleId(
+          this.locationGroupService,
+          action,
+          target_key,
+          payload,
+        );
+      case 'tech_keyword':
+        return writeCompositeKey(
+          action,
+          target_key,
+          ['tech', 'keyword'],
+          records => this.techKeywordService.upsert(records as any[]),
+          (keyA, keyB, values) =>
+            this.techKeywordService.updateByTechAndKeyword(
+              keyA,
+              keyB,
+              values,
+            ),
+          (keyA, keyB) =>
+            this.techKeywordService.deleteByTechAndKeyword(keyA, keyB),
+          payload,
+        );
+      case 'tech_parent':
+        return writeCompositeKey(
+          action,
+          target_key,
+          ['parent', 'child'],
+          records => this.techParentService.upsert(records as any[]),
+          (keyA, keyB, values) =>
+            this.techParentService.updateByParentAndChild(
+              keyA,
+              keyB,
+              values,
+            ),
+          (keyA, keyB) =>
+            this.techParentService.deleteByParentAndChild(keyA, keyB),
+          payload,
+        );
+      case 'location_group_location':
+        return writeCompositeKey(
+          action,
+          target_key,
+          ['location_group', 'location'],
+          records =>
+            this.locationGroupLocationService.upsert(records as any[]),
+          (keyA, keyB, values) =>
+            this.locationGroupLocationService.updateByGroupAndLocation(
+              keyA,
+              keyB,
+              values,
+            ),
+          (keyA, keyB) =>
+            this.locationGroupLocationService.deleteByGroupAndLocation(
+              keyA,
+              keyB,
+            ),
+          payload,
+        );
+    }
   }
 }

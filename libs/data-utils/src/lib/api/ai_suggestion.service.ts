@@ -42,6 +42,24 @@ export type ListAiSuggestionFilter = {
   status?: AiSuggestionStatus;
 };
 
+/**
+ * Fields the approval flow (task 2.2) writes when transitioning a `pending`
+ * suggestion to `approved`. `status` and `reviewed_at` are owned by
+ * `markApproved` itself, not by the caller.
+ */
+export type MarkApprovedInput = {
+  payload: Record<string, unknown>;
+  reviewedBy: string;
+  resolutionNote: string | null;
+  outcome: Record<string, unknown> | null;
+  flaggedForReview: boolean;
+};
+
+export type MarkApprovedResult =
+  | { outcome: 'approved'; record: SupabaseTable.AiSuggestion }
+  | { outcome: 'not_pending' }
+  | { outcome: 'error'; error: PostgrestError };
+
 /** Postgres error code for a unique-constraint / unique-index violation. */
 const UNIQUE_VIOLATION_CODE = '23505';
 
@@ -125,6 +143,55 @@ export class AiSuggestionService extends TableService<SupabaseTable.AiSuggestion
       where,
       orders: [{ column: 'created_at', ascending: false }],
     });
+  }
+
+  /**
+   * Atomically transitions a `pending` suggestion to `approved`, writing the
+   * (possibly reviewer-edited) payload plus the review/outcome metadata
+   * (requirements 1.5, 7.4, 8.5, 8.6, 9.1).
+   *
+   * The `WHERE id = ? AND status = 'pending'` filter -- not a prior
+   * read-then-write check in the caller -- is what actually enforces "an
+   * already-approved/rejected suggestion cannot be re-approved" (requirement
+   * 1.5) at the data layer: a second, concurrent `markApproved` call against
+   * the same row (e.g. two reviewers racing to approve) matches zero rows
+   * and cannot corrupt state, rather than blindly overwriting whatever the
+   * first call already committed.
+   *
+   * `.maybeSingle()` (not `.single()`) is used so that "zero rows matched"
+   * surfaces as `{ data: null, error: null }` instead of a thrown/`error`
+   * response, which this method reports as `{ outcome: 'not_pending' }`
+   * rather than conflating it with a genuine database error.
+   */
+  async markApproved(
+    id: string,
+    input: MarkApprovedInput,
+  ): Promise<MarkApprovedResult> {
+    const { data, error } = await this.table
+      .update({
+        status: 'approved',
+        payload: input.payload,
+        reviewed_by: input.reviewedBy,
+        reviewed_at: new Date().toISOString(),
+        resolution_note: input.resolutionNote,
+        outcome: input.outcome,
+        flagged_for_review: input.flaggedForReview,
+      } as any)
+      .eq('id', id)
+      .eq('status', 'pending')
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      return { outcome: 'error', error };
+    }
+    if (!data) {
+      return { outcome: 'not_pending' };
+    }
+    return {
+      outcome: 'approved',
+      record: data as SupabaseTable.AiSuggestion,
+    };
   }
 }
 

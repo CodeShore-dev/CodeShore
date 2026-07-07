@@ -10,6 +10,7 @@ export * from './lib/api/company.service';
 export * from './lib/api/mv_company';
 export * from './lib/api/mv_company_tech';
 export * from './lib/api/keyword_bin.service';
+export * from './lib/api/job_description_bin.service';
 export * from './lib/api/job_keyword.service';
 export * from './lib/api/rpc';
 export * from './lib/api/job_anomaly';
