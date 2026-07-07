@@ -83,6 +83,13 @@ export namespace SupabaseTable {
     export type Keyword = Database['public']['Tables']['tech_keyword']['Row'];
   }
 
+  // `ai-database-maintenance-workflow` task 1.2: `tech_parent` already exists
+  // as a table (see `supabase/schema.sql`) but, unlike `LocationGroup` /
+  // `LocationGroup_.Location` below, had no `SupabaseTable.*` alias yet. This
+  // mirrors the existing simple-alias pattern (e.g. `Tech`, `KeywordBin`)
+  // rather than inventing a new naming scheme.
+  export type TechParent = Database['public']['Tables']['tech_parent']['Row'];
+
   export type JobSource = Database['public']['Tables']['job_source']['Row'];
 
   export type JobSourceURL = Database['public']['Tables']['job_source_url']['Row'];
