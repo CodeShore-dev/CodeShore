@@ -9,6 +9,8 @@ import {
   Min,
 } from 'class-validator';
 
+import { MV_REFRESH_STEP_IDS } from '@codeshore/data-utils';
+
 import { QueryDto } from '../query.dto';
 import {
   AnomalyKind,
@@ -184,4 +186,16 @@ export class CrawlDto {
   @IsOptional()
   @IsString()
   where?: string;
+}
+
+export class RefreshMvDto {
+  @ApiPropertyOptional({
+    enum: MV_REFRESH_STEP_IDS,
+    description:
+      'Resume the mv-refresh pipeline from this step id, skipping already-completed ' +
+      'steps before it. Omit to run the full pipeline from the start.',
+  })
+  @IsOptional()
+  @IsIn(MV_REFRESH_STEP_IDS)
+  from?: string;
 }

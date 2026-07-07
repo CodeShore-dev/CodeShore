@@ -167,7 +167,7 @@ function createHandlerContext(page: Page, requestUrl: string) {
       warning: vi.fn(),
       error: vi.fn(),
     },
-    enqueueLinks: vi.fn(async () => undefined),
+    enqueueLinks: vi.fn(async (_options: { urls: string[] }) => undefined),
   };
 }
 
@@ -553,6 +553,57 @@ describe('createCrawlRouter — pagination, extraction, existing lookup, enqueue
     expect((enqueuedRequests[0]?.userData as { id: string }).id).toBe(
       'new-1',
     );
+  });
+
+  it('enqueues the next list page URL via enqueueLinks when currentPage < totalPages', async () => {
+    const { router } = createCrawlRouter(createBaseConfig());
+    const mock = createMockPage();
+
+    const ctx = await runListPageHandler(router, mock, LIST_API_URL, {
+      page: 1,
+      totalPages: 2,
+      totalEntries: 0,
+      items: [],
+    });
+
+    expect(ctx.enqueueLinks).toHaveBeenCalledTimes(1);
+    const [enqueueLinksArgs] = ctx.enqueueLinks.mock.calls[0]!;
+    expect(enqueueLinksArgs.urls).toEqual([
+      'https://example.test/api/list?page=2',
+    ]);
+  });
+
+  it('does not enqueue a next list page when currentPage === totalPages', async () => {
+    const { router } = createCrawlRouter(createBaseConfig());
+    const mock = createMockPage();
+
+    const ctx = await runListPageHandler(router, mock, LIST_API_URL, {
+      page: 1,
+      totalPages: 1,
+      totalEntries: 0,
+      items: [],
+    });
+
+    expect(ctx.enqueueLinks).not.toHaveBeenCalled();
+  });
+
+  it('enqueues detail-page requests before the next list page request, so detail pages take priority over the next page (FIFO)', async () => {
+    const resolveExisting = vi.fn(async () => new Map<string, ExistingMeta>());
+    const { router } = createCrawlRouter(createBaseConfig({ resolveExisting }));
+    const mock = createMockPage();
+
+    const ctx = await runListPageHandler(router, mock, LIST_API_URL, {
+      page: 1,
+      totalPages: 2,
+      totalEntries: 1,
+      items: [{ id: 'new-item' }],
+    });
+
+    expect(addRequestsMock).toHaveBeenCalledTimes(1);
+    expect(ctx.enqueueLinks).toHaveBeenCalledTimes(1);
+    const addRequestsOrder = addRequestsMock.mock.invocationCallOrder[0];
+    const enqueueLinksOrder = ctx.enqueueLinks.mock.invocationCallOrder[0];
+    expect(addRequestsOrder).toBeLessThan(enqueueLinksOrder);
   });
 
   it('reports onListPageResolved with status "completed" and correct url/page/totalPages on success', async () => {

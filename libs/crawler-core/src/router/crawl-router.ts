@@ -5,6 +5,7 @@ import { createBatchAccumulator } from '../progress/batch-accumulator';
 import { withErrorIsolation } from '../progress/error-isolation';
 import { createRollingAverageTracker } from '../progress/rolling-average';
 import { formatDuration } from '../time';
+import { generateNextUrlToEnqueue } from '../url';
 import type {
   CrawlItemBase,
   CrawlRouterConfig,
@@ -207,7 +208,7 @@ export function createCrawlRouter<
     return formatDuration(etaMs);
   };
 
-  puppeteerRouter.addDefaultHandler(async ({ request, page }) => {
+  puppeteerRouter.addDefaultHandler(async ({ request, page, enqueueLinks }) => {
     log.info(`Processing: ${request.url}`);
     const pageStart = Date.now();
 
@@ -271,6 +272,19 @@ export function createCrawlRouter<
           await queue.addRequests(requestsToEnqueue);
           totalDetailPages += requestsToEnqueue.length;
           log.info(`Enqueued ${requestsToEnqueue.length} detail pages`);
+        }
+
+        // 必須排在上方 detail 佇列之後:RequestQueue 依插入順序(FIFO)派工,
+        // 先把本頁的 DETAIL 請求排入,才能確保它們在「下一頁清單」之前被處理
+        // (對應原 `handler.ts` detail `priority: 1` 高於下一頁 `priority: 0` 的意圖)。
+        if (currentPage < totalPages) {
+          await enqueueLinks({
+            urls: generateNextUrlToEnqueue(request.url),
+            transformRequestFunction: req => ({
+              ...req,
+              priority: 0,
+            }),
+          });
         }
 
         await config.onListPageResolved({

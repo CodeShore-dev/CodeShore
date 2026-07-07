@@ -150,3 +150,16 @@ export const createAdminCrawlEventSource = (
     `${baseURL}${BASE}/crawl?${search.toString()}`,
   );
 };
+
+export const createMvRefreshEventSource = (
+  fromStep?: string,
+): EventSource => {
+  const { baseURL } = httpClient.defaults;
+  const token = localStorage.getItem('token');
+  const search = new URLSearchParams();
+  if (fromStep) search.set('from', fromStep);
+  if (token) search.set('token', token);
+  return new EventSource(
+    `${baseURL}${BASE}/refresh-mv?${search.toString()}`,
+  );
+};

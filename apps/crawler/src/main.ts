@@ -28,7 +28,13 @@ import { isTheHost as isCakeHost } from './cake/utils';
 import { sourceRegistry } from './persistence';
 import { createJobStalenessSyncConfig } from './staleness-sync';
 
-const envPath = path.resolve(__dirname, '../.env');
+// `__dirname` 不可靠:esbuild production build 會把 main.js 攤平到
+// dist/apps/crawler 根目錄(不保留 src/ 巢狀結構),導致相對路徑跑掉。
+// Nx target 一律從 workspace root 執行,故改以 process.cwd() 為基準。
+const envPath = path.resolve(
+  process.cwd(),
+  'apps/crawler/.env',
+);
 
 dotenv.config({
   path: envPath,

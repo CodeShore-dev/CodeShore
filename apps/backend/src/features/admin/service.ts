@@ -12,6 +12,7 @@ import {
   fetchLocationAnomalyJobs,
   getJobCrawlStats,
   getJobUpdateDateCounts,
+  refreshAllMaterializedViews,
 } from '@codeshore/data-utils';
 
 import { QueryDto } from '../query.dto';
@@ -421,6 +422,37 @@ export class Service {
 
       return () => {
         child?.kill();
+      };
+    });
+  }
+
+  refreshAllMv(fromStep?: string): Observable<MessageEvent> {
+    return new Observable<MessageEvent>(subscriber => {
+      let cancelled = false;
+
+      (async () => {
+        try {
+          for await (const event of refreshAllMaterializedViews({
+            fromStep,
+          })) {
+            if (cancelled) return;
+            subscriber.next({ data: event } as MessageEvent);
+            if (event.type === 'done') break;
+          }
+        } catch (err: any) {
+          subscriber.next({
+            data: {
+              type: 'error',
+              step: 'unknown',
+              message: err?.message ?? 'Unknown error',
+            },
+          } as MessageEvent);
+        }
+        subscriber.complete();
+      })();
+
+      return () => {
+        cancelled = true;
       };
     });
   }

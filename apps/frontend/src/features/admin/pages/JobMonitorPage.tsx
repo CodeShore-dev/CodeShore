@@ -14,6 +14,7 @@ import {
   useUpdateDateCountsQuery,
 } from '../queries';
 import { useAdminCrawl } from '../useAdminCrawl';
+import { useMvRefresh } from '../useMvRefresh';
 
 interface Condition {
   column: string;
@@ -78,6 +79,7 @@ export function JobMonitorPage() {
   const unmapped = useUnmappedLocationsQuery();
   const updateDates = useUpdateDateCountsQuery();
   const crawl = useAdminCrawl();
+  const mvRefresh = useMvRefresh();
   const saveSalaryMutation = useUpdateSalaryMutation();
 
   const [statsDaysDraft, setStatsDaysDraft] = useState(statsDays);
@@ -87,6 +89,7 @@ export function JobMonitorPage() {
   ]);
 
   const logRef = useRef<HTMLDivElement | null>(null);
+  const mvLogRef = useRef<HTMLDivElement | null>(null);
 
   // Drop selections whose dates / groups no longer exist after a refetch
   // (parity with the Vue store pruning after loadUpdateDateCounts / loadUnmappedJobs).
@@ -110,6 +113,11 @@ export function JobMonitorPage() {
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [crawl.progress.length]);
+
+  // Keep the mv-refresh log scrolled to the latest line.
+  useEffect(() => {
+    if (mvLogRef.current) mvLogRef.current.scrollTop = mvLogRef.current.scrollHeight;
+  }, [mvRefresh.progress.length]);
 
   const conditionWhere = conditions
     .filter(c => c.column && c.operator && c.value !== '')
@@ -199,6 +207,9 @@ export function JobMonitorPage() {
 
   const showLog =
     crawl.progress.length > 0 || crawl.running || crawl.done;
+
+  const showMvLog =
+    mvRefresh.progress.length > 0 || mvRefresh.running || mvRefresh.done;
 
   return (
     <div className="w-full">
@@ -429,6 +440,97 @@ export function JobMonitorPage() {
                 </div>
               ))}
               {!crawl.progress.length && (
+                <div className="text-on-surface-variant/50 italic">啟動中…</div>
+              )}
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="border-surface-container bg-surface-container-lowest mb-8 rounded-2xl border p-5">
+        <div className="flex items-center gap-2">
+          <span className="material-symbols-outlined text-primary">database</span>
+          <h3 className="text-on-surface mb-0 font-bold">物化視圖重整</h3>
+          {mvRefresh.running && (
+            <span className="material-symbols-outlined text-primary animate-spin text-base">
+              progress_activity
+            </span>
+          )}
+        </div>
+        <p className="text-on-surface-variant mt-1 text-sm">
+          依 mv 依賴關係依序 REFRESH 所有物化視圖，並在 mv_tech 完成後執行關鍵字群組重建（/api/keyword/group/reset）。
+        </p>
+
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            className="bg-primary text-on-primary hover:bg-primary/90 cursor-pointer rounded-lg px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={mvRefresh.running}
+            onClick={() => mvRefresh.start()}
+          >
+            {mvRefresh.errorStep ? '從頭重跑' : '全部重整'}
+          </button>
+          {mvRefresh.errorStep && !mvRefresh.running && (
+            <button
+              type="button"
+              className="border-primary text-primary hover:bg-primary-container cursor-pointer rounded-lg border px-4 py-2 text-sm font-semibold transition hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={() => mvRefresh.start(mvRefresh.errorStep!)}
+            >
+              從失敗處繼續（{mvRefresh.errorStep}）
+            </button>
+          )}
+          {mvRefresh.running && mvRefresh.currentStep && (
+            <span className="text-on-surface-variant text-sm">
+              目前執行中：
+              <code className="bg-surface-container rounded px-1.5 py-0.5 font-mono">
+                {mvRefresh.currentStep}
+              </code>
+            </span>
+          )}
+          {mvRefresh.errorStep && (
+            <span className="text-error text-sm font-semibold">
+              ✕ 失敗於：{mvRefresh.errorStep}
+            </span>
+          )}
+        </div>
+
+        {showMvLog && (
+          <div className="border-surface-container mt-4 overflow-hidden rounded-lg border">
+            <div className="bg-surface-container flex items-center justify-between px-3 py-2">
+              <span className="text-on-surface-variant text-sm font-bold tracking-widest">
+                {mvRefresh.done
+                  ? mvRefresh.success
+                    ? '完成'
+                    : '失敗'
+                  : '重整進度'}
+              </span>
+              {mvRefresh.done ? (
+                <button
+                  type="button"
+                  className="text-on-surface-variant hover:text-on-surface cursor-pointer text-sm transition-colors"
+                  onClick={mvRefresh.clear}
+                >
+                  ✕
+                </button>
+              ) : (
+                <span className="material-symbols-outlined text-primary animate-spin text-sm">
+                  progress_activity
+                </span>
+              )}
+            </div>
+            <div
+              ref={mvLogRef}
+              className="bg-surface-container-lowest max-h-64 overflow-y-auto p-3 font-mono text-[11px]"
+            >
+              {mvRefresh.progress.map((line, i) => (
+                <div
+                  key={i}
+                  className="text-on-surface-variant leading-5 break-all whitespace-pre-wrap"
+                >
+                  {line}
+                </div>
+              ))}
+              {!mvRefresh.progress.length && (
                 <div className="text-on-surface-variant/50 italic">啟動中…</div>
               )}
             </div>

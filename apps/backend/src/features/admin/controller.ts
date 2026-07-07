@@ -18,6 +18,7 @@ import { AdminOnly } from '../auth/auth.decorator';
 import {
   CrawlDto,
   LocationAnomalyDto,
+  RefreshMvDto,
   SalaryAnomalyDto,
   StatsDto,
   UpdateSalaryDto,
@@ -107,5 +108,16 @@ export class Controller {
   })
   crawl(@Query() query: CrawlDto): Observable<MessageEvent> {
     return this.service.spawnCrawl(query);
+  }
+
+  @Sse('refresh-mv')
+  @ApiOperation({
+    summary:
+      'Refresh every materialized view in dependency order (including a keyword-group reset step) and stream progress via SSE',
+    description:
+      'Pass ?from=<step id> to resume after a previous failed run instead of restarting from the beginning.',
+  })
+  refreshMv(@Query() query: RefreshMvDto): Observable<MessageEvent> {
+    return this.service.refreshAllMv(query.from);
   }
 }
