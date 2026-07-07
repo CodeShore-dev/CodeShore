@@ -55,7 +55,7 @@ AS $function$
     JOIN reachable_from_child r ON tp.parent = r.node
     WHERE NOT tp.child = ANY(r.path)
   )
-  SELECT path || p_parent
+  SELECT path
   FROM reachable_from_child
   WHERE node = p_parent
   ORDER BY array_length(path, 1) ASC
