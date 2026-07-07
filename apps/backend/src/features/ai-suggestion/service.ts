@@ -16,7 +16,11 @@ import {
   TechParentService,
   TechService,
 } from '@codeshore/data-utils';
-import { AiSuggestionAction, SupabaseTable } from '@codeshore/data-types';
+import {
+  AiSuggestionAction,
+  AiSuggestionStatus,
+  SupabaseTable,
+} from '@codeshore/data-types';
 
 import { detectTechParentCycle } from './validation/cycle-check';
 
@@ -83,6 +87,22 @@ export type AiSuggestionApproveError =
 export type ApproveResult =
   | { ok: true; record: AiSuggestionRecord }
   | { ok: false; error: AiSuggestionApproveError };
+
+/**
+ * Discriminated `reject()` failure. Rejection is a pure metadata transition
+ * (it never writes to a target table or refreshes materialized views), so
+ * unlike `AiSuggestionApproveError` there is no `conflict`/`validation`/
+ * `write_failed` case for a target-table write -- only "not actionable"
+ * (not found, or no longer `pending`) and a data-layer write failure while
+ * recording the rejection itself.
+ */
+export type AiSuggestionRejectError =
+  | { kind: 'not_found'; message: string }
+  | { kind: 'write_failed'; message: string };
+
+export type RejectResult =
+  | { ok: true; record: AiSuggestionRecord }
+  | { ok: false; error: AiSuggestionRejectError };
 
 /** The materialized view most directly affected by each target table. */
 type CountTarget = 'mv_tech' | 'mv_location_group';
@@ -259,6 +279,23 @@ export class Service {
       result: result as unknown as AiSuggestionRecord[],
       count,
     };
+  }
+
+  /**
+   * Requirement 10.2's audit-history query: 可依目標資料表或時間範圍查詢
+   * 歷史建議紀錄，包含已核准與已駁回的建議. A thin, requirement-10.2-scoped
+   * wrapper over `list()` that defaults `status` to both terminal states
+   * (`approved` and `rejected`, never `pending`) so callers filtering by
+   * `targetTable` and/or `createdAfter`/`createdBefore` don't have to
+   * remember to exclude `pending` themselves; an explicit `status` in
+   * `filter` still overrides this default (e.g. to narrow to only
+   * `rejected`).
+   */
+  async history(filter: ListAiSuggestionFilter = {}) {
+    return this.list({
+      status: ['approved', 'rejected'] as readonly AiSuggestionStatus[],
+      ...filter,
+    });
   }
 
   /**
@@ -462,6 +499,70 @@ export class Service {
         error: {
           kind: 'write_failed',
           message: `Suggestion ${id} was no longer pending by the time the approval completed (concurrent approve/reject)`,
+        },
+      };
+    }
+
+    return {
+      ok: true,
+      record: markResult.record as unknown as AiSuggestionRecord,
+    };
+  }
+
+  /**
+   * Rejects a `pending` suggestion: records the reviewer, review time, and
+   * rejection note, and transitions its status to `rejected` -- a pure
+   * metadata transition that never writes to any target-table write service
+   * and never triggers `refreshAllMaterializedViews` (requirement 1.3's
+   * "while pending, don't write to production tables" extends naturally to
+   * "when rejected, never write to production tables either", requirement
+   * 7.3, 10.1).
+   *
+   * Mirrors `approve()`'s exact not-found/not-actionable handling: looking
+   * up the suggestion first and rejecting up front (without calling
+   * `markRejected` at all) when it doesn't exist or is no longer `pending`,
+   * so an already-approved/already-rejected suggestion cannot be rejected a
+   * second time (requirement 1.5).
+   */
+  async reject(
+    id: string,
+    note: string | undefined,
+    reviewerId: string,
+  ): Promise<RejectResult> {
+    const lookup = await this.getById(id);
+    if (!lookup.found || lookup.record.status !== 'pending') {
+      return {
+        ok: false,
+        error: {
+          kind: 'not_found',
+          message: `No pending suggestion found for id "${id}" (it does not exist, or has already been approved/rejected)`,
+        },
+      };
+    }
+
+    const markResult = await this.aiSuggestionService.markRejected(id, {
+      reviewerId,
+      note: note ?? null,
+    });
+
+    if (markResult.outcome === 'error') {
+      return {
+        ok: false,
+        error: {
+          kind: 'write_failed',
+          message: `Failed to record the rejection for suggestion ${id}: ${markResult.error.message}`,
+        },
+      };
+    }
+    if (markResult.outcome === 'not_pending') {
+      // A concurrent approve/reject won the race between this call's
+      // initial pending check and this final atomic transition (enforced by
+      // `markRejected`'s `WHERE status = 'pending'` filter, requirement 1.5).
+      return {
+        ok: false,
+        error: {
+          kind: 'not_found',
+          message: `Suggestion ${id} was no longer pending by the time the rejection completed (concurrent approve/reject)`,
         },
       };
     }

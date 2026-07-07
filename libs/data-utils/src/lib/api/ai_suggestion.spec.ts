@@ -30,6 +30,7 @@ type FakeInsertResponse = {
 function createFakeBuilder(options: {
   rows: AiSuggestionRow[];
   insertResponses: FakeInsertResponse[];
+  updateError?: FakePostgrestError | null;
 }) {
   const { rows, insertResponses } = options;
   let filtered = [...rows];
@@ -80,7 +81,33 @@ function createFakeBuilder(options: {
         filtered = filtered.filter(
           row => (row as any)[column] === value,
         );
+      } else if (operator === 'gte') {
+        filtered = filtered.filter(
+          row => (row as any)[column] >= value,
+        );
+      } else if (operator === 'lte') {
+        filtered = filtered.filter(
+          row => (row as any)[column] <= value,
+        );
       }
+      return builder;
+    },
+    or(conditions: string) {
+      // Mirrors the `status.eq.approved,status.eq.rejected`-style
+      // PostgREST `or()` string built by `listByTargetAndStatus` for a
+      // multi-value `status` filter (see `_fetchList`'s `$or` handling in
+      // `shared-services/supabase/utils.ts`).
+      const clauses = conditions
+        .split(',')
+        .map(clause => clause.split('.'));
+      filtered = filtered.filter(row =>
+        clauses.some(([col, operator, value]) => {
+          if (operator === 'eq') {
+            return String((row as any)[col]) === value;
+          }
+          return false;
+        }),
+      );
       return builder;
     },
     order(
@@ -118,6 +145,16 @@ function createFakeBuilder(options: {
         return;
       }
       if (mode === 'update') {
+        mode = 'select';
+        if (options.updateError) {
+          resolve({
+            data: null,
+            error: options.updateError,
+            status: 500,
+            count: null,
+          });
+          return;
+        }
         let matched: AiSuggestionRow | null = null;
         rows.forEach((row, idx) => {
           if (
@@ -132,7 +169,6 @@ function createFakeBuilder(options: {
             matched = rows[idx];
           }
         });
-        mode = 'select';
         resolve({
           data: matched,
           error: null,
@@ -155,6 +191,7 @@ function createFakeBuilder(options: {
 function createFakeClient(options: {
   rows: AiSuggestionRow[];
   insertResponses: FakeInsertResponse[];
+  updateError?: FakePostgrestError | null;
 }): SupabaseClient {
   const fakeBuilder = createFakeBuilder(options);
   return {
@@ -192,12 +229,14 @@ const storedRow: AiSuggestionRow = {
 
 let fakeRows: AiSuggestionRow[] = [];
 let fakeInsertResponses: FakeInsertResponse[] = [];
+let fakeUpdateError: FakePostgrestError | null = null;
 
 vi.mock('@codeshore/supabase', () => ({
   getSupabaseClient: () =>
     createFakeClient({
       rows: fakeRows,
       insertResponses: fakeInsertResponses,
+      updateError: fakeUpdateError,
     }),
 }));
 
@@ -205,6 +244,7 @@ describe('AiSuggestionService', () => {
   beforeEach(() => {
     fakeRows = [];
     fakeInsertResponses = [];
+    fakeUpdateError = null;
   });
 
   describe('createPendingSuggestion', () => {
@@ -402,6 +442,173 @@ describe('AiSuggestionService', () => {
       });
 
       expect(result).toEqual({ outcome: 'not_pending' });
+    });
+  });
+
+  describe('markRejected', () => {
+    it('transitions a pending suggestion to rejected and writes only the review metadata', async () => {
+      fakeRows = [storedRow];
+      const { AiSuggestionService } = await import('./ai_suggestion.service');
+      const service = new AiSuggestionService();
+
+      const result = await service.markRejected('suggestion-1', {
+        reviewerId: 'reviewer-1',
+        note: 'not a real alias',
+      });
+
+      expect(result.outcome).toBe('rejected');
+      if (result.outcome === 'rejected') {
+        expect(result.record.status).toBe('rejected');
+        expect(result.record.reviewed_by).toBe('reviewer-1');
+        expect(result.record.resolution_note).toBe('not a real alias');
+        expect(typeof result.record.reviewed_at).toBe('string');
+        // approve-only fields are left untouched
+        expect(result.record.payload).toEqual(storedRow.payload);
+        expect(result.record.flagged_for_review).toBe(false);
+        expect(result.record.outcome).toBeNull();
+      }
+
+      // the change is visible on the next query, not just in the returned row
+      const { result: rows } = await service.fetchAll({
+        where: { id: { eq: 'suggestion-1' } },
+      });
+      expect(rows[0].status).toBe('rejected');
+    });
+
+    it('returns not_pending without changing the row when the suggestion is already approved', async () => {
+      fakeRows = [{ ...storedRow, status: 'approved' }];
+      const { AiSuggestionService } = await import('./ai_suggestion.service');
+      const service = new AiSuggestionService();
+
+      const result = await service.markRejected('suggestion-1', {
+        reviewerId: 'reviewer-1',
+        note: 'note',
+      });
+
+      expect(result).toEqual({ outcome: 'not_pending' });
+      expect(fakeRows[0].status).toBe('approved');
+    });
+
+    it('returns not_pending without changing the row when the suggestion is already rejected', async () => {
+      fakeRows = [{ ...storedRow, status: 'rejected' }];
+      const { AiSuggestionService } = await import('./ai_suggestion.service');
+      const service = new AiSuggestionService();
+
+      const result = await service.markRejected('suggestion-1', {
+        reviewerId: 'reviewer-1',
+        note: 'note',
+      });
+
+      expect(result).toEqual({ outcome: 'not_pending' });
+    });
+
+    it('returns not_pending when the id does not exist at all', async () => {
+      fakeRows = [storedRow];
+      const { AiSuggestionService } = await import('./ai_suggestion.service');
+      const service = new AiSuggestionService();
+
+      const result = await service.markRejected('does-not-exist', {
+        reviewerId: 'reviewer-1',
+        note: 'note',
+      });
+
+      expect(result).toEqual({ outcome: 'not_pending' });
+    });
+
+    it('surfaces a genuine database error distinctly from not_pending, without changing the row', async () => {
+      fakeRows = [storedRow];
+      fakeUpdateError = {
+        code: '500',
+        message: 'connection to database lost',
+      };
+      const { AiSuggestionService } = await import('./ai_suggestion.service');
+      const service = new AiSuggestionService();
+
+      const result = await service.markRejected('suggestion-1', {
+        reviewerId: 'reviewer-1',
+        note: 'note',
+      });
+
+      expect(result.outcome).toBe('error');
+      if (result.outcome === 'error') {
+        expect(result.error.message).toBe('connection to database lost');
+      }
+      expect(fakeRows[0].status).toBe('pending');
+    });
+  });
+
+  describe('listByTargetAndStatus (history queries)', () => {
+    const approvedRow: AiSuggestionRow = {
+      ...storedRow,
+      id: 'suggestion-approved',
+      status: 'approved',
+      created_at: '2026-02-15T00:00:00.000Z',
+      reviewed_by: 'reviewer-1',
+      reviewed_at: '2026-02-15T01:00:00.000Z',
+    };
+    const rejectedRow: AiSuggestionRow = {
+      ...storedRow,
+      id: 'suggestion-rejected',
+      status: 'rejected',
+      created_at: '2026-02-20T00:00:00.000Z',
+      reviewed_by: 'reviewer-1',
+      reviewed_at: '2026-02-20T01:00:00.000Z',
+      resolution_note: 'not needed',
+    };
+    const pendingRow: AiSuggestionRow = {
+      ...storedRow,
+      id: 'suggestion-pending',
+      status: 'pending',
+      created_at: '2026-02-16T00:00:00.000Z',
+    };
+    const outOfRangeApprovedRow: AiSuggestionRow = {
+      ...storedRow,
+      id: 'suggestion-old-approved',
+      status: 'approved',
+      created_at: '2026-01-01T00:00:00.000Z',
+    };
+
+    it('returns both approved and rejected rows within a created_at time range, excluding rows outside it and still-pending rows', async () => {
+      fakeRows = [
+        approvedRow,
+        rejectedRow,
+        pendingRow,
+        outOfRangeApprovedRow,
+      ];
+      const { AiSuggestionService } = await import('./ai_suggestion.service');
+      const service = new AiSuggestionService();
+
+      const { result } = await service.listByTargetAndStatus({
+        status: ['approved', 'rejected'],
+        createdAfter: '2026-02-01T00:00:00.000Z',
+        createdBefore: '2026-02-28T00:00:00.000Z',
+      });
+
+      expect(result.map(row => row.id).sort()).toEqual(
+        ['suggestion-approved', 'suggestion-rejected'].sort(),
+      );
+    });
+
+    it('combines targetTable with the time range', async () => {
+      const otherTableApproved: AiSuggestionRow = {
+        ...approvedRow,
+        id: 'suggestion-other-table',
+        target_table: 'tech',
+      };
+      fakeRows = [approvedRow, rejectedRow, otherTableApproved];
+      const { AiSuggestionService } = await import('./ai_suggestion.service');
+      const service = new AiSuggestionService();
+
+      const { result } = await service.listByTargetAndStatus({
+        targetTable: 'tech_keyword',
+        status: ['approved', 'rejected'],
+        createdAfter: '2026-02-01T00:00:00.000Z',
+        createdBefore: '2026-02-28T00:00:00.000Z',
+      });
+
+      expect(result.map(row => row.id).sort()).toEqual(
+        ['suggestion-approved', 'suggestion-rejected'].sort(),
+      );
     });
   });
 });

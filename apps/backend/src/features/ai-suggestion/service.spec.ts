@@ -704,3 +704,214 @@ describe('Service.approve', () => {
     );
   });
 });
+
+describe('Service.reject', () => {
+  beforeEach(() => {
+    vi.mocked(refreshAllMaterializedViews).mockReset();
+  });
+
+  it('rejects a pending suggestion: transitions to rejected, records the note, and never touches any target-table write service or the mv refresh', async () => {
+    const suggestion = {
+      ...baseRecord,
+      id: 'suggestion-tk',
+      target_table: 'tech_keyword',
+      status: 'pending',
+    };
+    const rejectedRecord = {
+      ...suggestion,
+      status: 'rejected',
+      reviewed_by: 'reviewer-1',
+      resolution_note: 'not a real alias',
+    };
+    const aiSuggestionService = {
+      fetchAll: vi
+        .fn()
+        .mockResolvedValue({ result: [suggestion], count: 1, searchParams: '' }),
+      markRejected: vi
+        .fn()
+        .mockResolvedValue({ outcome: 'rejected', record: rejectedRecord }),
+    };
+    const techKeywordService = {
+      upsert: vi.fn(),
+      updateByTechAndKeyword: vi.fn(),
+      deleteByTechAndKeyword: vi.fn(),
+    };
+    const service = createService({ aiSuggestionService, techKeywordService });
+
+    const result = await service.reject(
+      'suggestion-tk',
+      'not a real alias',
+      'reviewer-1',
+    );
+
+    expect(aiSuggestionService.markRejected).toHaveBeenCalledWith(
+      'suggestion-tk',
+      { reviewerId: 'reviewer-1', note: 'not a real alias' },
+    );
+    expect(result).toEqual({ ok: true, record: rejectedRecord });
+    expect(techKeywordService.upsert).not.toHaveBeenCalled();
+    expect(techKeywordService.updateByTechAndKeyword).not.toHaveBeenCalled();
+    expect(techKeywordService.deleteByTechAndKeyword).not.toHaveBeenCalled();
+    expect(refreshAllMaterializedViews).not.toHaveBeenCalled();
+  });
+
+  it('passes null (not undefined) as the note to markRejected when no note is given', async () => {
+    const suggestion = { ...baseRecord, id: 'suggestion-1', status: 'pending' };
+    const aiSuggestionService = {
+      fetchAll: vi
+        .fn()
+        .mockResolvedValue({ result: [suggestion], count: 1, searchParams: '' }),
+      markRejected: vi.fn().mockResolvedValue({
+        outcome: 'rejected',
+        record: { ...suggestion, status: 'rejected' },
+      }),
+    };
+    const service = createService({ aiSuggestionService });
+
+    await service.reject('suggestion-1', undefined, 'reviewer-1');
+
+    expect(aiSuggestionService.markRejected).toHaveBeenCalledWith(
+      'suggestion-1',
+      { reviewerId: 'reviewer-1', note: null },
+    );
+  });
+
+  it('returns not_found without calling markRejected when the suggestion is already approved', async () => {
+    const suggestion = { ...baseRecord, id: 'suggestion-1', status: 'approved' };
+    const aiSuggestionService = {
+      fetchAll: vi
+        .fn()
+        .mockResolvedValue({ result: [suggestion], count: 1, searchParams: '' }),
+      markRejected: vi.fn(),
+    };
+    const service = createService({ aiSuggestionService });
+
+    const result = await service.reject('suggestion-1', 'note', 'reviewer-1');
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe('not_found');
+    }
+    expect(aiSuggestionService.markRejected).not.toHaveBeenCalled();
+  });
+
+  it('returns not_found without calling markRejected when the suggestion is already rejected', async () => {
+    const suggestion = { ...baseRecord, id: 'suggestion-1', status: 'rejected' };
+    const aiSuggestionService = {
+      fetchAll: vi
+        .fn()
+        .mockResolvedValue({ result: [suggestion], count: 1, searchParams: '' }),
+      markRejected: vi.fn(),
+    };
+    const service = createService({ aiSuggestionService });
+
+    const result = await service.reject('suggestion-1', 'note', 'reviewer-1');
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe('not_found');
+    }
+    expect(aiSuggestionService.markRejected).not.toHaveBeenCalled();
+  });
+
+  it('returns not_found when rejecting an id that does not exist', async () => {
+    const aiSuggestionService = {
+      fetchAll: vi
+        .fn()
+        .mockResolvedValue({ result: [], count: 0, searchParams: '' }),
+      markRejected: vi.fn(),
+    };
+    const service = createService({ aiSuggestionService });
+
+    const result = await service.reject(
+      'does-not-exist',
+      'note',
+      'reviewer-1',
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe('not_found');
+    }
+    expect(aiSuggestionService.markRejected).not.toHaveBeenCalled();
+  });
+
+  it('reports write_failed distinctly when markRejected races to not_pending after the initial pending check passed', async () => {
+    const suggestion = { ...baseRecord, id: 'suggestion-1', status: 'pending' };
+    const aiSuggestionService = {
+      fetchAll: vi
+        .fn()
+        .mockResolvedValue({ result: [suggestion], count: 1, searchParams: '' }),
+      markRejected: vi.fn().mockResolvedValue({ outcome: 'not_pending' }),
+    };
+    const service = createService({ aiSuggestionService });
+
+    const result = await service.reject('suggestion-1', 'note', 'reviewer-1');
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe('not_found');
+      expect(result.error.message).toContain('concurrent');
+    }
+  });
+
+  it('reports write_failed when markRejected itself errors', async () => {
+    const suggestion = { ...baseRecord, id: 'suggestion-1', status: 'pending' };
+    const aiSuggestionService = {
+      fetchAll: vi
+        .fn()
+        .mockResolvedValue({ result: [suggestion], count: 1, searchParams: '' }),
+      markRejected: vi.fn().mockResolvedValue({
+        outcome: 'error',
+        error: { message: 'db unavailable' },
+      }),
+    };
+    const service = createService({ aiSuggestionService });
+
+    const result = await service.reject('suggestion-1', 'note', 'reviewer-1');
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe('write_failed');
+      expect(result.error.message).toContain('db unavailable');
+    }
+  });
+});
+
+describe('Service.history', () => {
+  it('defaults to approved+rejected statuses and forwards targetTable/time-range filters to list', async () => {
+    const expected = { result: [baseRecord], count: 1, searchParams: '' };
+    const aiSuggestionService = {
+      listByTargetAndStatus: vi.fn().mockResolvedValue(expected),
+    };
+    const service = createService({ aiSuggestionService });
+
+    const result = await service.history({
+      targetTable: 'tech_keyword',
+      createdAfter: '2026-01-01T00:00:00.000Z',
+      createdBefore: '2026-02-01T00:00:00.000Z',
+    });
+
+    expect(aiSuggestionService.listByTargetAndStatus).toHaveBeenCalledWith({
+      status: ['approved', 'rejected'],
+      targetTable: 'tech_keyword',
+      createdAfter: '2026-01-01T00:00:00.000Z',
+      createdBefore: '2026-02-01T00:00:00.000Z',
+    });
+    expect(result.result).toEqual([baseRecord]);
+  });
+
+  it('lets an explicit status filter override the approved+rejected default', async () => {
+    const expected = { result: [], count: 0, searchParams: '' };
+    const aiSuggestionService = {
+      listByTargetAndStatus: vi.fn().mockResolvedValue(expected),
+    };
+    const service = createService({ aiSuggestionService });
+
+    await service.history({ status: 'rejected' });
+
+    expect(aiSuggestionService.listByTargetAndStatus).toHaveBeenCalledWith({
+      status: 'rejected',
+    });
+  });
+});

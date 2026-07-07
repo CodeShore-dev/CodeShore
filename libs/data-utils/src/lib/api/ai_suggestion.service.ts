@@ -37,9 +37,18 @@ export type CreatePendingSuggestionResult =
     }
   | { outcome: 'error'; error: PostgrestError };
 
+/**
+ * `status` accepts either a single status or multiple (e.g. `['approved',
+ * 'rejected']` for the requirement 10.2 audit-history query, which must
+ * return both terminal statuses while excluding `pending`).
+ * `createdAfter`/`createdBefore` are inclusive ISO-8601 timestamp bounds on
+ * `created_at`, used for the requirement 10.2 time-range query.
+ */
 export type ListAiSuggestionFilter = {
   targetTable?: AiSuggestionTargetTable;
-  status?: AiSuggestionStatus;
+  status?: AiSuggestionStatus | readonly AiSuggestionStatus[];
+  createdAfter?: string;
+  createdBefore?: string;
 };
 
 /**
@@ -57,6 +66,23 @@ export type MarkApprovedInput = {
 
 export type MarkApprovedResult =
   | { outcome: 'approved'; record: SupabaseTable.AiSuggestion }
+  | { outcome: 'not_pending' }
+  | { outcome: 'error'; error: PostgrestError };
+
+/**
+ * Fields the rejection flow (task 2.3) writes when transitioning a `pending`
+ * suggestion to `rejected`. `status` and `reviewed_at` are owned by
+ * `markRejected` itself, not by the caller. Unlike `MarkApprovedInput`, there
+ * is no `payload`/`outcome`/`flaggedForReview` -- a rejected suggestion never
+ * lands anywhere, so those approve-only fields are left untouched.
+ */
+export type MarkRejectedInput = {
+  reviewerId: string;
+  note: string | null;
+};
+
+export type MarkRejectedResult =
+  | { outcome: 'rejected'; record: SupabaseTable.AiSuggestion }
   | { outcome: 'not_pending' }
   | { outcome: 'error'; error: PostgrestError };
 
@@ -127,17 +153,46 @@ export class AiSuggestionService extends TableService<SupabaseTable.AiSuggestion
   }
 
   /**
-   * Lists suggestions filtered by target table and/or status, newest first.
-   * Used by the (later, task 2.1/2.3) queue list/detail and audit-history
-   * queries; this method only provides the typed data-access primitive.
+   * Lists suggestions filtered by target table, status (single or multiple),
+   * and/or a `created_at` time range, newest first. Used by both the queue
+   * list/detail (task 2.1) and the requirement 10.2 audit-history query
+   * (task 2.3, e.g. `status: ['approved', 'rejected']` plus `createdAfter`/
+   * `createdBefore`); this method only provides the typed data-access
+   * primitive.
+   *
+   * The `gte`/`lte`/multi-value-`$or` filter shapes used below are already
+   * supported generically by `fetchAll`'s underlying `fetchList` (see
+   * `shared-services/supabase/utils.ts`'s `_fetchList`), so no new query
+   * plumbing is added here.
    */
   listByTargetAndStatus(filter: ListAiSuggestionFilter = {}) {
-    const where: Record<string, { eq: string }> = {};
+    const where: Record<string, any> = {};
     if (filter.targetTable) {
       where['target_table'] = { eq: filter.targetTable };
     }
     if (filter.status) {
-      where['status'] = { eq: filter.status };
+      const statuses = Array.isArray(filter.status)
+        ? filter.status
+        : [filter.status as AiSuggestionStatus];
+      if (statuses.length === 1) {
+        where['status'] = { eq: statuses[0] };
+      } else if (statuses.length > 1) {
+        where['$or'] = statuses
+          .map(status => `status.eq.${status}`)
+          .join(',');
+      }
+    }
+    if (filter.createdAfter) {
+      where['created_at'] = {
+        ...where['created_at'],
+        gte: filter.createdAfter,
+      };
+    }
+    if (filter.createdBefore) {
+      where['created_at'] = {
+        ...where['created_at'],
+        lte: filter.createdBefore,
+      };
     }
     return this.fetchAll({
       where,
@@ -190,6 +245,49 @@ export class AiSuggestionService extends TableService<SupabaseTable.AiSuggestion
     }
     return {
       outcome: 'approved',
+      record: data as SupabaseTable.AiSuggestion,
+    };
+  }
+
+  /**
+   * Atomically transitions a `pending` suggestion to `rejected`, writing
+   * only the review metadata (`reviewed_by`, `reviewed_at`,
+   * `resolution_note`) -- never `payload`, `flagged_for_review`, or
+   * `outcome`, since a rejected suggestion never lands on its target table
+   * (requirement 1.3, 7.3).
+   *
+   * Mirrors `markApproved`'s exact race-safety pattern: the
+   * `WHERE id = ? AND status = 'pending'` filter (not a prior read-then-write
+   * check in the caller) is what enforces "an already-approved/rejected
+   * suggestion cannot be re-rejected" (requirement 1.5) at the data layer,
+   * and `.maybeSingle()` reports "zero rows matched" as `{ outcome:
+   * 'not_pending' }` rather than conflating it with a genuine database
+   * error.
+   */
+  async markRejected(
+    id: string,
+    input: MarkRejectedInput,
+  ): Promise<MarkRejectedResult> {
+    const { data, error } = await this.table
+      .update({
+        status: 'rejected',
+        reviewed_by: input.reviewerId,
+        reviewed_at: new Date().toISOString(),
+        resolution_note: input.note,
+      } as any)
+      .eq('id', id)
+      .eq('status', 'pending')
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      return { outcome: 'error', error };
+    }
+    if (!data) {
+      return { outcome: 'not_pending' };
+    }
+    return {
+      outcome: 'rejected',
       record: data as SupabaseTable.AiSuggestion,
     };
   }
