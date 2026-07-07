@@ -1,7 +1,48 @@
 ﻿import { Database } from './supabase.schema';
 import { Modify } from './utils.@types';
 
+// `ai_suggestion` 佇列表的欄位型別（見 ai-database-maintenance-workflow spec
+// design.md「Logical Data Model：ai_suggestion」）。這些型別名稱刻意不放進
+// `SupabaseTable` 命名空間，讓後續任務（backend AiSuggestionService 契約、
+// 5 個 generator）可直接沿用同一組型別名稱，不必另外命名。
+export type AiSuggestionTargetTable =
+  | 'job_description_bin'
+  | 'tech'
+  | 'keyword_bin'
+  | 'tech_keyword'
+  | 'tech_parent'
+  | 'location_group'
+  | 'location_group_location';
+
+export type AiSuggestionWorkflow =
+  | 'keyword_mapping'
+  | 'tech_dictionary'
+  | 'tech_hierarchy'
+  | 'location_mapping'
+  | 'noise_detection';
+
+export type AiSuggestionAction = 'insert' | 'update' | 'delete';
+export type AiSuggestionStatus = 'pending' | 'approved' | 'rejected';
+
 export namespace SupabaseTable {
+  // 對應新的 supabase/migrations/20260707000000_create_ai_suggestion.sql；
+  // 該遷移尚未套用到實際 Supabase 專案（sandbox 無 Docker／遠端憑證），套用後
+  // 需重跑 `pnpm db:sync` 重新產生 supabase.schema.ts，屆時應核對此手動型別
+  // 與產生器輸出是否一致並視需要調整。
+  export type AiSuggestion = Modify<
+    Database['public']['Tables']['ai_suggestion']['Row'],
+    {
+      target_table: AiSuggestionTargetTable;
+      workflow: AiSuggestionWorkflow;
+      action: AiSuggestionAction;
+      status: AiSuggestionStatus;
+      target_key: Readonly<Record<string, string>>;
+      payload: Record<string, unknown>;
+      evidence: Record<string, unknown>;
+      outcome: Record<string, unknown> | null;
+    }
+  >;
+
   export type Job = Modify<
     Database['public']['Tables']['job']['Row'],
     {

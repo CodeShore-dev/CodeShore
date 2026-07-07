@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_suggestion: {
+        Row: {
+          action: string
+          created_at: string
+          evidence: Json
+          flagged_for_review: boolean
+          id: string
+          outcome: Json | null
+          payload: Json
+          resolution_note: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          target_key: Json
+          target_table: string
+          workflow: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          evidence: Json
+          flagged_for_review?: boolean
+          id?: string
+          outcome?: Json | null
+          payload: Json
+          resolution_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          target_key: Json
+          target_table: string
+          workflow: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          evidence?: Json
+          flagged_for_review?: boolean
+          id?: string
+          outcome?: Json | null
+          payload?: Json
+          resolution_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          target_key?: Json
+          target_table?: string
+          workflow?: string
+        }
+        Relationships: []
+      }
       company: {
         Row: {
           created_at: string
