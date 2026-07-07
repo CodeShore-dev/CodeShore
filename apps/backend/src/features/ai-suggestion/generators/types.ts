@@ -34,11 +34,28 @@ export interface GeneratorResult {
   skippedDuplicates: number;
   /** Candidates the LLM judged as "no suitable match" -- not an error, just no suggestion created. */
   skippedNoMatch: number;
+  /**
+   * Candidate edges rejected because a validation hook (e.g.
+   * `detectTechParentCycle`, task 1.4/3.3) determined creating the
+   * suggestion would form a cycle or other structural conflict. Deliberately
+   * distinct from `errors`: a detected cycle is the check working correctly
+   * (requirement 4.2, 8.2), not a system failure, so it must not be counted
+   * or reported the same way a thrown/failed operation is. Generators that
+   * have no such conflict-detecting validation hook (3.1, 3.2) simply never
+   * increment this field.
+   */
+  skippedConflict: number;
   errors: Array<{ message: string }>;
 }
 
 export function emptyGeneratorResult(): GeneratorResult {
-  return { created: 0, skippedDuplicates: 0, skippedNoMatch: 0, errors: [] };
+  return {
+    created: 0,
+    skippedDuplicates: 0,
+    skippedNoMatch: 0,
+    skippedConflict: 0,
+    errors: [],
+  };
 }
 
 export interface SuggestionGenerator {

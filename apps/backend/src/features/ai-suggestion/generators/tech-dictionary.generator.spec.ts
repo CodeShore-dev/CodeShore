@@ -82,7 +82,7 @@ describe('TechDictionaryGenerator.generate', () => {
 
     const result = await generator.generate();
 
-    expect(result).toEqual({ created: 1, skippedDuplicates: 0, skippedNoMatch: 0, errors: [] });
+    expect(result).toEqual({ created: 1, skippedDuplicates: 0, skippedNoMatch: 0, skippedConflict: 0, errors: [] });
     expect(findSimilarTechFn).toHaveBeenCalledWith('SolidJS', SIMILARITY_THRESHOLD);
     expect(suggestionCreator.createSuggestion).toHaveBeenCalledWith({
       target_table: 'tech',
@@ -180,7 +180,7 @@ describe('TechDictionaryGenerator.generate', () => {
 
     const result = await generator.generate();
 
-    expect(result).toEqual({ created: 1, skippedDuplicates: 0, skippedNoMatch: 0, errors: [] });
+    expect(result).toEqual({ created: 1, skippedDuplicates: 0, skippedNoMatch: 0, skippedConflict: 0, errors: [] });
     expect(findSimilarTechFn).not.toHaveBeenCalled();
     expect(suggestionCreator.createSuggestion).toHaveBeenCalledWith({
       target_table: 'tech',
@@ -267,7 +267,7 @@ describe('TechDictionaryGenerator.generate', () => {
 
     const result = await generator.generate();
 
-    expect(result).toEqual({ created: 0, skippedDuplicates: 1, skippedNoMatch: 0, errors: [] });
+    expect(result).toEqual({ created: 0, skippedDuplicates: 1, skippedNoMatch: 0, skippedConflict: 0, errors: [] });
   });
 
   it('records one error and creates zero suggestions, without throwing, when the single LLM call fails', async () => {
@@ -298,6 +298,7 @@ describe('TechDictionaryGenerator.generate', () => {
       created: 0,
       skippedDuplicates: 0,
       skippedNoMatch: 0,
+      skippedConflict: 0,
       errors: [{ message: expect.stringContaining('timeout') }],
     });
     expect(suggestionCreator.createSuggestion).not.toHaveBeenCalled();
@@ -328,7 +329,7 @@ describe('TechDictionaryGenerator.generate', () => {
     const result = await generator.generate();
 
     expect(llmClient.completeStructured).not.toHaveBeenCalled();
-    expect(result).toEqual({ created: 0, skippedDuplicates: 0, skippedNoMatch: 0, errors: [] });
+    expect(result).toEqual({ created: 0, skippedDuplicates: 0, skippedNoMatch: 0, skippedConflict: 0, errors: [] });
   });
 
   it('sends both candidate keywords and full tech dictionary as LLM input context', async () => {

@@ -70,7 +70,7 @@ describe('KeywordMappingGenerator.generate', () => {
 
     const result = await generator.generate();
 
-    expect(result).toEqual({ created: 1, skippedDuplicates: 0, skippedNoMatch: 0, errors: [] });
+    expect(result).toEqual({ created: 1, skippedDuplicates: 0, skippedNoMatch: 0, skippedConflict: 0, errors: [] });
     expect(jobKeywordService.fetchAll).toHaveBeenCalledWith({
       where: { keywords: { cs: '{"reactjs"}' } },
     });
@@ -125,7 +125,7 @@ describe('KeywordMappingGenerator.generate', () => {
 
     const result = await generator.generate();
 
-    expect(result).toEqual({ created: 0, skippedDuplicates: 0, skippedNoMatch: 1, errors: [] });
+    expect(result).toEqual({ created: 0, skippedDuplicates: 0, skippedNoMatch: 1, skippedConflict: 0, errors: [] });
     expect(suggestionCreator.createSuggestion).not.toHaveBeenCalled();
   });
 
@@ -188,7 +188,7 @@ describe('KeywordMappingGenerator.generate', () => {
 
     const result = await generator.generate();
 
-    expect(result).toEqual({ created: 0, skippedDuplicates: 1, skippedNoMatch: 0, errors: [] });
+    expect(result).toEqual({ created: 0, skippedDuplicates: 1, skippedNoMatch: 0, skippedConflict: 0, errors: [] });
   });
 
   it('records an error and keeps processing remaining candidates when one LLM call fails', async () => {
@@ -286,6 +286,6 @@ describe('KeywordMappingGenerator.generate', () => {
     const result = await generator.generate();
 
     expect(llmClient.completeStructured).not.toHaveBeenCalled();
-    expect(result).toEqual({ created: 0, skippedDuplicates: 0, skippedNoMatch: 0, errors: [] });
+    expect(result).toEqual({ created: 0, skippedDuplicates: 0, skippedNoMatch: 0, skippedConflict: 0, errors: [] });
   });
 });
