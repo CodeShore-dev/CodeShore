@@ -356,6 +356,13 @@ describe('Service.approve', () => {
     ]);
     expect(techKeywordService.updateByTechAndKeyword).not.toHaveBeenCalled();
     expect(refreshAllMaterializedViews).toHaveBeenCalled();
+    // |105 - 100| = 5 <= 10 * 3 = 30 -> within bounds. Asserting the full
+    // `outcome` diff summary here (not just `flaggedForReview`) keeps this
+    // one test as the single coherent chain proving write succeeds, refresh
+    // succeeds, the before/after outcome is actually computed from the
+    // mv-count reads, and the suggestion transitions to `approved` -- rather
+    // than splitting "outcome computed" and "status becomes approved" across
+    // separate tests (requirements 8.5, 8.6, 9.1, 9.2).
     expect(aiSuggestionService.markApproved).toHaveBeenCalledWith(
       'suggestion-tk',
       expect.objectContaining({
@@ -363,6 +370,11 @@ describe('Service.approve', () => {
         reviewedBy: 'reviewer-1',
         resolutionNote: null,
         flaggedForReview: false,
+        outcome: expect.objectContaining({
+          beforeCounts: { mv_tech: 100 },
+          afterCounts: { mv_tech: 105 },
+          exceedsExpectedMagnitude: false,
+        }),
       }),
     );
     expect(result).toEqual({ ok: true, record: approvedRecord });
