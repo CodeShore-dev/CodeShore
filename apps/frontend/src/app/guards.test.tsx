@@ -42,7 +42,7 @@ function renderWithGuard(
 }
 
 beforeEach(() => {
-  useAuthStore.setState({ user: null, isLoading: false });
+  useAuthStore.setState({ user: null, isLoading: false, viewAsRegularUser: false });
 });
 
 describe('ProtectedRoute', () => {
@@ -69,22 +69,29 @@ describe('ProtectedRoute', () => {
 
 describe('AdminRoute', () => {
   it('redirects unauthenticated users home (req 2.4)', () => {
-    useAuthStore.setState({ user: null, isLoading: false });
+    useAuthStore.setState({ user: null, isLoading: false, viewAsRegularUser: false });
     renderWithGuard(<AdminRoute />, '/admin/jobs', '/admin/jobs');
     expect(screen.getByText('home page')).toBeInTheDocument();
     expect(screen.queryByText('protected content')).not.toBeInTheDocument();
   });
 
   it('redirects authenticated non-admins home (req 2.4)', () => {
-    useAuthStore.setState({ user: normalUser, isLoading: false });
+    useAuthStore.setState({ user: normalUser, isLoading: false, viewAsRegularUser: false });
     renderWithGuard(<AdminRoute />, '/admin/jobs', '/admin/jobs');
     expect(screen.getByText('home page')).toBeInTheDocument();
     expect(screen.queryByText('protected content')).not.toBeInTheDocument();
   });
 
   it('renders content for allowlisted admins (req 2.4)', () => {
-    useAuthStore.setState({ user: adminUser, isLoading: false });
+    useAuthStore.setState({ user: adminUser, isLoading: false, viewAsRegularUser: false });
     renderWithGuard(<AdminRoute />, '/admin/jobs', '/admin/jobs');
     expect(screen.getByText('protected content')).toBeInTheDocument();
+  });
+
+  it('still admits an admin who has enabled the regular-user preview toggle (req 5.5)', () => {
+    useAuthStore.setState({ user: adminUser, isLoading: false, viewAsRegularUser: true });
+    renderWithGuard(<AdminRoute />, '/admin/jobs', '/admin/jobs');
+    expect(screen.getByText('protected content')).toBeInTheDocument();
+    expect(screen.queryByText('home page')).not.toBeInTheDocument();
   });
 });
