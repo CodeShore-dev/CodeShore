@@ -75,6 +75,8 @@ export function AiSuggestionReviewPage() {
         onBulkReject={selection.bulkReject}
         approving={selection.approving}
         rejecting={selection.rejecting}
+        partialFailure={selection.partialFailure}
+        onDismissPartialFailure={selection.dismissPartialFailure}
       />
 
       <div className="flex flex-col gap-3">

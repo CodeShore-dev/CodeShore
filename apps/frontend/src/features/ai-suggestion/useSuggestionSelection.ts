@@ -42,15 +42,34 @@ export function useSuggestionSelection(selectableIds: string[]) {
     );
   };
 
+  // Surfaces a partial-failure warning (e.g. someone else already reviewed
+  // one of the selected ids, so its approve/reject call 409'd) since
+  // `Promise.allSettled` deliberately lets the rest succeed instead of
+  // throwing -- without this, a partial failure would look identical to
+  // full success (the failed rows just silently reappear after the list
+  // refetches). Cleared on the next bulk action or explicitly via dismiss.
+  const [partialFailure, setPartialFailure] = useState<{
+    action: 'approve' | 'reject';
+    failed: number;
+  } | null>(null);
+
   const bulkApprove = () => {
+    setPartialFailure(null);
     bulkApproveMutation.mutate(Array.from(selectedIds), {
-      onSuccess: () => setSelectedIds(new Set()),
+      onSuccess: ({ failed }) => {
+        setSelectedIds(new Set());
+        if (failed > 0) setPartialFailure({ action: 'approve', failed });
+      },
     });
   };
 
   const bulkReject = () => {
+    setPartialFailure(null);
     bulkRejectMutation.mutate(Array.from(selectedIds), {
-      onSuccess: () => setSelectedIds(new Set()),
+      onSuccess: ({ failed }) => {
+        setSelectedIds(new Set());
+        if (failed > 0) setPartialFailure({ action: 'reject', failed });
+      },
     });
   };
 
@@ -62,5 +81,7 @@ export function useSuggestionSelection(selectableIds: string[]) {
     bulkReject,
     approving: bulkApproveMutation.isPending,
     rejecting: bulkRejectMutation.isPending,
+    partialFailure,
+    dismissPartialFailure: () => setPartialFailure(null),
   };
 }

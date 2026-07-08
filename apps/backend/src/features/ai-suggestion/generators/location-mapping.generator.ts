@@ -260,6 +260,11 @@ export class LocationMappingGenerator implements SuggestionGenerator {
         result,
       );
 
+      // The mapping half must carry the same needsVerification flag as the
+      // group half: both write the same non-conforming id, and they are
+      // only loosely linked by `correlationId` (a text label, not an
+      // enforced pairing), so a reviewer could otherwise approve the
+      // unflagged mapping suggestion without ever seeing the format warning.
       await this.createMappingSuggestion(
         proposedNewGroupId,
         location,
@@ -268,6 +273,7 @@ export class LocationMappingGenerator implements SuggestionGenerator {
         undefined,
         correlationId,
         result,
+        !formatOk,
       );
       return;
     }
@@ -292,14 +298,28 @@ export class LocationMappingGenerator implements SuggestionGenerator {
     confidence: number | undefined,
     correlationId: string | undefined,
     result: GeneratorResult,
+    // `undefined` (the matched-existing-group call site) means "format
+    // check does not apply here"; `true`/`false` (the new-group-pairing
+    // call site) means the format check ran and this is its verdict. Kept
+    // distinct from a plain `boolean` default so the `needsVerification`
+    // field's presence below matches the matched-group call's pre-existing
+    // confidence-only behavior exactly, while still always surfacing an
+    // explicit true/false for the format-checked new-group-pairing case.
+    formatWarning?: boolean,
   ): Promise<void> {
-    const needsVerification =
+    const lowConfidence =
       typeof confidence === 'number' && confidence < LOW_CONFIDENCE_THRESHOLD;
+    const needsVerification = lowConfidence || !!formatWarning;
 
     const evidence: AiSuggestionEvidence = {
       affectedCount,
-      reasoning,
-      ...(confidence !== undefined ? { confidence, needsVerification } : {}),
+      reasoning: formatWarning
+        ? `${reasoning}（群組 ID 不符合「縣市+鄉鎮市區」標準格式，請人工確認或修正）`
+        : reasoning,
+      ...(confidence !== undefined ? { confidence } : {}),
+      ...(confidence !== undefined || formatWarning !== undefined
+        ? { needsVerification }
+        : {}),
       ...(correlationId !== undefined ? { correlationId } : {}),
     };
 

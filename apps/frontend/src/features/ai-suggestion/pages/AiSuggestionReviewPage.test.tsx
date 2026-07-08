@@ -471,4 +471,70 @@ describe('AiSuggestionReviewPage', () => {
     expect(screen.getByTestId('bulk-approve')).toBeDisabled();
     expect(screen.getByTestId('bulk-reject')).toBeDisabled();
   });
+
+  it('shows a dismissible warning when a bulk reject partially fails, leaving the failed id pending', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<AiSuggestionReviewPage />);
+    await screen.findByTestId('suggestion-s1');
+    await screen.findByTestId('suggestion-s2');
+
+    // s1 rejects normally (preserving the mocked module's in-memory status
+    // update); s2 simulates a 409 (someone else already reviewed it).
+    const originalReject = vi
+      .mocked(serviceModule.rejectSuggestion)
+      .getMockImplementation()!;
+    vi.mocked(serviceModule.rejectSuggestion).mockImplementation(
+      async (id: string, note?: string) => {
+        if (id === 's2') throw new Error('409 conflict');
+        return originalReject(id, note);
+      },
+    );
+
+    await user.click(screen.getByTestId('select-s1'));
+    await user.click(screen.getByTestId('select-s2'));
+    await user.click(screen.getByTestId('bulk-reject'));
+
+    const warning = await screen.findByTestId('bulk-partial-failure');
+    expect(warning.textContent).toContain('1 筆');
+    expect(warning.textContent).toContain('刪除');
+
+    // The succeeded id (s1) leaves the pending list; the failed id (s2)
+    // stays -- a silent partial success would look identical without the
+    // warning above.
+    await waitFor(() => {
+      expect(screen.queryByTestId('suggestion-s1')).not.toBeInTheDocument();
+      expect(screen.getByTestId('suggestion-s2')).toBeInTheDocument();
+    });
+
+    await user.click(within(warning).getByText('關閉'));
+    expect(screen.queryByTestId('bulk-partial-failure')).not.toBeInTheDocument();
+
+    // Restore the shared mock so this override doesn't leak into later
+    // tests in this file (`vi.clearAllMocks()` in beforeEach clears call
+    // history but not a custom `mockImplementation`).
+    vi.mocked(serviceModule.rejectSuggestion).mockImplementation(originalReject);
+  });
+
+  it('changing the target-table filter prunes a selection that falls out of view, updating the selected count', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<AiSuggestionReviewPage />);
+    await screen.findByTestId('suggestion-s1');
+    await screen.findByTestId('suggestion-s2');
+
+    await user.click(screen.getByTestId('select-s1'));
+    await user.click(screen.getByTestId('select-s2'));
+    expect(screen.getByText('已選取 2 筆')).toBeInTheDocument();
+
+    await user.selectOptions(
+      screen.getByTestId('filter-target-table'),
+      'location_group',
+    );
+    await waitFor(() => {
+      expect(screen.queryByTestId('suggestion-s1')).not.toBeInTheDocument();
+    });
+
+    // s1 left the filtered view, so its selection is pruned -- only s2
+    // (still selected) counts.
+    expect(screen.getByText('已選取 1 筆')).toBeInTheDocument();
+  });
 });

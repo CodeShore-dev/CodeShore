@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 
 import {
   AiSuggestionListFilter,
@@ -11,6 +11,14 @@ import {
 // Filterable suggestion list (requirement 7.1: 依目標資料表、狀態篩選待審建議
 // 清單). queryKey carries the filter so changing targetTable/status refetches
 // automatically (parity with keyword/admin's useTechAdminQuery pattern).
+//
+// `placeholderData: keepPreviousData` keeps the previous filter's `data`
+// visible while a new filter's query key is fetching, instead of `data`
+// going briefly `undefined` (which the review page reads as an empty
+// `[]` list). Without this, `useSuggestionSelection`'s selection-pruning
+// effect would see that transient empty list and wipe the entire
+// selection on every filter change, not just the ids that actually left
+// view.
 export function useSuggestionsQuery(filter: AiSuggestionListFilter = {}) {
   return useQuery({
     queryKey: [
@@ -22,6 +30,7 @@ export function useSuggestionsQuery(filter: AiSuggestionListFilter = {}) {
       filter.createdBefore ?? null,
     ],
     queryFn: () => fetchSuggestions(filter),
+    placeholderData: keepPreviousData,
   });
 }
 

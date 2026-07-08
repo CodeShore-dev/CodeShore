@@ -433,11 +433,18 @@ describe('LocationMappingGenerator.generate', () => {
 
     await generator.generate();
 
-    const groupCall = suggestionCreator.createSuggestion.mock.calls
-      .map(call => call[0])
-      .find(call => call.target_table === 'location_group');
+    const calls = suggestionCreator.createSuggestion.mock.calls.map(call => call[0]);
+    const groupCall = calls.find(call => call.target_table === 'location_group');
+    const mappingCall = calls.find(
+      call => call.target_table === 'location_group_location',
+    );
     expect(groupCall.evidence.needsVerification).toBe(true);
     expect(groupCall.evidence.reasoning).toContain('縣市+鄉鎮市區');
+    // The paired mapping suggestion writes the same non-conforming id, so it
+    // must carry the same flag -- otherwise a reviewer could approve the
+    // unflagged half without ever seeing the format warning.
+    expect(mappingCall.evidence.needsVerification).toBe(true);
+    expect(mappingCall.evidence.reasoning).toContain('縣市+鄉鎮市區');
   });
 
   it('does not flag needsVerification when proposedNewGroupId already follows the standard 縣市+鄉鎮市區 format', async () => {
@@ -470,11 +477,17 @@ describe('LocationMappingGenerator.generate', () => {
 
     await generator.generate();
 
-    const groupCall = suggestionCreator.createSuggestion.mock.calls
-      .map(call => call[0])
-      .find(call => call.target_table === 'location_group');
+    const calls = suggestionCreator.createSuggestion.mock.calls.map(call => call[0]);
+    const groupCall = calls.find(call => call.target_table === 'location_group');
+    const mappingCall = calls.find(
+      call => call.target_table === 'location_group_location',
+    );
     expect(groupCall.evidence.needsVerification).toBe(false);
     expect(groupCall.evidence.reasoning).toBe(
+      'No existing group covers Hsinchu Science Park',
+    );
+    expect(mappingCall.evidence.needsVerification).toBe(false);
+    expect(mappingCall.evidence.reasoning).toBe(
       'No existing group covers Hsinchu Science Park',
     );
   });
