@@ -10,6 +10,8 @@ const {
   reviewedSuggestion,
   approveSuggestion,
   rejectSuggestion,
+  createGenerateEventSource,
+  updateLlmSettings,
 } = vi.hoisted(() => {
     const base = {
       action: 'insert' as const,
@@ -62,6 +64,10 @@ const {
       },
       approveSuggestion: vi.fn(),
       rejectSuggestion: vi.fn(),
+      createGenerateEventSource: vi.fn(() => ({
+        close: vi.fn(),
+      })),
+      updateLlmSettings: vi.fn(),
     };
   });
 
@@ -101,7 +107,12 @@ vi.mock('../service', () => {
       if (target) target.status = 'rejected';
       return target;
     }),
-    createGenerateEventSource: vi.fn(),
+    createGenerateEventSource,
+    fetchLlmSettings: vi.fn(async () => ({ defaultModel: 'openai/gpt-4o-mini' })),
+    updateLlmSettings: vi.fn(async (defaultModel: string) => {
+      updateLlmSettings(defaultModel);
+      return { defaultModel };
+    }),
     __resetState: () => {
       state.suggestions = [
         { ...techSuggestion, status: 'pending' },
@@ -325,5 +336,61 @@ describe('AiSuggestionReviewPage', () => {
     expect(
       within(historyCard).queryByTestId('reject-s3'),
     ).not.toBeInTheDocument();
+  });
+
+  it('displays the fetched default LLM model, and saving an edit calls the update mutation (後台可調整預設值)', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<AiSuggestionReviewPage />);
+    await screen.findByTestId('suggestion-s1');
+
+    expect(await screen.findByTestId('llm-default-model-value')).toHaveTextContent(
+      'openai/gpt-4o-mini',
+    );
+
+    await user.click(screen.getByTestId('llm-default-model-edit'));
+    const input = screen.getByTestId('llm-default-model-input');
+    await user.clear(input);
+    await user.type(input, 'anthropic/claude-3.5-sonnet');
+    await user.click(screen.getByTestId('llm-default-model-save'));
+
+    await waitFor(() => {
+      expect(updateLlmSettings).toHaveBeenCalledWith(
+        'anthropic/claude-3.5-sonnet',
+      );
+    });
+  });
+
+  it('triggering generate with a model override passes it through to createGenerateEventSource', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<AiSuggestionReviewPage />);
+    await screen.findByTestId('suggestion-s1');
+
+    await user.type(
+      screen.getByTestId('model-override-input'),
+      'meta-llama/llama-3.3-70b-instruct:free',
+    );
+    await user.click(screen.getByTestId('generate-button'));
+
+    await waitFor(() => {
+      expect(createGenerateEventSource).toHaveBeenCalledWith(
+        undefined,
+        'meta-llama/llama-3.3-70b-instruct:free',
+      );
+    });
+  });
+
+  it('triggering generate with no model override leaves it undefined, not an empty string', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<AiSuggestionReviewPage />);
+    await screen.findByTestId('suggestion-s1');
+
+    await user.click(screen.getByTestId('generate-button'));
+
+    await waitFor(() => {
+      expect(createGenerateEventSource).toHaveBeenCalledWith(
+        undefined,
+        undefined,
+      );
+    });
   });
 });

@@ -3,19 +3,22 @@ import { act, renderHook } from '@testing-library/react';
 import { type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { approveSuggestion, rejectSuggestion } = vi.hoisted(() => ({
+const { approveSuggestion, rejectSuggestion, updateLlmSettings } = vi.hoisted(() => ({
   approveSuggestion: vi.fn(),
   rejectSuggestion: vi.fn(),
+  updateLlmSettings: vi.fn(),
 }));
 
 vi.mock('./service', () => ({
   approveSuggestion,
   rejectSuggestion,
+  updateLlmSettings,
 }));
 
 import {
   useApproveSuggestionMutation,
   useRejectSuggestionMutation,
+  useUpdateLlmSettingsMutation,
 } from './mutations';
 
 describe('useApproveSuggestionMutation / useRejectSuggestionMutation', () => {
@@ -116,6 +119,24 @@ describe('useApproveSuggestionMutation / useRejectSuggestionMutation', () => {
 
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: ['ai-suggestion', 'list'],
+    });
+  });
+
+  it('updates the default LLM model and invalidates the llm-settings query on success', async () => {
+    updateLlmSettings.mockResolvedValue({ defaultModel: 'openai/gpt-4o-mini' });
+    const invalidateSpy = vi.spyOn(client, 'invalidateQueries');
+
+    const { result } = renderHook(() => useUpdateLlmSettingsMutation(), {
+      wrapper,
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync('openai/gpt-4o-mini');
+    });
+
+    expect(updateLlmSettings).toHaveBeenCalledWith('openai/gpt-4o-mini');
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ['ai-suggestion', 'llm-settings'],
     });
   });
 });

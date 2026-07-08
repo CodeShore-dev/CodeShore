@@ -25,7 +25,7 @@ export function useGenerateSuggestions() {
   const runningRef = useRef(false);
 
   const start = useCallback(
-    (workflow?: AiSuggestionWorkflow | 'all') => {
+    (workflow?: AiSuggestionWorkflow | 'all', model?: string) => {
       if (runningRef.current) return;
       runningRef.current = true;
       setRunning(true);
@@ -34,7 +34,7 @@ export function useGenerateSuggestions() {
       setProgress([]);
 
       esRef.current?.close();
-      const es = createGenerateEventSource(workflow);
+      const es = createGenerateEventSource(workflow, model);
       esRef.current = es;
 
       es.onmessage = (event: MessageEvent) => {

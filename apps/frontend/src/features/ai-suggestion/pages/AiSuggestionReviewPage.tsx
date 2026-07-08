@@ -6,6 +6,7 @@ import {
   AiSuggestionWorkflow,
 } from '@codeshore/data-types';
 
+import { LlmSettingsPanel } from '../components/LlmSettingsPanel';
 import { SuggestionCard } from '../components/SuggestionCard';
 import { SuggestionFilterBar } from '../components/SuggestionFilterBar';
 import { WORKFLOW_OPTIONS } from '../constants';
@@ -26,6 +27,9 @@ export function AiSuggestionReviewPage() {
   // filter/query params as-is without extra formatting.
   const [createdAfter, setCreatedAfter] = useState('');
   const [createdBefore, setCreatedBefore] = useState('');
+  // Optional per-call model override for this run only (empty = use the
+  // backend-adjustable stored default, no override sent).
+  const [modelOverride, setModelOverride] = useState('');
 
   const suggestionsQuery = useSuggestionsQuery({
     targetTable: targetTable || undefined,
@@ -70,6 +74,8 @@ export function AiSuggestionReviewPage() {
           )}
         </div>
 
+        <LlmSettingsPanel />
+
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <select
             value={workflow}
@@ -85,12 +91,24 @@ export function AiSuggestionReviewPage() {
               </option>
             ))}
           </select>
+          <input
+            type="text"
+            value={modelOverride}
+            placeholder="模型覆寫（選填）"
+            data-testid="model-override-input"
+            className="border-surface-container bg-surface-container text-on-surface rounded-lg border py-1.5 px-2 text-sm"
+            onChange={e => setModelOverride(e.target.value)}
+          />
           <button
             type="button"
+            data-testid="generate-button"
             className="bg-primary text-on-primary hover:bg-primary/90 cursor-pointer rounded-lg px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
             disabled={generate.running}
             onClick={() =>
-              generate.start(workflow === 'all' ? undefined : workflow)
+              generate.start(
+                workflow === 'all' ? undefined : workflow,
+                modelOverride.trim() || undefined,
+              )
             }
           >
             產生建議

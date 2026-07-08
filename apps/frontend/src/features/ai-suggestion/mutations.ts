@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { approveSuggestion, rejectSuggestion } from './service';
+import { approveSuggestion, rejectSuggestion, updateLlmSettings } from './service';
 
 // Approves a suggestion, optionally landing a reviewer-edited payload instead
 // of the originally generated one (requirement 7.4). On success, invalidates
@@ -38,6 +38,22 @@ export function useRejectSuggestionMutation() {
       queryClient.invalidateQueries({ queryKey: ['ai-suggestion', 'list'] });
       queryClient.invalidateQueries({
         queryKey: ['ai-suggestion', 'detail', id],
+      });
+    },
+  });
+}
+
+// Changes the backend-adjustable default LLM model (`PATCH
+// ai-suggestion/llm-settings`) -- the "後台可以調整預設值" requirement. On
+// success, invalidates the llm-settings query so the displayed default
+// reflects the change immediately.
+export function useUpdateLlmSettingsMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (defaultModel: string) => updateLlmSettings(defaultModel),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ['ai-suggestion', 'llm-settings'],
       });
     },
   });

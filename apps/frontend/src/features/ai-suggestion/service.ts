@@ -129,15 +129,42 @@ export const rejectSuggestion = async (id: string, note?: string) => {
 // `EventSource` cannot send custom headers, the auth token travels as a
 // `?token=` query param instead (read by the backend's SSE auth guard the
 // same way it reads the `Authorization` header for every other route).
+// `model` is an optional per-call OpenRouter model id override (backend's
+// `GenerateSuggestionsDto.model`): only added to the query string when
+// given -- omitting it lets the backend fall back to its stored
+// `llm-settings` default instead of sending an empty override.
 export const createGenerateEventSource = (
   workflow?: AiSuggestionWorkflow | 'all',
+  model?: string,
 ): EventSource => {
   const { baseURL } = httpClient.defaults;
   const token = localStorage.getItem('token');
   const search = new URLSearchParams();
   if (workflow) search.set('workflow', workflow);
+  if (model) search.set('model', model);
   if (token) search.set('token', token);
   return new EventSource(
     `${baseURL}${BASE}/generate?${search.toString()}`,
   );
+};
+
+// Backend-adjustable default LLM model settings
+// (`GET`/`PATCH /api/ai-suggestion/llm-settings`, both `AdminOnly`).
+export interface AiSuggestionLlmSettings {
+  defaultModel: string;
+}
+
+export const fetchLlmSettings = async () => {
+  const res = await httpClient.get<AiSuggestionLlmSettings>(
+    `${BASE}/llm-settings`,
+  );
+  return res.data;
+};
+
+export const updateLlmSettings = async (defaultModel: string) => {
+  const res = await httpClient.patch<AiSuggestionLlmSettings>(
+    `${BASE}/llm-settings`,
+    { defaultModel },
+  );
+  return res.data;
 };

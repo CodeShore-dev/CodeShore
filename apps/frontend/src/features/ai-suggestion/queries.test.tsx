@@ -3,17 +3,19 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { fetchSuggestions, fetchSuggestion } = vi.hoisted(() => ({
+const { fetchSuggestions, fetchSuggestion, fetchLlmSettings } = vi.hoisted(() => ({
   fetchSuggestions: vi.fn(),
   fetchSuggestion: vi.fn(),
+  fetchLlmSettings: vi.fn(),
 }));
 
 vi.mock('./service', () => ({
   fetchSuggestions,
   fetchSuggestion,
+  fetchLlmSettings,
 }));
 
-import { useSuggestionQuery, useSuggestionsQuery } from './queries';
+import { useLlmSettingsQuery, useSuggestionQuery, useSuggestionsQuery } from './queries';
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({
@@ -138,5 +140,17 @@ describe('useSuggestionQuery', () => {
   it('does not fetch when no id is given', () => {
     renderHook(() => useSuggestionQuery(undefined), { wrapper });
     expect(fetchSuggestion).not.toHaveBeenCalled();
+  });
+});
+
+describe('useLlmSettingsQuery', () => {
+  it('fetches the backend-adjustable default LLM model', async () => {
+    fetchLlmSettings.mockResolvedValue({ defaultModel: 'openai/gpt-4o-mini' });
+
+    const { result } = renderHook(() => useLlmSettingsQuery(), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(fetchLlmSettings).toHaveBeenCalledWith();
+    expect(result.current.data).toEqual({ defaultModel: 'openai/gpt-4o-mini' });
   });
 });

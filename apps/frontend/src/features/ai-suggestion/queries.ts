@@ -1,6 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 
-import { AiSuggestionListFilter, fetchSuggestion, fetchSuggestions } from './service';
+import {
+  AiSuggestionListFilter,
+  fetchLlmSettings,
+  fetchSuggestion,
+  fetchSuggestions,
+} from './service';
 
 // Filterable suggestion list (requirement 7.1: 依目標資料表、狀態篩選待審建議
 // 清單). queryKey carries the filter so changing targetTable/status refetches
@@ -26,5 +31,15 @@ export function useSuggestionQuery(id: string | undefined) {
     queryKey: ['ai-suggestion', 'detail', id],
     queryFn: () => fetchSuggestion(id as string),
     enabled: !!id,
+  });
+}
+
+// Backend-adjustable default LLM model (`GET /ai-suggestion/llm-settings`):
+// the model `generate()` calls fall back to when a run doesn't specify a
+// per-call override.
+export function useLlmSettingsQuery() {
+  return useQuery({
+    queryKey: ['ai-suggestion', 'llm-settings'],
+    queryFn: () => fetchLlmSettings(),
   });
 }
