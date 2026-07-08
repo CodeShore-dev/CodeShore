@@ -2,6 +2,9 @@ import { Module as ModuleDecorator } from '@nestjs/common';
 
 import {
   TechService,
+  TechKeywordService,
+  TechParentService,
+  KeywordService,
   MvTechCategoryService,
   MvTechService,
 } from '@codeshore/data-utils';
@@ -16,6 +19,9 @@ import { Service } from './service';
   providers: [
     Service,
     provideWithLogger(TechService),
+    provideWithLogger(TechKeywordService),
+    provideWithLogger(TechParentService),
+    provideWithLogger(KeywordService),
     provideWithLogger(MvTechService),
     provideWithLogger(MvTechCategoryService),
   ],

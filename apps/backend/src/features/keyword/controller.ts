@@ -1,7 +1,9 @@
 import {
   Body,
   Controller as ControllerDecorator,
+  Delete,
   Get,
+  Param,
   Patch,
   Post,
   Query,
@@ -14,7 +16,7 @@ import {
 
 import { AdminOnly } from '../auth/auth.decorator';
 import { QueryDto } from '../query.dto';
-import { UpdateIconSlugsDto } from './dto';
+import { CreateTechDto, UpdateIconSlugsDto, UpdateTechDto } from './dto';
 import { Service } from './service';
 
 const name = 'keyword';
@@ -74,5 +76,63 @@ export class Controller {
       dto.id,
       dto.icon_slugs,
     );
+  }
+
+  @Post('group')
+  @ApiOperation({
+    summary: 'Create a new tech (admin only)',
+    description:
+      "Requirement 7.5's manual-edit fallback: creates a tech, optionally mapping keywords to it and/or attaching it under a parent. Independent of the AI-suggestion approval path -- both call the same underlying data-access layer directly.",
+  })
+  @AdminOnly()
+  createTech(@Body() dto: CreateTechDto) {
+    return this.service.createTech(
+      dto.id,
+      dto.keywords,
+      dto.category,
+      dto.parent,
+    );
+  }
+
+  /**
+   * Declared after `group/icon-slugs` above (both are `PATCH`, and
+   * `'group/:id'` would otherwise also match `/keyword/group/icon-slugs`):
+   * NestJS/Express registers routes for the same HTTP method in declaration
+   * order, so the more specific static path must come first.
+   */
+  @Patch('group/:id')
+  @ApiOperation({
+    summary: "Update an existing tech's keywords/category/parent (admin only)",
+    description:
+      "Requirement 7.5's manual-edit fallback: only the fields present in the body are changed. An explicit null on category/parent is a real value (category cleared / parent relationship removed), distinct from omitting the field.",
+  })
+  @AdminOnly()
+  updateTech(
+    @Param('id') id: string,
+    @Body() dto: UpdateTechDto,
+  ) {
+    return this.service.updateTech(id, dto);
+  }
+
+  @Delete('group/:id')
+  @ApiOperation({
+    summary: 'Delete a tech (admin only)',
+    description:
+      "Requirement 7.5's manual-edit fallback: deletes the tech row. Its tech_keyword/tech_parent rows cascade-delete at the database level (supabase/schema.sql).",
+  })
+  @AdminOnly()
+  deleteTech(@Param('id') id: string) {
+    return this.service.deleteTech(id);
+  }
+
+  @Delete(':id')
+  @ApiOperation({
+    summary: 'Delete a bare (unmapped) keyword (admin only)',
+    description:
+      "Requirement 7.5's manual-edit fallback: deletes a keyword that is not currently mapped to any tech. Scoped to that case by the frontend's own UI logic.",
+  })
+  @AdminOnly()
+  deleteKeyword(@Param('id') id: string) {
+    return this.service.deleteKeyword(id);
   }
 }
