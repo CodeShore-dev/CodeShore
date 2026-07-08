@@ -12,6 +12,7 @@ const {
   rejectSuggestion,
   createGenerateEventSource,
   updateLlmSettings,
+  fetchWorkflowInfo,
 } = vi.hoisted(() => {
     const base = {
       action: 'insert' as const,
@@ -68,6 +69,20 @@ const {
         close: vi.fn(),
       })),
       updateLlmSettings: vi.fn(),
+      fetchWorkflowInfo: vi.fn(async () => [
+        {
+          workflow: 'keyword_mapping',
+          label: '關鍵字對應技術',
+          steps: [
+            {
+              stepLabel: '關鍵字→技術映射',
+              toolName: 'classify_keyword_to_tech',
+              systemPrompt: 'You classify keywords...',
+              inputSchema: { type: 'object' },
+            },
+          ],
+        },
+      ]),
     };
   });
 
@@ -113,6 +128,7 @@ vi.mock('../service', () => {
       updateLlmSettings(defaultModel);
       return { defaultModel };
     }),
+    fetchWorkflowInfo,
     __resetState: () => {
       state.suggestions = [
         { ...techSuggestion, status: 'pending' },
@@ -377,6 +393,19 @@ describe('AiSuggestionReviewPage', () => {
         'meta-llama/llama-3.3-70b-instruct:free',
       );
     });
+  });
+
+  it('the workflow-info transparency panel starts collapsed and expands on toggle', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<AiSuggestionReviewPage />);
+    await screen.findByTestId('suggestion-s1');
+
+    expect(screen.queryByTestId('workflow-info-panel')).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId('workflow-info-toggle'));
+
+    expect(await screen.findByTestId('workflow-info-panel')).toBeInTheDocument();
+    expect(fetchWorkflowInfo).toHaveBeenCalled();
   });
 
   it('triggering generate with no model override leaves it undefined, not an empty string', async () => {

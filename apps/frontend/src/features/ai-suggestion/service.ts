@@ -168,3 +168,28 @@ export const updateLlmSettings = async (defaultModel: string) => {
   );
   return res.data;
 };
+
+// Mirrors `apps/backend/src/features/ai-suggestion/workflow-info.ts`'s
+// `WorkflowPromptStep`/`WorkflowInfo` exactly, same hand-mirroring
+// convention as `AiSuggestionEvidence`/`AiSuggestionRecord` above (no shared
+// package, so redeclared field-for-field here rather than imported).
+export interface WorkflowPromptStep {
+  stepLabel: string;
+  toolName: string;
+  systemPrompt: string;
+  inputSchema: Record<string, unknown>;
+}
+
+export interface WorkflowInfo {
+  workflow: AiSuggestionWorkflow;
+  label: string;
+  steps: WorkflowPromptStep[];
+}
+
+// `GET /ai-suggestion/workflow-info`: the real, static LLM prompt
+// template/schema each sub-workflow actually uses at runtime (透明度
+// 揭露，同 methodology 頁「資料來源 SQL」的精神).
+export const fetchWorkflowInfo = async () => {
+  const res = await httpClient.get<WorkflowInfo[]>(`${BASE}/workflow-info`);
+  return res.data;
+};

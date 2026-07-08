@@ -5,6 +5,7 @@ import {
   fetchLlmSettings,
   fetchSuggestion,
   fetchSuggestions,
+  fetchWorkflowInfo,
 } from './service';
 
 // Filterable suggestion list (requirement 7.1: 依目標資料表、狀態篩選待審建議
@@ -41,5 +42,17 @@ export function useLlmSettingsQuery() {
   return useQuery({
     queryKey: ['ai-suggestion', 'llm-settings'],
     queryFn: () => fetchLlmSettings(),
+  });
+}
+
+// Each sub-workflow's real, static LLM prompt template / expected output
+// schema (`GET /ai-suggestion/workflow-info`), for the review page's
+// "查看工作流說明" transparency panel. Static content, so an
+// infinite/no-refetch staleTime would also be reasonable, but this simply
+// follows the same default caching as the other queries above.
+export function useWorkflowInfoQuery() {
+  return useQuery({
+    queryKey: ['ai-suggestion', 'workflow-info'],
+    queryFn: () => fetchWorkflowInfo(),
   });
 }

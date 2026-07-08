@@ -15,9 +15,9 @@ import {
   SuggestionGenerator,
 } from './types';
 
-const TOOL_NAME = 'propose_tech_hierarchy_edges';
+export const TOOL_NAME = 'propose_tech_hierarchy_edges';
 
-const INPUT_SCHEMA: Record<string, unknown> = {
+export const INPUT_SCHEMA: Record<string, unknown> = {
   type: 'object',
   properties: {
     proposals: {
@@ -73,7 +73,7 @@ interface TechHierarchyLlmResult extends Record<string, unknown> {
   proposals?: TechHierarchyProposal[];
 }
 
-const SYSTEM_PROMPT = `You maintain a parent/child hierarchy over a standardized technology dictionary (e.g. "react" belongs under "javascript", "django" belongs under "python").
+export const SYSTEM_PROMPT = `You maintain a parent/child hierarchy over a standardized technology dictionary (e.g. "react" belongs under "javascript", "django" belongs under "python").
 
 You are given (1) the full list of existing technology dictionary entries (each with an "id", human-readable "label", and "category"), (2) the full list of existing parent/child edges already in the hierarchy, and (3) a list of "isolated" candidate tech ids that do not currently appear as either a parent or a child in any existing edge.
 

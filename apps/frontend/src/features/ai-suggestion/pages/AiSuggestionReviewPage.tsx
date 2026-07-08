@@ -9,6 +9,7 @@ import {
 import { LlmSettingsPanel } from '../components/LlmSettingsPanel';
 import { SuggestionCard } from '../components/SuggestionCard';
 import { SuggestionFilterBar } from '../components/SuggestionFilterBar';
+import { WorkflowInfoPanel } from '../components/WorkflowInfoPanel';
 import { WORKFLOW_OPTIONS } from '../constants';
 import { useApproveSuggestionMutation, useRejectSuggestionMutation } from '../mutations';
 import { useSuggestionQuery, useSuggestionsQuery } from '../queries';
@@ -75,6 +76,7 @@ export function AiSuggestionReviewPage() {
         </div>
 
         <LlmSettingsPanel />
+        <WorkflowInfoPanel />
 
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <select

@@ -38,9 +38,9 @@ export const KEYWORD_COUNT_THRESHOLD = 5;
  */
 export const LOW_CONFIDENCE_THRESHOLD = 0.7;
 
-const TOOL_NAME = 'classify_keyword_to_tech';
+export const TOOL_NAME = 'classify_keyword_to_tech';
 
-const INPUT_SCHEMA: Record<string, unknown> = {
+export const INPUT_SCHEMA: Record<string, unknown> = {
   type: 'object',
   properties: {
     matchedTechId: {
@@ -77,7 +77,7 @@ interface KeywordMappingLlmResult extends Record<string, unknown> {
   reasoning?: string;
 }
 
-const SYSTEM_PROMPT = `You classify keywords extracted from job descriptions against an existing, standardized technology dictionary.
+export const SYSTEM_PROMPT = `You classify keywords extracted from job descriptions against an existing, standardized technology dictionary.
 
 Given a candidate keyword and a list of existing technology dictionary entries (each with an "id", human-readable "label", and "category"), decide whether the keyword is a synonym, alias, abbreviation, or otherwise clearly refers to one of the existing entries.
 

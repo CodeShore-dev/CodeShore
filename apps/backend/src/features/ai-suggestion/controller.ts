@@ -90,6 +90,17 @@ export class Controller {
     return this.service.getLlmSettings();
   }
 
+  @Get('workflow-info')
+  @ApiOperation({
+    summary:
+      'Get the real, static LLM prompt template and expected output for every sub-workflow',
+    description:
+      'Returns, for each of the 5 sub-workflows, its display label and one-or-two LLM-call steps (tool name, system prompt, input schema), sourced directly from the generator files\' own exported constants so it can never drift out of sync with what actually runs.',
+  })
+  getWorkflowInfo() {
+    return this.service.getWorkflowInfo();
+  }
+
   // NOTE: `getById`'s `:id` route is registered *after* `generate` above.
   // `@Sse()` routes are always GET (see @nestjs/common's `sse.decorator.js`),
   // and NestJS registers Express routes in class declaration order -- if

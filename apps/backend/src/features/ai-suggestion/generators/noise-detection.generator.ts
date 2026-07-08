@@ -22,9 +22,9 @@ import {
  */
 export const JOB_DESCRIPTION_SAMPLE_SIZE = 200;
 
-const KEYWORD_NOISE_TOOL_NAME = 'flag_noise_keywords';
+export const KEYWORD_NOISE_TOOL_NAME = 'flag_noise_keywords';
 
-const KEYWORD_NOISE_INPUT_SCHEMA: Record<string, unknown> = {
+export const KEYWORD_NOISE_INPUT_SCHEMA: Record<string, unknown> = {
   type: 'object',
   properties: {
     flaggedKeywords: {
@@ -66,15 +66,15 @@ interface KeywordNoiseLlmResult extends Record<string, unknown> {
   flaggedKeywords?: KeywordNoiseProposal[];
 }
 
-const KEYWORD_NOISE_SYSTEM_PROMPT = `You maintain the quality of a keyword-frequency statistic derived from job postings.
+export const KEYWORD_NOISE_SYSTEM_PROMPT = `You maintain the quality of a keyword-frequency statistic derived from job postings.
 
 You are given a list of candidate keywords, each with its current occurrence count across job postings. Flag any keyword that is clearly NOT a technology or skill term -- for example generic filler words, agency/recruiter boilerplate fragments, or mis-tokenized junk that leaked into keyword extraction.
 
 Do not flag a keyword just because it is unfamiliar or niche -- only flag it if it is clearly not a technology/skill term at all. For each flagged keyword, include a brief illustrative example of the kind of context it appears in as part of your reasoning.`;
 
-const DESCRIPTION_PATTERN_TOOL_NAME = 'flag_noise_description_patterns';
+export const DESCRIPTION_PATTERN_TOOL_NAME = 'flag_noise_description_patterns';
 
-const DESCRIPTION_PATTERN_INPUT_SCHEMA: Record<string, unknown> = {
+export const DESCRIPTION_PATTERN_INPUT_SCHEMA: Record<string, unknown> = {
   type: 'object',
   properties: {
     flaggedPatterns: {
@@ -110,7 +110,7 @@ interface DescriptionPatternLlmResult extends Record<string, unknown> {
   flaggedPatterns?: DescriptionPatternProposal[];
 }
 
-const DESCRIPTION_PATTERN_SYSTEM_PROMPT = `You maintain the quality of keyword extraction from job posting descriptions.
+export const DESCRIPTION_PATTERN_SYSTEM_PROMPT = `You maintain the quality of keyword extraction from job posting descriptions.
 
 You are given a batch of raw job description texts. Identify repeated boilerplate substrings or patterns that appear across multiple of the provided descriptions and would interfere with keyword extraction -- for example contact-info blocks, recruiter-agency disclaimers, or formatting artifacts.
 

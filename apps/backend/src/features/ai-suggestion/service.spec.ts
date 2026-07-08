@@ -28,6 +28,7 @@ import { refreshAllMaterializedViews } from '@codeshore/data-utils';
 
 import { detectTechParentCycle } from './validation/cycle-check';
 import { DEFAULT_MODEL_FALLBACK, Service } from './service';
+import { getWorkflowInfo } from './workflow-info';
 
 const baseRecord = {
   id: 'suggestion-1',
@@ -1486,5 +1487,16 @@ describe('Service.getLlmSettings / Service.updateLlmSettings', () => {
       'new/model',
     );
     expect(result).toEqual({ defaultModel: 'new/model' });
+  });
+});
+
+describe('Service.getWorkflowInfo', () => {
+  it('delegates to the workflow-info.ts aggregator and returns all 5 workflows unchanged', () => {
+    const service = createService();
+
+    const result = service.getWorkflowInfo();
+
+    expect(result).toEqual(getWorkflowInfo());
+    expect(result).toHaveLength(5);
   });
 });

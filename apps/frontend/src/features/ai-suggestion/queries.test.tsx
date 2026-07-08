@@ -3,19 +3,26 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { fetchSuggestions, fetchSuggestion, fetchLlmSettings } = vi.hoisted(() => ({
+const { fetchSuggestions, fetchSuggestion, fetchLlmSettings, fetchWorkflowInfo } = vi.hoisted(() => ({
   fetchSuggestions: vi.fn(),
   fetchSuggestion: vi.fn(),
   fetchLlmSettings: vi.fn(),
+  fetchWorkflowInfo: vi.fn(),
 }));
 
 vi.mock('./service', () => ({
   fetchSuggestions,
   fetchSuggestion,
   fetchLlmSettings,
+  fetchWorkflowInfo,
 }));
 
-import { useLlmSettingsQuery, useSuggestionQuery, useSuggestionsQuery } from './queries';
+import {
+  useLlmSettingsQuery,
+  useSuggestionQuery,
+  useSuggestionsQuery,
+  useWorkflowInfoQuery,
+} from './queries';
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({
@@ -152,5 +159,31 @@ describe('useLlmSettingsQuery', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(fetchLlmSettings).toHaveBeenCalledWith();
     expect(result.current.data).toEqual({ defaultModel: 'openai/gpt-4o-mini' });
+  });
+});
+
+describe('useWorkflowInfoQuery', () => {
+  it('fetches each sub-workflow\'s real prompt template/schema info', async () => {
+    const workflowInfo = [
+      {
+        workflow: 'keyword_mapping',
+        label: '關鍵字對應技術',
+        steps: [
+          {
+            stepLabel: '關鍵字→技術映射',
+            toolName: 'classify_keyword_to_tech',
+            systemPrompt: 'You classify keywords...',
+            inputSchema: { type: 'object' },
+          },
+        ],
+      },
+    ];
+    fetchWorkflowInfo.mockResolvedValue(workflowInfo);
+
+    const { result } = renderHook(() => useWorkflowInfoQuery(), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(fetchWorkflowInfo).toHaveBeenCalledWith();
+    expect(result.current.data).toEqual(workflowInfo);
   });
 });

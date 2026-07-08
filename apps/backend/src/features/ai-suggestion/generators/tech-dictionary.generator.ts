@@ -45,9 +45,9 @@ export const KEYWORD_COUNT_THRESHOLD = 5;
  */
 export const SIMILARITY_THRESHOLD = 0.6;
 
-const TOOL_NAME = 'propose_tech_dictionary_changes';
+export const TOOL_NAME = 'propose_tech_dictionary_changes';
 
-const INPUT_SCHEMA: Record<string, unknown> = {
+export const INPUT_SCHEMA: Record<string, unknown> = {
   type: 'object',
   properties: {
     newEntries: {
@@ -162,7 +162,7 @@ interface TechDictionaryLlmResult extends Record<string, unknown> {
   updates?: TechUpdateProposal[];
 }
 
-const SYSTEM_PROMPT = `You maintain a standardized technology dictionary built from keywords extracted from job descriptions.
+export const SYSTEM_PROMPT = `You maintain a standardized technology dictionary built from keywords extracted from job descriptions.
 
 You are given (1) a list of candidate keywords that occur frequently but do not map to any existing technology dictionary entry, and (2) the full existing technology dictionary (each entry has an "id", human-readable "label", "category", and "tags").
 

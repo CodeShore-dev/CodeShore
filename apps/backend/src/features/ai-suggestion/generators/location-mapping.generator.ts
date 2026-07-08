@@ -32,9 +32,9 @@ export const LOW_CONFIDENCE_THRESHOLD = 0.7;
  */
 export const MAX_ANOMALY_JOBS = 200;
 
-const TOOL_NAME = 'propose_location_mappings';
+export const TOOL_NAME = 'propose_location_mappings';
 
-const INPUT_SCHEMA: Record<string, unknown> = {
+export const INPUT_SCHEMA: Record<string, unknown> = {
   type: 'object',
   properties: {
     proposals: {
@@ -96,7 +96,7 @@ interface LocationMappingLlmResult extends Record<string, unknown> {
   proposals?: LocationMappingProposal[];
 }
 
-const SYSTEM_PROMPT = `You maintain a normalization mapping from raw, free-text job-posting location strings (e.g. "台北市信義區", "新竹科學園區") to a small set of standardized location groups (e.g. "taipei", "hsinchu").
+export const SYSTEM_PROMPT = `You maintain a normalization mapping from raw, free-text job-posting location strings (e.g. "台北市信義區", "新竹科學園區") to a small set of standardized location groups (e.g. "taipei", "hsinchu").
 
 You are given (1) a list of distinct raw location strings that do not currently map to any existing location group, and (2) the full list of existing location group ids.
 

@@ -36,6 +36,7 @@ import { TechHierarchyGenerator } from './generators/tech-hierarchy.generator';
 import { SuggestionCreator, SuggestionGenerator } from './generators/types';
 import { LlmClient, OpenRouterLlmClient } from './llm-client';
 import { detectTechParentCycle } from './validation/cycle-check';
+import { getWorkflowInfo, WorkflowInfo } from './workflow-info';
 
 /**
  * Hardcoded last-resort model id, used only when the `ai_llm_setting` table
@@ -620,6 +621,18 @@ export class Service {
    */
   async updateLlmSettings(defaultModel: string): Promise<void> {
     await this.llmSettingService.setValue(DEFAULT_MODEL_SETTING_KEY, defaultModel);
+  }
+
+  /**
+   * Transparency read for the admin review page: the real, static LLM
+   * system prompt template and expected output (tool name / input schema)
+   * each of the 5 sub-workflows actually uses at runtime, sourced directly
+   * from the generator files' own exported constants via
+   * `workflow-info.ts`'s `getWorkflowInfo()`. Pure and synchronous -- no DB
+   * call, no LLM call -- unlike this service's other read methods.
+   */
+  getWorkflowInfo(): readonly WorkflowInfo[] {
+    return getWorkflowInfo();
   }
 
   /**
