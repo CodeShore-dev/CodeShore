@@ -12,6 +12,8 @@ export function useSuggestionsQuery(filter: AiSuggestionListFilter = {}) {
       'list',
       filter.targetTable ?? null,
       filter.status ?? null,
+      filter.createdAfter ?? null,
+      filter.createdBefore ?? null,
     ],
     queryFn: () => fetchSuggestions(filter),
   });

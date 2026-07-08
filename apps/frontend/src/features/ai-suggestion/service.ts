@@ -52,6 +52,10 @@ export interface AiSuggestionListResponse {
 export interface AiSuggestionListFilter {
   targetTable?: AiSuggestionTargetTable;
   status?: AiSuggestionStatus;
+  // Inclusive ISO-8601 created_at bounds, for requirement 10.2's 依時間範圍
+  // 查詢歷史建議紀錄 history query.
+  createdAfter?: string;
+  createdBefore?: string;
 }
 
 // Progress event streamed by `GET /ai-suggestion/generate` over SSE, mirroring
@@ -82,6 +86,8 @@ export const fetchSuggestions = async (
     params: {
       targetTable: filter.targetTable,
       status: filter.status,
+      createdAfter: filter.createdAfter,
+      createdBefore: filter.createdBefore,
     },
   });
   return res.data;

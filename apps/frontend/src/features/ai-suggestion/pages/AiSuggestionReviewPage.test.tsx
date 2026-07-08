@@ -150,6 +150,27 @@ describe('AiSuggestionReviewPage', () => {
     });
   });
 
+  it('setting the date-range filter inputs triggers a query with createdAfter/createdBefore (requirement 10.2)', async () => {
+    renderWithProviders(<AiSuggestionReviewPage />);
+    await screen.findByTestId('suggestion-s1');
+
+    fireEvent.change(screen.getByTestId('filter-created-after'), {
+      target: { value: '2026-01-01' },
+    });
+    fireEvent.change(screen.getByTestId('filter-created-before'), {
+      target: { value: '2026-06-30' },
+    });
+
+    await waitFor(() => {
+      expect(serviceModule.fetchSuggestions).toHaveBeenCalledWith(
+        expect.objectContaining({
+          createdAfter: '2026-01-01',
+          createdBefore: '2026-06-30',
+        }),
+      );
+    });
+  });
+
   it('renders evidence conditionally by shape (requirement 8.1-8.4)', async () => {
     renderWithProviders(<AiSuggestionReviewPage />);
     await screen.findByTestId('suggestion-s1');

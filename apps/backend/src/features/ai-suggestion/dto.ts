@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsObject, IsOptional, IsString } from 'class-validator';
+import { IsIn, IsISO8601, IsObject, IsOptional, IsString } from 'class-validator';
 
 import {
   AiSuggestionStatus,
@@ -46,6 +46,28 @@ export class AiSuggestionQueryDto extends QueryDto {
   @IsOptional()
   @IsIn(STATUSES)
   status?: AiSuggestionStatus;
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date-time',
+    description:
+      'Inclusive lower bound (ISO-8601) on created_at, for requirement ' +
+      '10.2\'s 依時間範圍查詢歷史建議紀錄 history query',
+  })
+  @IsOptional()
+  @IsISO8601()
+  createdAfter?: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date-time',
+    description:
+      'Inclusive upper bound (ISO-8601) on created_at, for requirement ' +
+      '10.2\'s 依時間範圍查詢歷史建議紀錄 history query',
+  })
+  @IsOptional()
+  @IsISO8601()
+  createdBefore?: string;
 }
 
 /**

@@ -51,6 +51,52 @@ describe('useSuggestionsQuery', () => {
     expect(fetchSuggestions).toHaveBeenCalledWith({});
   });
 
+  it('passes the createdAfter/createdBefore filter through to fetchSuggestions (requirement 10.2)', async () => {
+    fetchSuggestions.mockResolvedValue({ result: [], count: 0 });
+
+    const { result } = renderHook(
+      () =>
+        useSuggestionsQuery({
+          createdAfter: '2026-01-01',
+          createdBefore: '2026-06-30',
+        }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(fetchSuggestions).toHaveBeenCalledWith({
+      createdAfter: '2026-01-01',
+      createdBefore: '2026-06-30',
+    });
+  });
+
+  it('refetches under a different queryKey when the createdAfter/createdBefore range changes (requirement 10.2)', async () => {
+    fetchSuggestions.mockResolvedValue({ result: [], count: 0 });
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    function localWrapper({ children }: { children: ReactNode }) {
+      return (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      );
+    }
+
+    const { result, rerender } = renderHook(
+      ({ createdAfter }: { createdAfter: string }) =>
+        useSuggestionsQuery({ createdAfter }),
+      { wrapper: localWrapper, initialProps: { createdAfter: '2026-01-01' } },
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    rerender({ createdAfter: '2026-02-01' });
+
+    await waitFor(() =>
+      expect(fetchSuggestions).toHaveBeenCalledWith({
+        createdAfter: '2026-02-01',
+      }),
+    );
+  });
+
   it('refetches under a different queryKey when the filter changes', async () => {
     fetchSuggestions.mockResolvedValue({ result: [], count: 0 });
     const client = new QueryClient({

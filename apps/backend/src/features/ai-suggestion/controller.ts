@@ -42,14 +42,16 @@ export class Controller {
 
   @Get()
   @ApiOperation({
-    summary: 'List AI suggestions (requirement 7.1)',
+    summary: 'List AI suggestions (requirement 7.1, 10.2)',
     description:
-      'Lists suggestions in the review queue, optionally filtered by targetTable and/or status. Supports the shared QueryDto pagination/sorting/where params.',
+      'Lists suggestions in the review queue, optionally filtered by targetTable, status, and/or a createdAfter/createdBefore time range (requirement 10.2\'s 依目標資料表或時間範圍查詢歷史建議紀錄). Supports the shared QueryDto pagination/sorting/where params.',
   })
   async list(@Query() query: AiSuggestionQueryDto) {
     return this.service.list({
       targetTable: query.targetTable,
       status: query.status,
+      createdAfter: query.createdAfter,
+      createdBefore: query.createdBefore,
     });
   }
 

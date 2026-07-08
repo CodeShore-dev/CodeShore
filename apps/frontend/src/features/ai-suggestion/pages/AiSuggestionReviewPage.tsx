@@ -7,11 +7,8 @@ import {
 } from '@codeshore/data-types';
 
 import { SuggestionCard } from '../components/SuggestionCard';
-import {
-  STATUS_OPTIONS,
-  TARGET_TABLE_OPTIONS,
-  WORKFLOW_OPTIONS,
-} from '../constants';
+import { SuggestionFilterBar } from '../components/SuggestionFilterBar';
+import { WORKFLOW_OPTIONS } from '../constants';
 import { useApproveSuggestionMutation, useRejectSuggestionMutation } from '../mutations';
 import { useSuggestionQuery, useSuggestionsQuery } from '../queries';
 import { useGenerateSuggestions } from '../useGenerateSuggestions';
@@ -24,10 +21,17 @@ export function AiSuggestionReviewPage() {
   const [status, setStatus] = useState<AiSuggestionStatus | ''>('pending');
   const [workflow, setWorkflow] = useState<AiSuggestionWorkflow | 'all'>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Requirement 10.2: 依時間範圍查詢歷史建議紀錄. Plain `date` inputs (YYYY-MM-DD)
+  // are already valid ISO-8601 date strings, so they pass through to the
+  // filter/query params as-is without extra formatting.
+  const [createdAfter, setCreatedAfter] = useState('');
+  const [createdBefore, setCreatedBefore] = useState('');
 
   const suggestionsQuery = useSuggestionsQuery({
     targetTable: targetTable || undefined,
     status: status || undefined,
+    createdAfter: createdAfter || undefined,
+    createdBefore: createdBefore || undefined,
   });
   const detailQuery = useSuggestionQuery(expandedId ?? undefined);
   const approveMutation = useApproveSuggestionMutation();
@@ -138,38 +142,17 @@ export function AiSuggestionReviewPage() {
         )}
       </section>
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <span className="text-on-surface-variant text-sm font-semibold">篩選</span>
-        <select
-          value={targetTable}
-          data-testid="filter-target-table"
-          className="border-surface-container bg-surface-container text-on-surface rounded-lg border py-1.5 pr-8 pl-2 text-sm"
-          onChange={e =>
-            setTargetTable(e.target.value as AiSuggestionTargetTable | '')
-          }
-        >
-          <option value="">全部資料表</option>
-          {TARGET_TABLE_OPTIONS.map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <select
-          value={status}
-          data-testid="filter-status"
-          className="border-surface-container bg-surface-container text-on-surface rounded-lg border py-1.5 pr-8 pl-2 text-sm"
-          onChange={e => setStatus(e.target.value as AiSuggestionStatus | '')}
-        >
-          <option value="">全部狀態</option>
-          {STATUS_OPTIONS.map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <span className="text-on-surface-variant text-xs">共 {count} 筆</span>
-      </div>
+      <SuggestionFilterBar
+        targetTable={targetTable}
+        onTargetTableChange={setTargetTable}
+        status={status}
+        onStatusChange={setStatus}
+        createdAfter={createdAfter}
+        onCreatedAfterChange={setCreatedAfter}
+        createdBefore={createdBefore}
+        onCreatedBeforeChange={setCreatedBefore}
+        count={count}
+      />
 
       <div className="flex flex-col gap-3">
         {suggestionsQuery.isLoading ? (
