@@ -538,6 +538,99 @@ describe('Service.approve', () => {
     expect(aiSuggestionService.markApproved).not.toHaveBeenCalled();
   });
 
+  it('returns not_found when approving a suggestion that is already rejected (cross-check of requirement 1.5: a rejected suggestion cannot subsequently be approved)', async () => {
+    const suggestion = {
+      ...baseRecord,
+      id: 'suggestion-1',
+      status: 'rejected',
+    };
+    const aiSuggestionService = {
+      fetchAll: vi
+        .fn()
+        .mockResolvedValue({ result: [suggestion], count: 1, searchParams: '' }),
+      markApproved: vi.fn(),
+    };
+    const service = createService({ aiSuggestionService });
+
+    const result = await service.approve('suggestion-1', undefined, 'reviewer-1');
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe('not_found');
+    }
+    expect(aiSuggestionService.markApproved).not.toHaveBeenCalled();
+  });
+
+  it('succeeds on a retried approve() call after a prior write failure, without requiring manual data repair (requirement 9.3)', async () => {
+    const suggestion = {
+      ...baseRecord,
+      id: 'suggestion-tk',
+      target_table: 'tech_keyword',
+      action: 'insert',
+      target_key: { tech: 'react', keyword: 'reactjs' },
+      payload: { tech: 'react', keyword: 'reactjs' },
+      evidence: { reasoning: 'x' },
+    };
+    const approvedRecord = {
+      ...suggestion,
+      status: 'approved',
+      reviewed_by: 'reviewer-1',
+    };
+    const aiSuggestionService = {
+      // The suggestion is never mutated by the first (failed) attempt, so a
+      // fixed `pending` row is returned for both `approve()` calls -- just
+      // as the real system would leave it, since only `markApproved` (never
+      // reached on the first call) transitions the status.
+      fetchAll: vi
+        .fn()
+        .mockResolvedValue({ result: [suggestion], count: 1, searchParams: '' }),
+      markApproved: vi
+        .fn()
+        .mockResolvedValue({ outcome: 'approved', record: approvedRecord }),
+    };
+    const techKeywordService = {
+      upsert: vi
+        .fn()
+        .mockResolvedValueOnce({ error: { message: 'db unavailable' } })
+        .mockResolvedValueOnce({ error: null }),
+      updateByTechAndKeyword: vi.fn(),
+      deleteByTechAndKeyword: vi.fn(),
+    };
+    const mvTechService = {
+      fetchAll: vi
+        .fn()
+        .mockResolvedValue({ result: [], count: 10, searchParams: '' }),
+    };
+    const service = createService({
+      aiSuggestionService,
+      techKeywordService,
+      mvTechService,
+    });
+
+    const firstAttempt = await service.approve(
+      'suggestion-tk',
+      undefined,
+      'reviewer-1',
+    );
+    expect(firstAttempt.ok).toBe(false);
+    if (!firstAttempt.ok) {
+      expect(firstAttempt.error.kind).toBe('write_failed');
+    }
+    expect(aiSuggestionService.markApproved).not.toHaveBeenCalled();
+
+    const secondAttempt = await service.approve(
+      'suggestion-tk',
+      undefined,
+      'reviewer-1',
+    );
+
+    // The retry actually succeeds -- not merely "still pending" -- once the
+    // underlying write problem is resolved, with no manual data repair.
+    expect(techKeywordService.upsert).toHaveBeenCalledTimes(2);
+    expect(secondAttempt).toEqual({ ok: true, record: approvedRecord });
+    expect(aiSuggestionService.markApproved).toHaveBeenCalledTimes(1);
+  });
+
   it('returns not_found when approving an id that does not exist', async () => {
     const aiSuggestionService = {
       fetchAll: vi
