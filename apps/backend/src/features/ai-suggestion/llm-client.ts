@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
+import { OpenRouter } from '@openrouter/sdk';
 import { Injectable } from '@nestjs/common';
 
 /**
@@ -13,7 +13,7 @@ export interface StructuredCompletionRequest<TInput> {
   readonly systemPrompt: string;
   readonly userPrompt: string;
   readonly toolName: string;
-  /** JSON Schema, used as Anthropic's tool_use `input_schema`. */
+  /** JSON Schema, used as the tool call's `function.parameters`. */
   readonly inputSchema: Record<string, unknown>;
   readonly input: TInput;
 }
@@ -27,93 +27,129 @@ export interface LlmClient {
 }
 
 /**
- * Fallback model when `ANTHROPIC_MODEL` is not configured. Model/vendor
- * selection itself is out of this spec's boundary (design.md Non-Goals);
- * this is only a default so the client is usable without extra setup.
- */
-const DEFAULT_MODEL = 'claude-sonnet-4-5-20250929';
-const MAX_TOKENS = 4096;
-
-/**
- * Thin wrapper around `@anthropic-ai/sdk` that forces a single tool-use
- * response so the model's answer is guaranteed to be a structured
- * `tool_use` content block (or the request is treated as a failure).
- * Intentionally single-turn only: no retries, no streaming, no multi-turn
- * conversation, no LangChain/LangGraph orchestration (design.md Non-Goals).
+ * Thin wrapper around `@openrouter/sdk` that forces a single tool-call
+ * response so the model's answer is guaranteed to be a structured function
+ * call (or the request is treated as a failure). Intentionally single-turn
+ * only: no retries, no streaming, no multi-turn conversation, no
+ * LangChain/LangGraph orchestration (design.md Non-Goals).
+ *
+ * `model` is a required constructor parameter, not optional with an
+ * env-var/hardcoded fallback: which model to use is a single, testable
+ * decision made one layer up in `service.ts`'s `generate()` (per-call
+ * `model` override, else the `ai_llm_setting` table's `default_model`, else
+ * a hardcoded last-resort constant) -- this class stays a simple, stateless
+ * "send this exact model to OpenRouter" wrapper so a fresh instance can be
+ * constructed per `generate()` run without duplicating that fallback logic.
  */
 @Injectable()
-export class AnthropicLlmClient implements LlmClient {
-  private readonly client: Anthropic;
+export class OpenRouterLlmClient implements LlmClient {
+  private readonly client: OpenRouter;
   private readonly model: string;
 
-  constructor(model?: string) {
-    // API key is read from the existing server-side environment variable
-    // convention (see apps/backend/src/features/auth/adminEmails.ts) and
-    // only ever lives in apps/backend, never in libs/data-utils. It is
-    // never logged or hardcoded.
-    this.client = new Anthropic({ apiKey: process.env['ANTHROPIC_API_KEY'] ?? undefined });
-    this.model = model ?? process.env['ANTHROPIC_MODEL'] ?? DEFAULT_MODEL;
+  constructor(model: string) {
+    // API key is a real secret, read only from the environment (same
+    // apps/backend-only convention the previous AnthropicLlmClient used) --
+    // never stored in the `ai_llm_setting` settings table and never logged.
+    this.client = new OpenRouter({ apiKey: process.env['OPENROUTER_API_KEY'] ?? undefined });
+    this.model = model;
   }
 
   async completeStructured<TResult extends Record<string, unknown>>(
     request: StructuredCompletionRequest<unknown>,
   ): Promise<StructuredCompletionResult<TResult>> {
-    if (!process.env['ANTHROPIC_API_KEY']) {
+    if (!process.env['OPENROUTER_API_KEY']) {
       return {
         ok: false,
-        error: 'ANTHROPIC_API_KEY environment variable is not configured',
+        error: 'OPENROUTER_API_KEY environment variable is not configured',
       };
     }
 
-    let response: Anthropic.Message;
+    // `client.chat.send(...)` is a throwing API (it internally unwraps the
+    // SDK's `Result<ChatResult, Error>` via `unwrapAsync`, rejecting the
+    // promise on any SDK-level error) rather than one that resolves to a
+    // `{ ok, value/error }` object -- verified directly from the installed
+    // `@openrouter/sdk` package's `esm/sdk/chat.js`, not assumed. Passing a
+    // request with no `stream` field selects the SDK's non-streaming
+    // `send()` overload (`Promise<models.ChatResult>`); `response`'s type is
+    // deliberately left to be inferred from that overload resolution rather
+    // than imported explicitly -- `@openrouter/sdk`'s `./models` subpath
+    // export is not resolvable under this repo's `moduleResolution` setting
+    // (verified: `tsc` reports TS2307 for it), and the `OpenRouter` class
+    // itself carries no merged type namespace to import `ChatResult` from
+    // instead (unlike `@anthropic-ai/sdk`'s `Anthropic.Message`).
+    let response;
     try {
-      response = await this.client.messages.create({
-        model: this.model,
-        max_tokens: MAX_TOKENS,
-        system: request.systemPrompt,
-        messages: [{ role: 'user', content: request.userPrompt }],
-        tools: [
-          {
-            name: request.toolName,
-            input_schema: request.inputSchema as Anthropic.Tool.InputSchema,
-          },
-        ],
-        // Forces the model to respond with exactly this tool call, so a
-        // successful response is guaranteed to be schema-shaped rather
-        // than free-form text.
-        tool_choice: { type: 'tool', name: request.toolName },
+      response = await this.client.chat.send({
+        chatRequest: {
+          model: this.model,
+          messages: [
+            { role: 'system', content: request.systemPrompt },
+            { role: 'user', content: request.userPrompt },
+          ],
+          tools: [
+            {
+              type: 'function',
+              function: {
+                name: request.toolName,
+                parameters: request.inputSchema,
+              },
+            },
+          ],
+          // Forces the model to respond with exactly this tool call, so a
+          // successful response is guaranteed to be schema-shaped rather
+          // than free-form text.
+          toolChoice: { type: 'function', function: { name: request.toolName } },
+        },
       });
     } catch (error) {
       return {
         ok: false,
-        error: `Anthropic API request failed: ${toErrorMessage(error)}`,
+        error: `OpenRouter API request failed: ${toErrorMessage(error)}`,
       };
     }
 
-    const toolUseBlock = response.content.find((block): block is Anthropic.ToolUseBlock => block.type === 'tool_use');
+    const choice = response.choices[0];
+    const toolCall = choice?.message?.toolCalls?.[0];
 
-    if (!toolUseBlock) {
+    if (!toolCall) {
       return {
         ok: false,
-        error: `Anthropic response did not contain a tool_use block (stop_reason: ${response.stop_reason ?? 'unknown'})`,
+        error: `OpenRouter response did not contain a tool call (finishReason: ${choice?.finishReason ?? 'unknown'})`,
       };
     }
 
-    if (toolUseBlock.name !== request.toolName) {
+    if (toolCall.type !== 'function') {
       return {
         ok: false,
-        error: `Anthropic response used unexpected tool "${toolUseBlock.name}", expected "${request.toolName}"`,
+        error: `OpenRouter response used a non-function tool call type "${toolCall.type}"`,
       };
     }
 
-    if (!isPlainObject(toolUseBlock.input)) {
+    if (toolCall.function.name !== request.toolName) {
       return {
         ok: false,
-        error: 'Anthropic tool_use input was not a JSON object',
+        error: `OpenRouter response used unexpected tool "${toolCall.function.name}", expected "${request.toolName}"`,
       };
     }
 
-    return { ok: true, result: toolUseBlock.input as TResult };
+    let parsedArguments: unknown;
+    try {
+      parsedArguments = JSON.parse(toolCall.function.arguments);
+    } catch (error) {
+      return {
+        ok: false,
+        error: `OpenRouter tool call arguments were not valid JSON: ${toErrorMessage(error)}`,
+      };
+    }
+
+    if (!isPlainObject(parsedArguments)) {
+      return {
+        ok: false,
+        error: 'OpenRouter tool call arguments did not parse to a JSON object',
+      };
+    }
+
+    return { ok: true, result: parsedArguments as TResult };
   }
 }
 

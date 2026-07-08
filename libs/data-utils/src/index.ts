@@ -24,6 +24,7 @@ export * from './lib/api/mv_salary_range_multiplier';
 export * from './lib/api/keyword.service';
 export * from './lib/api/mv_tech_combo_stats.service';
 export * from './lib/api/ai_suggestion.service';
+export * from './lib/api/ai_llm_setting.service';
 export * from './lib/api/tech_parent.service';
 export * from './lib/api/location_group.service';
 export * from './lib/api/location_group_location.service';

@@ -21,6 +21,7 @@ import {
   ApproveSuggestionDto,
   GenerateSuggestionsDto,
   RejectSuggestionDto,
+  UpdateLlmSettingsDto,
 } from './dto';
 import { Service } from './service';
 
@@ -63,7 +64,30 @@ export class Controller {
       'Pass ?workflow=<keyword_mapping|tech_dictionary|tech_hierarchy|location_mapping|noise_detection|all> (defaults to "all"). A single sub-workflow failing does not stop the others from running.',
   })
   generate(@Query() query: GenerateSuggestionsDto): Observable<MessageEvent> {
-    return this.service.generateStream(query.workflow ?? 'all');
+    return this.service.generateStream(query.workflow ?? 'all', {
+      model: query.model,
+    });
+  }
+
+  @Get('llm-settings')
+  @ApiOperation({
+    summary: 'Get the current backend-adjustable default LLM model',
+    description:
+      'Returns the OpenRouter model id used by generate() calls that do not specify a per-call "model" override.',
+  })
+  async getLlmSettings() {
+    return this.service.getLlmSettings();
+  }
+
+  @Patch('llm-settings')
+  @ApiOperation({
+    summary: 'Change the backend-adjustable default LLM model',
+    description:
+      'Updates the default OpenRouter model used by future generate() calls that omit a per-call "model" override -- takes effect immediately, without redeploying.',
+  })
+  async updateLlmSettings(@Body() body: UpdateLlmSettingsDto) {
+    await this.service.updateLlmSettings(body.defaultModel);
+    return this.service.getLlmSettings();
   }
 
   // NOTE: `getById`'s `:id` route is registered *after* `generate` above.

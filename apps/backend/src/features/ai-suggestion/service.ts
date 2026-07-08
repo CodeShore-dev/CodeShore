@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Observable } from 'rxjs';
 
 import {
+  AiLlmSettingService,
   AiSuggestionService,
   CreateAiSuggestionInput,
   CreatePendingSuggestionResult,
@@ -33,8 +34,20 @@ import { NoiseDetectionGenerator } from './generators/noise-detection.generator'
 import { TechDictionaryGenerator } from './generators/tech-dictionary.generator';
 import { TechHierarchyGenerator } from './generators/tech-hierarchy.generator';
 import { SuggestionCreator, SuggestionGenerator } from './generators/types';
-import { AnthropicLlmClient } from './llm-client';
+import { LlmClient, OpenRouterLlmClient } from './llm-client';
 import { detectTechParentCycle } from './validation/cycle-check';
+
+/**
+ * Hardcoded last-resort model id, used only when the `ai_llm_setting` table
+ * has no `default_model` row yet -- e.g. right after a fresh deploy, before
+ * the migration's seed row has landed or before anyone has called `PATCH
+ * ai-suggestion/llm-settings`. Everyday default-model changes should go
+ * through that admin endpoint (`updateLlmSettings`), not this constant.
+ */
+export const DEFAULT_MODEL_FALLBACK = 'meta-llama/llama-3.3-70b-instruct:free';
+
+/** Key this feature stores its adjustable default model under in `ai_llm_setting`. */
+const DEFAULT_MODEL_SETTING_KEY = 'default_model';
 
 /**
  * `AiSuggestionEvidence` per design.md's "AiSuggestionService（Full Block）"
@@ -329,10 +342,10 @@ export class Service {
     private readonly locationGroupLocationService: LocationGroupLocationService,
     private readonly mvTechService: MvTechService,
     private readonly mvLocationGroupService: MvLocationGroupService,
-    private readonly llmClient: AnthropicLlmClient,
     private readonly keywordService: KeywordService,
     private readonly jobKeywordService: JobKeywordService,
     private readonly jobService: JobService,
+    private readonly llmSettingService: AiLlmSettingService,
   ) {}
 
   /**
@@ -426,10 +439,24 @@ export class Service {
    */
   async *generate(
     workflow: AiSuggestionWorkflow | 'all',
+    options?: { model?: string },
   ): AsyncGenerator<AiSuggestionGenerateEvent> {
     const workflowsToRun: readonly AiSuggestionWorkflow[] =
       workflow === 'all' ? WORKFLOW_ORDER : [workflow];
-    const generators = this.buildGenerators();
+    // Model resolution: an explicit per-call `options.model` wins; otherwise
+    // fall back to the backend-adjustable `ai_llm_setting.default_model` row
+    // (changeable via `PATCH ai-suggestion/llm-settings` without
+    // redeploying); if that row doesn't exist yet either (e.g. fresh deploy
+    // before the migration's seed row / before anyone has called the
+    // settings endpoint), fall back to the hardcoded `DEFAULT_MODEL_FALLBACK`
+    // constant. A fresh `OpenRouterLlmClient` is constructed for this one
+    // `generate()` run rather than reused across calls, since the model can
+    // vary per call.
+    const model =
+      options?.model ??
+      (await this.llmSettingService.getValue(DEFAULT_MODEL_SETTING_KEY)) ??
+      DEFAULT_MODEL_FALLBACK;
+    const generators = this.buildGenerators(new OpenRouterLlmClient(model));
     let totalCreated = 0;
 
     for (const currentWorkflow of workflowsToRun) {
@@ -481,13 +508,16 @@ export class Service {
    * to reuse (`spawnCrawl`/`refreshAllMv` each build their own `Observable`
    * inline), so this method builds its own the same way.
    */
-  generateStream(workflow: AiSuggestionWorkflow | 'all'): Observable<MessageEvent> {
+  generateStream(
+    workflow: AiSuggestionWorkflow | 'all',
+    options?: { model?: string },
+  ): Observable<MessageEvent> {
     return new Observable<MessageEvent>(subscriber => {
       let cancelled = false;
 
       (async () => {
         try {
-          for await (const event of this.generate(workflow)) {
+          for await (const event of this.generate(workflow, options)) {
             if (cancelled) return;
             subscriber.next({ data: event } as MessageEvent);
           }
@@ -512,11 +542,14 @@ export class Service {
   /**
    * Constructs the 5 suggestion generators (task 3.1-3.5), each wired to
    * the same injected `libs/data-utils` service instances this class
-   * already holds for `approve()`'s target-table writes, a shared
-   * `AnthropicLlmClient`, and `this` narrowed to `SuggestionCreator` (every
-   * generator's constructor takes a `SuggestionCreator`, never the full
-   * `Service`, per `generators/types.ts`'s doc comment: "a generator must
-   * never write to the data-utils layer directly").
+   * already holds for `approve()`'s target-table writes, the given
+   * `llmClient` (a fresh `OpenRouterLlmClient` built for this one
+   * `generate()` run -- see `generate()`'s model-resolution comment above --
+   * not a stored singleton, since the effective model can vary per call),
+   * and `this` narrowed to `SuggestionCreator` (every generator's
+   * constructor takes a `SuggestionCreator`, never the full `Service`, per
+   * `generators/types.ts`'s doc comment: "a generator must never write to
+   * the data-utils layer directly").
    *
    * None of the 5 generator classes are `@Injectable()` NestJS providers
    * (plain classes, manually constructed) -- see each generator file's
@@ -525,14 +558,14 @@ export class Service {
    * seam with fakes instead of having to construct 5 real generators' worth
    * of dependencies to exercise `generate()`'s orchestration behavior.
    */
-  protected buildGenerators(): Record<AiSuggestionWorkflow, SuggestionGenerator> {
+  protected buildGenerators(llmClient: LlmClient): Record<AiSuggestionWorkflow, SuggestionGenerator> {
     const suggestionCreator: SuggestionCreator = {
       createSuggestion: input => this.createSuggestion(input),
     };
 
     return {
       keyword_mapping: new KeywordMappingGenerator(
-        this.llmClient,
+        llmClient,
         this.keywordService,
         this.techKeywordService,
         this.techService,
@@ -540,30 +573,53 @@ export class Service {
         suggestionCreator,
       ),
       tech_dictionary: new TechDictionaryGenerator(
-        this.llmClient,
+        llmClient,
         this.keywordService,
         this.techKeywordService,
         this.techService,
         suggestionCreator,
       ),
       tech_hierarchy: new TechHierarchyGenerator(
-        this.llmClient,
+        llmClient,
         this.techService,
         this.techParentService,
         suggestionCreator,
       ),
       location_mapping: new LocationMappingGenerator(
-        this.llmClient,
+        llmClient,
         this.locationGroupService,
         suggestionCreator,
       ),
       noise_detection: new NoiseDetectionGenerator(
-        this.llmClient,
+        llmClient,
         this.keywordService,
         this.jobService,
         suggestionCreator,
       ),
     };
+  }
+
+  /**
+   * Reads the currently effective default model (requirement: 後台可以調整
+   * 是預設值 -- "there must be a system-wide default model, adjustable via a
+   * backend/admin-accessible endpoint"). Falls back to
+   * `DEFAULT_MODEL_FALLBACK` when the `ai_llm_setting` table has no
+   * `default_model` row yet, mirroring `generate()`'s own fallback chain
+   * (minus the per-call `options.model` step, which only applies to an
+   * actual generation run).
+   */
+  async getLlmSettings(): Promise<{ defaultModel: string }> {
+    const value = await this.llmSettingService.getValue(DEFAULT_MODEL_SETTING_KEY);
+    return { defaultModel: value ?? DEFAULT_MODEL_FALLBACK };
+  }
+
+  /**
+   * Changes the stored default model without redeploying (requirement: 後台
+   * 可以調整是預設值). Takes effect on the next `generate()` call that omits
+   * a per-call `options.model` override.
+   */
+  async updateLlmSettings(defaultModel: string): Promise<void> {
+    await this.llmSettingService.setValue(DEFAULT_MODEL_SETTING_KEY, defaultModel);
   }
 
   /**

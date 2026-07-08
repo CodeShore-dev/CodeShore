@@ -25,6 +25,13 @@ export type AiSuggestionAction = 'insert' | 'update' | 'delete';
 export type AiSuggestionStatus = 'pending' | 'approved' | 'rejected';
 
 export namespace SupabaseTable {
+  // 對應新的 supabase/migrations/*_create_ai_llm_setting.sql（在已完成的
+  // ai-database-maintenance-workflow spec 之上，為 OpenRouter LLM 供應商切換
+  // 追加的簡易 key-value 設定表）。該遷移同樣尚未套用到實際 Supabase 專案
+  // （sandbox 無 Docker／遠端憑證），套用後需重跑 `pnpm db:sync` 重新產生
+  // supabase.schema.ts，屆時應核對此手動型別與產生器輸出是否一致並視需要調整。
+  export type AiLlmSetting = Database['public']['Tables']['ai_llm_setting']['Row'];
+
   // 對應新的 supabase/migrations/20260707000000_create_ai_suggestion.sql；
   // 該遷移尚未套用到實際 Supabase 專案（sandbox 無 Docker／遠端憑證），套用後
   // 需重跑 `pnpm db:sync` 重新產生 supabase.schema.ts，屆時應核對此手動型別

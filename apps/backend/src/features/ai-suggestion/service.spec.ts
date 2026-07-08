@@ -8,11 +8,26 @@ vi.mock('@codeshore/data-utils', () => ({
 vi.mock('./validation/cycle-check', () => ({
   detectTechParentCycle: vi.fn(),
 }));
+// `Service.generate()` resolves the effective model, then constructs a
+// fresh `OpenRouterLlmClient(model)` for that one run (see service.ts's
+// model-resolution comment). Mocking the class here lets the model
+// resolution tests below assert on the constructor call args directly,
+// instead of needing a real `OPENROUTER_API_KEY` / network call.
+// `vi.hoisted` is required (not a plain top-level `const`) because
+// `vi.mock`'s factory is itself hoisted above all imports/top-level
+// variables -- referencing a non-hoisted `const` from inside it throws a
+// temporal-dead-zone `ReferenceError`.
+const { openRouterLlmClientCtor } = vi.hoisted(() => ({
+  openRouterLlmClientCtor: vi.fn(),
+}));
+vi.mock('./llm-client', () => ({
+  OpenRouterLlmClient: openRouterLlmClientCtor,
+}));
 
 import { refreshAllMaterializedViews } from '@codeshore/data-utils';
 
 import { detectTechParentCycle } from './validation/cycle-check';
-import { Service } from './service';
+import { DEFAULT_MODEL_FALLBACK, Service } from './service';
 
 const baseRecord = {
   id: 'suggestion-1',
@@ -55,10 +70,10 @@ function createService(
     locationGroupLocationService?: any;
     mvTechService?: any;
     mvLocationGroupService?: any;
-    llmClient?: any;
     keywordService?: any;
     jobKeywordService?: any;
     jobService?: any;
+    llmSettingService?: any;
   } = {},
 ): Service {
   return new Service(
@@ -72,10 +87,10 @@ function createService(
     overrides.locationGroupLocationService ?? {},
     overrides.mvTechService ?? {},
     overrides.mvLocationGroupService ?? {},
-    overrides.llmClient ?? {},
     overrides.keywordService ?? {},
     overrides.jobKeywordService ?? {},
     overrides.jobService ?? {},
+    overrides.llmSettingService ?? {},
   ) as any;
 }
 
@@ -1069,7 +1084,10 @@ function emptyResult(overrides: Partial<Record<string, unknown>> = {}) {
 }
 
 class TestableService extends Service {
-  constructor(private readonly fakeGenerators: Record<string, any>) {
+  constructor(
+    private readonly fakeGenerators: Record<string, any>,
+    llmSettingService: any = { getValue: vi.fn().mockResolvedValue(null) },
+  ) {
     super(
       {} as any,
       {} as any,
@@ -1084,10 +1102,15 @@ class TestableService extends Service {
       {} as any,
       {} as any,
       {} as any,
-      {} as any,
+      llmSettingService,
     );
   }
 
+  // `buildGenerators()` now takes the per-run `LlmClient` `generate()`
+  // constructs after resolving the effective model -- irrelevant to these
+  // orchestration-only tests (the fake generators never touch it), so this
+  // override keeps ignoring it entirely (a valid override: fewer parameters
+  // than the base signature).
   protected override buildGenerators() {
     return this.fakeGenerators as any;
   }
@@ -1326,5 +1349,142 @@ describe('Service.generateStream', () => {
       workflow: 'all',
       created: 1,
     });
+  });
+});
+
+/**
+ * Model resolution: `generate()` must resolve the effective model *before*
+ * constructing this run's `OpenRouterLlmClient` -- an explicit per-call
+ * `options.model` wins outright (the settings table is never even
+ * consulted); otherwise the stored `ai_llm_setting.default_model` value is
+ * used; and if that row doesn't exist yet either, `DEFAULT_MODEL_FALLBACK`
+ * is used. `OpenRouterLlmClient` itself is module-mocked above (`vi.mock('./
+ * llm-client', ...)`), so these tests assert directly on the constructor
+ * call args rather than needing a real `OPENROUTER_API_KEY` / network call.
+ * `TestableService`'s `buildGenerators()` override still ignores whatever
+ * `LlmClient` instance `generate()` passes it (irrelevant to model
+ * resolution itself), so a fixed set of no-op fake generators is reused
+ * across every test in this block.
+ */
+describe('Service.generate model resolution', () => {
+  function fakeGeneratorsAllEmpty(): Record<string, any> {
+    return {
+      keyword_mapping: makeFakeGenerator('keyword_mapping', {
+        kind: 'result',
+        result: emptyResult(),
+      }),
+      tech_dictionary: makeFakeGenerator('tech_dictionary', {
+        kind: 'result',
+        result: emptyResult(),
+      }),
+      tech_hierarchy: makeFakeGenerator('tech_hierarchy', {
+        kind: 'result',
+        result: emptyResult(),
+      }),
+      location_mapping: makeFakeGenerator('location_mapping', {
+        kind: 'result',
+        result: emptyResult(),
+      }),
+      noise_detection: makeFakeGenerator('noise_detection', {
+        kind: 'result',
+        result: emptyResult(),
+      }),
+    };
+  }
+
+  beforeEach(() => {
+    openRouterLlmClientCtor.mockClear();
+  });
+
+  it('uses the per-call model override when provided, without ever consulting the settings table', async () => {
+    const llmSettingService = { getValue: vi.fn() };
+    const service = new TestableService(
+      fakeGeneratorsAllEmpty(),
+      llmSettingService,
+    );
+
+    await collect(
+      service.generate('keyword_mapping', { model: 'explicit/override-model' }),
+    );
+
+    expect(llmSettingService.getValue).not.toHaveBeenCalled();
+    expect(openRouterLlmClientCtor).toHaveBeenCalledWith(
+      'explicit/override-model',
+    );
+  });
+
+  it('falls back to the stored ai_llm_setting default_model when no per-call override is given', async () => {
+    const llmSettingService = {
+      getValue: vi.fn().mockResolvedValue('stored/default-model'),
+    };
+    const service = new TestableService(
+      fakeGeneratorsAllEmpty(),
+      llmSettingService,
+    );
+
+    await collect(service.generate('keyword_mapping'));
+
+    expect(llmSettingService.getValue).toHaveBeenCalledWith('default_model');
+    expect(openRouterLlmClientCtor).toHaveBeenCalledWith(
+      'stored/default-model',
+    );
+  });
+
+  it('falls back to DEFAULT_MODEL_FALLBACK when the settings table has no default_model row yet', async () => {
+    const llmSettingService = { getValue: vi.fn().mockResolvedValue(null) };
+    const service = new TestableService(
+      fakeGeneratorsAllEmpty(),
+      llmSettingService,
+    );
+
+    await collect(service.generate('keyword_mapping'));
+
+    expect(openRouterLlmClientCtor).toHaveBeenCalledWith(
+      DEFAULT_MODEL_FALLBACK,
+    );
+  });
+});
+
+describe('Service.getLlmSettings / Service.updateLlmSettings', () => {
+  it('getLlmSettings returns the stored default_model', async () => {
+    const llmSettingService = {
+      getValue: vi.fn().mockResolvedValue('stored/model'),
+    };
+    const service = createService({ llmSettingService });
+
+    const result = await service.getLlmSettings();
+
+    expect(llmSettingService.getValue).toHaveBeenCalledWith('default_model');
+    expect(result).toEqual({ defaultModel: 'stored/model' });
+  });
+
+  it('getLlmSettings falls back to DEFAULT_MODEL_FALLBACK when no default_model row exists yet', async () => {
+    const llmSettingService = { getValue: vi.fn().mockResolvedValue(null) };
+    const service = createService({ llmSettingService });
+
+    const result = await service.getLlmSettings();
+
+    expect(result).toEqual({ defaultModel: DEFAULT_MODEL_FALLBACK });
+  });
+
+  it('updateLlmSettings writes through setValue, and a subsequent getLlmSettings reflects the change', async () => {
+    let stored: string | null = null;
+    const llmSettingService = {
+      getValue: vi.fn().mockImplementation(async () => stored),
+      setValue: vi.fn().mockImplementation(async (key: string, value: string) => {
+        expect(key).toBe('default_model');
+        stored = value;
+      }),
+    };
+    const service = createService({ llmSettingService });
+
+    await service.updateLlmSettings('new/model');
+    const result = await service.getLlmSettings();
+
+    expect(llmSettingService.setValue).toHaveBeenCalledWith(
+      'default_model',
+      'new/model',
+    );
+    expect(result).toEqual({ defaultModel: 'new/model' });
   });
 });

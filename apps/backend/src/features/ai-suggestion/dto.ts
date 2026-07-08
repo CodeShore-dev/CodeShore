@@ -1,4 +1,4 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsIn, IsISO8601, IsObject, IsOptional, IsString } from 'class-validator';
 
 import {
@@ -136,4 +136,31 @@ export class GenerateSuggestionsDto {
   @IsOptional()
   @IsIn(WORKFLOWS_OR_ALL as string[])
   workflow?: AiSuggestionWorkflow | 'all';
+
+  @ApiPropertyOptional({
+    type: String,
+    description:
+      'Optional OpenRouter model id to use for this generation run only ' +
+      '(e.g. "meta-llama/llama-3.3-70b-instruct:free"). When omitted, falls ' +
+      'back to the backend-adjustable default model (see GET/PATCH ' +
+      'ai-suggestion/llm-settings) -- different sub-workflows may call for ' +
+      'different models on any given run.',
+  })
+  @IsOptional()
+  @IsString()
+  model?: string;
+}
+
+/**
+ * Body DTO for `PATCH ai-suggestion/llm-settings`: changes the
+ * backend-adjustable default OpenRouter model used by `generate()` calls
+ * that don't specify a per-call `model` override, without redeploying.
+ */
+export class UpdateLlmSettingsDto {
+  @ApiProperty({
+    type: String,
+    description: 'The new default OpenRouter model id, e.g. "meta-llama/llama-3.3-70b-instruct:free".',
+  })
+  @IsString()
+  defaultModel!: string;
 }

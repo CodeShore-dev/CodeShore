@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      // Hand-authored, mirroring the generated shape of every other table
+      // below (see `ai_suggestion` immediately after this one for the same
+      // task-1.1-established pattern). This table backs the OpenRouter
+      // default-model setting added on top of the completed
+      // `ai-database-maintenance-workflow` spec; the migration that creates
+      // it (`supabase/migrations/*_create_ai_llm_setting.sql`) has not been
+      // applied to any live Supabase project in this sandbox, so this type
+      // has not gone through a real `pnpm db:sync` yet. Re-run `pnpm
+      // db:sync` once the migration is applied and reconcile any diff.
+      ai_llm_setting: {
+        Row: {
+          key: string
+          value: string
+          updated_at: string
+        }
+        Insert: {
+          key: string
+          value: string
+          updated_at?: string
+        }
+        Update: {
+          key?: string
+          value?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ai_suggestion: {
         Row: {
           action: string
