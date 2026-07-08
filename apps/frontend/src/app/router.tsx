@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate } from 'react-router';
+import { createBrowserRouter, Navigate, type RouteObject } from 'react-router';
 
 import { JobMonitorPage } from '../features/admin/pages/JobMonitorPage';
 import { AiSuggestionReviewPage } from '../features/ai-suggestion/pages/AiSuggestionReviewPage';
@@ -24,54 +24,64 @@ export const PUBLIC_PATHS = [
   '/techs',
   '/techs/combos',
   '/methodology',
+  '/jobs',
+  '/companies',
 ] as const;
 
 // Full 10-route table (task 10.1) mapping every legacy vue-router path to its
 // React page. RootLayout provides the app shell + ScrollManager; the protected
 // and admin-only routes nest under their guards; unknown paths fall back to the
 // home page so there is never a blank/framework error screen (requirement 1.3).
-export const router = createBrowserRouter(
-  [
-    {
-      element: <RootLayout />,
-      children: [
-        // Public routes
-        { path: '/', element: <HomePage /> },
-        { path: '/techs', element: <TechsPage /> },
-        {
-          path: '/techs/combos',
-          element: <Navigate to="/techs?mode=combos" replace />,
-        },
-        { path: '/methodology', element: <MethodologyPage /> },
-        { path: '/login', element: <LoginPage /> },
-        { path: '/auth/callback', element: <AuthCallbackPage /> },
+// Exported as a plain data structure (not just the built `router`) so a
+// router-level test can assert on route nesting/guard placement with
+// `matchRoutes` without instantiating the full app (task 2.1).
+export const routeConfig: RouteObject[] = [
+  {
+    element: <RootLayout />,
+    children: [
+      // Public routes
+      { path: '/', element: <HomePage /> },
+      { path: '/techs', element: <TechsPage /> },
+      {
+        path: '/techs/combos',
+        element: <Navigate to="/techs?mode=combos" replace />,
+      },
+      { path: '/methodology', element: <MethodologyPage /> },
+      { path: '/login', element: <LoginPage /> },
+      { path: '/auth/callback', element: <AuthCallbackPage /> },
+      // /jobs and /companies are public (open to unauthenticated visitors,
+      // requirement 1.1-1.4); they keep their existing filtering/search
+      // behavior since only their guard placement moved, not the pages
+      // themselves.
+      { path: '/jobs', element: <JobPreferencePage /> },
+      { path: '/companies', element: <CompanyListPage /> },
 
-        // Authenticated routes
-        {
-          element: <ProtectedRoute />,
-          children: [
-            { path: '/jobs', element: <JobPreferencePage /> },
-            { path: '/companies', element: <CompanyListPage /> },
-            { path: '/keywords', element: <TechManagerPage /> },
-            // Admin-only (nested below ProtectedRoute so anonymous users go to
-            // /login first, then non-admins are sent home)
-            {
-              element: <AdminRoute />,
-              children: [
-                { path: '/admin/jobs', element: <JobMonitorPage /> },
-                {
-                  path: '/admin/ai-suggestions',
-                  element: <AiSuggestionReviewPage />,
-                },
-              ],
-            },
-          ],
-        },
+      // Authenticated routes
+      {
+        element: <ProtectedRoute />,
+        children: [
+          { path: '/keywords', element: <TechManagerPage /> },
+          // Admin-only (nested below ProtectedRoute so anonymous users go to
+          // /login first, then non-admins are sent home)
+          {
+            element: <AdminRoute />,
+            children: [
+              { path: '/admin/jobs', element: <JobMonitorPage /> },
+              {
+                path: '/admin/ai-suggestions',
+                element: <AiSuggestionReviewPage />,
+              },
+            ],
+          },
+        ],
+      },
 
-        // Unknown route -> home (requirement 1.3)
-        { path: '*', element: <Navigate to="/" replace /> },
-      ],
-    },
-  ],
-  { basename: import.meta.env.BASE_URL },
-);
+      // Unknown route -> home (requirement 1.3)
+      { path: '*', element: <Navigate to="/" replace /> },
+    ],
+  },
+];
+
+export const router = createBrowserRouter(routeConfig, {
+  basename: import.meta.env.BASE_URL,
+});
