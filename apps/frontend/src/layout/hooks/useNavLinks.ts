@@ -40,6 +40,14 @@ const NAV_LINKS: NavLink[] = [
     requiresEdit: true,
     showInFooter: false,
   },
+  {
+    to: '/admin/ai-suggestions',
+    label: 'AI 建議審核',
+    icon: 'auto_awesome',
+    exact: false,
+    requiresEdit: true,
+    showInFooter: false,
+  },
 ];
 
 export function useNavLinks() {

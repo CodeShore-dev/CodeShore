@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router';
 
 import { JobMonitorPage } from '../features/admin/pages/JobMonitorPage';
+import { AiSuggestionReviewPage } from '../features/ai-suggestion/pages/AiSuggestionReviewPage';
 import { AuthCallbackPage } from '../features/auth/pages/AuthCallbackPage';
 import { LoginPage } from '../features/auth/pages/LoginPage';
 import { CompanyListPage } from '../features/company/pages/CompanyListPage';
@@ -58,6 +59,10 @@ export const router = createBrowserRouter(
               element: <AdminRoute />,
               children: [
                 { path: '/admin/jobs', element: <JobMonitorPage /> },
+                {
+                  path: '/admin/ai-suggestions',
+                  element: <AiSuggestionReviewPage />,
+                },
               ],
             },
           ],
