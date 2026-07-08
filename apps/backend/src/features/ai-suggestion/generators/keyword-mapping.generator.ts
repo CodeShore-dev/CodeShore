@@ -1,6 +1,7 @@
 import type {
   CreateAiSuggestionInput,
   JobKeywordService,
+  KeywordBinService,
   KeywordService,
   TechKeywordService,
   TechService,
@@ -55,6 +56,11 @@ export const INPUT_SCHEMA: Record<string, unknown> = {
       description:
         'Confidence (0..1) that matchedTechId is correct. Required whenever matchedTechId is not null.',
     },
+    suggestedCategory: {
+      type: 'string',
+      description:
+        'Required whenever matchedTechId is null: a proposed category for a brand-new tech dictionary entry that would use the keyword itself as both its id and label, so a reviewer can choose to create that entry instead of marking the keyword as noise.',
+    },
     reasoning: {
       type: 'string',
       description:
@@ -74,6 +80,7 @@ interface TechClassificationContext {
 interface KeywordMappingLlmResult extends Record<string, unknown> {
   matchedTechId: string | null;
   confidence?: number;
+  suggestedCategory?: string;
   reasoning?: string;
 }
 
@@ -82,7 +89,7 @@ export const SYSTEM_PROMPT = `You classify keywords extracted from job descripti
 Given a candidate keyword and a list of existing technology dictionary entries (each with an "id", human-readable "label", and "category"), decide whether the keyword is a synonym, alias, abbreviation, or otherwise clearly refers to one of the existing entries.
 
 - If exactly one existing entry is a clear match, respond with that entry's "id" as matchedTechId and a confidence score between 0 and 1.
-- If no existing entry is a suitable match, respond with matchedTechId: null. Do not force an assignment to the closest-but-wrong entry -- an unmatched keyword is a normal, expected outcome that will be reviewed by a different workflow.
+- If no existing entry is a suitable match, respond with matchedTechId: null, and also include a suggestedCategory: a proposed category for a brand-new tech dictionary entry that would use the keyword itself as both its id and label. A human reviewer will then choose between creating that new entry or marking the keyword as noise instead -- do not decide between those two outcomes yourself.
 - Always include a short "reasoning" explaining the decision.`;
 
 /**
@@ -90,12 +97,18 @@ Given a candidate keyword and a list of existing technology dictionary entries (
  * frequently enough to matter but are not yet covered by any `tech_keyword`
  * mapping, asks the LLM whether each should map to an existing `tech`, and
  * creates a `pending` `keyword_mapping` suggestion for confident matches
- * (2.1). Keywords the LLM judges as having no suitable match are recorded
- * as `skippedNoMatch` rather than being forced onto the closest entry
- * (2.2). Each created suggestion carries the LLM's confidence, a
+ * (2.1). Each created match suggestion carries the LLM's confidence, a
  * `needsVerification` flag for low-confidence matches (8.1), and an
  * estimate of how many jobs would be affected by adopting the mapping
  * (2.3).
+ *
+ * Keywords the LLM judges as having no suitable existing match (2.2) are
+ * never forced onto the closest entry, and never silently dropped either:
+ * instead this creates two mutually-exclusive suggestion options so a human
+ * reviewer can choose between them (approving one and rejecting the other) --
+ * see `processNoMatch` for exactly what each option creates. This mirrors
+ * `LocationMappingGenerator`'s "no existing group fits" case, which always
+ * resolves into an actionable suggestion rather than a bare skip.
  */
 export class KeywordMappingGenerator implements SuggestionGenerator {
   readonly workflow = 'keyword_mapping' as const;
@@ -106,6 +119,7 @@ export class KeywordMappingGenerator implements SuggestionGenerator {
     private readonly techKeywordService: TechKeywordService,
     private readonly techService: TechService,
     private readonly jobKeywordService: JobKeywordService,
+    private readonly keywordBinService: KeywordBinService,
     private readonly suggestionCreator: SuggestionCreator,
   ) {}
 
@@ -134,23 +148,29 @@ export class KeywordMappingGenerator implements SuggestionGenerator {
   /**
    * Candidates = `keyword` rows at/above `KEYWORD_COUNT_THRESHOLD` whose id
    * (the keyword text itself, per `keyword.service.ts`) does not already
-   * appear as a `keyword` on any `tech_keyword` row -- those keywords are
-   * never sent to the LLM at all.
+   * appear as a `keyword` on any `tech_keyword` row, AND is not already in
+   * `keyword_bin` -- a keyword a reviewer previously excluded as noise (via
+   * this generator's own "放入 keyword_bin" option below, or via
+   * `NoiseDetectionGenerator`) must not keep coming back as a candidate on
+   * every subsequent run.
    */
   private async selectCandidates(): Promise<string[]> {
-    const [{ result: keywords }, { result: techKeywords }] =
+    const [{ result: keywords }, { result: techKeywords }, { result: keywordBinRows }] =
       await Promise.all([
         this.keywordService.fetchAll(),
         this.techKeywordService.fetchAll(),
+        this.keywordBinService.fetchAll(),
       ]);
 
     const alreadyMapped = new Set(techKeywords.map(row => row.keyword));
+    const alreadyExcluded = new Set(keywordBinRows.map(row => row.id));
 
     return keywords
       .filter(
         keyword =>
           keyword.count >= KEYWORD_COUNT_THRESHOLD &&
-          !alreadyMapped.has(keyword.id),
+          !alreadyMapped.has(keyword.id) &&
+          !alreadyExcluded.has(keyword.id),
       )
       .map(keyword => keyword.id);
   }
@@ -178,10 +198,16 @@ export class KeywordMappingGenerator implements SuggestionGenerator {
       return;
     }
 
-    const { matchedTechId, confidence, reasoning } = completion.result;
+    const { matchedTechId, confidence, suggestedCategory, reasoning } =
+      completion.result;
 
     if (!matchedTechId) {
-      result.skippedNoMatch++;
+      await this.processNoMatch(
+        candidateKeyword,
+        suggestedCategory,
+        reasoning,
+        result,
+      );
       return;
     }
 
@@ -212,6 +238,112 @@ export class KeywordMappingGenerator implements SuggestionGenerator {
       evidence: evidence as unknown as Record<string, unknown>,
     };
 
+    await this.createAndAggregate(
+      createInput,
+      `keyword "${candidateKeyword}"`,
+      result,
+    );
+  }
+
+  /**
+   * Requirement 2.2: when the LLM finds no existing tech match, create two
+   * mutually-exclusive suggestion options instead of silently skipping -- a
+   * reviewer approves whichever they want and rejects the other:
+   *
+   * 1. A linked pair sharing a `correlationId` (mirroring
+   *    `LocationMappingGenerator`'s new-group + new-mapping pairing): a new
+   *    `tech` entry using the keyword itself, verbatim, as both `id` and
+   *    `label`, plus the `tech_keyword` mapping from the keyword to that new
+   *    entry. `tech.category` is `NOT NULL`, so this option is only created
+   *    when the LLM actually supplied a `suggestedCategory`; if it didn't,
+   *    this option is skipped and recorded as an error (a prompt-contract
+   *    violation), while the keyword_bin option below is still created.
+   * 2. A `keyword_bin` insert marking the keyword as noise -- permanently
+   *    excluded from future `selectCandidates()` runs via the
+   *    `keyword_bin`-exclusion check there.
+   */
+  private async processNoMatch(
+    candidateKeyword: string,
+    suggestedCategory: string | undefined,
+    reasoning: string | undefined,
+    result: GeneratorResult,
+  ): Promise<void> {
+    const baseReasoning =
+      reasoning ??
+      `LLM found no existing tech match for keyword "${candidateKeyword}"`;
+    const affectedCount = await this.countAffectedJobs(candidateKeyword);
+
+    if (suggestedCategory) {
+      const correlationId = crypto.randomUUID();
+
+      const newTechInput: CreateAiSuggestionInput = {
+        target_table: 'tech',
+        workflow: 'keyword_mapping',
+        action: 'insert',
+        target_key: { id: candidateKeyword },
+        payload: {
+          id: candidateKeyword,
+          label: candidateKeyword,
+          category: suggestedCategory,
+        },
+        evidence: {
+          reasoning: `${baseReasoning}（選項一：以此關鍵字建立新技術項目）`,
+          affectedCount,
+          correlationId,
+        } as unknown as Record<string, unknown>,
+      };
+      await this.createAndAggregate(
+        newTechInput,
+        `tech "${candidateKeyword}"`,
+        result,
+      );
+
+      const newMappingInput: CreateAiSuggestionInput = {
+        target_table: 'tech_keyword',
+        workflow: 'keyword_mapping',
+        action: 'insert',
+        target_key: { tech: candidateKeyword, keyword: candidateKeyword },
+        payload: { tech: candidateKeyword, keyword: candidateKeyword },
+        evidence: {
+          reasoning: `${baseReasoning}（選項一：建立對應映射）`,
+          affectedCount,
+          correlationId,
+        } as unknown as Record<string, unknown>,
+      };
+      await this.createAndAggregate(
+        newMappingInput,
+        `tech_keyword mapping "${candidateKeyword}" -> "${candidateKeyword}"`,
+        result,
+      );
+    } else {
+      result.errors.push({
+        message: `LLM returned matchedTechId: null without a suggestedCategory for keyword "${candidateKeyword}"`,
+      });
+    }
+
+    const keywordBinInput: CreateAiSuggestionInput = {
+      target_table: 'keyword_bin',
+      workflow: 'keyword_mapping',
+      action: 'insert',
+      target_key: { id: candidateKeyword },
+      payload: { id: candidateKeyword },
+      evidence: {
+        reasoning: `${baseReasoning}（選項二：排除此關鍵字，往後不再視為候選）`,
+        affectedCount,
+      } as unknown as Record<string, unknown>,
+    };
+    await this.createAndAggregate(
+      keywordBinInput,
+      `keyword_bin "${candidateKeyword}"`,
+      result,
+    );
+  }
+
+  private async createAndAggregate(
+    createInput: CreateAiSuggestionInput,
+    identifierForErrorMessage: string,
+    result: GeneratorResult,
+  ): Promise<void> {
     const createResult =
       await this.suggestionCreator.createSuggestion(createInput);
 
@@ -224,7 +356,7 @@ export class KeywordMappingGenerator implements SuggestionGenerator {
         break;
       case 'error':
         result.errors.push({
-          message: `Failed to create suggestion for keyword "${candidateKeyword}": ${createResult.error.message}`,
+          message: `Failed to create suggestion for ${identifierForErrorMessage}: ${createResult.error.message}`,
         });
         break;
     }

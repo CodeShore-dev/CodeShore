@@ -571,6 +571,7 @@ export class Service {
         this.techKeywordService,
         this.techService,
         this.jobKeywordService,
+        this.keywordBinService,
         suggestionCreator,
       ),
       tech_dictionary: new TechDictionaryGenerator(
