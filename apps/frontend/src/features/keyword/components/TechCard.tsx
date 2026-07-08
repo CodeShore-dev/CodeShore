@@ -11,6 +11,8 @@ import {
   useUpdateIconSlugsMutation,
 } from '../mutations';
 import { useTechStore } from '../techStore';
+import { AssignKeywordForm } from './AssignKeywordForm';
+import { EditTechForm } from './EditTechForm';
 import { IconSourcePopover } from './IconSourcePopover';
 import { TechCardMeta } from './TechCardMeta';
 
@@ -18,11 +20,13 @@ interface TechCardProps {
   group: SupabaseView.MvTech;
 }
 
-// Keyword-group card (task 8.3). Faithful port of TechCard.vue: select
-// checkbox, the icon-source reorder popover (portal to body), and delete. The
-// edit/assign buttons toggle local state exactly as the Vue version (no inline
-// form is rendered — parity with the source). Icon-source editing state lives
-// in useIconSourceEditor / IconSourcePopover to stay under the 200-line limit.
+// Keyword-group card (task 8.3; edit/assign wired to real forms in task 5.2).
+// Faithful port of TechCard.vue: select checkbox, the icon-source reorder
+// popover (portal to body), and delete. The edit/assign buttons toggle local
+// state that now renders EditTechForm / AssignKeywordForm respectively
+// (extracted to their own files to stay under the 200-line limit), instead of
+// the earlier dead-state parity port. Icon-source editing state lives in
+// useIconSourceEditor / IconSourcePopover for the same reason.
 export function TechCard({ group }: TechCardProps) {
   const canEdit = useCanEdit();
   const selectMode = useTechStore(s => s.selectMode);
@@ -128,7 +132,12 @@ export function TechCard({ group }: TechCardProps) {
           {!selectMode && (
             <div className="flex shrink-0 items-center gap-2">
               {group.category === null && canEdit
-                ? assigningKeyword !== group.tech && (
+                ? (assigningKeyword === group.tech ? (
+                    <AssignKeywordForm
+                      group={group}
+                      onDone={() => setAssigningKeyword(null)}
+                    />
+                  ) : (
                     <button
                       type="button"
                       className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium text-[#003d92] transition hover:bg-[#e6f6ff] dark:text-[#a8d4f5] dark:hover:bg-[#003d92]/20"
@@ -142,7 +151,7 @@ export function TechCard({ group }: TechCardProps) {
                       </span>
                       加入技術
                     </button>
-                  )
+                  ))
                 : group.category !== null &&
                   !isEditing &&
                   canEdit && (
@@ -178,7 +187,11 @@ export function TechCard({ group }: TechCardProps) {
           )}
         </div>
 
-        <TechCardMeta group={group} />
+        {isEditing ? (
+          <EditTechForm group={group} onDone={() => setIsEditing(false)} />
+        ) : (
+          <TechCardMeta group={group} />
+        )}
       </div>
 
       {iconEditor.editingIcons && (

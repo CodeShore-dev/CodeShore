@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router';
 
 import { Pagination } from '../../../components/Pagination';
 import { useCanEdit } from '../../auth/authStore';
+import { CreateTechModal } from '../components/CreateTechModal';
 import { TechBulkToolbar } from '../components/TechBulkToolbar';
 import { TechCard } from '../components/TechCard';
 import { useTechStore, type GroupFilter } from '../techStore';
@@ -35,7 +36,7 @@ export function TechManagerPage() {
     useTechAdminQuery();
   const refresh = useRefreshCatalogMutation();
 
-  const [, setShowCreateModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   // Initialize filter/page from the URL once on mount (parity with the Vue
   // setup block reading route.query).
@@ -88,6 +89,16 @@ export function TechManagerPage() {
                     checklist
                   </span>
                   選取
+                </button>
+                <button
+                  type="button"
+                  className="flex items-center gap-2 rounded-xl border border-[#c3c6d5] bg-white px-4 py-2 text-sm font-bold text-[#434653] shadow-sm transition hover:bg-[#f4faff] active:scale-95"
+                  onClick={() => setShowCreateModal(true)}
+                >
+                  <span className="material-symbols-outlined text-base">
+                    add
+                  </span>
+                  新增技術
                 </button>
                 <button
                   type="button"
@@ -218,6 +229,11 @@ export function TechManagerPage() {
           )}
         </>
       )}
+
+      <CreateTechModal
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+      />
     </div>
   );
 }
