@@ -6,6 +6,7 @@ import type { LlmClient } from '../llm-client';
 
 import {
   emptyGeneratorResult,
+  GeneratorProgress,
   GeneratorResult,
   SuggestionCreator,
   SuggestionGenerator,
@@ -137,7 +138,7 @@ export class LocationMappingGenerator implements SuggestionGenerator {
     private readonly suggestionCreator: SuggestionCreator,
   ) {}
 
-  async generate(): Promise<GeneratorResult> {
+  async *generate(): AsyncGenerator<GeneratorProgress, GeneratorResult> {
     const result = emptyGeneratorResult();
 
     // `fetchLocationAnomalyJobs` is called directly (not constructor
@@ -193,8 +194,11 @@ export class LocationMappingGenerator implements SuggestionGenerator {
 
     const { proposals = [] } = completion.result;
 
-    for (const proposal of proposals) {
+    for (const [index, proposal] of proposals.entries()) {
       const affectedCount = affectedCountByLocation.get(proposal.location) ?? 0;
+      yield {
+        message: `Processing location proposal ${index + 1}/${proposals.length}: "${proposal.location}"`,
+      };
       await this.processProposal(proposal, affectedCount, result);
     }
 

@@ -12,6 +12,7 @@ import type { LlmClient } from '../llm-client';
 
 import {
   emptyGeneratorResult,
+  GeneratorProgress,
   GeneratorResult,
   SuggestionCreator,
   SuggestionGenerator,
@@ -27,7 +28,7 @@ import {
  * Exported so it is easy to tune once real keyword-count distributions are
  * observed in production.
  */
-export const KEYWORD_COUNT_THRESHOLD = 5;
+export const KEYWORD_COUNT_THRESHOLD = 10;
 
 /**
  * Confidence score (0..1, from the LLM's `confidence`) below which a
@@ -123,7 +124,7 @@ export class KeywordMappingGenerator implements SuggestionGenerator {
     private readonly suggestionCreator: SuggestionCreator,
   ) {}
 
-  async generate(): Promise<GeneratorResult> {
+  async *generate(): AsyncGenerator<GeneratorProgress, GeneratorResult> {
     const result = emptyGeneratorResult();
 
     const candidateKeywords = await this.selectCandidates();
@@ -138,7 +139,10 @@ export class KeywordMappingGenerator implements SuggestionGenerator {
       category: tech.category,
     }));
 
-    for (const candidateKeyword of candidateKeywords) {
+    for (const [index, candidateKeyword] of candidateKeywords.entries()) {
+      yield {
+        message: `Classifying keyword ${index + 1}/${candidateKeywords.length}: "${candidateKeyword}"`,
+      };
       await this.processCandidate(candidateKeyword, techEntries, result);
     }
 
@@ -157,7 +161,7 @@ export class KeywordMappingGenerator implements SuggestionGenerator {
   private async selectCandidates(): Promise<string[]> {
     const [{ result: keywords }, { result: techKeywords }, { result: keywordBinRows }] =
       await Promise.all([
-        this.keywordService.fetchAll(),
+        this.keywordService.fetchAll({ orders: [{ column: 'count', ascending: false }] }),
         this.techKeywordService.fetchAll(),
         this.keywordBinService.fetchAll(),
       ]);

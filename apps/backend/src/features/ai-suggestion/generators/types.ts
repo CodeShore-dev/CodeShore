@@ -15,19 +15,9 @@ import type { AiSuggestionWorkflow } from '@codeshore/data-types';
 export type { AiSuggestionWorkflow };
 
 /**
- * Per-run outcome counters for a single generator's `generate()` call.
- *
- * This is deliberately a plain `Promise<GeneratorResult>` rather than
- * design.md's "Generators（Full Block）" `AsyncGenerator<AiSuggestionGenerateEvent>`
- * signature: task 4.2 (which wires generators into the SSE
- * `POST /ai-suggestion/generate` route and is not yet implemented) is where
- * per-event progress streaming actually matters and gets adapted from
- * whichever generator shape lands here first. Keeping each generator's own
- * `generate()` a simple batch result keeps this task (and 3.2-3.5)
- * independently testable without an SSE harness; task 4.2 remains free to
- * wrap `GeneratorResult` into `AiSuggestionGenerateEvent`s (e.g. one
- * `created`/`error` event per counted item, then a final `done`) when it
- * lands.
+ * Per-run outcome counters for a single generator's `generate()` call --
+ * the final (`return`) value of the `AsyncGenerator` below once every
+ * candidate has been processed.
  */
 export interface GeneratorResult {
   created: number;
@@ -58,9 +48,20 @@ export function emptyGeneratorResult(): GeneratorResult {
   };
 }
 
+/**
+ * A single incremental progress step yielded mid-run (e.g. "candidate 3/12"),
+ * relayed by `Service.generate()` as a `log` `AiSuggestionGenerateEvent` for
+ * requirement 1.2's "逐步回報產生進度". Deliberately just a `message` --
+ * `workflow` is already known to the caller from which `SuggestionGenerator`
+ * is being driven, so it is not duplicated here.
+ */
+export interface GeneratorProgress {
+  message: string;
+}
+
 export interface SuggestionGenerator {
   readonly workflow: AiSuggestionWorkflow;
-  generate(): Promise<GeneratorResult>;
+  generate(): AsyncGenerator<GeneratorProgress, GeneratorResult>;
 }
 
 /**

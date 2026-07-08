@@ -7,6 +7,7 @@ import type { LlmClient } from '../llm-client';
 
 import {
   emptyGeneratorResult,
+  GeneratorProgress,
   GeneratorResult,
   SuggestionCreator,
   SuggestionGenerator,
@@ -156,10 +157,13 @@ export class NoiseDetectionGenerator implements SuggestionGenerator {
     private readonly suggestionCreator: SuggestionCreator,
   ) {}
 
-  async generate(): Promise<GeneratorResult> {
+  async *generate(): AsyncGenerator<GeneratorProgress, GeneratorResult> {
     const result = emptyGeneratorResult();
 
+    yield { message: 'Running keyword-noise detection' };
     await this.runKeywordNoiseSubflow(result);
+
+    yield { message: 'Running description-pattern noise detection' };
     await this.runDescriptionPatternSubflow(result);
 
     return result;

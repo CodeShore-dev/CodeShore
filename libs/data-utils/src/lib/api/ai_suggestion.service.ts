@@ -196,7 +196,7 @@ export class AiSuggestionService extends TableService<SupabaseTable.AiSuggestion
     }
     return this.fetchAll({
       where,
-      orders: [{ column: 'created_at', ascending: false }],
+      orders: [{ column: 'created_at', ascending: true }],
     });
   }
 

@@ -4,6 +4,14 @@ import {
   LOW_CONFIDENCE_THRESHOLD,
 } from './keyword-mapping.generator';
 
+async function drainGenerator<T, R>(gen: AsyncGenerator<T, R>): Promise<R> {
+  let step = await gen.next();
+  while (!step.done) {
+    step = await gen.next();
+  }
+  return step.value;
+}
+
 const techRows = [
   { id: 'react', label: 'React', category: 'frontend', tags: [], icon_slugs: [] },
   { id: 'vue', label: 'Vue', category: 'frontend', tags: [], icon_slugs: [] },
@@ -80,7 +88,7 @@ describe('KeywordMappingGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    const result = await generator.generate();
+    const result = await drainGenerator(generator.generate());
 
     expect(result).toEqual({ created: 1, skippedDuplicates: 0, skippedNoMatch: 0, skippedConflict: 0, errors: [] });
     expect(jobKeywordService.fetchAll).toHaveBeenCalledWith({
@@ -141,7 +149,7 @@ describe('KeywordMappingGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    const result = await generator.generate();
+    const result = await drainGenerator(generator.generate());
 
     expect(result).toEqual({ created: 3, skippedDuplicates: 0, skippedNoMatch: 0, skippedConflict: 0, errors: [] });
     expect(suggestionCreator.createSuggestion).toHaveBeenCalledTimes(3);
@@ -216,7 +224,7 @@ describe('KeywordMappingGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    const result = await generator.generate();
+    const result = await drainGenerator(generator.generate());
 
     expect(result.created).toBe(1);
     expect(result.errors).toEqual([
@@ -257,7 +265,7 @@ describe('KeywordMappingGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    const result = await generator.generate();
+    const result = await drainGenerator(generator.generate());
 
     expect(result).toEqual({ created: 2, skippedDuplicates: 1, skippedNoMatch: 0, skippedConflict: 0, errors: [] });
     expect(suggestionCreator.createSuggestion).toHaveBeenCalledTimes(3);
@@ -291,7 +299,7 @@ describe('KeywordMappingGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    await generator.generate();
+    await drainGenerator(generator.generate());
 
     expect(suggestionCreator.createSuggestion).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -328,7 +336,7 @@ describe('KeywordMappingGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    await generator.generate();
+    await drainGenerator(generator.generate());
 
     expect(suggestionCreator.createSuggestion).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -364,7 +372,7 @@ describe('KeywordMappingGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    const result = await generator.generate();
+    const result = await drainGenerator(generator.generate());
 
     expect(result).toEqual({ created: 0, skippedDuplicates: 1, skippedNoMatch: 0, skippedConflict: 0, errors: [] });
   });
@@ -399,7 +407,7 @@ describe('KeywordMappingGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    const result = await generator.generate();
+    const result = await drainGenerator(generator.generate());
 
     expect(result.created).toBe(1);
     expect(result.errors).toEqual([
@@ -438,7 +446,7 @@ describe('KeywordMappingGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    await generator.generate();
+    await drainGenerator(generator.generate());
 
     expect(llmClient.completeStructured).toHaveBeenCalledTimes(1);
     expect(llmClient.completeStructured).toHaveBeenCalledWith(
@@ -473,7 +481,7 @@ describe('KeywordMappingGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    await generator.generate();
+    await drainGenerator(generator.generate());
 
     expect(llmClient.completeStructured).toHaveBeenCalledTimes(1);
     expect(llmClient.completeStructured).toHaveBeenCalledWith(
@@ -502,7 +510,7 @@ describe('KeywordMappingGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    const result = await generator.generate();
+    const result = await drainGenerator(generator.generate());
 
     expect(llmClient.completeStructured).not.toHaveBeenCalled();
     expect(result).toEqual({ created: 0, skippedDuplicates: 0, skippedNoMatch: 0, skippedConflict: 0, errors: [] });

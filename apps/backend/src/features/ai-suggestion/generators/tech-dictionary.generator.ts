@@ -1,5 +1,6 @@
 import type {
   CreateAiSuggestionInput,
+  KeywordBinService,
   KeywordService,
   TechKeywordService,
   TechService,
@@ -14,6 +15,7 @@ import {
 
 import {
   emptyGeneratorResult,
+  GeneratorProgress,
   GeneratorResult,
   SuggestionCreator,
   SuggestionGenerator,
@@ -31,7 +33,7 @@ import {
  * and must not depend on each other's internals. Exported so it is easy to
  * tune independently of the other generator's copy.
  */
-export const KEYWORD_COUNT_THRESHOLD = 5;
+export const KEYWORD_COUNT_THRESHOLD = 10;
 
 /**
  * Similarity score (0..1, from `findSimilarTech`) at/above which an existing
@@ -191,6 +193,7 @@ export class TechDictionaryGenerator implements SuggestionGenerator {
     private readonly keywordService: KeywordService,
     private readonly techKeywordService: TechKeywordService,
     private readonly techService: TechService,
+    private readonly keywordBinService: KeywordBinService,
     private readonly suggestionCreator: SuggestionCreator,
     private readonly findSimilarTechFn: (
       candidateLabel: string,
@@ -198,7 +201,7 @@ export class TechDictionaryGenerator implements SuggestionGenerator {
     ) => Promise<readonly SimilarityMatch[]> = defaultFindSimilarTech,
   ) {}
 
-  async generate(): Promise<GeneratorResult> {
+  async *generate(): AsyncGenerator<GeneratorProgress, GeneratorResult> {
     const result = emptyGeneratorResult();
 
     const candidateKeywords = await this.selectCandidates();
@@ -236,10 +239,16 @@ export class TechDictionaryGenerator implements SuggestionGenerator {
 
     const { newEntries = [], updates = [] } = completion.result;
 
-    for (const entry of newEntries) {
+    for (const [index, entry] of newEntries.entries()) {
+      yield {
+        message: `Processing new tech entry ${index + 1}/${newEntries.length}: "${entry.id}"`,
+      };
       await this.processNewEntry(entry, result);
     }
-    for (const update of updates) {
+    for (const [index, update] of updates.entries()) {
+      yield {
+        message: `Processing tech update ${index + 1}/${updates.length}: "${update.techId}"`,
+      };
       await this.processUpdate(update, result);
     }
 
@@ -254,19 +263,22 @@ export class TechDictionaryGenerator implements SuggestionGenerator {
    * this is duplicated rather than shared).
    */
   private async selectCandidates(): Promise<string[]> {
-    const [{ result: keywords }, { result: techKeywords }] =
+    const [{ result: keywords }, { result: techKeywords }, { result: keywordBinRows }] =
       await Promise.all([
-        this.keywordService.fetchAll(),
+        this.keywordService.fetchAll({ orders: [{ column: 'count', ascending: false }] }),
         this.techKeywordService.fetchAll(),
+        this.keywordBinService.fetchAll(),
       ]);
 
     const alreadyMapped = new Set(techKeywords.map(row => row.keyword));
+    const alreadyExcluded = new Set(keywordBinRows.map(row => row.id));
 
     return keywords
       .filter(
         keyword =>
           keyword.count >= KEYWORD_COUNT_THRESHOLD &&
-          !alreadyMapped.has(keyword.id),
+          !alreadyMapped.has(keyword.id) &&
+          !alreadyExcluded.has(keyword.id),
       )
       .map(keyword => keyword.id);
   }

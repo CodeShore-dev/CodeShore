@@ -1064,7 +1064,11 @@ function makeFakeGenerator(
 ) {
   return {
     workflow,
-    generate: vi.fn().mockImplementation(async () => {
+    // `generate()` itself must return the `AsyncGenerator` synchronously
+    // (mirroring the real `async *generate()` generators), not a `Promise`
+    // resolving to one -- `Service.generate()` calls `.next()` on the
+    // return value directly, without awaiting the `generate()` call itself.
+    generate: vi.fn().mockImplementation(async function* () {
       if (behavior.kind === 'throw') {
         throw behavior.error;
       }
@@ -1142,7 +1146,9 @@ describe('Service.generate', () => {
         result: emptyResult({ created: counts[workflow] }),
       });
       const originalGenerate = fakeGenerators[workflow].generate;
-      fakeGenerators[workflow].generate = vi.fn().mockImplementation(async () => {
+      // Not `async`: `generate()` must keep returning the `AsyncGenerator`
+      // object synchronously, same as `makeFakeGenerator`'s doc comment.
+      fakeGenerators[workflow].generate = vi.fn().mockImplementation(() => {
         order.push(workflow);
         return originalGenerate();
       });
@@ -1253,7 +1259,8 @@ describe('Service.generate', () => {
     };
     for (const workflow of Object.keys(fakeGenerators)) {
       const original = fakeGenerators[workflow].generate;
-      fakeGenerators[workflow].generate = vi.fn().mockImplementation(async () => {
+      // Not `async`: see the equivalent wrapper above.
+      fakeGenerators[workflow].generate = vi.fn().mockImplementation(() => {
         order.push(workflow);
         return original();
       });

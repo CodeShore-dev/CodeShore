@@ -5,6 +5,14 @@ import {
   NoiseDetectionGenerator,
 } from './noise-detection.generator';
 
+async function drainGenerator<T, R>(gen: AsyncGenerator<T, R>): Promise<R> {
+  let step = await gen.next();
+  while (!step.done) {
+    step = await gen.next();
+  }
+  return step.value;
+}
+
 function makeKeywordService(rows: Array<{ id: string; count: number }>) {
   return { fetchAll: vi.fn().mockResolvedValue({ result: rows, count: rows.length, searchParams: '' }) };
 }
@@ -71,7 +79,7 @@ describe('NoiseDetectionGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    const result = await generator.generate();
+    const result = await drainGenerator(generator.generate());
 
     expect(result).toEqual({
       created: 1,
@@ -130,7 +138,7 @@ describe('NoiseDetectionGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    const result = await generator.generate();
+    const result = await drainGenerator(generator.generate());
 
     expect(result).toEqual({
       created: 1,
@@ -181,7 +189,7 @@ describe('NoiseDetectionGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    const result = await generator.generate();
+    const result = await drainGenerator(generator.generate());
 
     expect(result).toEqual({
       created: 0,
@@ -218,7 +226,7 @@ describe('NoiseDetectionGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    const result = await generator.generate();
+    const result = await drainGenerator(generator.generate());
 
     expect(result.created).toBe(1);
     expect(result.errors).toEqual([{ message: expect.stringContaining('timeout') }]);
@@ -250,7 +258,7 @@ describe('NoiseDetectionGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    const result = await generator.generate();
+    const result = await drainGenerator(generator.generate());
 
     expect(result.created).toBe(1);
     expect(result.errors).toEqual([{ message: expect.stringContaining('rate limited') }]);
@@ -285,7 +293,7 @@ describe('NoiseDetectionGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    await generator.generate();
+    await drainGenerator(generator.generate());
 
     const patternCallArgs = llmClient.completeStructured.mock.calls[1][0];
     expect(patternCallArgs.input.descriptions).toHaveLength(JOB_DESCRIPTION_SAMPLE_SIZE);

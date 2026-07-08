@@ -13,6 +13,14 @@ import {
   LocationMappingGenerator,
 } from './location-mapping.generator';
 
+async function drainGenerator<T, R>(gen: AsyncGenerator<T, R>): Promise<R> {
+  let step = await gen.next();
+  while (!step.done) {
+    step = await gen.next();
+  }
+  return step.value;
+}
+
 function makeAnomalyJobs(rows: Array<{ location: string }>) {
   return { result: rows, count: rows.length, searchParams: '' };
 }
@@ -79,7 +87,7 @@ describe('LocationMappingGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    const result = await generator.generate();
+    const result = await drainGenerator(generator.generate());
 
     expect(result).toEqual({
       created: 1,
@@ -130,7 +138,7 @@ describe('LocationMappingGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    const result = await generator.generate();
+    const result = await drainGenerator(generator.generate());
 
     expect(result).toEqual({
       created: 2,
@@ -212,7 +220,7 @@ describe('LocationMappingGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    await generator.generate();
+    await drainGenerator(generator.generate());
 
     const calls = suggestionCreator.createSuggestion.mock.calls.map(call => call[0]);
     const taipeiMappingCall = calls.find(
@@ -261,7 +269,7 @@ describe('LocationMappingGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    const result = await generator.generate();
+    const result = await drainGenerator(generator.generate());
 
     expect(result).toEqual({
       created: 1,
@@ -292,7 +300,7 @@ describe('LocationMappingGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    const result = await generator.generate();
+    const result = await drainGenerator(generator.generate());
 
     expect(result).toEqual({
       created: 0,
@@ -316,7 +324,7 @@ describe('LocationMappingGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    const result = await generator.generate();
+    const result = await drainGenerator(generator.generate());
 
     expect(llmClient.completeStructured).not.toHaveBeenCalled();
     expect(locationGroupService.fetchAll).not.toHaveBeenCalled();
@@ -358,7 +366,7 @@ describe('LocationMappingGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    await generator.generate();
+    await drainGenerator(generator.generate());
 
     const call = suggestionCreator.createSuggestion.mock.calls[0][0];
     expect(call.evidence.confidence).toBe(LOW_CONFIDENCE_THRESHOLD - 0.1);
@@ -394,7 +402,7 @@ describe('LocationMappingGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    await generator.generate();
+    await drainGenerator(generator.generate());
 
     const call = suggestionCreator.createSuggestion.mock.calls[0][0];
     // Boundary: exactly at the threshold is "at or above", not "below".
@@ -431,7 +439,7 @@ describe('LocationMappingGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    await generator.generate();
+    await drainGenerator(generator.generate());
 
     const calls = suggestionCreator.createSuggestion.mock.calls.map(call => call[0]);
     const groupCall = calls.find(call => call.target_table === 'location_group');
@@ -475,7 +483,7 @@ describe('LocationMappingGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    await generator.generate();
+    await drainGenerator(generator.generate());
 
     const calls = suggestionCreator.createSuggestion.mock.calls.map(call => call[0]);
     const groupCall = calls.find(call => call.target_table === 'location_group');
@@ -520,7 +528,7 @@ describe('LocationMappingGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    const result = await generator.generate();
+    const result = await drainGenerator(generator.generate());
 
     expect(suggestionCreator.createSuggestion).not.toHaveBeenCalled();
     expect(result.created).toBe(0);

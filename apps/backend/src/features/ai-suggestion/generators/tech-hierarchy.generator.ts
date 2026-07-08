@@ -10,6 +10,7 @@ import { detectTechParentCycle } from '../validation/cycle-check';
 
 import {
   emptyGeneratorResult,
+  GeneratorProgress,
   GeneratorResult,
   SuggestionCreator,
   SuggestionGenerator,
@@ -111,7 +112,7 @@ export class TechHierarchyGenerator implements SuggestionGenerator {
     private readonly suggestionCreator: SuggestionCreator,
   ) {}
 
-  async generate(): Promise<GeneratorResult> {
+  async *generate(): AsyncGenerator<GeneratorProgress, GeneratorResult> {
     const result = emptyGeneratorResult();
 
     const [{ result: techRows }, { result: edgeRows }] = await Promise.all([
@@ -168,7 +169,10 @@ export class TechHierarchyGenerator implements SuggestionGenerator {
 
     const { proposals = [] } = completion.result;
 
-    for (const proposal of proposals) {
+    for (const [index, proposal] of proposals.entries()) {
+      yield {
+        message: `Processing hierarchy proposal ${index + 1}/${proposals.length}: "${proposal.parent}" -> "${proposal.child}"`,
+      };
       await this.processProposal(proposal, edges, result);
     }
 

@@ -429,8 +429,14 @@ export class Service {
    * `AiSuggestionGenerateEvent` per meaningful step rather than returning
    * only once everything finishes (requirement 1.2's "逐步回報產生進度").
    *
+   * Each workflow's generator is itself an `AsyncGenerator<GeneratorProgress,
+   * GeneratorResult>` (see `./generators/types.ts`): every `GeneratorProgress`
+   * it yields mid-run (e.g. "candidate 3/12") is relayed here as its own
+   * `log` event, and the final `GeneratorResult` it returns becomes the
+   * per-workflow `done` summary below.
+   *
    * Each workflow is wrapped in its own try/catch: an unexpected exception
-   * from one generator's `generate()` promise (defensive -- generators are
+   * thrown while draining one generator (defensive -- generators are
    * documented to never throw) is turned into an `error` event and
    * processing moves on to the next requested workflow regardless of
    * outcome, so "任一子工作流產生失敗不中斷其他子工作流繼續執行"
@@ -468,7 +474,17 @@ export class Service {
       };
 
       try {
-        const result = await generators[currentWorkflow].generate();
+        const generator = generators[currentWorkflow].generate();
+        let step = await generator.next();
+        while (!step.done) {
+          yield {
+            type: 'log',
+            workflow: currentWorkflow,
+            message: step.value.message,
+          };
+          step = await generator.next();
+        }
+        const result = step.value;
         totalCreated += result.created;
         yield {
           type: 'done',

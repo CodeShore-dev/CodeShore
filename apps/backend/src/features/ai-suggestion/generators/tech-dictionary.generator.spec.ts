@@ -4,6 +4,14 @@ import {
   TechDictionaryGenerator,
 } from './tech-dictionary.generator';
 
+async function drainGenerator<T, R>(gen: AsyncGenerator<T, R>): Promise<R> {
+  let step = await gen.next();
+  while (!step.done) {
+    step = await gen.next();
+  }
+  return step.value;
+}
+
 const techRows = [
   { id: 'react', label: 'React', category: 'frontend', tags: ['ui'], icon_slugs: [] },
   { id: 'vue', label: 'Vue', category: 'frontend', tags: [], icon_slugs: [] },
@@ -80,7 +88,7 @@ describe('TechDictionaryGenerator.generate', () => {
       findSimilarTechFn,
     );
 
-    const result = await generator.generate();
+    const result = await drainGenerator(generator.generate());
 
     expect(result).toEqual({ created: 1, skippedDuplicates: 0, skippedNoMatch: 0, skippedConflict: 0, errors: [] });
     expect(findSimilarTechFn).toHaveBeenCalledWith('SolidJS', SIMILARITY_THRESHOLD);
@@ -133,7 +141,7 @@ describe('TechDictionaryGenerator.generate', () => {
       findSimilarTechFn,
     );
 
-    const result = await generator.generate();
+    const result = await drainGenerator(generator.generate());
 
     expect(result.created).toBe(1);
     expect(suggestionCreator.createSuggestion).toHaveBeenCalledWith(
@@ -178,7 +186,7 @@ describe('TechDictionaryGenerator.generate', () => {
       findSimilarTechFn,
     );
 
-    const result = await generator.generate();
+    const result = await drainGenerator(generator.generate());
 
     expect(result).toEqual({ created: 1, skippedDuplicates: 0, skippedNoMatch: 0, skippedConflict: 0, errors: [] });
     expect(findSimilarTechFn).not.toHaveBeenCalled();
@@ -229,7 +237,7 @@ describe('TechDictionaryGenerator.generate', () => {
       vi.fn(),
     );
 
-    await generator.generate();
+    await drainGenerator(generator.generate());
 
     expect(suggestionCreator.createSuggestion).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -265,7 +273,7 @@ describe('TechDictionaryGenerator.generate', () => {
       findSimilarTechFn,
     );
 
-    const result = await generator.generate();
+    const result = await drainGenerator(generator.generate());
 
     expect(result).toEqual({ created: 0, skippedDuplicates: 1, skippedNoMatch: 0, skippedConflict: 0, errors: [] });
   });
@@ -292,7 +300,7 @@ describe('TechDictionaryGenerator.generate', () => {
       findSimilarTechFn,
     );
 
-    const result = await generator.generate();
+    const result = await drainGenerator(generator.generate());
 
     expect(result).toEqual({
       created: 0,
@@ -326,7 +334,7 @@ describe('TechDictionaryGenerator.generate', () => {
       vi.fn(),
     );
 
-    const result = await generator.generate();
+    const result = await drainGenerator(generator.generate());
 
     expect(llmClient.completeStructured).not.toHaveBeenCalled();
     expect(result).toEqual({ created: 0, skippedDuplicates: 0, skippedNoMatch: 0, skippedConflict: 0, errors: [] });
@@ -350,7 +358,7 @@ describe('TechDictionaryGenerator.generate', () => {
       vi.fn(),
     );
 
-    await generator.generate();
+    await drainGenerator(generator.generate());
 
     expect(llmClient.completeStructured).toHaveBeenCalledTimes(1);
     expect(llmClient.completeStructured).toHaveBeenCalledWith(

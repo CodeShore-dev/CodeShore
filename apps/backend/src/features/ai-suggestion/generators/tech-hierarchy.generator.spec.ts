@@ -8,6 +8,14 @@ vi.mock('../validation/cycle-check', () => ({
 import { detectTechParentCycle } from '../validation/cycle-check';
 import { TechHierarchyGenerator } from './tech-hierarchy.generator';
 
+async function drainGenerator<T, R>(gen: AsyncGenerator<T, R>): Promise<R> {
+  let step = await gen.next();
+  while (!step.done) {
+    step = await gen.next();
+  }
+  return step.value;
+}
+
 const techRows = [
   { id: 'javascript', label: 'JavaScript', category: 'language' },
   { id: 'python', label: 'Python', category: 'language' },
@@ -76,7 +84,7 @@ describe('TechHierarchyGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    const result = await generator.generate();
+    const result = await drainGenerator(generator.generate());
 
     expect(detectTechParentCycle).toHaveBeenCalledWith('django', 'python');
     expect(suggestionCreator.createSuggestion).not.toHaveBeenCalled();
@@ -114,7 +122,7 @@ describe('TechHierarchyGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    const result = await generator.generate();
+    const result = await drainGenerator(generator.generate());
 
     expect(detectTechParentCycle).toHaveBeenCalledWith('python', 'django');
     expect(result).toEqual({
@@ -175,7 +183,7 @@ describe('TechHierarchyGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    await generator.generate();
+    await drainGenerator(generator.generate());
 
     const call = suggestionCreator.createSuggestion.mock.calls[0][0];
     // "javascript" already has "react" as an existing child -- that context
@@ -207,7 +215,7 @@ describe('TechHierarchyGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    const result = await generator.generate();
+    const result = await drainGenerator(generator.generate());
 
     expect(result).toEqual({
       created: 0,
@@ -236,7 +244,7 @@ describe('TechHierarchyGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    const result = await generator.generate();
+    const result = await drainGenerator(generator.generate());
 
     expect(result).toEqual({
       created: 0,
@@ -269,7 +277,7 @@ describe('TechHierarchyGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    await generator.generate();
+    await drainGenerator(generator.generate());
 
     expect(llmClient.completeStructured).toHaveBeenCalledTimes(1);
     const request = llmClient.completeStructured.mock.calls[0][0];
@@ -304,7 +312,7 @@ describe('TechHierarchyGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    const result = await generator.generate();
+    const result = await drainGenerator(generator.generate());
 
     expect(llmClient.completeStructured).not.toHaveBeenCalled();
     expect(result).toEqual({
@@ -341,7 +349,7 @@ describe('TechHierarchyGenerator.generate', () => {
       suggestionCreator as any,
     );
 
-    const result = await generator.generate();
+    const result = await drainGenerator(generator.generate());
 
     expect(suggestionCreator.createSuggestion).not.toHaveBeenCalled();
     expect(result.created).toBe(0);
