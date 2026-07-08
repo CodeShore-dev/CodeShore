@@ -364,6 +364,43 @@ describe('LocationMappingGenerator.generate', () => {
     expect(call.evidence.needsVerification).toBe(true);
   });
 
+  it('reflects the LLM confidence and sets needsVerification=false for a matched-existing-group suggestion at/above the threshold', async () => {
+    vi.mocked(fetchLocationAnomalyJobs).mockResolvedValue(
+      makeAnomalyJobs([{ location: '台北市信義區' }]) as any,
+    );
+    const locationGroupService = makeLocationGroupService([{ id: 'taipei' }]);
+    const suggestionCreator = makeSuggestionCreator('created');
+    const llmClient = {
+      completeStructured: vi.fn().mockResolvedValue({
+        ok: true,
+        result: {
+          proposals: [
+            {
+              location: '台北市信義區',
+              matchedGroupId: 'taipei',
+              confidence: LOW_CONFIDENCE_THRESHOLD,
+              proposedNewGroupId: null,
+              reasoning: 'Xinyi District is part of Taipei',
+            },
+          ],
+        },
+      }),
+    };
+
+    const generator = new LocationMappingGenerator(
+      llmClient as any,
+      locationGroupService as any,
+      suggestionCreator as any,
+    );
+
+    await generator.generate();
+
+    const call = suggestionCreator.createSuggestion.mock.calls[0][0];
+    // Boundary: exactly at the threshold is "at or above", not "below".
+    expect(call.evidence.confidence).toBe(LOW_CONFIDENCE_THRESHOLD);
+    expect(call.evidence.needsVerification).toBe(false);
+  });
+
   it('records an error and creates no suggestion when the LLM returns neither matchedGroupId nor proposedNewGroupId', async () => {
     vi.mocked(fetchLocationAnomalyJobs).mockResolvedValue(
       makeAnomalyJobs([{ location: '台北市信義區' }]) as any,

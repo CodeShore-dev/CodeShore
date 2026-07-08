@@ -164,6 +164,44 @@ describe('KeywordMappingGenerator.generate', () => {
     );
   });
 
+  it('marks needsVerification false when the LLM confidence is exactly at the threshold (boundary, not "below")', async () => {
+    const keywordService = makeKeywordService([{ id: 'reactjs', count: KEYWORD_COUNT_THRESHOLD }]);
+    const techKeywordService = makeTechKeywordService([]);
+    const techService = makeTechService();
+    const jobKeywordService = makeJobKeywordService(4);
+    const suggestionCreator = makeSuggestionCreator('created');
+    const llmClient = {
+      completeStructured: vi.fn().mockResolvedValue({
+        ok: true,
+        result: {
+          matchedTechId: 'react',
+          confidence: LOW_CONFIDENCE_THRESHOLD,
+          reasoning: 'boundary-confidence match',
+        },
+      }),
+    };
+
+    const generator = new KeywordMappingGenerator(
+      llmClient as any,
+      keywordService as any,
+      techKeywordService as any,
+      techService as any,
+      jobKeywordService as any,
+      suggestionCreator as any,
+    );
+
+    await generator.generate();
+
+    expect(suggestionCreator.createSuggestion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        evidence: expect.objectContaining({
+          confidence: LOW_CONFIDENCE_THRESHOLD,
+          needsVerification: false,
+        }),
+      }),
+    );
+  });
+
   it('increments skippedDuplicates (not errors) when createSuggestion reports a duplicate', async () => {
     const keywordService = makeKeywordService([{ id: 'reactjs', count: KEYWORD_COUNT_THRESHOLD }]);
     const techKeywordService = makeTechKeywordService([]);
