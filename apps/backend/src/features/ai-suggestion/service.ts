@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Observable } from 'rxjs';
 
+import { AiSuggestionAction, AiSuggestionStatus, AiSuggestionWorkflow, SupabaseTable } from '@codeshore/data-types';
 import {
   AiLlmSettingService,
   AiSuggestionService,
@@ -16,17 +17,11 @@ import {
   LocationGroupService,
   MvLocationGroupService,
   MvTechService,
-  refreshAllMaterializedViews,
   TechKeywordService,
   TechParentService,
   TechService,
+  refreshAllMaterializedViews,
 } from '@codeshore/data-utils';
-import {
-  AiSuggestionAction,
-  AiSuggestionStatus,
-  AiSuggestionWorkflow,
-  SupabaseTable,
-} from '@codeshore/data-types';
 
 import { KeywordMappingGenerator } from './generators/keyword-mapping.generator';
 import { LocationMappingGenerator } from './generators/location-mapping.generator';
@@ -36,7 +31,7 @@ import { TechHierarchyGenerator } from './generators/tech-hierarchy.generator';
 import { SuggestionCreator, SuggestionGenerator } from './generators/types';
 import { LlmClient, OpenRouterLlmClient } from './llm-client';
 import { detectTechParentCycle } from './validation/cycle-check';
-import { getWorkflowInfo, WorkflowInfo } from './workflow-info';
+import { WorkflowInfo, getWorkflowInfo } from './workflow-info';
 
 /**
  * Hardcoded last-resort model id, used only when the `ai_llm_setting` table
@@ -76,16 +71,11 @@ export interface AiSuggestionEvidence {
  * `evidence` narrowed to `AiSuggestionEvidence` instead of the data-utils
  * layer's untyped `jsonb` shape.
  */
-export type AiSuggestionRecord = Omit<
-  SupabaseTable.AiSuggestion,
-  'evidence'
-> & {
+export type AiSuggestionRecord = Omit<SupabaseTable.AiSuggestion, 'evidence'> & {
   evidence: AiSuggestionEvidence;
 };
 
-export type GetByIdResult =
-  | { found: true; record: AiSuggestionRecord }
-  | { found: false };
+export type GetByIdResult = { found: true; record: AiSuggestionRecord } | { found: false };
 
 /**
  * Per-approval regression check (requirement 8.5, 8.6). `beforeCounts`/
@@ -165,9 +155,7 @@ export type AiSuggestionApproveError =
   | { kind: 'write_failed'; message: string }
   | { kind: 'not_found'; message: string };
 
-export type ApproveResult =
-  | { ok: true; record: AiSuggestionRecord }
-  | { ok: false; error: AiSuggestionApproveError };
+export type ApproveResult = { ok: true; record: AiSuggestionRecord } | { ok: false; error: AiSuggestionApproveError };
 
 /**
  * Discriminated `reject()` failure. Rejection is a pure metadata transition
@@ -181,16 +169,12 @@ export type AiSuggestionRejectError =
   | { kind: 'not_found'; message: string }
   | { kind: 'write_failed'; message: string };
 
-export type RejectResult =
-  | { ok: true; record: AiSuggestionRecord }
-  | { ok: false; error: AiSuggestionRejectError };
+export type RejectResult = { ok: true; record: AiSuggestionRecord } | { ok: false; error: AiSuggestionRejectError };
 
 /** The materialized view most directly affected by each target table. */
 type CountTarget = 'mv_tech' | 'mv_location_group';
 
-function countTargetFor(
-  targetTable: SupabaseTable.AiSuggestion['target_table'],
-): CountTarget {
+function countTargetFor(targetTable: SupabaseTable.AiSuggestion['target_table']): CountTarget {
   // `job_description_bin`/`keyword_bin` both feed keyword extraction, which
   // in turn feeds `mv_tech` -- there is no dedicated materialized view for
   // either exclusion list itself.
@@ -208,13 +192,9 @@ function countTargetFor(
 }
 
 /** Result of attempting to write a suggestion's payload to its target table. */
-type WriteOutcome =
-  | { ok: true }
-  | { ok: false; kind: 'validation' | 'write_failed'; message: string };
+type WriteOutcome = { ok: true } | { ok: false; kind: 'validation' | 'write_failed'; message: string };
 
-function toWriteOutcome(
-  error: { message?: string } | null | undefined,
-): WriteOutcome {
+function toWriteOutcome(error: { message?: string } | null | undefined): WriteOutcome {
   if (error) {
     return {
       ok: false,
@@ -233,12 +213,8 @@ function toWriteOutcome(
  * exactly what these 4 tables' primary keys are.
  */
 interface SingleIdWriter {
-  upsert(
-    records: unknown[],
-  ): PromiseLike<{ error: { message?: string } | null }>;
-  update(
-    record: Record<string, unknown>,
-  ): PromiseLike<{ error: { message?: string } | null }>;
+  upsert(records: unknown[]): PromiseLike<{ error: { message?: string } | null }>;
+  update(record: Record<string, unknown>): PromiseLike<{ error: { message?: string } | null }>;
   delete(id: string): PromiseLike<{ error: { message?: string } | null }>;
 }
 
@@ -279,18 +255,13 @@ async function writeCompositeKey(
   action: AiSuggestionAction,
   targetKey: Readonly<Record<string, string>> | null,
   keyNames: readonly [string, string],
-  upsert: (
-    records: unknown[],
-  ) => PromiseLike<{ error: { message?: string } | null }>,
+  upsert: (records: unknown[]) => PromiseLike<{ error: { message?: string } | null }>,
   update: (
     keyA: string,
     keyB: string,
     values: Record<string, unknown>,
   ) => PromiseLike<{ error: { message?: string } | null }>,
-  del: (
-    keyA: string,
-    keyB: string,
-  ) => PromiseLike<{ error: { message?: string } | null }>,
+  del: (keyA: string, keyB: string) => PromiseLike<{ error: { message?: string } | null }>,
   payload: Record<string, unknown>,
 ): Promise<WriteOutcome> {
   if (action === 'insert') {
@@ -358,8 +329,7 @@ export class Service {
    * `{ targetTable?, status? }` filter shape.
    */
   async list(filter: ListAiSuggestionFilter = {}) {
-    const { result, count } =
-      await this.aiSuggestionService.listByTargetAndStatus(filter);
+    const { result, count } = await this.aiSuggestionService.listByTargetAndStatus(filter);
     return {
       result: result as unknown as AiSuggestionRecord[],
       count,
@@ -416,9 +386,7 @@ export class Service {
    * exists for this target" from "the write itself failed" (requirement
    * 1.4).
    */
-  async createSuggestion(
-    input: CreateAiSuggestionInput,
-  ): Promise<CreatePendingSuggestionResult> {
+  async createSuggestion(input: CreateAiSuggestionInput): Promise<CreatePendingSuggestionResult> {
     return this.aiSuggestionService.createPendingSuggestion(input);
   }
 
@@ -448,8 +416,7 @@ export class Service {
     workflow: AiSuggestionWorkflow | 'all',
     options?: { model?: string },
   ): AsyncGenerator<AiSuggestionGenerateEvent> {
-    const workflowsToRun: readonly AiSuggestionWorkflow[] =
-      workflow === 'all' ? WORKFLOW_ORDER : [workflow];
+    const workflowsToRun: readonly AiSuggestionWorkflow[] = workflow === 'all' ? WORKFLOW_ORDER : [workflow];
     // Model resolution: an explicit per-call `options.model` wins; otherwise
     // fall back to the backend-adjustable `ai_llm_setting.default_model` row
     // (changeable via `PATCH ai-suggestion/llm-settings` without
@@ -460,9 +427,7 @@ export class Service {
     // `generate()` run rather than reused across calls, since the model can
     // vary per call.
     const model =
-      options?.model ??
-      (await this.llmSettingService.getValue(DEFAULT_MODEL_SETTING_KEY)) ??
-      DEFAULT_MODEL_FALLBACK;
+      options?.model ?? (await this.llmSettingService.getValue(DEFAULT_MODEL_SETTING_KEY)) ?? DEFAULT_MODEL_FALLBACK;
     const generators = this.buildGenerators(new OpenRouterLlmClient(model));
     let totalCreated = 0;
 
@@ -494,9 +459,7 @@ export class Service {
             `${currentWorkflow}: created ${result.created}, skipped ` +
             `${result.skippedDuplicates} duplicate / ${result.skippedNoMatch} no-match / ` +
             `${result.skippedConflict} conflict, ${result.errors.length} candidate-level error(s)` +
-            (result.errors.length > 0
-              ? ` (${result.errors.map(e => e.message).join('; ')})`
-              : ''),
+            (result.errors.length > 0 ? ` (${result.errors.map(e => e.message).join('; ')})` : ''),
         };
       } catch (error) {
         // Defensive isolation: this generator's `generate()` promise itself
@@ -525,10 +488,7 @@ export class Service {
    * to reuse (`spawnCrawl`/`refreshAllMv` each build their own `Observable`
    * inline), so this method builds its own the same way.
    */
-  generateStream(
-    workflow: AiSuggestionWorkflow | 'all',
-    options?: { model?: string },
-  ): Observable<MessageEvent> {
+  generateStream(workflow: AiSuggestionWorkflow | 'all', options?: { model?: string }): Observable<MessageEvent> {
     return new Observable<MessageEvent>(subscriber => {
       let cancelled = false;
 
@@ -595,6 +555,7 @@ export class Service {
         this.keywordService,
         this.techKeywordService,
         this.techService,
+        this.keywordBinService,
         suggestionCreator,
       ),
       tech_hierarchy: new TechHierarchyGenerator(
@@ -603,17 +564,8 @@ export class Service {
         this.techParentService,
         suggestionCreator,
       ),
-      location_mapping: new LocationMappingGenerator(
-        llmClient,
-        this.locationGroupService,
-        suggestionCreator,
-      ),
-      noise_detection: new NoiseDetectionGenerator(
-        llmClient,
-        this.keywordService,
-        this.jobService,
-        suggestionCreator,
-      ),
+      location_mapping: new LocationMappingGenerator(llmClient, this.locationGroupService, suggestionCreator),
+      noise_detection: new NoiseDetectionGenerator(llmClient, this.keywordService, this.jobService, suggestionCreator),
     };
   }
 
@@ -695,8 +647,7 @@ export class Service {
           ok: false,
           error: {
             kind: 'validation',
-            message:
-              'tech_parent suggestions require string "parent" and "child" fields in the payload',
+            message: 'tech_parent suggestions require string "parent" and "child" fields in the payload',
           },
         };
       }
@@ -716,10 +667,7 @@ export class Service {
     const countTarget = countTargetFor(suggestion.target_table);
     const beforeCount = await this.countFor(countTarget);
 
-    const writeResult = await this.writeToTargetTable(
-      suggestion,
-      effectivePayload,
-    );
+    const writeResult = await this.writeToTargetTable(suggestion, effectivePayload);
     if (!writeResult.ok) {
       // Status is intentionally left untouched (still `pending`) so a later
       // `approve()` retry can succeed once the underlying write problem is
@@ -771,8 +719,7 @@ export class Service {
     const afterCount = await this.countFor(countTarget);
     const affectedCountEstimate = suggestion.evidence.affectedCount;
     const exceedsExpectedMagnitude =
-      typeof affectedCountEstimate === 'number' &&
-      Math.abs(afterCount - beforeCount) > affectedCountEstimate * 3;
+      typeof affectedCountEstimate === 'number' && Math.abs(afterCount - beforeCount) > affectedCountEstimate * 3;
 
     const outcome: AiSuggestionOutcome = {
       affectedViews: Array.from(affectedViews),
@@ -839,11 +786,7 @@ export class Service {
    * so an already-approved/already-rejected suggestion cannot be rejected a
    * second time (requirement 1.5).
    */
-  async reject(
-    id: string,
-    note: string | undefined,
-    reviewerId: string,
-  ): Promise<RejectResult> {
+  async reject(id: string, note: string | undefined, reviewerId: string): Promise<RejectResult> {
     const lookup = await this.getById(id);
     if (!lookup.found || lookup.record.status !== 'pending') {
       return {
@@ -894,8 +837,7 @@ export class Service {
    * before the write and again after the refresh (requirement 8.5, 8.6).
    */
   private async countFor(view: CountTarget): Promise<number> {
-    const service =
-      view === 'mv_tech' ? this.mvTechService : this.mvLocationGroupService;
+    const service = view === 'mv_tech' ? this.mvTechService : this.mvLocationGroupService;
     const { count } = await service.fetchAll();
     return count;
   }
@@ -914,47 +856,21 @@ export class Service {
     const { target_table, action, target_key } = suggestion;
     switch (target_table) {
       case 'job_description_bin':
-        return writeSingleId(
-          this.jobDescriptionBinService,
-          action,
-          target_key,
-          payload,
-        );
+        return writeSingleId(this.jobDescriptionBinService, action, target_key, payload);
       case 'tech':
-        return writeSingleId(
-          this.techService,
-          action,
-          target_key,
-          payload,
-        );
+        return writeSingleId(this.techService, action, target_key, payload);
       case 'keyword_bin':
-        return writeSingleId(
-          this.keywordBinService,
-          action,
-          target_key,
-          payload,
-        );
+        return writeSingleId(this.keywordBinService, action, target_key, payload);
       case 'location_group':
-        return writeSingleId(
-          this.locationGroupService,
-          action,
-          target_key,
-          payload,
-        );
+        return writeSingleId(this.locationGroupService, action, target_key, payload);
       case 'tech_keyword':
         return writeCompositeKey(
           action,
           target_key,
           ['tech', 'keyword'],
           records => this.techKeywordService.upsert(records as any[]),
-          (keyA, keyB, values) =>
-            this.techKeywordService.updateByTechAndKeyword(
-              keyA,
-              keyB,
-              values,
-            ),
-          (keyA, keyB) =>
-            this.techKeywordService.deleteByTechAndKeyword(keyA, keyB),
+          (keyA, keyB, values) => this.techKeywordService.updateByTechAndKeyword(keyA, keyB, values),
+          (keyA, keyB) => this.techKeywordService.deleteByTechAndKeyword(keyA, keyB),
           payload,
         );
       case 'tech_parent':
@@ -963,14 +879,8 @@ export class Service {
           target_key,
           ['parent', 'child'],
           records => this.techParentService.upsert(records as any[]),
-          (keyA, keyB, values) =>
-            this.techParentService.updateByParentAndChild(
-              keyA,
-              keyB,
-              values,
-            ),
-          (keyA, keyB) =>
-            this.techParentService.deleteByParentAndChild(keyA, keyB),
+          (keyA, keyB, values) => this.techParentService.updateByParentAndChild(keyA, keyB, values),
+          (keyA, keyB) => this.techParentService.deleteByParentAndChild(keyA, keyB),
           payload,
         );
       case 'location_group_location':
@@ -978,19 +888,9 @@ export class Service {
           action,
           target_key,
           ['location_group', 'location'],
-          records =>
-            this.locationGroupLocationService.upsert(records as any[]),
-          (keyA, keyB, values) =>
-            this.locationGroupLocationService.updateByGroupAndLocation(
-              keyA,
-              keyB,
-              values,
-            ),
-          (keyA, keyB) =>
-            this.locationGroupLocationService.deleteByGroupAndLocation(
-              keyA,
-              keyB,
-            ),
+          records => this.locationGroupLocationService.upsert(records as any[]),
+          (keyA, keyB, values) => this.locationGroupLocationService.updateByGroupAndLocation(keyA, keyB, values),
+          (keyA, keyB) => this.locationGroupLocationService.deleteByGroupAndLocation(keyA, keyB),
           payload,
         );
     }
