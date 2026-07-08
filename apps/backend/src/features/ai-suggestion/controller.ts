@@ -9,12 +9,19 @@ import {
   Patch,
   Query,
   BadRequestException,
+  Sse,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { User } from '@supabase/supabase-js';
+import { Observable } from 'rxjs';
 
 import { AdminOnly, CurrentUser } from '../auth/auth.decorator';
-import { AiSuggestionQueryDto, ApproveSuggestionDto, RejectSuggestionDto } from './dto';
+import {
+  AiSuggestionQueryDto,
+  ApproveSuggestionDto,
+  GenerateSuggestionsDto,
+  RejectSuggestionDto,
+} from './dto';
 import { Service } from './service';
 
 const name = 'ai-suggestion';
@@ -46,6 +53,23 @@ export class Controller {
     });
   }
 
+  @Sse('generate')
+  @ApiOperation({
+    summary:
+      'Generate AI suggestions for one sub-workflow or all of them, streaming progress via SSE (requirement 1.2)',
+    description:
+      'Pass ?workflow=<keyword_mapping|tech_dictionary|tech_hierarchy|location_mapping|noise_detection|all> (defaults to "all"). A single sub-workflow failing does not stop the others from running.',
+  })
+  generate(@Query() query: GenerateSuggestionsDto): Observable<MessageEvent> {
+    return this.service.generateStream(query.workflow ?? 'all');
+  }
+
+  // NOTE: `getById`'s `:id` route is registered *after* `generate` above.
+  // `@Sse()` routes are always GET (see @nestjs/common's `sse.decorator.js`),
+  // and NestJS registers Express routes in class declaration order -- if
+  // `:id` were declared first, `GET /ai-suggestion/generate` would be
+  // shadowed by `GET /ai-suggestion/:id` (with `id === "generate"`) instead
+  // of ever reaching this SSE handler.
   @Get(':id')
   @ApiOperation({
     summary: 'Get a single AI suggestion by id (requirement 7.2)',

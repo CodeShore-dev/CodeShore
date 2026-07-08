@@ -1,11 +1,15 @@
 import { Injectable } from '@nestjs/common';
+import { Observable } from 'rxjs';
 
 import {
   AiSuggestionService,
   CreateAiSuggestionInput,
   CreatePendingSuggestionResult,
   JobDescriptionBinService,
+  JobKeywordService,
+  JobService,
   KeywordBinService,
+  KeywordService,
   ListAiSuggestionFilter,
   LocationGroupLocationService,
   LocationGroupService,
@@ -19,9 +23,17 @@ import {
 import {
   AiSuggestionAction,
   AiSuggestionStatus,
+  AiSuggestionWorkflow,
   SupabaseTable,
 } from '@codeshore/data-types';
 
+import { KeywordMappingGenerator } from './generators/keyword-mapping.generator';
+import { LocationMappingGenerator } from './generators/location-mapping.generator';
+import { NoiseDetectionGenerator } from './generators/noise-detection.generator';
+import { TechDictionaryGenerator } from './generators/tech-dictionary.generator';
+import { TechHierarchyGenerator } from './generators/tech-hierarchy.generator';
+import { SuggestionCreator, SuggestionGenerator } from './generators/types';
+import { AnthropicLlmClient } from './llm-client';
 import { detectTechParentCycle } from './validation/cycle-check';
 
 /**
@@ -72,6 +84,61 @@ export interface AiSuggestionOutcome {
   beforeCounts: Readonly<Record<string, number>>;
   afterCounts: Readonly<Record<string, number>>;
   exceedsExpectedMagnitude: boolean;
+}
+
+/**
+ * Progress event streamed by `Service.generate()` (task 4.2) over SSE.
+ *
+ * Adapted from design.md's `AiSuggestionGenerateEvent` (`log` | `created` |
+ * `skipped_duplicate` | `error` | `done`). That literal shape assumes each
+ * generator itself yields one event per suggestion as it works. Per
+ * `generators/types.ts`'s deviation note, the 5 generators (task 3.1-3.5)
+ * instead each return a single batch `GeneratorResult` from `generate()` --
+ * by the time this orchestration layer observes a result, the generator has
+ * already finished every candidate, so there is no real per-suggestion
+ * `suggestionId` to attach to a `created` event and no real per-candidate
+ * `targetKey` to attach to a `skipped_duplicate` event. Rather than
+ * fabricate that granularity, this type keeps only the 3 event shapes this
+ * layer can honestly produce from a `GeneratorResult`:
+ * - `log`: a workflow is starting.
+ * - `done` (`workflow` is a specific `AiSuggestionWorkflow`): that
+ *   workflow's `generate()` call returned; `created` is
+ *   `GeneratorResult.created` and `message` folds the remaining counters
+ *   (`skippedDuplicates`/`skippedNoMatch`/`skippedConflict`/
+ *   `errors.length`) into readable text instead of pretending to have a
+ *   separate event per skipped/errored candidate.
+ * - `error` (`workflow` is a specific `AiSuggestionWorkflow`): that
+ *   workflow's `generate()` promise itself rejected. Defensive only -- every
+ *   generator is documented to swallow its own per-candidate failures into
+ *   `GeneratorResult.errors` and never throw -- but this orchestration layer
+ *   must not let an unexpected exception from one generator abort the run
+ *   for the others (see `generate()` below).
+ * - `done` (`workflow: 'all'`): emitted exactly once, after every requested
+ *   workflow has finished (whether it succeeded or errored); `created` is
+ *   the sum of every per-workflow `done.created` observed during this run.
+ */
+export type AiSuggestionGenerateEvent =
+  | { type: 'log'; workflow: AiSuggestionWorkflow; message: string }
+  | {
+      type: 'done';
+      workflow: AiSuggestionWorkflow;
+      created: number;
+      message: string;
+    }
+  | { type: 'error'; workflow: AiSuggestionWorkflow; message: string }
+  | { type: 'done'; workflow: 'all'; created: number };
+
+/** Fixed, deterministic order `generate('all')` runs the 5 generators in. */
+const WORKFLOW_ORDER: readonly AiSuggestionWorkflow[] = [
+  'keyword_mapping',
+  'tech_dictionary',
+  'tech_hierarchy',
+  'location_mapping',
+  'noise_detection',
+];
+
+function toErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 /**
@@ -262,6 +329,10 @@ export class Service {
     private readonly locationGroupLocationService: LocationGroupLocationService,
     private readonly mvTechService: MvTechService,
     private readonly mvLocationGroupService: MvLocationGroupService,
+    private readonly llmClient: AnthropicLlmClient,
+    private readonly keywordService: KeywordService,
+    private readonly jobKeywordService: JobKeywordService,
+    private readonly jobService: JobService,
   ) {}
 
   /**
@@ -335,6 +406,164 @@ export class Service {
     input: CreateAiSuggestionInput,
   ): Promise<CreatePendingSuggestionResult> {
     return this.aiSuggestionService.createPendingSuggestion(input);
+  }
+
+  /**
+   * Task 4.2 / design.md's `AiSuggestionServiceContract.generate()`: runs
+   * either a single named `workflow`'s generator or (when `workflow ===
+   * 'all'`) all 5 generators in `WORKFLOW_ORDER`, streaming an
+   * `AiSuggestionGenerateEvent` per meaningful step rather than returning
+   * only once everything finishes (requirement 1.2's "逐步回報產生進度").
+   *
+   * Each workflow is wrapped in its own try/catch: an unexpected exception
+   * from one generator's `generate()` promise (defensive -- generators are
+   * documented to never throw) is turned into an `error` event and
+   * processing moves on to the next requested workflow regardless of
+   * outcome, so "任一子工作流產生失敗不中斷其他子工作流繼續執行"
+   * (requirement 1.2) holds even in that unexpected-exception case, not just
+   * the already-internally-handled per-candidate failure case each
+   * generator's own `GeneratorResult.errors` covers.
+   */
+  async *generate(
+    workflow: AiSuggestionWorkflow | 'all',
+  ): AsyncGenerator<AiSuggestionGenerateEvent> {
+    const workflowsToRun: readonly AiSuggestionWorkflow[] =
+      workflow === 'all' ? WORKFLOW_ORDER : [workflow];
+    const generators = this.buildGenerators();
+    let totalCreated = 0;
+
+    for (const currentWorkflow of workflowsToRun) {
+      yield {
+        type: 'log',
+        workflow: currentWorkflow,
+        message: `Starting ${currentWorkflow} generator`,
+      };
+
+      try {
+        const result = await generators[currentWorkflow].generate();
+        totalCreated += result.created;
+        yield {
+          type: 'done',
+          workflow: currentWorkflow,
+          created: result.created,
+          message:
+            `${currentWorkflow}: created ${result.created}, skipped ` +
+            `${result.skippedDuplicates} duplicate / ${result.skippedNoMatch} no-match / ` +
+            `${result.skippedConflict} conflict, ${result.errors.length} candidate-level error(s)` +
+            (result.errors.length > 0
+              ? ` (${result.errors.map(e => e.message).join('; ')})`
+              : ''),
+        };
+      } catch (error) {
+        // Defensive isolation: this generator's `generate()` promise itself
+        // rejected instead of returning a `GeneratorResult` with its own
+        // `errors` entries. Record it and continue to the next workflow --
+        // never let this abort the loop.
+        yield {
+          type: 'error',
+          workflow: currentWorkflow,
+          message: `Unexpected error running the ${currentWorkflow} generator: ${toErrorMessage(error)}`,
+        };
+      }
+    }
+
+    yield { type: 'done', workflow: 'all', created: totalCreated };
+  }
+
+  /**
+   * `generate()` wrapped into an `Observable<MessageEvent>` for the
+   * controller's `@Sse('generate')` route, following the exact conversion
+   * `admin/service.ts`'s `refreshAllMv` uses to wrap
+   * `refreshAllMaterializedViews` (an `AsyncGenerator`) for its own
+   * `@Sse('refresh-mv')` route: a `new Observable(subscriber => { (async ()
+   * => { for await (...) subscriber.next(...); subscriber.complete(); })();
+   * })`. There is no shared/exported helper for this in `admin/service.ts`
+   * to reuse (`spawnCrawl`/`refreshAllMv` each build their own `Observable`
+   * inline), so this method builds its own the same way.
+   */
+  generateStream(workflow: AiSuggestionWorkflow | 'all'): Observable<MessageEvent> {
+    return new Observable<MessageEvent>(subscriber => {
+      let cancelled = false;
+
+      (async () => {
+        try {
+          for await (const event of this.generate(workflow)) {
+            if (cancelled) return;
+            subscriber.next({ data: event } as MessageEvent);
+          }
+        } catch (error) {
+          subscriber.next({
+            data: {
+              type: 'error',
+              workflow,
+              message: toErrorMessage(error),
+            },
+          } as MessageEvent);
+        }
+        subscriber.complete();
+      })();
+
+      return () => {
+        cancelled = true;
+      };
+    });
+  }
+
+  /**
+   * Constructs the 5 suggestion generators (task 3.1-3.5), each wired to
+   * the same injected `libs/data-utils` service instances this class
+   * already holds for `approve()`'s target-table writes, a shared
+   * `AnthropicLlmClient`, and `this` narrowed to `SuggestionCreator` (every
+   * generator's constructor takes a `SuggestionCreator`, never the full
+   * `Service`, per `generators/types.ts`'s doc comment: "a generator must
+   * never write to the data-utils layer directly").
+   *
+   * None of the 5 generator classes are `@Injectable()` NestJS providers
+   * (plain classes, manually constructed) -- see each generator file's
+   * constructor. Deliberately a `protected` method (not inlined into
+   * `generate()`) so tests can subclass `Service` and override this single
+   * seam with fakes instead of having to construct 5 real generators' worth
+   * of dependencies to exercise `generate()`'s orchestration behavior.
+   */
+  protected buildGenerators(): Record<AiSuggestionWorkflow, SuggestionGenerator> {
+    const suggestionCreator: SuggestionCreator = {
+      createSuggestion: input => this.createSuggestion(input),
+    };
+
+    return {
+      keyword_mapping: new KeywordMappingGenerator(
+        this.llmClient,
+        this.keywordService,
+        this.techKeywordService,
+        this.techService,
+        this.jobKeywordService,
+        suggestionCreator,
+      ),
+      tech_dictionary: new TechDictionaryGenerator(
+        this.llmClient,
+        this.keywordService,
+        this.techKeywordService,
+        this.techService,
+        suggestionCreator,
+      ),
+      tech_hierarchy: new TechHierarchyGenerator(
+        this.llmClient,
+        this.techService,
+        this.techParentService,
+        suggestionCreator,
+      ),
+      location_mapping: new LocationMappingGenerator(
+        this.llmClient,
+        this.locationGroupService,
+        suggestionCreator,
+      ),
+      noise_detection: new NoiseDetectionGenerator(
+        this.llmClient,
+        this.keywordService,
+        this.jobService,
+        suggestionCreator,
+      ),
+    };
   }
 
   /**

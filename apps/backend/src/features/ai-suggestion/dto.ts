@@ -1,7 +1,11 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsIn, IsObject, IsOptional, IsString } from 'class-validator';
 
-import { AiSuggestionStatus, AiSuggestionTargetTable } from '@codeshore/data-types';
+import {
+  AiSuggestionStatus,
+  AiSuggestionTargetTable,
+  AiSuggestionWorkflow,
+} from '@codeshore/data-types';
 
 import { QueryDto } from '../query.dto';
 
@@ -76,4 +80,38 @@ export class RejectSuggestionDto {
   @IsOptional()
   @IsString()
   note?: string;
+}
+
+/** `AiSuggestionWorkflow`'s member list, same rationale as `TARGET_TABLES`. */
+const WORKFLOWS: AiSuggestionWorkflow[] = [
+  'keyword_mapping',
+  'tech_dictionary',
+  'tech_hierarchy',
+  'location_mapping',
+  'noise_detection',
+];
+
+const WORKFLOWS_OR_ALL: ReadonlyArray<AiSuggestionWorkflow | 'all'> = [
+  ...WORKFLOWS,
+  'all',
+];
+
+/**
+ * Query DTO for `GET /ai-suggestion/generate` (requirement 1.2: 開放一個可
+ * 指定單一子工作流或全部子工作流的產生路由). Uses `@Query()` (not a request
+ * body) since this is an `@Sse()` route -- mirrors `admin/controller.ts`'s
+ * `@Sse('crawl')`/`@Sse('refresh-mv')` routes, both of which take
+ * `@Query()` DTOs rather than bodies (a standard browser `EventSource` can
+ * only issue GET requests, so `@Sse()` routes never take a request body).
+ */
+export class GenerateSuggestionsDto {
+  @ApiPropertyOptional({
+    enum: WORKFLOWS_OR_ALL,
+    default: 'all',
+    description:
+      'Which sub-workflow to run, or "all" to run every workflow in a fixed order. Defaults to "all" when omitted.',
+  })
+  @IsOptional()
+  @IsIn(WORKFLOWS_OR_ALL as string[])
+  workflow?: AiSuggestionWorkflow | 'all';
 }

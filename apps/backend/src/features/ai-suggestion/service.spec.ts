@@ -55,6 +55,10 @@ function createService(
     locationGroupLocationService?: any;
     mvTechService?: any;
     mvLocationGroupService?: any;
+    llmClient?: any;
+    keywordService?: any;
+    jobKeywordService?: any;
+    jobService?: any;
   } = {},
 ): Service {
   return new Service(
@@ -68,6 +72,10 @@ function createService(
     overrides.locationGroupLocationService ?? {},
     overrides.mvTechService ?? {},
     overrides.mvLocationGroupService ?? {},
+    overrides.llmClient ?? {},
+    overrides.keywordService ?? {},
+    overrides.jobKeywordService ?? {},
+    overrides.jobService ?? {},
   ) as any;
 }
 
@@ -912,6 +920,306 @@ describe('Service.history', () => {
 
     expect(aiSuggestionService.listByTargetAndStatus).toHaveBeenCalledWith({
       status: 'rejected',
+    });
+  });
+});
+
+/**
+ * Task 4.2's `generate()`/`generateStream()` orchestration is tested through
+ * a test-only `Service` subclass that overrides the `protected
+ * buildGenerators()` seam with fakes, instead of constructing 5 real
+ * generators' worth of dependencies (`AnthropicLlmClient` +
+ * `libs/data-utils` services) -- exactly the "protected/private factory
+ * method the test can override" design the implementer prompt calls out.
+ * Every other `Service` constructor dependency is irrelevant to this
+ * behavior (the fake generators never touch them), so `createService`'s
+ * empty-object defaults are used throughout.
+ */
+function makeFakeGenerator(
+  workflow: string,
+  behavior:
+    | { kind: 'result'; result: any }
+    | { kind: 'throw'; error: unknown },
+) {
+  return {
+    workflow,
+    generate: vi.fn().mockImplementation(async () => {
+      if (behavior.kind === 'throw') {
+        throw behavior.error;
+      }
+      return behavior.result;
+    }),
+  };
+}
+
+function emptyResult(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    created: 0,
+    skippedDuplicates: 0,
+    skippedNoMatch: 0,
+    skippedConflict: 0,
+    errors: [],
+    ...overrides,
+  };
+}
+
+class TestableService extends Service {
+  constructor(private readonly fakeGenerators: Record<string, any>) {
+    super(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+  }
+
+  protected override buildGenerators() {
+    return this.fakeGenerators as any;
+  }
+}
+
+async function collect<T>(iterable: AsyncGenerator<T>): Promise<T[]> {
+  const events: T[] = [];
+  for await (const event of iterable) {
+    events.push(event);
+  }
+  return events;
+}
+
+describe('Service.generate', () => {
+  it('runs all 5 generators in a fixed order for workflow "all", each contributing a log+done pair', async () => {
+    const order: string[] = [];
+    const fakeGenerators: Record<string, any> = {};
+    const counts: Record<string, number> = {
+      keyword_mapping: 2,
+      tech_dictionary: 1,
+      tech_hierarchy: 0,
+      location_mapping: 3,
+      noise_detection: 1,
+    };
+    for (const workflow of Object.keys(counts)) {
+      fakeGenerators[workflow] = makeFakeGenerator(workflow, {
+        kind: 'result',
+        result: emptyResult({ created: counts[workflow] }),
+      });
+      const originalGenerate = fakeGenerators[workflow].generate;
+      fakeGenerators[workflow].generate = vi.fn().mockImplementation(async () => {
+        order.push(workflow);
+        return originalGenerate();
+      });
+    }
+    const service = new TestableService(fakeGenerators);
+
+    const events = await collect(service.generate('all'));
+
+    // Every fake generator's generate() was actually invoked, in the
+    // documented fixed order.
+    expect(order).toEqual([
+      'keyword_mapping',
+      'tech_dictionary',
+      'tech_hierarchy',
+      'location_mapping',
+      'noise_detection',
+    ]);
+
+    // Each workflow contributes a "log" (start) then a "done" (per-workflow
+    // summary) event, in that same order.
+    const perWorkflowEvents = events.filter(e => e.workflow !== 'all');
+    expect(perWorkflowEvents.map(e => [e.type, e.workflow])).toEqual([
+      ['log', 'keyword_mapping'],
+      ['done', 'keyword_mapping'],
+      ['log', 'tech_dictionary'],
+      ['done', 'tech_dictionary'],
+      ['log', 'tech_hierarchy'],
+      ['done', 'tech_hierarchy'],
+      ['log', 'location_mapping'],
+      ['done', 'location_mapping'],
+      ['log', 'noise_detection'],
+      ['done', 'noise_detection'],
+    ]);
+
+    // The final overall "done" event sums every workflow's created count.
+    const finalEvent = events[events.length - 1];
+    expect(finalEvent).toEqual({ type: 'done', workflow: 'all', created: 7 });
+  });
+
+  it('runs only the requested workflow when a specific workflow is given, not the other 4', async () => {
+    const fakeGenerators: Record<string, any> = {
+      keyword_mapping: makeFakeGenerator('keyword_mapping', {
+        kind: 'result',
+        result: emptyResult({ created: 5 }),
+      }),
+      tech_dictionary: makeFakeGenerator('tech_dictionary', {
+        kind: 'result',
+        result: emptyResult(),
+      }),
+      tech_hierarchy: makeFakeGenerator('tech_hierarchy', {
+        kind: 'result',
+        result: emptyResult(),
+      }),
+      location_mapping: makeFakeGenerator('location_mapping', {
+        kind: 'result',
+        result: emptyResult(),
+      }),
+      noise_detection: makeFakeGenerator('noise_detection', {
+        kind: 'result',
+        result: emptyResult(),
+      }),
+    };
+    const service = new TestableService(fakeGenerators);
+
+    const events = await collect(service.generate('keyword_mapping'));
+
+    expect(fakeGenerators.keyword_mapping.generate).toHaveBeenCalledTimes(1);
+    expect(fakeGenerators.tech_dictionary.generate).not.toHaveBeenCalled();
+    expect(fakeGenerators.tech_hierarchy.generate).not.toHaveBeenCalled();
+    expect(fakeGenerators.location_mapping.generate).not.toHaveBeenCalled();
+    expect(fakeGenerators.noise_detection.generate).not.toHaveBeenCalled();
+
+    expect(events.map(e => e.workflow)).toEqual([
+      'keyword_mapping',
+      'keyword_mapping',
+      'all',
+    ]);
+    expect(events[events.length - 1]).toEqual({
+      type: 'done',
+      workflow: 'all',
+      created: 5,
+    });
+  });
+
+  it('isolates a generator whose generate() promise rejects: an error event is emitted for it, but every other workflow still runs to completion', async () => {
+    const order: string[] = [];
+    const fakeGenerators: Record<string, any> = {
+      keyword_mapping: makeFakeGenerator('keyword_mapping', {
+        kind: 'result',
+        result: emptyResult({ created: 1 }),
+      }),
+      tech_dictionary: makeFakeGenerator('tech_dictionary', {
+        kind: 'throw',
+        error: new Error('unexpected tech_dictionary crash'),
+      }),
+      tech_hierarchy: makeFakeGenerator('tech_hierarchy', {
+        kind: 'result',
+        result: emptyResult({ created: 2 }),
+      }),
+      location_mapping: makeFakeGenerator('location_mapping', {
+        kind: 'result',
+        result: emptyResult({ created: 3 }),
+      }),
+      noise_detection: makeFakeGenerator('noise_detection', {
+        kind: 'result',
+        result: emptyResult({ created: 4 }),
+      }),
+    };
+    for (const workflow of Object.keys(fakeGenerators)) {
+      const original = fakeGenerators[workflow].generate;
+      fakeGenerators[workflow].generate = vi.fn().mockImplementation(async () => {
+        order.push(workflow);
+        return original();
+      });
+    }
+    const service = new TestableService(fakeGenerators);
+
+    const events = await collect(service.generate('all'));
+
+    // The generator that threw did not stop the loop -- every generator's
+    // generate() was still invoked exactly once, including the 3 that come
+    // after the failing one.
+    expect(order).toEqual([
+      'keyword_mapping',
+      'tech_dictionary',
+      'tech_hierarchy',
+      'location_mapping',
+      'noise_detection',
+    ]);
+
+    // tech_dictionary contributes its "log" (start) event, then an "error"
+    // event instead of a "done" event -- no third event, since the
+    // orchestration loop moves straight on to the next workflow.
+    const techDictionaryEvents = events.filter(e => e.workflow === 'tech_dictionary');
+    expect(techDictionaryEvents).toHaveLength(2);
+    expect(techDictionaryEvents[0]).toMatchObject({ type: 'log', workflow: 'tech_dictionary' });
+    expect(techDictionaryEvents[1]).toMatchObject({
+      type: 'error',
+      workflow: 'tech_dictionary',
+      message: expect.stringContaining('unexpected tech_dictionary crash'),
+    });
+
+    // The remaining 4 workflows completed normally with their own "done"
+    // events (only the created counts from the successful workflows are
+    // counted; the failed workflow contributes 0).
+    const doneEventsByWorkflow = events.filter(
+      e => e.type === 'done' && e.workflow !== 'all',
+    );
+    expect(doneEventsByWorkflow.map(e => [e.workflow, e.created])).toEqual([
+      ['keyword_mapping', 1],
+      ['tech_hierarchy', 2],
+      ['location_mapping', 3],
+      ['noise_detection', 4],
+    ]);
+
+    const finalEvent = events[events.length - 1];
+    expect(finalEvent).toEqual({ type: 'done', workflow: 'all', created: 10 });
+  });
+});
+
+describe('Service.generateStream', () => {
+  it('wraps generate() into an Observable<MessageEvent> that forwards every event and completes', async () => {
+    const fakeGenerators: Record<string, any> = {
+      keyword_mapping: makeFakeGenerator('keyword_mapping', {
+        kind: 'result',
+        result: emptyResult({ created: 1 }),
+      }),
+      tech_dictionary: makeFakeGenerator('tech_dictionary', {
+        kind: 'result',
+        result: emptyResult(),
+      }),
+      tech_hierarchy: makeFakeGenerator('tech_hierarchy', {
+        kind: 'result',
+        result: emptyResult(),
+      }),
+      location_mapping: makeFakeGenerator('location_mapping', {
+        kind: 'result',
+        result: emptyResult(),
+      }),
+      noise_detection: makeFakeGenerator('noise_detection', {
+        kind: 'result',
+        result: emptyResult(),
+      }),
+    };
+    const service = new TestableService(fakeGenerators);
+
+    const received: any[] = [];
+    let completed = false;
+
+    await new Promise<void>((resolve, reject) => {
+      service.generateStream('keyword_mapping').subscribe({
+        next: message => received.push((message as any).data),
+        error: reject,
+        complete: () => {
+          completed = true;
+          resolve();
+        },
+      });
+    });
+
+    expect(completed).toBe(true);
+    expect(received.map(e => e.type)).toEqual(['log', 'done', 'done']);
+    expect(received[received.length - 1]).toEqual({
+      type: 'done',
+      workflow: 'all',
+      created: 1,
     });
   });
 });

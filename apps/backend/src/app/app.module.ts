@@ -11,6 +11,7 @@ import { LoggerModule } from '@codeshore/service-logger';
 import { getServeStaticModule } from '@codeshore/service-serve-static';
 
 import { Module as AdminModule } from '../features/admin/module';
+import { Module as AiSuggestionModule } from '../features/ai-suggestion/module';
 import { AuthModule } from '../features/auth/auth.module';
 import { Module as CacheModule } from '../features/cache/module';
 import { Module as CompanyModule } from '../features/company/module';
@@ -31,6 +32,7 @@ import { AppService } from './app.service';
     JobModule,
     KeywordModule,
     AdminModule,
+    AiSuggestionModule,
   ],
   controllers: [AppController],
   providers: [
