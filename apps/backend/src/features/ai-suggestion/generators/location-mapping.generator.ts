@@ -10,6 +10,7 @@ import {
   SuggestionCreator,
   SuggestionGenerator,
 } from './types';
+import { isStandardLocationGroupFormat } from '../validation/location-format-check';
 
 /**
  * Confidence score (0..1, from the LLM's `confidence`) below which a
@@ -64,7 +65,7 @@ export const INPUT_SCHEMA: Record<string, unknown> = {
           proposedNewGroupId: {
             type: ['string', 'null'],
             description:
-              'A proposed stable slug id for a brand-new location_group (e.g. "taipei"), set only when matchedGroupId is null.',
+              'A proposed id for a brand-new location_group, set only when matchedGroupId is null. Must follow Taiwan\'s official administrative naming convention: <縣市><鄉鎮市區> concatenated with no separator, using full official Chinese names (e.g. "台北市信義區", "新竹縣竹北市"). Never an English slug or abbreviation.',
           },
           reasoning: {
             type: 'string',
@@ -96,13 +97,15 @@ interface LocationMappingLlmResult extends Record<string, unknown> {
   proposals?: LocationMappingProposal[];
 }
 
-export const SYSTEM_PROMPT = `You maintain a normalization mapping from raw, free-text job-posting location strings (e.g. "台北市信義區", "新竹科學園區") to a small set of standardized location groups (e.g. "taipei", "hsinchu").
+export const SYSTEM_PROMPT = `You maintain a normalization mapping from raw, free-text job-posting location strings (e.g. "台北市信義區", "新竹科學園區") to a small set of standardized location groups.
+
+Every location group id MUST follow Taiwan's official administrative naming convention: <縣市名稱><鄉鎮市區名稱> concatenated with no separator or spaces, using full official Chinese names -- e.g. "台北市信義區", "新竹縣竹北市", "高雄市苓雅區". Never use an English slug, abbreviation, or a partial name (e.g. "taipei" and "信義區" alone are both invalid).
 
 You are given (1) a list of distinct raw location strings that do not currently map to any existing location group, and (2) the full list of existing location group ids.
 
 For every listed location string, decide exactly one of the following:
 - It clearly belongs to one of the existing location groups: return that group's "id" as matchedGroupId, along with a confidence score between 0 and 1.
-- No existing group fits: return matchedGroupId: null and propose a new, stable, lowercase-slug group id as proposedNewGroupId (e.g. "taipei"). Do not force a match to an unrelated existing group just to avoid creating a new one.
+- No existing group fits: return matchedGroupId: null and propose a new group id as proposedNewGroupId, following the "<縣市><鄉鎮市區>" naming convention above (e.g. "新竹縣竹北市"). If the raw location string spans a larger or more general area than a single 鄉鎮市區 (e.g. "新竹科學園區", which sits across Hsinchu City and Hsinchu County), pick the single 縣市+鄉鎮市區 it most representatively belongs to. Do not force a match to an unrelated existing group just to avoid creating a new one.
 
 Always include a short "reasoning" for each proposal, and return exactly one proposal per listed location string.`;
 
@@ -227,6 +230,15 @@ export class LocationMappingGenerator implements SuggestionGenerator {
       // the mapping). Each half is created and counted independently.
       const correlationId = crypto.randomUUID();
 
+      // Requirement: 統一 location_group 格式為「縣市+鄉鎮市區」（如
+      // "台北市信義區"）。The LLM is instructed to always follow this
+      // convention (SYSTEM_PROMPT/INPUT_SCHEMA above), but its output is
+      // never trusted blindly -- a non-conforming id is still created (so a
+      // reviewer can fix it via the existing "修改後核准" edit-before-approve
+      // flow) but flagged `needsVerification` so it doesn't slip through as
+      // a routine, low-scrutiny suggestion.
+      const formatOk = isStandardLocationGroupFormat(proposedNewGroupId);
+
       const createGroupInput: CreateAiSuggestionInput = {
         target_table: 'location_group',
         workflow: 'location_mapping',
@@ -235,7 +247,10 @@ export class LocationMappingGenerator implements SuggestionGenerator {
         payload: { id: proposedNewGroupId },
         evidence: {
           affectedCount,
-          reasoning,
+          reasoning: formatOk
+            ? reasoning
+            : `${reasoning}（群組 ID 不符合「縣市+鄉鎮市區」標準格式，請人工確認或修正）`,
+          needsVerification: !formatOk,
           correlationId,
         } as unknown as Record<string, unknown>,
       };

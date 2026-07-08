@@ -116,7 +116,7 @@ describe('LocationMappingGenerator.generate', () => {
             {
               location: '新竹科學園區',
               matchedGroupId: null,
-              proposedNewGroupId: 'hsinchu',
+              proposedNewGroupId: '新竹縣竹北市',
               reasoning: 'No existing group covers Hsinchu Science Park',
             },
           ],
@@ -148,11 +148,12 @@ describe('LocationMappingGenerator.generate', () => {
       target_table: 'location_group',
       workflow: 'location_mapping',
       action: 'insert',
-      target_key: { id: 'hsinchu' },
-      payload: { id: 'hsinchu' },
+      target_key: { id: '新竹縣竹北市' },
+      payload: { id: '新竹縣竹北市' },
       evidence: expect.objectContaining({
         affectedCount: 1,
         reasoning: 'No existing group covers Hsinchu Science Park',
+        needsVerification: false,
         correlationId: expect.any(String),
       }),
     });
@@ -160,8 +161,8 @@ describe('LocationMappingGenerator.generate', () => {
       target_table: 'location_group_location',
       workflow: 'location_mapping',
       action: 'insert',
-      target_key: { location_group: 'hsinchu', location: '新竹科學園區' },
-      payload: { location_group: 'hsinchu', location: '新竹科學園區' },
+      target_key: { location_group: '新竹縣竹北市', location: '新竹科學園區' },
+      payload: { location_group: '新竹縣竹北市', location: '新竹科學園區' },
       evidence: expect.objectContaining({
         affectedCount: 1,
         reasoning: 'No existing group covers Hsinchu Science Park',
@@ -399,6 +400,83 @@ describe('LocationMappingGenerator.generate', () => {
     // Boundary: exactly at the threshold is "at or above", not "below".
     expect(call.evidence.confidence).toBe(LOW_CONFIDENCE_THRESHOLD);
     expect(call.evidence.needsVerification).toBe(false);
+  });
+
+  it('flags a new-group proposal with needsVerification=true and an appended note when proposedNewGroupId is not in the standard 縣市+鄉鎮市區 format', async () => {
+    vi.mocked(fetchLocationAnomalyJobs).mockResolvedValue(
+      makeAnomalyJobs([{ location: '新竹科學園區' }]) as any,
+    );
+    const locationGroupService = makeLocationGroupService([]);
+    const suggestionCreator = makeSuggestionCreator('created');
+    const llmClient = {
+      completeStructured: vi.fn().mockResolvedValue({
+        ok: true,
+        result: {
+          proposals: [
+            {
+              location: '新竹科學園區',
+              matchedGroupId: null,
+              // Not the standard "<縣市><鄉鎮市區>" format.
+              proposedNewGroupId: 'hsinchu',
+              reasoning: 'No existing group covers Hsinchu Science Park',
+            },
+          ],
+        },
+      }),
+    };
+
+    const generator = new LocationMappingGenerator(
+      llmClient as any,
+      locationGroupService as any,
+      suggestionCreator as any,
+    );
+
+    await generator.generate();
+
+    const groupCall = suggestionCreator.createSuggestion.mock.calls
+      .map(call => call[0])
+      .find(call => call.target_table === 'location_group');
+    expect(groupCall.evidence.needsVerification).toBe(true);
+    expect(groupCall.evidence.reasoning).toContain('縣市+鄉鎮市區');
+  });
+
+  it('does not flag needsVerification when proposedNewGroupId already follows the standard 縣市+鄉鎮市區 format', async () => {
+    vi.mocked(fetchLocationAnomalyJobs).mockResolvedValue(
+      makeAnomalyJobs([{ location: '新竹科學園區' }]) as any,
+    );
+    const locationGroupService = makeLocationGroupService([]);
+    const suggestionCreator = makeSuggestionCreator('created');
+    const llmClient = {
+      completeStructured: vi.fn().mockResolvedValue({
+        ok: true,
+        result: {
+          proposals: [
+            {
+              location: '新竹科學園區',
+              matchedGroupId: null,
+              proposedNewGroupId: '新竹縣竹北市',
+              reasoning: 'No existing group covers Hsinchu Science Park',
+            },
+          ],
+        },
+      }),
+    };
+
+    const generator = new LocationMappingGenerator(
+      llmClient as any,
+      locationGroupService as any,
+      suggestionCreator as any,
+    );
+
+    await generator.generate();
+
+    const groupCall = suggestionCreator.createSuggestion.mock.calls
+      .map(call => call[0])
+      .find(call => call.target_table === 'location_group');
+    expect(groupCall.evidence.needsVerification).toBe(false);
+    expect(groupCall.evidence.reasoning).toBe(
+      'No existing group covers Hsinchu Science Park',
+    );
   });
 
   it('records an error and creates no suggestion when the LLM returns neither matchedGroupId nor proposedNewGroupId', async () => {

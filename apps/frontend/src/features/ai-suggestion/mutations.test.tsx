@@ -17,6 +17,8 @@ vi.mock('./service', () => ({
 
 import {
   useApproveSuggestionMutation,
+  useBulkApproveSuggestionsMutation,
+  useBulkRejectSuggestionsMutation,
   useRejectSuggestionMutation,
   useUpdateLlmSettingsMutation,
 } from './mutations';
@@ -117,6 +119,67 @@ describe('useApproveSuggestionMutation / useRejectSuggestionMutation', () => {
       await result.current.mutateAsync({ id: 's1' });
     });
 
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ['ai-suggestion', 'list'],
+    });
+  });
+
+  it('bulk-approves every given id concurrently and reports how many succeeded', async () => {
+    approveSuggestion.mockResolvedValue({ id: 'x', status: 'approved' });
+    const invalidateSpy = vi.spyOn(client, 'invalidateQueries');
+
+    const { result } = renderHook(() => useBulkApproveSuggestionsMutation(), {
+      wrapper,
+    });
+
+    let bulkResult: { succeeded: number; failed: number } | undefined;
+    await act(async () => {
+      bulkResult = await result.current.mutateAsync(['s1', 's2', 's3']);
+    });
+
+    expect(approveSuggestion).toHaveBeenCalledWith('s1');
+    expect(approveSuggestion).toHaveBeenCalledWith('s2');
+    expect(approveSuggestion).toHaveBeenCalledWith('s3');
+    expect(bulkResult).toEqual({ succeeded: 3, failed: 0 });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ['ai-suggestion', 'list'],
+    });
+  });
+
+  it('bulk-approve does not let one id\'s failure discard the others\' success', async () => {
+    approveSuggestion.mockImplementation(async (id: string) => {
+      if (id === 's2') throw new Error('409 conflict');
+      return { id, status: 'approved' };
+    });
+
+    const { result } = renderHook(() => useBulkApproveSuggestionsMutation(), {
+      wrapper,
+    });
+
+    let bulkResult: { succeeded: number; failed: number } | undefined;
+    await act(async () => {
+      bulkResult = await result.current.mutateAsync(['s1', 's2', 's3']);
+    });
+
+    expect(bulkResult).toEqual({ succeeded: 2, failed: 1 });
+  });
+
+  it('bulk-rejects every given id concurrently', async () => {
+    rejectSuggestion.mockResolvedValue({ id: 'x', status: 'rejected' });
+    const invalidateSpy = vi.spyOn(client, 'invalidateQueries');
+
+    const { result } = renderHook(() => useBulkRejectSuggestionsMutation(), {
+      wrapper,
+    });
+
+    let bulkResult: { succeeded: number; failed: number } | undefined;
+    await act(async () => {
+      bulkResult = await result.current.mutateAsync(['s1', 's2']);
+    });
+
+    expect(rejectSuggestion).toHaveBeenCalledWith('s1');
+    expect(rejectSuggestion).toHaveBeenCalledWith('s2');
+    expect(bulkResult).toEqual({ succeeded: 2, failed: 0 });
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: ['ai-suggestion', 'list'],
     });

@@ -17,6 +17,10 @@ interface SuggestionCardProps {
   onReject: (id: string, note?: string) => void;
   approving: boolean;
   rejecting: boolean;
+  // Multi-select checkbox (bulk approve/reject): only rendered while pending,
+  // since a reviewed suggestion has no bulk action to apply to it.
+  selected: boolean;
+  onToggleSelect: (id: string) => void;
 }
 
 // A single pending/reviewed suggestion (requirement 7.1, 7.2, 7.3, 7.4):
@@ -33,6 +37,8 @@ export function SuggestionCard({
   onReject,
   approving,
   rejecting,
+  selected,
+  onToggleSelect,
 }: SuggestionCardProps) {
   const isPending = suggestion.status === 'pending';
 
@@ -42,24 +48,36 @@ export function SuggestionCard({
       data-testid={`suggestion-${suggestion.id}`}
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <div className="text-on-surface-variant flex flex-wrap items-center gap-2 text-xs font-semibold">
-            <span className="bg-surface-container rounded-full px-2 py-0.5">
-              {WORKFLOW_LABELS[suggestion.workflow]}
-            </span>
-            <span>→</span>
-            <span className="text-on-surface">
-              {TARGET_TABLE_LABELS[suggestion.target_table]}
-            </span>
-            <span className="bg-surface-container rounded-full px-2 py-0.5">
-              {ACTION_LABELS[suggestion.action]}
-            </span>
+        <div className="flex items-start gap-2">
+          {isPending && (
+            <input
+              type="checkbox"
+              checked={selected}
+              data-testid={`select-${suggestion.id}`}
+              className="mt-1 cursor-pointer"
+              aria-label="選取此建議"
+              onChange={() => onToggleSelect(suggestion.id)}
+            />
+          )}
+          <div>
+            <div className="text-on-surface-variant flex flex-wrap items-center gap-2 text-xs font-semibold">
+              <span className="bg-surface-container rounded-full px-2 py-0.5">
+                {WORKFLOW_LABELS[suggestion.workflow]}
+              </span>
+              <span>→</span>
+              <span className="text-on-surface">
+                {TARGET_TABLE_LABELS[suggestion.target_table]}
+              </span>
+              <span className="bg-surface-container rounded-full px-2 py-0.5">
+                {ACTION_LABELS[suggestion.action]}
+              </span>
+            </div>
+            <p className="text-on-surface-variant mt-2 font-mono text-xs break-all">
+              {Object.entries(suggestion.target_key ?? {})
+                .map(([k, v]) => `${k}=${v}`)
+                .join(', ') || '（新建立項目）'}
+            </p>
           </div>
-          <p className="text-on-surface-variant mt-2 font-mono text-xs break-all">
-            {Object.entries(suggestion.target_key ?? {})
-              .map(([k, v]) => `${k}=${v}`)
-              .join(', ') || '（新建立項目）'}
-          </p>
         </div>
         <button
           type="button"

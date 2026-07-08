@@ -422,4 +422,53 @@ describe('AiSuggestionReviewPage', () => {
       );
     });
   });
+
+  it('selecting suggestions via checkbox and clicking 核准選取 bulk-approves exactly the selected ids', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<AiSuggestionReviewPage />);
+    await screen.findByTestId('suggestion-s1');
+    expect(screen.getByTestId('suggestion-s2')).toBeInTheDocument();
+
+    // Only pending suggestions get a selection checkbox.
+    expect(screen.getByTestId('select-s1')).toBeInTheDocument();
+    expect(screen.getByTestId('select-s2')).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('select-s1'));
+    const bulkApproveButton = screen.getByTestId('bulk-approve');
+    expect(bulkApproveButton).not.toBeDisabled();
+
+    await user.click(bulkApproveButton);
+
+    expect(approveSuggestion).toHaveBeenCalledWith('s1');
+    expect(approveSuggestion).not.toHaveBeenCalledWith('s2');
+    await waitFor(() => {
+      expect(screen.queryByTestId('suggestion-s1')).not.toBeInTheDocument();
+    });
+    expect(screen.getByTestId('suggestion-s2')).toBeInTheDocument();
+  });
+
+  it('全選 selects every pending suggestion, and 刪除選取 bulk-rejects them all', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<AiSuggestionReviewPage />);
+    await screen.findByTestId('suggestion-s1');
+    await screen.findByTestId('suggestion-s2');
+
+    await user.click(screen.getByTestId('select-all-suggestions'));
+    await user.click(screen.getByTestId('bulk-reject'));
+
+    expect(rejectSuggestion).toHaveBeenCalledWith('s1', undefined);
+    expect(rejectSuggestion).toHaveBeenCalledWith('s2', undefined);
+    await waitFor(() => {
+      expect(screen.queryByTestId('suggestion-s1')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('suggestion-s2')).not.toBeInTheDocument();
+    });
+  });
+
+  it('the bulk action buttons stay disabled until at least one suggestion is selected', async () => {
+    renderWithProviders(<AiSuggestionReviewPage />);
+    await screen.findByTestId('suggestion-s1');
+
+    expect(screen.getByTestId('bulk-approve')).toBeDisabled();
+    expect(screen.getByTestId('bulk-reject')).toBeDisabled();
+  });
 });
