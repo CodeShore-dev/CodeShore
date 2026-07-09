@@ -1,4 +1,4 @@
-import { act, screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -6,6 +6,7 @@ import { renderWithProviders } from '../../../test/renderWithProviders';
 import { useAuthStore } from '../../auth/authStore';
 import { useJobFilterStore } from '../jobFilterStore';
 import { useKeywordFilterStore } from '../../keyword/keywordFilterStore';
+import { setJobPreference } from '../service';
 
 const { clearJobPreferencesMock } = vi.hoisted(() => ({
   clearJobPreferencesMock: vi.fn().mockResolvedValue({}),
@@ -273,6 +274,108 @@ describe('JobPreferencePage guest preference gate (req 2, 3)', () => {
 
     expect(screen.queryByText('需要登入')).not.toBeInTheDocument();
     expect(useJobFilterStore.getState().listViewPreference).toBe('like');
+
+    act(() => {
+      useAuthStore.setState({ user: null, isLoading: true });
+    });
+  });
+
+  // A row's like/dislike buttons have no accessible name (icon-only), so we
+  // locate them by walking up from the job title text to the <li> row and
+  // pulling its buttons in DOM order: [like, dislike] (see JobListItem.tsx).
+  async function getRowPreferenceButtons(jobTitle: string) {
+    const titleEl = await screen.findByText(jobTitle);
+    const row = titleEl.closest('li') as HTMLElement;
+    const [likeButton, dislikeButton] = within(row).getAllByRole('button');
+    return { likeButton, dislikeButton };
+  }
+
+  it('shows the login prompt and does not call the preference service when a guest clicks the like button on a job row (req 2.1, 2.2)', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<JobPreferencePage />, { route: '/jobs' });
+
+    await screen.findByText('7');
+    const { likeButton } = await getRowPreferenceButtons('React 資深工程師');
+
+    await user.click(likeButton);
+
+    expect(await screen.findByText('需要登入')).toBeInTheDocument();
+    expect(setJobPreference).not.toHaveBeenCalled();
+  });
+
+  it('shows the login prompt and does not call the preference service when a guest clicks the dislike button on a job row (req 2.1, 2.2)', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<JobPreferencePage />, { route: '/jobs' });
+
+    await screen.findByText('7');
+    const { dislikeButton } = await getRowPreferenceButtons('React 資深工程師');
+
+    await user.click(dislikeButton);
+
+    expect(await screen.findByText('需要登入')).toBeInTheDocument();
+    expect(setJobPreference).not.toHaveBeenCalled();
+  });
+
+  it('does not call the preference service after confirming the login prompt triggered by a like button click (req 4.2)', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<JobPreferencePage />, { route: '/jobs' });
+
+    await screen.findByText('7');
+    const { likeButton } = await getRowPreferenceButtons('React 資深工程師');
+
+    await user.click(likeButton);
+    await screen.findByText('需要登入');
+
+    // Confirming only navigates towards /login; it must not replay the
+    // like action that originally triggered the prompt (req 4.2).
+    await user.click(screen.getByRole('button', { name: '前往登入' }));
+
+    await waitFor(() => {
+      expect(screen.queryByText('需要登入')).not.toBeInTheDocument();
+    });
+    expect(setJobPreference).not.toHaveBeenCalled();
+  });
+
+  it('cancelling the prompt from a dislike button click calls no service and leaves the job list unaffected (req 2.3)', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<JobPreferencePage />, { route: '/jobs' });
+
+    await screen.findByText('7');
+    const { dislikeButton } = await getRowPreferenceButtons('React 資深工程師');
+
+    await user.click(dislikeButton);
+    await screen.findByText('需要登入');
+
+    await user.click(screen.getByRole('button', { name: '取消' }));
+
+    await waitFor(() => {
+      expect(screen.queryByText('需要登入')).not.toBeInTheDocument();
+    });
+    expect(setJobPreference).not.toHaveBeenCalled();
+    // The job list and preference counts are untouched by the cancelled
+    // action.
+    expect(screen.getByText('React 資深工程師')).toBeInTheDocument();
+    expect(screen.getByText('7')).toBeInTheDocument();
+    expect(screen.getByText('5')).toBeInTheDocument();
+  });
+
+  it('calls the preference service directly (no prompt) when an authenticated user clicks the like button on a job row (req 2.4)', async () => {
+    useAuthStore.setState({
+      user: { id: 'u1', email: 'user@example.com' } as never,
+      isLoading: false,
+    });
+    const user = userEvent.setup();
+    renderWithProviders(<JobPreferencePage />, { route: '/jobs' });
+
+    await screen.findByText('7');
+    const { likeButton } = await getRowPreferenceButtons('React 資深工程師');
+
+    await user.click(likeButton);
+
+    expect(screen.queryByText('需要登入')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(setJobPreference).toHaveBeenCalledWith('job-1', 'like');
+    });
 
     act(() => {
       useAuthStore.setState({ user: null, isLoading: true });
