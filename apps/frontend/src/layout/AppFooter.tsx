@@ -86,7 +86,7 @@ export function AppFooter() {
       </div>
 
       <div className="mx-auto mt-8 flex max-w-7xl items-center justify-between border-t border-dashed border-[#c3c6d5] px-6 pt-4 text-[11px] tracking-wider text-[#434653]">
-        <div>© 2026 CodeShore.dev · 「碼」不是錯字。</div>
+        <div>© 2026 碼的 上岸了 · 「碼」不是錯字。</div>
         <div>{env.appVersion} · Built in Taipei</div>
       </div>
     </footer>

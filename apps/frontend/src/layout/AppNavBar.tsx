@@ -18,7 +18,7 @@ export function AppNavBar() {
           to="/"
           className="text-xl font-black tracking-[-0.04em] text-[#003d92]"
         >
-          Code<span className="text-[#fd7700]">Shore</span>
+          碼的 <span className="text-[#fd7700]">上岸了</span>
         </Link>
 
         <div className="hidden items-center gap-1 md:flex">
