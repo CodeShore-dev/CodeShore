@@ -29,6 +29,7 @@ import {
 } from './authStore';
 
 const adminUser = { email: 'admin@codeshore.dev' } as User;
+const normalUser = { email: 'user@x.com' } as User;
 
 // Requirement 2.4: admin-only edit permission derivation.
 describe('computeCanEdit', () => {
@@ -106,5 +107,39 @@ describe('useIsAdmin / useCanEdit with viewAsRegularUser toggle', () => {
     await useAuthStore.getState().logout();
 
     expect(useAuthStore.getState().viewAsRegularUser).toBe(false);
+  });
+});
+
+// Requirement 5.1, 5.2, 5.4: non-admin half of the (admin/non-admin) x
+// (viewAsRegularUser on/off) matrix -- the toggle must have no effect when
+// the user was never an admin in the first place.
+describe('useIsAdmin / useCanEdit for a non-admin user', () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    useAuthStore.setState({
+      user: normalUser,
+      isLoading: false,
+      viewAsRegularUser: false,
+    });
+  });
+
+  it('useIsAdmin and useCanEdit are both false for a non-admin with the toggle off', () => {
+    const { result: isAdmin } = renderHook(() => useIsAdmin());
+    const { result: canEdit } = renderHook(() => useCanEdit());
+
+    expect(isAdmin.current).toBe(false);
+    expect(canEdit.current).toBe(false);
+  });
+
+  it('useIsAdmin and useCanEdit remain false for a non-admin with the toggle on', () => {
+    const { result: isAdmin } = renderHook(() => useIsAdmin());
+    const { result: canEdit } = renderHook(() => useCanEdit());
+
+    act(() => {
+      useAuthStore.getState().setViewAsRegularUser(true);
+    });
+
+    expect(isAdmin.current).toBe(false);
+    expect(canEdit.current).toBe(false);
   });
 });
