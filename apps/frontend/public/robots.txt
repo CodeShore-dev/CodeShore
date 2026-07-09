@@ -1,0 +1,7 @@
+User-agent: *
+Disallow: /admin
+Disallow: /auth
+Disallow: /keywords
+Allow: /
+
+Sitemap: https://codeshore.dev/sitemap.xml
