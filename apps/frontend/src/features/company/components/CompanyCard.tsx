@@ -26,12 +26,16 @@ export function CompanyCard({
   onClick,
   onOpenDetail,
 }: CompanyCardProps) {
-  const categoryMap = useMemo(() => {
+  const { categoryMap, labelMap, countMap } = useMemo(() => {
     const categoryMap = new Map<string, string>();
+    const labelMap = new Map<string, string>();
+    const countMap = new Map<string, number>();
     for (const m of techs) {
       categoryMap.set(m.tech, m.category ?? '');
+      labelMap.set(m.tech, m.label);
+      countMap.set(m.tech, m.count);
     }
-    return categoryMap;
+    return { categoryMap, labelMap, countMap };
   }, [techs]);
 
   const groupedTechs = useMemo(() => {
@@ -47,11 +51,17 @@ export function CompanyCard({
         ([a], [b]) =>
           (CATEGORY_PRIORITY[a] ?? 6) - (CATEGORY_PRIORITY[b] ?? 6),
       )
-      .map(([cat, kgs]) => ({
-        label: categoryLabelMap[cat] ?? '其他',
-        count: kgs.length,
-      }));
-  }, [company.techs, categoryMap, categoryLabelMap]);
+      .map(([cat, kgs]) => {
+        const sorted = [...kgs].sort(
+          (a, b) => (countMap.get(b) ?? 0) - (countMap.get(a) ?? 0),
+        );
+        return {
+          label: categoryLabelMap[cat] ?? '其他',
+          items: sorted.slice(0, 5),
+          remaining: Math.max(0, sorted.length - 5),
+        };
+      });
+  }, [company.techs, categoryMap, countMap, categoryLabelMap]);
 
   let host = '';
   try {
@@ -109,14 +119,27 @@ export function CompanyCard({
       </div>
 
       {company.techs.length > 0 && (
-        <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+        <div className="space-y-2">
           {groupedTechs.map(group => (
-            <div
-              key={group.label}
-              className="text-[10px] font-bold tracking-[0.15em] text-[#434653]"
-            >
-              {group.label}
-              <span className="ml-1 text-[#003d92]">· {group.count}</span>
+            <div key={group.label}>
+              <div className="mb-1.5 text-[10px] font-bold tracking-[0.15em] text-[#434653]">
+                {group.label}
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {group.items.map(kg => (
+                  <span
+                    key={kg}
+                    className="rounded bg-[#c9e7f7] px-2 py-0.5 text-xs font-bold text-[#434653]"
+                  >
+                    {labelMap.get(kg) ?? kg}
+                  </span>
+                ))}
+                {group.remaining > 0 && (
+                  <span className="px-1 py-0.5 text-xs font-bold text-[#434653]/60">
+                    +{group.remaining}
+                  </span>
+                )}
+              </div>
             </div>
           ))}
         </div>

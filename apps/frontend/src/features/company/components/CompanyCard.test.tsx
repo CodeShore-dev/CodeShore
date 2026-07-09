@@ -50,12 +50,12 @@ function makeCompany(
 }
 
 describe('CompanyCard', () => {
-  it('shows a count badge for each category the company has technologies in (Req 3.1, 3.2, 3.3)', () => {
+  it('shows a category label with its technology chips, most popular first', () => {
     const techs = [
-      makeTech('typescript', 'language'),
-      makeTech('python', 'language'),
-      makeTech('react', 'framework'),
-      makeTech('postgres', 'database'),
+      makeTech('typescript', 'language', 'TypeScript', 5),
+      makeTech('python', 'language', 'Python', 10),
+      makeTech('react', 'framework', 'React'),
+      makeTech('postgres', 'database', 'PostgreSQL'),
     ];
     const company = makeCompany(['typescript', 'python', 'react', 'postgres']);
 
@@ -69,18 +69,31 @@ describe('CompanyCard', () => {
     );
 
     expect(screen.getByText(/語言/)).toBeInTheDocument();
-    expect(screen.getByText(/2/)).toBeInTheDocument();
     expect(screen.getByText(/框架/)).toBeInTheDocument();
     expect(screen.getByText(/資料庫/)).toBeInTheDocument();
+    expect(screen.getByText('TypeScript')).toBeInTheDocument();
+    expect(screen.getByText('Python')).toBeInTheDocument();
+    expect(screen.getByText('React')).toBeInTheDocument();
+    expect(screen.getByText('PostgreSQL')).toBeInTheDocument();
   });
 
-  it('does not render an individual technology name chip (Req 3.5)', () => {
+  it('shows only the top 5 technologies per category and a +N overflow for the rest', () => {
     const techs = [
-      makeTech('typescript', 'language', 'TypeScript'),
-      makeTech('react', 'framework', 'React'),
-      makeTech('postgres', 'database', 'PostgreSQL'),
+      makeTech('lang1', 'language', 'Lang1', 6),
+      makeTech('lang2', 'language', 'Lang2', 5),
+      makeTech('lang3', 'language', 'Lang3', 4),
+      makeTech('lang4', 'language', 'Lang4', 3),
+      makeTech('lang5', 'language', 'Lang5', 2),
+      makeTech('lang6', 'language', 'Lang6', 1),
     ];
-    const company = makeCompany(['typescript', 'react', 'postgres']);
+    const company = makeCompany([
+      'lang1',
+      'lang2',
+      'lang3',
+      'lang4',
+      'lang5',
+      'lang6',
+    ]);
 
     render(
       <CompanyCard
@@ -91,12 +104,13 @@ describe('CompanyCard', () => {
       />,
     );
 
-    expect(screen.queryByText('TypeScript')).not.toBeInTheDocument();
-    expect(screen.queryByText('React')).not.toBeInTheDocument();
-    expect(screen.queryByText('PostgreSQL')).not.toBeInTheDocument();
+    expect(screen.getByText('Lang1')).toBeInTheDocument();
+    expect(screen.getByText('Lang5')).toBeInTheDocument();
+    expect(screen.queryByText('Lang6')).not.toBeInTheDocument();
+    expect(screen.getByText('+1')).toBeInTheDocument();
   });
 
-  it('does not show a badge for a category the company has no technologies in (Req 3.4)', () => {
+  it('does not show a category label for a category the company has no technologies in (Req 3.4)', () => {
     const techs = [
       makeTech('typescript', 'language'),
       makeTech('react', 'framework'),
