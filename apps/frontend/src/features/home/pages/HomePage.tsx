@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 
+import { PageSeo } from '../../../components/PageSeo';
+import { env } from '../../../config/env';
 import { HomeHandoff } from '../components/HomeHandoff';
 import { HomeHero } from '../components/HomeHero';
 import { HomeHighSalaryTech } from '../components/HomeHighSalaryTech';
@@ -33,6 +35,33 @@ export function HomePage() {
 
   return (
     <div className="w-full">
+      <PageSeo
+        title="台灣工程師求職市場分析"
+        description="碼的 上岸了：爬完台灣各大人力銀行的工程師職缺，算薪水、算技術熱度、算共現組合。看完數據，請去原平台投履歷。"
+        jsonLd={[
+          {
+            '@context': 'https://schema.org',
+            '@type': 'Organization',
+            name: '碼的 上岸了',
+            url: env.siteUrl,
+            logo: `${env.siteUrl}/logo-512.png`,
+          },
+          {
+            '@context': 'https://schema.org',
+            '@type': 'WebSite',
+            name: '碼的 上岸了',
+            url: env.siteUrl,
+            potentialAction: {
+              '@type': 'SearchAction',
+              target: {
+                '@type': 'EntryPoint',
+                urlTemplate: `${env.siteUrl}/jobs?tech={search_term_string}`,
+              },
+              'query-input': 'required name=search_term_string',
+            },
+          },
+        ]}
+      />
       <HomeHero />
       <HomeStatRow />
       <HomeSalaryBenchmark />

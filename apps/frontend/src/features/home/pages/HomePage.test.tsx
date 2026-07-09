@@ -56,6 +56,46 @@ describe('HomePage', () => {
     // Flush async query updates so they are wrapped in act().
     expect(await screen.findByText('5,000')).toBeInTheDocument();
   });
+
+  it('sets the document title with the site suffix (req 2.1)', () => {
+    renderWithProviders(<HomePage />);
+    expect(document.title).toBe('台灣工程師求職市場分析 | 碼的 上岸了');
+  });
+
+  it('renders Organization and WebSite+SearchAction JSON-LD (req 5.1, 5.2)', () => {
+    const { container } = renderWithProviders(<HomePage />);
+    const script = container.querySelector('script[type="application/ld+json"]');
+    expect(script).not.toBeNull();
+
+    const parsed = JSON.parse(script?.innerHTML ?? '');
+    expect(Array.isArray(parsed)).toBe(true);
+    expect(parsed).toHaveLength(2);
+
+    const organization = parsed.find((entry: { '@type': string }) => entry['@type'] === 'Organization');
+    expect(organization).toMatchObject({
+      '@context': 'https://schema.org',
+      '@type': 'Organization',
+      name: '碼的 上岸了',
+      url: 'https://codeshore.dev',
+      logo: 'https://codeshore.dev/logo-512.png',
+    });
+
+    const website = parsed.find((entry: { '@type': string }) => entry['@type'] === 'WebSite');
+    expect(website).toMatchObject({
+      '@context': 'https://schema.org',
+      '@type': 'WebSite',
+      name: '碼的 上岸了',
+      url: 'https://codeshore.dev',
+      potentialAction: {
+        '@type': 'SearchAction',
+        target: {
+          '@type': 'EntryPoint',
+          urlTemplate: 'https://codeshore.dev/jobs?tech={search_term_string}',
+        },
+        'query-input': 'required name=search_term_string',
+      },
+    });
+  });
 });
 
 describe('HomeSalaryBenchmark', () => {
