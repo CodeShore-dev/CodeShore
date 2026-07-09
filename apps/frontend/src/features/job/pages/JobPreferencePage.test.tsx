@@ -1,8 +1,9 @@
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { renderWithProviders } from '../../../test/renderWithProviders';
+import { useAuthStore } from '../../auth/authStore';
 import { useJobFilterStore } from '../jobFilterStore';
 import { useKeywordFilterStore } from '../../keyword/keywordFilterStore';
 
@@ -227,5 +228,54 @@ describe('JobPreferencePage clear-preferences confirmation (req 7)', () => {
     // The "總數" (total) tab has no onClear wired up, so it never shows a clear button
     // regardless of count -- only 喜歡/不喜歡 tabs (with onClear) are gated on count !== '0'.
     expect(screen.queryByTitle('清空總數')).not.toBeInTheDocument();
+  });
+});
+
+describe('JobPreferencePage guest preference gate (req 2, 3)', () => {
+  it('shows the login prompt and does not switch to the liked list when a guest clicks the 喜歡 tab (req 3.1, 3.3)', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<JobPreferencePage />, { route: '/jobs' });
+
+    await screen.findByText('7');
+    expect(useJobFilterStore.getState().listViewPreference).toBeNull();
+
+    await user.click(screen.getByText('喜歡'));
+
+    expect(await screen.findByText('需要登入')).toBeInTheDocument();
+    // The tab switch must not have gone through: the store still shows no
+    // preference selected, and the like-list count/count text is unaffected.
+    expect(useJobFilterStore.getState().listViewPreference).toBeNull();
+  });
+
+  it('shows the login prompt and does not switch to the disliked list when a guest clicks the 不喜歡 tab (req 3.1, 3.3)', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<JobPreferencePage />, { route: '/jobs' });
+
+    await screen.findByText('7');
+
+    await user.click(screen.getByText('不喜歡'));
+
+    expect(await screen.findByText('需要登入')).toBeInTheDocument();
+    expect(useJobFilterStore.getState().listViewPreference).toBeNull();
+  });
+
+  it('does not show the login prompt when an authenticated user clicks the 喜歡 tab (req 2.4)', async () => {
+    useAuthStore.setState({
+      user: { id: 'u1', email: 'user@example.com' } as never,
+      isLoading: false,
+    });
+    const user = userEvent.setup();
+    renderWithProviders(<JobPreferencePage />, { route: '/jobs' });
+
+    await screen.findByText('7');
+
+    await user.click(screen.getByText('喜歡'));
+
+    expect(screen.queryByText('需要登入')).not.toBeInTheDocument();
+    expect(useJobFilterStore.getState().listViewPreference).toBe('like');
+
+    act(() => {
+      useAuthStore.setState({ user: null, isLoading: true });
+    });
   });
 });

@@ -21,6 +21,11 @@ interface JobListProps {
   onSelectJob: (jobId: string | null) => void;
   onPageChange: (page: number) => void;
   onClearAllFilters: () => void;
+  // Guest preference gate (requirement 2): wraps every like/dislike mutation
+  // call site so an unauthenticated visitor sees the login prompt instead of
+  // the mutation silently running. A no-op passthrough for authenticated
+  // users -- see useGuestPreferenceGate.requestPreference.
+  onGuardPreference: (action: () => void) => void;
 }
 
 // Job list + pagination + detail drawer orchestration (task 7.5),
@@ -39,6 +44,7 @@ export function JobList({
   onSelectJob,
   onPageChange,
   onClearAllFilters,
+  onGuardPreference,
 }: JobListProps) {
   const preferenceMutation = usePreferenceMutation();
   const totalPages = Math.ceil(count / JOB_PAGE_SIZE);
@@ -88,12 +94,16 @@ export function JobList({
     const currentIndex = selectedJobIndex;
     const nextJob =
       jobs[currentIndex + 1] ?? jobs[currentIndex - 1] ?? null;
-    onSelectJob(nextJob?.id ?? null);
-    preferenceMutation.mutate({ id: currentId, preference });
+    onGuardPreference(() => {
+      onSelectJob(nextJob?.id ?? null);
+      preferenceMutation.mutate({ id: currentId, preference });
+    });
   };
 
   const onPreference = (id: string, preference: 'like' | 'dislike') => {
-    preferenceMutation.mutate({ id, preference });
+    onGuardPreference(() => {
+      preferenceMutation.mutate({ id, preference });
+    });
   };
 
   // Keep the selected row visible as the drawer steps through jobs.

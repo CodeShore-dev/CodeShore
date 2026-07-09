@@ -9,6 +9,7 @@ import { JobActiveFilters } from '../components/JobActiveFilters';
 import { JobFilterSidebar } from '../components/JobFilterSidebar';
 import { JobList } from '../components/JobList';
 import { deriveJobWhere } from '../deriveJobWhere';
+import { useGuestPreferenceGate } from '../hooks/useGuestPreferenceGate';
 import { useJobUrlSync } from '../hooks/useJobUrlSync';
 import { useStableNonNegative } from '../hooks/useStableNonNegative';
 import { useJobFilterStore } from '../jobFilterStore';
@@ -26,6 +27,9 @@ const SORT_OPTIONS = [
 // sync, and crawl stream that the earlier sub-tasks built.
 export function JobPreferencePage() {
   useJobUrlSync();
+
+  const { promptOpen, requestPreference, confirmLogin, cancelPrompt } =
+    useGuestPreferenceGate();
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [pendingClear, setPendingClear] = useState<'like' | 'dislike' | null>(
@@ -112,14 +116,15 @@ export function JobPreferencePage() {
       label: '喜歡',
       pref: 'like' as const,
       count: countText.liked,
-      onClick: () => setListViewPreference('like'),
+      onClick: () => requestPreference(() => setListViewPreference('like')),
       onClear: () => setPendingClear('like'),
     },
     {
       label: '不喜歡',
       pref: 'dislike' as const,
       count: countText.disliked,
-      onClick: () => setListViewPreference('dislike'),
+      onClick: () =>
+        requestPreference(() => setListViewPreference('dislike')),
       onClear: () => setPendingClear('dislike'),
     },
   ];
@@ -328,6 +333,7 @@ export function JobPreferencePage() {
           onSelectJob={setSelectedJobId}
           onPageChange={setPage}
           onClearAllFilters={clearAllFilters}
+          onGuardPreference={requestPreference}
         />
       </div>
 
@@ -342,6 +348,16 @@ export function JobPreferencePage() {
           setPendingClear(null);
         }}
         onCancel={() => setPendingClear(null)}
+      />
+
+      <ConfirmDialog
+        open={promptOpen}
+        title="需要登入"
+        description="登入後即可繼續使用喜歡/不喜歡功能。"
+        confirmLabel="前往登入"
+        cancelLabel="取消"
+        onConfirm={confirmLogin}
+        onCancel={cancelPrompt}
       />
     </div>
   );
