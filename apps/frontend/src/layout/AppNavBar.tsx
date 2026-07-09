@@ -1,6 +1,7 @@
 import { Link } from 'react-router';
 
 import { useAuthStore, useIsAuthenticated } from '../features/auth/authStore';
+import { AdminViewToggle } from '../features/auth/components/AdminViewToggle';
 import { useNavLinks } from './hooks/useNavLinks';
 
 export function AppNavBar() {
@@ -43,6 +44,7 @@ export function AppNavBar() {
         </div>
 
         <div className="flex items-center gap-3">
+          <AdminViewToggle />
           {isAuthenticated && user ? (
             <>
               <span className="hidden text-sm text-[#434653] md:inline">
