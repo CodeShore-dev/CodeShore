@@ -128,4 +128,43 @@ describe('PageSeo', () => {
     const robots = document.querySelector('meta[name="robots"]');
     expect(robots).toBeNull();
   });
+
+  // JSON-LD tests (req 5.1, 5.2, 5.3)
+  it('renders <script type="application/ld+json"> when jsonLd object is provided (req 5.1)', () => {
+    const jsonLd = { '@context': 'https://schema.org', '@type': 'Organization', name: 'CodeShore' };
+    const { container } = renderSeo({ title: '首頁', description: 'desc', jsonLd });
+    const script = container.querySelector('script[type="application/ld+json"]');
+    expect(script).not.toBeNull();
+  });
+
+  it('JSON-LD content is parseable and preserves @context and @type (req 5.1, 5.3)', () => {
+    const jsonLd = { '@context': 'https://schema.org', '@type': 'Organization', name: 'CodeShore' };
+    const { container } = renderSeo({ title: '首頁', description: 'desc', jsonLd });
+    const script = container.querySelector('script[type="application/ld+json"]');
+    const parsed = JSON.parse(script?.innerHTML ?? '');
+    expect(parsed['@context']).toBe('https://schema.org');
+    expect(parsed['@type']).toBe('Organization');
+    expect(parsed.name).toBe('CodeShore');
+  });
+
+  it('renders single <script type="application/ld+json"> when jsonLd is an array (req 5.2)', () => {
+    const jsonLd = [
+      { '@context': 'https://schema.org', '@type': 'Organization', name: 'CodeShore' },
+      { '@context': 'https://schema.org', '@type': 'WebSite', url: 'https://codeshore.dev' },
+    ];
+    const { container } = renderSeo({ title: '首頁', description: 'desc', jsonLd });
+    const scripts = container.querySelectorAll('script[type="application/ld+json"]');
+    expect(scripts).toHaveLength(1);
+    const parsed = JSON.parse(scripts[0]?.innerHTML ?? '');
+    expect(Array.isArray(parsed)).toBe(true);
+    expect(parsed).toHaveLength(2);
+    expect(parsed[0]['@type']).toBe('Organization');
+    expect(parsed[1]['@type']).toBe('WebSite');
+  });
+
+  it('does not render <script type="application/ld+json"> when jsonLd is not provided (req 5.1)', () => {
+    const { container } = renderSeo({ title: '首頁', description: 'desc' });
+    const script = container.querySelector('script[type="application/ld+json"]');
+    expect(script).toBeNull();
+  });
 });

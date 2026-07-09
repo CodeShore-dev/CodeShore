@@ -44,6 +44,7 @@ export function PageSeo({
   canonical,
   ogImage,
   noIndex,
+  jsonLd,
 }: PageSeoProps) {
   const location = useLocation();
 
@@ -75,6 +76,14 @@ export function PageSeo({
       {/* Robots — only emitted when noIndex is explicitly true */}
       {noIndex === true && (
         <meta name="robots" content="noindex,nofollow" />
+      )}
+
+      {/* JSON-LD structured data — jsonLd is a code constant, not user input; no XSS risk */}
+      {jsonLd !== undefined && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
       )}
     </>
   );
