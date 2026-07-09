@@ -25,7 +25,7 @@ export function HomeHandoff() {
             className="max-w-120 text-[15px] leading-relaxed text-white/85"
             style={{ margin: 0 }}
           >
-            CodeShore 的定位很單純：幫你看懂市場。職缺資料來自 104、Cake，分析完了，
+            碼的 上岸了 的定位很單純：幫你看懂市場。職缺資料來自 104、Cake，分析完了，
             <strong className="text-white">投履歷還是要回那裡。</strong>
           </p>
         </div>
