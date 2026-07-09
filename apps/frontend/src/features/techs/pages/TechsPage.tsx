@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router';
 
 import { Pagination } from '../../../components/Pagination';
+import { PageSeo } from '../../../components/PageSeo';
+import { env } from '../../../config/env';
 import { CATEGORY_LABEL_MAP } from '../../../utils/constants';
 import { useHomeData } from '../../home/hooks/useHomeData';
 import { InfoHint } from '../../methodology/components/InfoHint';
@@ -132,6 +134,18 @@ export function TechsPage() {
 
   return (
     <div className="w-full">
+      <PageSeo
+        title="技術熱度統計"
+        description="台灣工程師市場技術熱度排行：語言、框架、資料庫的職缺數量與薪資中位數，掌握市場需求。"
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            { '@type': 'ListItem', position: 1, name: '首頁', item: `${env.siteUrl}/` },
+            { '@type': 'ListItem', position: 2, name: '技術熱度', item: `${env.siteUrl}/techs` },
+          ],
+        }}
+      />
       <div className="mb-8">
         <div className="mb-2 text-[11px] font-bold tracking-[0.18em] text-[#003d92]">
           ● 技術排行 · TECH RANKING
