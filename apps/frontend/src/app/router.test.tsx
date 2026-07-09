@@ -1,4 +1,4 @@
-import { matchRoutes } from 'react-router';
+import { matchRoutes, Navigate } from 'react-router';
 import { describe, expect, it } from 'vitest';
 
 import { AdminRoute } from './AdminRoute';
@@ -35,6 +35,21 @@ describe('routeConfig (guest access, req 1.1-1.4)', () => {
   it('does not nest /companies under ProtectedRoute', () => {
     const chain = guardChainFor('/companies');
     expect(chain).not.toContain(ProtectedRoute);
+  });
+});
+
+describe('routeConfig (catch-all, req 4.3)', () => {
+  it('renders NotFoundPage for unknown paths (not Navigate redirect)', () => {
+    const matches = matchRoutes(routeConfig, '/some-unknown-path-xyz') ?? [];
+    const catchAllRoute = matches.find(m => m.route.path === '*');
+    expect(catchAllRoute).toBeDefined();
+    const element = catchAllRoute!.route.element;
+    // Should NOT be a Navigate element
+    expect(
+      typeof element === 'object' && element !== null && 'type' in element
+        ? (element as { type: unknown }).type
+        : undefined,
+    ).not.toBe(Navigate);
   });
 });
 
