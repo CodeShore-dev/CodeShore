@@ -4,6 +4,7 @@ import { createBrowserRouter, Navigate, type RouteObject } from 'react-router';
 import { AdminRoute } from './AdminRoute';
 import { ProtectedRoute } from './ProtectedRoute';
 import { RootLayout } from './RootLayout';
+import { RouteErrorBoundary } from './RouteErrorBoundary';
 
 // Lazy-loaded page components for code splitting (task 4.2, requirement 4.3,
 // 6.4). Each page is loaded on first navigation, keeping the initial bundle
@@ -86,6 +87,12 @@ export const PUBLIC_PATHS = [
 export const routeConfig: RouteObject[] = [
   {
     element: <RootLayout />,
+    // Catches errors from every descendant route, including render-time
+    // failures thrown by React.lazy() page chunks (e.g. a stale client
+    // requesting a hashed chunk a newer deploy no longer serves). Without
+    // this, react-router's data router falls back to its raw dev-mode error
+    // screen in production.
+    errorElement: <RouteErrorBoundary />,
     children: [
       // Public routes
       { path: '/', element: <HomePage /> },
