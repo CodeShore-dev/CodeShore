@@ -2,6 +2,8 @@ import { useState } from 'react';
 
 import { formatNumber } from '../../../utils/format';
 import { ConfirmDialog } from '../../../components/ConfirmDialog';
+import { PageSeo } from '../../../components/PageSeo';
+import { env } from '../../../config/env';
 import { useKeywordFilterStore } from '../../keyword/keywordFilterStore';
 import { useHomeData } from '../../home/hooks/useHomeData';
 import { InfoHint } from '../../methodology/components/InfoHint';
@@ -158,6 +160,18 @@ export function JobPreferencePage() {
 
   return (
     <div className="flex w-full flex-1 gap-4 overflow-hidden">
+      <PageSeo
+        title="職缺瀏覽與篩選"
+        description="依技術、薪資、公司篩選台灣工程師職缺，標記喜歡或不喜歡，掌握求職市場行情。"
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            { '@type': 'ListItem', position: 1, name: '首頁', item: `${env.siteUrl}/` },
+            { '@type': 'ListItem', position: 2, name: '職缺瀏覽', item: `${env.siteUrl}/jobs` },
+          ],
+        }}
+      />
       {isSidebarOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/50 transition-opacity lg:hidden"
