@@ -9,6 +9,7 @@ import {
   useTechsQuery,
 } from '../../keyword/queries';
 import { InfoHint } from '../../methodology/components/InfoHint';
+import { CompanyActiveFilters } from '../components/CompanyActiveFilters';
 import { CompanyCard } from '../components/CompanyCard';
 import { CompanyDetailModal } from '../components/CompanyDetailModal';
 import { CompanyNameFilterPanel } from '../components/CompanyNameFilterPanel';
@@ -17,6 +18,7 @@ import {
   selectCompanyHasActiveFilters,
   useCompanyFilterStore,
 } from '../companyFilterStore';
+import { useCompanyTechFilterStore } from '../companyTechFilterStore';
 import { useCompaniesQuery } from '../queries';
 
 export function CompanyListPage() {
@@ -25,10 +27,21 @@ export function CompanyListPage() {
 
   const page = useCompanyFilterStore(s => s.page);
   const setPage = useCompanyFilterStore(s => s.setPage);
-  const clearFilters = useCompanyFilterStore(s => s.clearFilters);
-  const hasActiveFilters = useCompanyFilterStore(
+  const clearCompanyFilters = useCompanyFilterStore(s => s.clearFilters);
+  const hasCompanyFilters = useCompanyFilterStore(
     selectCompanyHasActiveFilters,
   );
+
+  const resetTechFilters = useCompanyTechFilterStore(s => s.reset);
+  const hasTechFilters = useCompanyTechFilterStore(
+    s => s.selectedTags.length > 0 || s.excludedTags.length > 0,
+  );
+
+  const hasActiveFilters = hasCompanyFilters || hasTechFilters;
+  const clearFilters = () => {
+    clearCompanyFilters();
+    resetTechFilters();
+  };
 
   const [detailCompany, setDetailCompany] =
     useState<SupabaseView.MvCompany | null>(null);
@@ -41,7 +54,7 @@ export function CompanyListPage() {
   );
 
   const goToJobs = (companyName: string) =>
-    navigate(`/jobs?${new URLSearchParams({ company: companyName })}`);
+    navigate(`/jobs?${new URLSearchParams({ companies: companyName })}`);
 
   return (
     <div className="w-full">
@@ -79,6 +92,8 @@ export function CompanyListPage() {
         <CompanyNameFilterPanel />
         <CompanyTechFilterPanel />
       </div>
+
+      <CompanyActiveFilters onClearAll={clearFilters} />
 
       {loading ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

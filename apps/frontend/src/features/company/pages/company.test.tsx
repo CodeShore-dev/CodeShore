@@ -83,9 +83,8 @@ describe('CompanyListPage', () => {
   it('opens the company detail view from a card and closes it (req 4.1, 4.7)', async () => {
     const user = userEvent.setup();
     renderWithProviders(<CompanyListPage />);
-    await screen.findByText('Acme Corp');
 
-    await user.click(screen.getByRole('button', { name: '查看公司詳情' }));
+    await user.click(await screen.findByText('Acme Corp'));
 
     const modal = await screen.findByTestId('modal-backdrop');
     expect(

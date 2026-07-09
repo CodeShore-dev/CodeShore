@@ -65,6 +65,7 @@ describe('CompanyCard', () => {
         techs={techs}
         categoryLabelMap={categoryLabelMap}
         onClick={vi.fn()}
+        onOpenDetail={vi.fn()}
       />,
     );
 
@@ -101,6 +102,7 @@ describe('CompanyCard', () => {
         techs={techs}
         categoryLabelMap={categoryLabelMap}
         onClick={vi.fn()}
+        onOpenDetail={vi.fn()}
       />,
     );
 
@@ -126,37 +128,14 @@ describe('CompanyCard', () => {
         techs={techs}
         categoryLabelMap={categoryLabelMap}
         onClick={vi.fn()}
+        onOpenDetail={vi.fn()}
       />,
     );
 
     expect(screen.queryByText(/工具/)).not.toBeInTheDocument();
   });
 
-  it('opens the detail view via the dedicated action without triggering the card click-through (Req 4.1)', async () => {
-    const user = userEvent.setup();
-    const techs = [makeTech('typescript', 'language')];
-    const company = makeCompany(['typescript']);
-    const onClick = vi.fn();
-    const onOpenDetail = vi.fn();
-
-    render(
-      <CompanyCard
-        company={company}
-        techs={techs}
-        categoryLabelMap={categoryLabelMap}
-        onClick={onClick}
-        onOpenDetail={onOpenDetail}
-      />,
-    );
-
-    await user.click(screen.getByRole('button', { name: /詳情|detail/i }));
-
-    expect(onOpenDetail).toHaveBeenCalledWith(company);
-    expect(onOpenDetail).toHaveBeenCalledTimes(1);
-    expect(onClick).not.toHaveBeenCalled();
-  });
-
-  it('still navigates to the jobs list when clicking elsewhere on the card (regression)', async () => {
+  it('opens the detail view when clicking anywhere on the card', async () => {
     const user = userEvent.setup();
     const techs = [makeTech('typescript', 'language')];
     const company = makeCompany(['typescript']);
@@ -175,7 +154,32 @@ describe('CompanyCard', () => {
 
     await user.click(screen.getByText('Acme Corp'));
 
+    expect(onOpenDetail).toHaveBeenCalledWith(company);
+    expect(onOpenDetail).toHaveBeenCalledTimes(1);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it('navigates to the jobs list via the "查看職缺" link without opening the detail view', async () => {
+    const user = userEvent.setup();
+    const techs = [makeTech('typescript', 'language')];
+    const company = makeCompany(['typescript']);
+    const onClick = vi.fn();
+    const onOpenDetail = vi.fn();
+
+    render(
+      <CompanyCard
+        company={company}
+        techs={techs}
+        categoryLabelMap={categoryLabelMap}
+        onClick={onClick}
+        onOpenDetail={onOpenDetail}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /查看職缺/ }));
+
     expect(onClick).toHaveBeenCalledWith('Acme Corp');
+    expect(onClick).toHaveBeenCalledTimes(1);
     expect(onOpenDetail).not.toHaveBeenCalled();
   });
 });

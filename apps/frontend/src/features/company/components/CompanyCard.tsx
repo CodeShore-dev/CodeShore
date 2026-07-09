@@ -2,6 +2,8 @@ import { useMemo } from 'react';
 
 import { SupabaseView } from '@codeshore/data-types';
 
+import { TechIcon } from '../../../components/TechIcon';
+
 interface CompanyCardProps {
   company: SupabaseView.MvCompany;
   techs: SupabaseView.MvTech[];
@@ -26,22 +28,18 @@ export function CompanyCard({
   onClick,
   onOpenDetail,
 }: CompanyCardProps) {
-  const { categoryMap, labelMap, countMap } = useMemo(() => {
-    const categoryMap = new Map<string, string>();
-    const labelMap = new Map<string, string>();
-    const countMap = new Map<string, number>();
+  const techMap = useMemo(() => {
+    const techMap = new Map<string, SupabaseView.MvTech>();
     for (const m of techs) {
-      categoryMap.set(m.tech, m.category ?? '');
-      labelMap.set(m.tech, m.label);
-      countMap.set(m.tech, m.count);
+      techMap.set(m.tech, m);
     }
-    return { categoryMap, labelMap, countMap };
+    return techMap;
   }, [techs]);
 
   const groupedTechs = useMemo(() => {
     const buckets = new Map<string, string[]>();
     for (const kg of company.techs) {
-      const raw = categoryMap.get(kg) ?? '';
+      const raw = techMap.get(kg)?.category ?? '';
       const cat = raw in CATEGORY_PRIORITY ? raw : '';
       if (!buckets.has(cat)) buckets.set(cat, []);
       buckets.get(cat)!.push(kg);
@@ -53,7 +51,7 @@ export function CompanyCard({
       )
       .map(([cat, kgs]) => {
         const sorted = [...kgs].sort(
-          (a, b) => (countMap.get(b) ?? 0) - (countMap.get(a) ?? 0),
+          (a, b) => (techMap.get(b)?.count ?? 0) - (techMap.get(a)?.count ?? 0),
         );
         return {
           label: categoryLabelMap[cat] ?? '其他',
@@ -61,7 +59,7 @@ export function CompanyCard({
           remaining: Math.max(0, sorted.length - 5),
         };
       });
-  }, [company.techs, categoryMap, countMap, categoryLabelMap]);
+  }, [company.techs, techMap, categoryLabelMap]);
 
   let host = '';
   try {
@@ -72,8 +70,8 @@ export function CompanyCard({
 
   return (
     <div
-      className="group flex cursor-pointer flex-col gap-3.5 rounded-[20px] bg-white p-6 shadow-[0_24px_40px_rgba(0,31,42,0.06)] transition-all hover:-translate-y-0.5 hover:shadow-[0_6px_20px_rgba(0,31,42,0.08)] active:scale-[0.98]"
-      onClick={() => onClick(company.company_name)}
+      className="flex cursor-pointer flex-col gap-3.5 rounded-[20px] bg-white p-6 shadow-[0_24px_40px_rgba(0,31,42,0.06)] transition-all hover:-translate-y-0.5 hover:shadow-[0_6px_20px_rgba(0,31,42,0.08)] active:scale-[0.98]"
+      onClick={() => onOpenDetail(company)}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
@@ -89,32 +87,14 @@ export function CompanyCard({
             </span>
           )}
         </div>
-        <div className="flex shrink-0 items-start gap-2">
-          <div className="text-right">
-            <div
-              className="leading-none font-black tracking-[-0.02em] text-[#003d92] tabular-nums"
-              style={{ fontSize: '1.75rem' }}
-            >
-              {company.job_count}
-            </div>
-            <div className="mt-0.5 text-[11px] text-[#434653]">個職缺</div>
-          </div>
-          <button
-            type="button"
-            aria-label="查看公司詳情"
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[#434653] transition-colors hover:bg-[#e6f6ff] hover:text-[#003d92]"
-            onClick={event => {
-              event.stopPropagation();
-              onOpenDetail(company);
-            }}
+        <div className="shrink-0 text-right">
+          <div
+            className="leading-none font-black tracking-[-0.02em] text-[#003d92] tabular-nums"
+            style={{ fontSize: '1.75rem' }}
           >
-            <span
-              className="material-symbols-outlined"
-              style={{ fontSize: '18px' }}
-            >
-              info
-            </span>
-          </button>
+            {company.job_count}
+          </div>
+          <div className="mt-0.5 text-[11px] text-[#434653]">個職缺</div>
         </div>
       </div>
 
@@ -125,17 +105,25 @@ export function CompanyCard({
               <div className="mb-1.5 text-[10px] font-bold tracking-[0.15em] text-[#434653]">
                 {group.label}
               </div>
-              <div className="flex flex-wrap gap-1">
-                {group.items.map(kg => (
-                  <span
-                    key={kg}
-                    className="rounded bg-[#c9e7f7] px-2 py-0.5 text-xs font-bold text-[#434653]"
-                  >
-                    {labelMap.get(kg) ?? kg}
-                  </span>
-                ))}
+              <div className="flex flex-wrap items-center gap-1.5">
+                {group.items.map(kg => {
+                  const meta = techMap.get(kg);
+                  return (
+                    <div
+                      key={kg}
+                      className="flex items-center gap-1.5 rounded-full border border-[#e8eaf0] bg-[#f4faff] px-2.5 py-1 text-xs font-semibold text-[#001f2a]"
+                    >
+                      <TechIcon
+                        slugs={meta?.icon_slugs}
+                        label={meta?.label ?? kg}
+                        size={16}
+                      />
+                      {meta?.label ?? kg}
+                    </div>
+                  );
+                })}
                 {group.remaining > 0 && (
-                  <span className="px-1 py-0.5 text-xs font-bold text-[#434653]/60">
+                  <span className="px-1 text-xs font-bold text-[#434653]/60">
                     +{group.remaining}
                   </span>
                 )}
@@ -146,9 +134,16 @@ export function CompanyCard({
       )}
 
       <div className="mt-auto flex items-center justify-between pt-2">
-        <span className="flex items-center gap-1 text-xs font-bold text-[#003d92] opacity-0 transition-opacity group-hover:opacity-100">
+        <button
+          type="button"
+          className="flex cursor-pointer items-center gap-1 text-xs font-bold text-[#003d92] hover:underline"
+          onClick={event => {
+            event.stopPropagation();
+            onClick(company.company_name);
+          }}
+        >
           查看職缺 →
-        </span>
+        </button>
         {company.company_link && (
           <a
             href={company.company_link}
