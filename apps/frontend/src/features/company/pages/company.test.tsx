@@ -30,6 +30,48 @@ import { useCompanyFilterStore } from '../companyFilterStore';
 import { useCompanyTechFilterStore } from '../companyTechFilterStore';
 import { CompanyListPage } from './CompanyListPage';
 
+describe('CompanyListPage SEO (req 2.1, 2.2, 2.3, 3.1, 3.2, 5.3)', () => {
+  beforeEach(() => {
+    useCompanyFilterStore.getState().clearFilters();
+    useCompanyTechFilterStore.getState().reset();
+  });
+
+  it('sets the document title with the site suffix (req 2.1)', () => {
+    renderWithProviders(<CompanyListPage />, { route: '/companies' });
+    expect(document.title).toBe('公司技術棧分析 | 碼的 上岸了');
+  });
+
+  it('renders a BreadcrumbList JSON-LD pointing at home and the company list page (req 5.3)', () => {
+    const { container } = renderWithProviders(<CompanyListPage />, {
+      route: '/companies',
+    });
+    const script = container.querySelector(
+      'script[type="application/ld+json"]',
+    );
+    expect(script).not.toBeNull();
+
+    const parsed = JSON.parse(script?.innerHTML ?? '');
+    expect(parsed).toMatchObject({
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        {
+          '@type': 'ListItem',
+          position: 1,
+          name: '首頁',
+          item: 'https://codeshore.dev/',
+        },
+        {
+          '@type': 'ListItem',
+          position: 2,
+          name: '公司列表',
+          item: 'https://codeshore.dev/companies',
+        },
+      ],
+    });
+  });
+});
+
 describe('CompanyListPage', () => {
   beforeEach(() => {
     useCompanyFilterStore.getState().clearFilters();

@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router';
 import { SupabaseView } from '@codeshore/data-types';
 
 import { Pagination } from '../../../components/Pagination';
+import { PageSeo } from '../../../components/PageSeo';
+import { env } from '../../../config/env';
 import {
   useKeywordCategoriesQuery,
   useTechsQuery,
@@ -58,6 +60,18 @@ export function CompanyListPage() {
 
   return (
     <div className="w-full">
+      <PageSeo
+        title="公司技術棧分析"
+        description="瀏覽台灣各公司的技術棧分布、職缺數量，快速比較目標公司的語言、框架與工具偏好。"
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            { '@type': 'ListItem', position: 1, name: '首頁', item: `${env.siteUrl}/` },
+            { '@type': 'ListItem', position: 2, name: '公司列表', item: `${env.siteUrl}/companies` },
+          ],
+        }}
+      />
       <div className="mb-8">
         <div className="mb-2 text-[11px] font-bold tracking-[0.18em] text-[#003d92]">
           ● 公司列表 · COMPANIES
