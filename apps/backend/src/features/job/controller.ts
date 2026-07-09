@@ -17,7 +17,12 @@ import {
 import { User } from '@supabase/supabase-js';
 import { Observable } from 'rxjs';
 
-import { CurrentUser, RequirePermission } from '../auth/auth.decorator';
+import {
+  CurrentUser,
+  OptionalAuth,
+  Public,
+  RequirePermission,
+} from '../auth/auth.decorator';
 import { LimitQuery } from '../query-limit.decorator';
 import { QueryDto } from '../query.dto';
 import { Service } from './service';
@@ -31,28 +36,30 @@ export class Controller {
   constructor(private readonly service: Service) {}
 
   @Get('location')
+  @Public()
   @ApiOperation({
     summary: 'Query job location groups',
     description:
-      'Returns the materialized-view result of jobs grouped by location. Cached. Uses the shared QueryDto for from/to pagination, orders sorting and where filtering. Example: /job/location?orders=count:desc',
+      'Returns the materialized-view result of jobs grouped by location. Cached. Uses the shared QueryDto for from/to pagination, orders sorting and where filtering. Public: does not depend on the caller. Example: /job/location?orders=count:desc',
   })
   async getLocationGroups(@Query() query: QueryDto) {
     return this.service.getLocationGroups(query);
   }
 
   @Get()
+  @OptionalAuth()
   @ApiOperation({
     summary:
-      'List jobs for the current user (with preferences; supports pagination, sorting and filtering)',
+      'List jobs (personalized with preferences when signed in; supports pagination, sorting and filtering)',
     description:
-      'Reads the job materialized view scoped to the currently authenticated user. Pass where={"preference":{"eq":"like"}} to return only the jobs this user has marked as liked/disliked. A single response returns at most 10 items (enforced by @LimitQuery). Example: /job?from=0&to=10&orders=posted_at:desc&where={"preference":{"eq":"like"}}',
+      'Reads the job materialized view. Public/guest requests see every job with no preference scoping (equivalent to a brand-new user); a valid bearer token scopes the "preference" filter to that user. Pass where={"preference":{"eq":"like"}} to return only the jobs this user has marked as liked/disliked (empty for a guest). A single response returns at most 10 items (enforced by @LimitQuery). Example: /job?from=0&to=10&orders=posted_at:desc&where={"preference":{"eq":"like"}}',
   })
   @LimitQuery(10)
   async getMvJobs(
     @Query() query: QueryDto,
-    @CurrentUser() user: User,
+    @CurrentUser() user: User | undefined,
   ) {
-    return this.service.getMvJobs(query, user.id);
+    return this.service.getMvJobs(query, user?.id ?? null);
   }
 
   @Get('/preference/count')

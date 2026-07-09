@@ -14,7 +14,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 
-import { AdminOnly } from '../auth/auth.decorator';
+import { AdminOnly, Public } from '../auth/auth.decorator';
 import { QueryDto } from '../query.dto';
 import { CreateTechDto, UpdateIconSlugsDto, UpdateTechDto } from './dto';
 import { Service } from './service';
@@ -28,21 +28,23 @@ export class Controller {
   constructor(private readonly service: Service) {}
 
   @Get('group')
+  @Public()
   @ApiOperation({
     summary:
       'Query keyword groups (supports pagination, sorting and filtering)',
     description:
-      'Reads from the keyword-group materialized view. When from=0 and to=-1 (fetch all), the result is served from the server-side cache. Example: /keyword/group?from=0&to=-1 returns the full grouping; /keyword/group?from=0&to=20&orders=count:desc returns the top 20.',
+      'Reads from the keyword-group materialized view. Public: does not depend on the caller. When from=0 and to=-1 (fetch all), the result is served from the server-side cache. Example: /keyword/group?from=0&to=-1 returns the full grouping; /keyword/group?from=0&to=20&orders=count:desc returns the top 20.',
   })
   async getMvTech(@Query() query: QueryDto) {
     return this.service.getMvTech(query);
   }
 
   @Get('group/category')
+  @Public()
   @ApiOperation({
     summary: 'List keyword-group categories',
     description:
-      'Returns the aggregated categories of keyword groups. Cached. Uses the shared QueryDto for from/to pagination, orders sorting and where filtering. Example: /keyword/group/category?orders=count:desc',
+      'Returns the aggregated categories of keyword groups. Public: does not depend on the caller. Cached. Uses the shared QueryDto for from/to pagination, orders sorting and where filtering. Example: /keyword/group/category?orders=count:desc',
   })
   async getTechCategories(
     @Query() query: QueryDto,

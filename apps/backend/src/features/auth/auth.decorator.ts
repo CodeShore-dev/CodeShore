@@ -6,10 +6,16 @@ import {
 import { Request } from 'express';
 
 export const IS_PUBLIC_KEY = 'isPublic';
+export const IS_OPTIONAL_AUTH_KEY = 'isOptionalAuth';
 export const REQUIRE_PERMISSION_KEY = 'requirePermission';
 export const ADMIN_ONLY_KEY = 'adminOnly';
 
 export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
+// Unlike @Public(), a valid bearer token is still verified and attached to
+// the request as `user` when present; the route just doesn't require one.
+// Use this for endpoints that personalize their response for a signed-in
+// caller but must also work for anonymous/guest requests.
+export const OptionalAuth = () => SetMetadata(IS_OPTIONAL_AUTH_KEY, true);
 export const RequirePermission = () =>
   SetMetadata(REQUIRE_PERMISSION_KEY, true);
 export const AdminOnly = () => SetMetadata(ADMIN_ONLY_KEY, true);

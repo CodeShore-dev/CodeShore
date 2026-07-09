@@ -9,7 +9,7 @@ import { Request } from 'express';
 
 import { getSupabaseClient } from '@codeshore/supabase';
 
-import { IS_PUBLIC_KEY } from './auth.decorator';
+import { IS_OPTIONAL_AUTH_KEY, IS_PUBLIC_KEY } from './auth.decorator';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -22,13 +22,25 @@ export class AuthGuard implements CanActivate {
     );
     if (isPublic) return true;
 
+    const isOptionalAuth = this.reflector.getAllAndOverride<boolean>(
+      IS_OPTIONAL_AUTH_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+
     const request = context.switchToHttp().getRequest<Request>();
     const token = this.extractToken(request) || request.query.token as string;
-    if (!token) throw new UnauthorizedException('Missing bearer token');
+
+    if (!token) {
+      if (isOptionalAuth) return true;
+      throw new UnauthorizedException('Missing bearer token');
+    }
 
     const { data, error } = await getSupabaseClient().auth.getUser(token);
 
     if (error || !data.user) {
+      // Optional-auth routes must keep working for a guest even if a stale
+      // or invalid token is present; only strictly-protected routes reject.
+      if (isOptionalAuth) return true;
       throw new UnauthorizedException('Invalid or expired token');
     }
 

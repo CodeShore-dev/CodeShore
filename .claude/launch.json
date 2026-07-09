@@ -7,6 +7,12 @@
       "runtimeArgs": ["nx", "serve", "frontend", "--port=$PORT"],
       "port": 4200,
       "autoPort": true
+    },
+    {
+      "name": "backend",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["nx", "serve", "backend"],
+      "port": 8080
     }
   ]
 }

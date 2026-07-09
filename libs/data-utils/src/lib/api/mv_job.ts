@@ -14,7 +14,7 @@ export class MvJobService extends TableService<SupabaseView.MvJob> {
   }
   fetchMvJobsByUserAndPreference(
     query: ListQuery,
-    userId: string,
+    userId: string | null,
   ) {
     const preference = query.where?.['preference']?.eq;
 

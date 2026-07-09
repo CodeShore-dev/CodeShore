@@ -26,7 +26,7 @@ export class Service {
     private readonly mvJobService: MvJobService,
   ) {}
 
-  async getMvJobs(query: QueryDto, userId: string) {
+  async getMvJobs(query: QueryDto, userId: string | null) {
     return this.mvJobService.fetchMvJobsByUserAndPreference(query, userId);
   }
 

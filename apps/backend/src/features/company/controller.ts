@@ -11,6 +11,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 
+import { Public } from '../auth/auth.decorator';
 import { LimitQuery } from '../query-limit.decorator';
 import { QueryDto } from '../query.dto';
 import { Service } from './service';
@@ -24,10 +25,11 @@ export class Controller {
   constructor(private readonly service: Service) {}
 
   @Get()
+  @Public()
   @ApiOperation({
     summary: 'List companies (supports pagination, sorting and filtering)',
     description:
-      'Reads from the company materialized view. Uses the shared QueryDto for from/to pagination, orders sorting and where filtering. A single response returns at most 18 items (enforced by @LimitQuery). Example: /company?from=0&to=18&orders=count:desc&where={"name":{"ilike":"%tech%"}}',
+      'Reads from the company materialized view. Public: does not depend on the caller. Uses the shared QueryDto for from/to pagination, orders sorting and where filtering. A single response returns at most 18 items (enforced by @LimitQuery). Example: /company?from=0&to=18&orders=count:desc&where={"name":{"ilike":"%tech%"}}',
   })
   @LimitQuery(18)
   async getCompanies(@Query() query: QueryDto) {
@@ -35,6 +37,7 @@ export class Controller {
   }
 
   @Get(':companyId/tech-stats')
+  @Public()
   @ApiOperation({
     summary:
       "Get a company's technology job counts sorted from most to least common",
