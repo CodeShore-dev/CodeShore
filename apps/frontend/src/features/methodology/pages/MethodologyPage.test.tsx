@@ -14,6 +14,43 @@ vi.mock('../../../components/TechIcon', () => ({
   TechIcon: () => null,
 }));
 
+describe('MethodologyPage SEO (req 2.1, 2.2, 2.3, 3.1, 3.2, 5.3)', () => {
+  it('sets the document title with the site suffix (req 2.1)', () => {
+    renderWithProviders(<MethodologyPage />, { route: '/methodology' });
+    expect(document.title).toBe('分析方法論與透明度 | 碼的 上岸了');
+  });
+
+  it('renders a BreadcrumbList JSON-LD pointing at home and the methodology page (req 5.3)', () => {
+    const { container } = renderWithProviders(<MethodologyPage />, {
+      route: '/methodology',
+    });
+    const script = container.querySelector(
+      'script[type="application/ld+json"]',
+    );
+    expect(script).not.toBeNull();
+
+    const parsed = JSON.parse(script?.innerHTML ?? '');
+    expect(parsed).toMatchObject({
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        {
+          '@type': 'ListItem',
+          position: 1,
+          name: '首頁',
+          item: 'https://codeshore.dev/',
+        },
+        {
+          '@type': 'ListItem',
+          position: 2,
+          name: '公開透明',
+          item: 'https://codeshore.dev/methodology',
+        },
+      ],
+    });
+  });
+});
+
 describe('MethodologyPage', () => {
   it('renders the heading, content sections, and SQL section (req 8.3)', () => {
     renderWithProviders(<MethodologyPage />);

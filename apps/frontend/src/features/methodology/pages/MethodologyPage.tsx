@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
+import { PageSeo } from '../../../components/PageSeo';
+import { env } from '../../../config/env';
 import { CloudArchitectureSection } from '../components/CloudArchitectureSection';
 import { CrawlerPipelineSection } from '../components/CrawlerPipelineSection';
 import { DataNormalizationSection } from '../components/DataNormalizationSection';
@@ -91,6 +93,18 @@ export function MethodologyPage() {
 
   return (
     <div className="w-full">
+      <PageSeo
+        title="分析方法論與透明度"
+        description="碼的 上岸了的資料來源、計算邏輯與公開 SQL 查詢，讓你了解每一個數字背後的計算方式。"
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            { '@type': 'ListItem', position: 1, name: '首頁', item: `${env.siteUrl}/` },
+            { '@type': 'ListItem', position: 2, name: '公開透明', item: `${env.siteUrl}/methodology` },
+          ],
+        }}
+      />
       <MethodologySectionNav items={NAV_SECTIONS} />
       <div className="mx-auto w-full max-w-7xl px-4 py-10">
         <h1 className="mb-2 text-2xl font-black text-[#001f2a]">公開透明</h1>
