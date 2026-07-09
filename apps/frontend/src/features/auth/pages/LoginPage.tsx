@@ -1,9 +1,11 @@
 import { Navigate } from 'react-router';
 
 import { useAuthStore, useIsAuthenticated } from '../authStore';
+import { consumeReturnUrl } from '../returnUrl';
 
 // Login page (task 2.2, requirements 2.3, 2.6). Already-authenticated users
-// are redirected home; otherwise OAuth sign-in buttons are shown.
+// are redirected to their remembered pending destination (req 4.1), falling
+// back to home when none was stored; otherwise OAuth sign-in buttons are shown.
 export function LoginPage() {
   const isLoading = useAuthStore(state => state.isLoading);
   const isAuthenticated = useIsAuthenticated();
@@ -11,7 +13,7 @@ export function LoginPage() {
   const loginWithGithub = useAuthStore(state => state.loginWithGithub);
 
   if (!isLoading && isAuthenticated) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={consumeReturnUrl() ?? '/'} replace />;
   }
 
   return (

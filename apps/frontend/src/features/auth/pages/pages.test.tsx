@@ -1,8 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { consumeReturnUrl } from '../returnUrl';
 import { useAuthStore } from '../authStore';
 import { AuthCallbackPage } from './AuthCallbackPage';
 import { LoginPage } from './LoginPage';
@@ -13,9 +14,16 @@ vi.mock('../../../lib/supabase', () => ({
   supabase: { auth: { getSession: () => getSession() } },
 }));
 
+// Mock returnUrl so LoginPage's redirect-destination logic can be controlled
+// per test without touching real sessionStorage.
+vi.mock('../returnUrl', () => ({
+  consumeReturnUrl: vi.fn(),
+}));
+
 beforeEach(() => {
   useAuthStore.setState({ user: null, isLoading: false });
   getSession.mockReset();
+  vi.mocked(consumeReturnUrl).mockReset();
 });
 
 describe('LoginPage', () => {
@@ -27,6 +35,44 @@ describe('LoginPage', () => {
     );
     expect(screen.getByRole('button', { name: /繼續使用 Google/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /繼續使用 GitHub/ })).toBeInTheDocument();
+  });
+
+  it('sends an already-authenticated user to the stored pending destination (req 4.1)', () => {
+    vi.mocked(consumeReturnUrl).mockReturnValue('/jobs?tab=liked');
+    useAuthStore.setState({
+      user: { id: 'u1', email: 'a@b.com' } as never,
+      isLoading: false,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/login']}>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/jobs" element={<div>Jobs Page</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('Jobs Page')).toBeInTheDocument();
+  });
+
+  it('falls back to home when an already-authenticated user has no stored destination (req 4.1)', () => {
+    vi.mocked(consumeReturnUrl).mockReturnValue(null);
+    useAuthStore.setState({
+      user: { id: 'u1', email: 'a@b.com' } as never,
+      isLoading: false,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/login']}>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/" element={<div>Home Page</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('Home Page')).toBeInTheDocument();
   });
 });
 
