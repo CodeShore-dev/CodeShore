@@ -9,6 +9,12 @@ interface AppEnv {
   readonly adminEmails: readonly string[];
   readonly supabaseUrl: string;
   readonly supabaseAnonKey: string;
+  /**
+   * 生產環境網站根 URL，不含結尾斜線。
+   * 用於 PageSeo canonical、og:image、hreflang 等絕對 URL 建構。
+   * 由 VITE_SITE_URL 環境變數注入；未設定時預設 'https://codeshore.dev'。
+   */
+  readonly siteUrl: string;
 }
 
 const parseAdminEmails = (raw: string): string[] =>
@@ -24,4 +30,5 @@ export const env: AppEnv = {
   adminEmails: parseAdminEmails(import.meta.env.VITE_ADMIN_EMAILS ?? ''),
   supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
   supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+  siteUrl: import.meta.env.VITE_SITE_URL ?? 'https://codeshore.dev',
 };
