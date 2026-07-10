@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { CATEGORY_LABEL_MAP } from '../../../utils/constants';
 import { usePathBEdges, parseList } from '../hooks/usePathBEdges';
@@ -9,6 +9,16 @@ interface PathBDecisionFormProps {
   recommendation: Extract<AiRecommendation, { path: 'B' }>;
   newTechId: string;
   duplicateIdError?: string;
+  // Additive, optional (task 6.7 fix): fires with the currently-edited
+  // newTech fields + confirmedEdges whenever any of them change, so the
+  // parent (CurationSessionInterrupted) can mirror this form's live
+  // in-progress state into CommitPreviewPanel (requirement 4.1, 5.1, 6.6).
+  // Purely additive -- omitting it preserves this form's original
+  // onSubmit-only contract.
+  onChange?: (decision: {
+    newTech: NewTechFields;
+    confirmedEdges: ConfirmedEdge[];
+  }) => void;
   onSubmit: (decision: {
     path: 'B';
     newTech: NewTechFields;
@@ -34,6 +44,7 @@ export function PathBDecisionForm({
   recommendation,
   newTechId,
   duplicateIdError,
+  onChange,
   onSubmit,
 }: PathBDecisionFormProps) {
   const { suggestedTech, suggestedEdges } = recommendation;
@@ -47,6 +58,28 @@ export function PathBDecisionForm({
     suggestedEdges,
     id,
   );
+
+  // Mirrors the live in-progress state up to `onChange` whenever any edited
+  // field or the derived confirmedEdges changes. `onChange` itself is kept
+  // in a ref (updated every render, not a dependency of the effect below) so
+  // this only re-fires when the FORM'S OWN state changes -- not merely
+  // because the parent re-rendered and passed a new `onChange` function
+  // identity, which would otherwise risk a render loop.
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
+  useEffect(() => {
+    onChangeRef.current?.({
+      newTech: {
+        id: id.trim(),
+        label: label.trim(),
+        category,
+        iconSlugs: parseList(iconSlugsText),
+        tags: parseList(tagsText),
+      },
+      confirmedEdges,
+    });
+  }, [id, label, category, iconSlugsText, tagsText, confirmedEdges]);
 
   const canSubmit = !hasDirectCycle && id.trim() !== '' && label.trim() !== '';
 

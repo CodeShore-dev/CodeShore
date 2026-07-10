@@ -4,6 +4,13 @@ import { useTechsQuery } from '../../keyword/queries';
 
 interface PathADecisionFormProps {
   aiSuggestedTechId?: string;
+  // Additive, optional (task 6.7 fix): fires with the currently-selected
+  // tech id whenever the admin changes the <select>, so the parent
+  // (CurationSessionInterrupted) can mirror this form's live in-progress
+  // state into CommitPreviewPanel (requirement 4.1, 5.1, 6.6). Purely
+  // additive -- omitting it preserves this form's original onSubmit-only
+  // contract.
+  onChange?: (selectedTechId: string) => void;
   onSubmit: (decision: { path: 'A'; confirmedTechId: string }) => void;
 }
 
@@ -18,6 +25,7 @@ interface PathADecisionFormProps {
 // <select> over the filtered options -- simple, admin-tool-appropriate.
 export function PathADecisionForm({
   aiSuggestedTechId,
+  onChange,
   onSubmit,
 }: PathADecisionFormProps) {
   const { data: techs = [] } = useTechsQuery();
@@ -77,7 +85,11 @@ export function PathADecisionForm({
       <select
         id="path-a-tech-select"
         value={selectedTechId}
-        onChange={e => setSelectedTechId(e.target.value)}
+        onChange={e => {
+          const value = e.target.value;
+          setSelectedTechId(value);
+          onChange?.(value);
+        }}
         className="mt-1 w-full rounded-lg border border-[#c3c6d5] px-3 py-2 text-sm text-[#001f2a] focus:border-[#003d92] focus:outline-none"
       >
         <option value="">選擇技術...</option>
