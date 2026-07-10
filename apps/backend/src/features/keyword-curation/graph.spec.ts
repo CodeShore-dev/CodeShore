@@ -19,6 +19,8 @@ import {
   CommitMappingNode,
   CurationAnnotation,
   FetchContextNode,
+  KeywordCurationGraph,
+  routeByDecision,
   ValidateAndCommitNewTechNode,
 } from './graph';
 
@@ -679,5 +681,281 @@ describe('CommitKeywordBinNode.node', () => {
       node.node(baseState({ keyword: 'blockchain', humanDecision: null })),
     ).rejects.toThrow(/humanDecision\.path/);
     expect(keywordBinService.upsert).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Task 3.6 completion criterion (requirements 2.1, 4.1): `routeByDecision`
+ * reads `state.humanDecision?.path` and returns the target commit node name
+ * for `addConditionalEdges('classify', routeByDecision, { ... })`. Missing or
+ * unrecognized paths are structurally impossible (an `AiRecommendation`'s
+ * `ai_failed` variant never becomes a `HumanDecision`), so they throw --
+ * consistent with the "impossible state" precedent in `CommitMappingNode` /
+ * `ValidateAndCommitNewTechNode` / `CommitKeywordBinNode` (tasks 3.3-3.5).
+ */
+describe('routeByDecision', () => {
+  it("returns 'commitMapping' for path A", () => {
+    expect(
+      routeByDecision(baseState({ humanDecision: { path: 'A', confirmedTechId: 'react' } })),
+    ).toBe('commitMapping');
+  });
+
+  it("returns 'validateAndCommitNewTech' for path B", () => {
+    expect(
+      routeByDecision(
+        baseState({
+          humanDecision: {
+            path: 'B',
+            newTech: {
+              id: 'svelte',
+              label: 'Svelte',
+              category: 'frontend',
+              iconSlugs: [],
+              tags: [],
+            },
+            confirmedEdges: [],
+          },
+        }),
+      ),
+    ).toBe('validateAndCommitNewTech');
+  });
+
+  it("returns 'commitKeywordBin' for path C", () => {
+    expect(routeByDecision(baseState({ humanDecision: { path: 'C' } }))).toBe('commitKeywordBin');
+  });
+
+  it('throws when humanDecision is null (impossible state -- routing bug)', () => {
+    expect(() => routeByDecision(baseState({ humanDecision: null }))).toThrow(
+      /humanDecision/,
+    );
+  });
+});
+
+/**
+ * Task 3.6 completion criteria (requirements 2.1, 4.1; design.md's
+ * `KeywordCurationGraph` section, ~lines 393-415): `KeywordCurationGraph`
+ * constructs and compiles the real 5-node graph with conditional routing, and
+ * end-to-end `app.invoke()` / `app.invoke(new Command({ resume }))` proves
+ * each of the three human-decision paths reaches its correct commit node
+ * (and only that node), plus that two sessions sharing one compiled app's
+ * `MemorySaver` checkpointer (distinct `thread_id`s) do not cross-contaminate
+ * -- see `## Implementation Notes` in tasks.md re: task 3.2's isolation test
+ * only having proven isolation across two *separately compiled* graphs, not
+ * a real shared checkpointer.
+ */
+describe('KeywordCurationGraph', () => {
+  function makeGraphNodes(classify: (keyword: string) => AiRecommendation | Promise<AiRecommendation>) {
+    const techService = makeTechService([{ id: 'react', label: 'React', category: 'frontend' }]);
+    const jobKeywordService = makeJobKeywordService(5);
+    const curationLlmClassifier = { classify: vi.fn(async (keyword: string) => classify(keyword)) };
+    const commitMappingTechKeywordService = makeTechKeywordService(null);
+    const validateTechService = makeTechServiceForCommit();
+    const validateTechKeywordService = makeTechKeywordServiceForCommit(null);
+    const validateTechParentService = makeTechParentServiceForCommit(null);
+    const keywordBinService = makeKeywordBinService(null);
+
+    return {
+      fetchContextNode: new FetchContextNode(techService as any, jobKeywordService as any),
+      classifyNode: new ClassifyNode(curationLlmClassifier),
+      commitMappingNode: new CommitMappingNode(commitMappingTechKeywordService as any),
+      validateAndCommitNewTechNode: new ValidateAndCommitNewTechNode(
+        validateTechService as any,
+        validateTechKeywordService as any,
+        validateTechParentService as any,
+      ),
+      commitKeywordBinNode: new CommitKeywordBinNode(keywordBinService as any),
+      spies: {
+        commitMappingTechKeywordService,
+        validateTechService,
+        validateTechKeywordService,
+        validateTechParentService,
+        keywordBinService,
+      },
+    };
+  }
+
+  function buildGraph(classify: (keyword: string) => AiRecommendation | Promise<AiRecommendation>) {
+    const nodes = makeGraphNodes(classify);
+    const graph = new KeywordCurationGraph(
+      nodes.fetchContextNode,
+      nodes.classifyNode,
+      nodes.commitMappingNode,
+      nodes.validateAndCommitNewTechNode,
+      nodes.commitKeywordBinNode,
+    );
+    return { graph, spies: nodes.spies };
+  }
+
+  it('constructs and compiles the full 5-node graph with no error (graph.compile() equivalent)', () => {
+    expect(() => buildGraph(() => ({ path: 'C', reasoning: 'x', affectedJobCount: 0 }))).not.toThrow();
+  });
+
+  it('routes path A to commitMapping only, leaving the other two commit nodes untouched (requirement 4.1)', async () => {
+    const recommendation: AiRecommendation = {
+      path: 'A',
+      matchedTech: { id: 'react', label: 'React', category: 'frontend' },
+      confidence: 0.92,
+      reasoning: 'reactjs is a common alias for React',
+      affectedJobCount: 5,
+    };
+    const { graph, spies } = buildGraph(() => recommendation);
+    const config = { configurable: { thread_id: 'graph-path-a' } };
+
+    const paused = await graph.app.invoke(baseState({ keyword: 'reactjs' }), config);
+    expect(isInterrupted<AiRecommendation>(paused)).toBe(true);
+
+    const decision: HumanDecision = { path: 'A', confirmedTechId: 'react' };
+    const result = await graph.app.invoke(new Command({ resume: decision }), config);
+
+    expect(isInterrupted(result)).toBe(false);
+    expect(spies.commitMappingTechKeywordService.upsert).toHaveBeenCalledWith([
+      { tech: 'react', keyword: 'reactjs' },
+    ]);
+    expect(spies.validateTechService.upsert).not.toHaveBeenCalled();
+    expect(spies.keywordBinService.upsert).not.toHaveBeenCalled();
+    expect(result.commitResult).toEqual({
+      ok: true,
+      changes: [
+        { type: 'tech_keyword', details: { keyword: 'reactjs', tech: 'react' }, status: 'committed' },
+      ],
+    });
+  });
+
+  it('routes path B to validateAndCommitNewTech only, leaving the other two commit nodes untouched (requirement 4.1)', async () => {
+    const recommendation: AiRecommendation = {
+      path: 'B',
+      suggestedTech: { id: 'svelte', label: 'Svelte', category: 'frontend', tags: [], iconSlugs: [] },
+      suggestedEdges: [],
+      reasoning: 'no existing match',
+      affectedJobCount: 5,
+    };
+    const { graph, spies } = buildGraph(() => recommendation);
+    const config = { configurable: { thread_id: 'graph-path-b' } };
+
+    const paused = await graph.app.invoke(baseState({ keyword: 'sveltejs' }), config);
+    expect(isInterrupted<AiRecommendation>(paused)).toBe(true);
+
+    const decision: HumanDecision = {
+      path: 'B',
+      newTech: { id: 'svelte', label: 'Svelte', category: 'frontend', iconSlugs: [], tags: [] },
+      confirmedEdges: [],
+    };
+    const result = await graph.app.invoke(new Command({ resume: decision }), config);
+
+    expect(isInterrupted(result)).toBe(false);
+    expect(spies.validateTechService.upsert).toHaveBeenCalledWith([
+      { id: 'svelte', label: 'Svelte', category: 'frontend', icon_slugs: [], tags: [] },
+    ]);
+    expect(spies.commitMappingTechKeywordService.upsert).not.toHaveBeenCalled();
+    expect(spies.keywordBinService.upsert).not.toHaveBeenCalled();
+    expect(result.commitResult).toEqual({
+      ok: true,
+      changes: [
+        {
+          type: 'tech',
+          details: { id: 'svelte', label: 'Svelte', category: 'frontend' },
+          status: 'committed',
+        },
+        {
+          type: 'tech_keyword',
+          details: { tech: 'svelte', keyword: 'sveltejs' },
+          status: 'committed',
+        },
+      ],
+    });
+  });
+
+  it('routes path C to commitKeywordBin only, leaving the other two commit nodes untouched (requirement 4.1)', async () => {
+    const recommendation: AiRecommendation = {
+      path: 'C',
+      reasoning: 'not a real technology',
+      affectedJobCount: 5,
+    };
+    const { graph, spies } = buildGraph(() => recommendation);
+    const config = { configurable: { thread_id: 'graph-path-c' } };
+
+    const paused = await graph.app.invoke(baseState({ keyword: 'blockchain' }), config);
+    expect(isInterrupted<AiRecommendation>(paused)).toBe(true);
+
+    const decision: HumanDecision = { path: 'C' };
+    const result = await graph.app.invoke(new Command({ resume: decision }), config);
+
+    expect(isInterrupted(result)).toBe(false);
+    expect(spies.keywordBinService.upsert).toHaveBeenCalledWith([{ id: 'blockchain' }]);
+    expect(spies.commitMappingTechKeywordService.upsert).not.toHaveBeenCalled();
+    expect(spies.validateTechService.upsert).not.toHaveBeenCalled();
+    expect(result.commitResult).toEqual({
+      ok: true,
+      changes: [{ type: 'keyword_bin', details: { id: 'blockchain' }, status: 'committed' }],
+    });
+  });
+
+  /**
+   * Ports/replaces the task 3.2 "distinct thread_ids do not cross-contaminate"
+   * test with a version that proves real thread-based isolation: ONE shared
+   * compiled `app` (one `MemorySaver` checkpointer instance) with TWO
+   * different `thread_id`s. Resuming thread A must not advance or alter
+   * thread B's still-paused checkpoint, and thread B must later resume
+   * independently to its own correct result (per tasks.md's
+   * `## Implementation Notes`).
+   */
+  it('isolates two sessions on one shared compiled app: resuming thread A does not affect thread B, and B later resumes independently and correctly', async () => {
+    const recommendations: Record<string, AiRecommendation> = {
+      foo: { path: 'C', reasoning: 'noise-foo', affectedJobCount: 1 },
+      bar: {
+        path: 'A',
+        matchedTech: { id: 'react', label: 'React', category: 'frontend' },
+        confidence: 0.8,
+        reasoning: 'bar matches react',
+        affectedJobCount: 2,
+      },
+    };
+    const { graph, spies } = buildGraph(keyword => recommendations[keyword]);
+    const configA = { configurable: { thread_id: 'thread-a' } };
+    const configB = { configurable: { thread_id: 'thread-b' } };
+
+    const pausedA = await graph.app.invoke(baseState({ keyword: 'foo' }), configA);
+    const pausedB = await graph.app.invoke(baseState({ keyword: 'bar' }), configB);
+    expect(isInterrupted<AiRecommendation>(pausedA)).toBe(true);
+    expect(isInterrupted<AiRecommendation>(pausedB)).toBe(true);
+
+    // Resume ONLY thread A.
+    const decisionA: HumanDecision = { path: 'C' };
+    const resultA = await graph.app.invoke(new Command({ resume: decisionA }), configA);
+    expect(isInterrupted(resultA)).toBe(false);
+    expect(resultA.commitResult).toEqual({
+      ok: true,
+      changes: [{ type: 'keyword_bin', details: { id: 'foo' }, status: 'committed' }],
+    });
+
+    // Thread B must still be paused, untouched by A's resume.
+    const snapshotB = await graph.app.getState(configB);
+    expect(snapshotB.next).toContain('classify');
+    expect(snapshotB.values.commitResult).toBeNull();
+    expect(snapshotB.values.humanDecision).toBeNull();
+    expect(spies.commitMappingTechKeywordService.upsert).not.toHaveBeenCalled();
+
+    // Now resume thread B independently; it must complete with its OWN data,
+    // not A's.
+    const decisionB: HumanDecision = { path: 'A', confirmedTechId: 'react' };
+    const resultB = await graph.app.invoke(new Command({ resume: decisionB }), configB);
+    expect(isInterrupted(resultB)).toBe(false);
+    expect(resultB.commitResult).toEqual({
+      ok: true,
+      changes: [
+        { type: 'tech_keyword', details: { keyword: 'bar', tech: 'react' }, status: 'committed' },
+      ],
+    });
+    expect(spies.commitMappingTechKeywordService.upsert).toHaveBeenCalledWith([
+      { tech: 'react', keyword: 'bar' },
+    ]);
+    expect(spies.keywordBinService.upsert).not.toHaveBeenCalledWith([{ id: 'bar' }]);
+
+    // Thread A's final state remains its own, unaffected by B's resume.
+    const snapshotA = await graph.app.getState(configA);
+    expect(snapshotA.values.commitResult).toEqual({
+      ok: true,
+      changes: [{ type: 'keyword_bin', details: { id: 'foo' }, status: 'committed' }],
+    });
   });
 });

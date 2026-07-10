@@ -1,4 +1,4 @@
-import { Annotation, interrupt } from '@langchain/langgraph';
+import { Annotation, END, interrupt, MemorySaver, START, StateGraph } from '@langchain/langgraph';
 import { Injectable } from '@nestjs/common';
 
 import type {
@@ -438,4 +438,106 @@ export class CommitKeywordBinNode {
       },
     };
   };
+}
+
+/** Target node names for `routeByDecision`'s conditional-edge routing. */
+export type CommitNodeName = 'commitMapping' | 'validateAndCommitNewTech' | 'commitKeywordBin';
+
+/**
+ * Node 3 (`routeDecision`, the conditional edge), design.md's
+ * `KeywordCurationGraph` section (~line 375: "目的：根據 humanDecision.path
+ * 分發至對應 commit 節點" and ~lines 404-408's `addConditionalEdges('classify',
+ * routeByDecision, { A: 'commitMapping', B: 'validateAndCommitNewTech', C:
+ * 'commitKeywordBin' })`), requirements 2.1, 4.1.
+ *
+ * Returns the target *node name* directly (rather than the raw 'A'/'B'/'C'
+ * path letter that design.md's pseudocode maps through a `pathMap`) so that
+ * `KeywordCurationGraph`'s `addConditionalEdges` call below can use an
+ * identity-shaped `pathMap` (`{ commitMapping: 'commitMapping', ... }`) --
+ * both are valid against `@langchain/langgraph@1.3.0`'s
+ * `addConditionalEdges(source, path, pathMap?)` signature, which only
+ * requires `path`'s return value to be a key of `pathMap`; this shape reads
+ * more directly at the two call sites (this function and the graph
+ * assembly) without losing any information design.md's version carried.
+ *
+ * A missing or unrecognized `humanDecision.path` is structurally impossible
+ * -- `ai_failed` is an `AiRecommendation`-only variant and never becomes a
+ * `HumanDecision` (graph.types.ts) -- so, like the commit nodes' own
+ * "impossible state" guards (tasks 3.3-3.5), this throws rather than
+ * returning a fallback route.
+ */
+export function routeByDecision(state: CurationState): CommitNodeName {
+  const decision = state.humanDecision;
+  switch (decision?.path) {
+    case 'A':
+      return 'commitMapping';
+    case 'B':
+      return 'validateAndCommitNewTech';
+    case 'C':
+      return 'commitKeywordBin';
+    default:
+      throw new Error(
+        `routeByDecision requires state.humanDecision.path to be 'A', 'B', or 'C', got: ${JSON.stringify(decision)}`,
+      );
+  }
+}
+
+/**
+ * design.md's `KeywordCurationGraph` section, "圖形組裝" code block (~lines
+ * 393-415), requirements 2.1, 4.1: assembles and compiles the full 5-node
+ * graph with conditional routing to the correct commit node, backed by a
+ * `MemorySaver` checkpointer so `interrupt()`/`Command({ resume })` sessions
+ * persist across separate `.invoke()` calls on the same `thread_id`.
+ *
+ * Constructor-injects the 5 already-`@Injectable()` node classes (tasks
+ * 3.1-3.5) as a normal NestJS provider, mirroring their own DI shape.
+ *
+ * Exposes the compiled graph as a public `app` property (rather than
+ * `invoke`/`resume` wrapper methods) so callers can use the exact
+ * `app.invoke(initialState, config)` / `app.invoke(new Command({ resume }),
+ * config)` calling convention design.md's "Session 操作" block (~lines
+ * 417-431) documents -- this is the shape task 4.2 (`startSession` /
+ * `resumeSession`, not yet built) is expected to consume:
+ *   - `startSession(keyword)`: build a fresh `thread_id`, call
+ *     `graph.app.invoke(<initial CurationState>, { configurable: { thread_id
+ *     } })`, then read the interrupt payload off the returned value via
+ *     `isInterrupted()` / `result[INTERRUPT][0].value` (same pattern as this
+ *     file's own `ClassifyNode.node` tests, task 3.2).
+ *   - `resumeSession(threadId, decision)`: call
+ *     `graph.app.invoke(new Command({ resume: decision }), { configurable: {
+ *     thread_id: threadId } })`, then read `result.commitResult` for the
+ *     final `CommitResult`. If `threadId` is unknown to the `MemorySaver`,
+ *     `graph.app.getState(config).next` comes back empty with no prior
+ *     checkpoint -- task 4.2's 404 branch should check for that.
+ */
+@Injectable()
+export class KeywordCurationGraph {
+  readonly app;
+
+  constructor(
+    fetchContextNode: FetchContextNode,
+    classifyNode: ClassifyNode,
+    commitMappingNode: CommitMappingNode,
+    validateAndCommitNewTechNode: ValidateAndCommitNewTechNode,
+    commitKeywordBinNode: CommitKeywordBinNode,
+  ) {
+    const graph = new StateGraph(CurationAnnotation)
+      .addNode('fetchContext', fetchContextNode.node)
+      .addNode('classify', classifyNode.node)
+      .addNode('commitMapping', commitMappingNode.node)
+      .addNode('validateAndCommitNewTech', validateAndCommitNewTechNode.node)
+      .addNode('commitKeywordBin', commitKeywordBinNode.node)
+      .addEdge(START, 'fetchContext')
+      .addEdge('fetchContext', 'classify')
+      .addConditionalEdges('classify', routeByDecision, {
+        commitMapping: 'commitMapping',
+        validateAndCommitNewTech: 'validateAndCommitNewTech',
+        commitKeywordBin: 'commitKeywordBin',
+      })
+      .addEdge('commitMapping', END)
+      .addEdge('validateAndCommitNewTech', END)
+      .addEdge('commitKeywordBin', END);
+
+    this.app = graph.compile({ checkpointer: new MemorySaver() });
+  }
 }
