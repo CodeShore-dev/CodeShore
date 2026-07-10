@@ -17,6 +17,7 @@ import { Module as CacheModule } from '../features/cache/module';
 import { Module as CompanyModule } from '../features/company/module';
 import { Module as JobModule } from '../features/job/module';
 import { Module as KeywordModule } from '../features/keyword/module';
+import { Module as KeywordCurationModule } from '../features/keyword-curation/module';
 import { provideWithLogger } from '../features/logger-provider';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -33,6 +34,7 @@ import { AppService } from './app.service';
     KeywordModule,
     AdminModule,
     AiSuggestionModule,
+    KeywordCurationModule,
   ],
   controllers: [AppController],
   providers: [
