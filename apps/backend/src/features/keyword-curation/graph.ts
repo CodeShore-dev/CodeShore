@@ -1,7 +1,7 @@
 import { Annotation, interrupt } from '@langchain/langgraph';
 import { Injectable } from '@nestjs/common';
 
-import type { JobKeywordService, TechService } from '@codeshore/data-utils';
+import type { JobKeywordService, TechKeywordService, TechService } from '@codeshore/data-utils';
 
 import type {
   AiRecommendation,
@@ -134,5 +134,72 @@ export class ClassifyNode {
     const decision = interrupt<AiRecommendation, HumanDecision>(recommendation);
 
     return { aiRecommendation: recommendation, humanDecision: decision };
+  };
+}
+
+/**
+ * Node 4a (`commitMapping`), design.md's `KeywordCurationGraph` section
+ * (~lines 378-379: "目的：techKeywordService.upsert([{ tech: confirmedTechId,
+ * keyword }])"), requirements 5.2, 5.3: writes the confirmed path-A
+ * keyword->tech mapping and reports the outcome as a `CommitResult`.
+ *
+ * Same constructor-injected class-based DI shape as `FetchContextNode`/
+ * `ClassifyNode` -- `this.node` is a bound arrow-function class property so
+ * it can be passed directly as `.addNode('commitMapping', commitMappingNode.node)`
+ * without losing its `this` binding.
+ *
+ * This node is only reachable via task 3.6's future conditional routing when
+ * `humanDecision.path === 'A'` (design.md ~line 405:
+ * `.addConditionalEdges('classify', routeByDecision, { A: 'commitMapping', ... })`),
+ * so arriving here with `state.humanDecision` missing or not the path-A
+ * variant is an impossible state caused only by a routing bug -- not a
+ * recoverable business scenario the frontend needs a message for. It is
+ * therefore asserted (thrown) rather than encoded as a `CommitResult.ok:
+ * false` value, which design.md's error-handling table reserves for actual
+ * upsert failures (requirement 9.1).
+ */
+@Injectable()
+export class CommitMappingNode {
+  constructor(private readonly techKeywordService: Pick<TechKeywordService, 'upsert'>) {}
+
+  node = async (state: CurationState): Promise<Partial<CurationState>> => {
+    const decision = state.humanDecision;
+    if (decision === null || decision.path !== 'A') {
+      throw new Error(
+        `CommitMappingNode requires humanDecision.path === 'A', got: ${JSON.stringify(decision)}`,
+      );
+    }
+
+    const { confirmedTechId } = decision;
+    const { error } = await this.techKeywordService.upsert([
+      { tech: confirmedTechId, keyword: state.keyword },
+    ]);
+
+    if (error) {
+      // design.md's error-handling table (requirement 9.1) specifies
+      // `partialChanges: []` literally for a path-A commit failure -- the
+      // single upsert either fully succeeds or fully fails, so there is no
+      // partial state to report.
+      return {
+        commitResult: {
+          ok: false,
+          error: error.message ?? 'Unknown error committing tech_keyword mapping',
+          partialChanges: [],
+        },
+      };
+    }
+
+    return {
+      commitResult: {
+        ok: true,
+        changes: [
+          {
+            type: 'tech_keyword',
+            details: { keyword: state.keyword, tech: confirmedTechId },
+            status: 'committed',
+          },
+        ],
+      },
+    };
   };
 }

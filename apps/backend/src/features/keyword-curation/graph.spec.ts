@@ -12,7 +12,7 @@ import {
 import { describe, expect, it, vi } from 'vitest';
 
 import type { AiRecommendation, CurationState, HumanDecision, TechOption } from './graph.types';
-import { ClassifyNode, CurationAnnotation, FetchContextNode } from './graph';
+import { ClassifyNode, CommitMappingNode, CurationAnnotation, FetchContextNode } from './graph';
 
 interface FakeTechRow {
   id: string;
@@ -265,5 +265,73 @@ describe('ClassifyNode.node (via a minimal fetchContext -> classify -> END test 
       expect(resultOne[INTERRUPT][0].value).toEqual(recommendationOne);
       expect(resultTwo[INTERRUPT][0].value).toEqual(recommendationTwo);
     }
+  });
+});
+
+function makeTechKeywordService(error: { message?: string } | null = null) {
+  return {
+    upsert: vi.fn().mockResolvedValue({ error }),
+  };
+}
+
+/**
+ * Task 3.3 completion criterion: unit test with a mocked `TechKeywordService`
+ * proves `CommitMappingNode.node` calls `upsert()` with the confirmed
+ * tech/keyword pair and returns a `CommitResult` reflecting the outcome
+ * (requirements 5.2, 5.3; design.md's `KeywordCurationGraph` section, Node
+ * 4a `commitMapping` pseudocode, ~lines 378-379).
+ */
+describe('CommitMappingNode.node', () => {
+  it('calls techKeywordService.upsert with the confirmed tech/keyword pair and returns CommitResult.ok: true (requirement 5.2)', async () => {
+    const techKeywordService = makeTechKeywordService(null);
+    const node = new CommitMappingNode(techKeywordService as any);
+    const humanDecision: HumanDecision = { path: 'A', confirmedTechId: 'react' };
+
+    const update = await node.node(
+      baseState({ keyword: 'reactjs', humanDecision }),
+    );
+
+    expect(techKeywordService.upsert).toHaveBeenCalledWith([
+      { tech: 'react', keyword: 'reactjs' },
+    ]);
+    expect(update.commitResult).toEqual({
+      ok: true,
+      changes: [
+        {
+          type: 'tech_keyword',
+          details: { keyword: 'reactjs', tech: 'react' },
+          status: 'committed',
+        },
+      ],
+    });
+  });
+
+  it('returns CommitResult.ok: false with partialChanges: [] when the upsert fails (design.md requirement 9.1 error-handling table)', async () => {
+    const techKeywordService = makeTechKeywordService({ message: 'duplicate key value' });
+    const node = new CommitMappingNode(techKeywordService as any);
+    const humanDecision: HumanDecision = { path: 'A', confirmedTechId: 'react' };
+
+    const update = await node.node(
+      baseState({ keyword: 'reactjs', humanDecision }),
+    );
+
+    expect(update.commitResult).toEqual({
+      ok: false,
+      error: 'duplicate key value',
+      partialChanges: [],
+    });
+  });
+
+  it('throws when reached with a non-path-A (or missing) humanDecision, since this node should only be routed to when decision.path === A', async () => {
+    const techKeywordService = makeTechKeywordService(null);
+    const node = new CommitMappingNode(techKeywordService as any);
+
+    await expect(
+      node.node(baseState({ keyword: 'reactjs', humanDecision: { path: 'C' } })),
+    ).rejects.toThrow(/humanDecision\.path/);
+    await expect(
+      node.node(baseState({ keyword: 'reactjs', humanDecision: null })),
+    ).rejects.toThrow(/humanDecision\.path/);
+    expect(techKeywordService.upsert).not.toHaveBeenCalled();
   });
 });
