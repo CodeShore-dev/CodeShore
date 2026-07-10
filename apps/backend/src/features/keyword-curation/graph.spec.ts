@@ -15,6 +15,7 @@ import { detectTechParentCycle } from '../ai-suggestion/validation/cycle-check';
 import type { AiRecommendation, CurationState, HumanDecision, TechOption } from './graph.types';
 import {
   ClassifyNode,
+  CommitKeywordBinNode,
   CommitMappingNode,
   CurationAnnotation,
   FetchContextNode,
@@ -614,5 +615,69 @@ describe('ValidateAndCommitNewTechNode.node', () => {
       node.node(baseState({ keyword: 'sveltejs', humanDecision: null })),
     ).rejects.toThrow(/humanDecision\.path/);
     expect(techService.upsert).not.toHaveBeenCalled();
+  });
+});
+
+function makeKeywordBinService(error: { message?: string } | null = null) {
+  return {
+    upsert: vi.fn().mockResolvedValue({ error }),
+  };
+}
+
+/**
+ * Task 3.5 completion criterion: unit test with a mocked `KeywordBinService`
+ * proves `CommitKeywordBinNode.node` calls `upsert()` with the keyword and
+ * returns a `CommitResult` reflecting the outcome (requirement 7.2; design.md's
+ * `KeywordCurationGraph` section, Node 4c `commitKeywordBin` pseudocode,
+ * ~lines 389-390).
+ */
+describe('CommitKeywordBinNode.node', () => {
+  it('calls keywordBinService.upsert with the keyword and returns CommitResult.ok: true (requirement 7.2)', async () => {
+    const keywordBinService = makeKeywordBinService(null);
+    const node = new CommitKeywordBinNode(keywordBinService as any);
+    const humanDecision: HumanDecision = { path: 'C' };
+
+    const update = await node.node(baseState({ keyword: 'blockchain', humanDecision }));
+
+    expect(keywordBinService.upsert).toHaveBeenCalledWith([{ id: 'blockchain' }]);
+    expect(update.commitResult).toEqual({
+      ok: true,
+      changes: [
+        {
+          type: 'keyword_bin',
+          details: { id: 'blockchain' },
+          status: 'committed',
+        },
+      ],
+    });
+  });
+
+  it('returns CommitResult.ok: false with partialChanges: [] when the upsert fails', async () => {
+    const keywordBinService = makeKeywordBinService({ message: 'duplicate key value' });
+    const node = new CommitKeywordBinNode(keywordBinService as any);
+    const humanDecision: HumanDecision = { path: 'C' };
+
+    const update = await node.node(baseState({ keyword: 'blockchain', humanDecision }));
+
+    expect(update.commitResult).toEqual({
+      ok: false,
+      error: 'duplicate key value',
+      partialChanges: [],
+    });
+  });
+
+  it('throws when reached with a non-path-C (or missing) humanDecision, since this node should only be routed to when decision.path === C', async () => {
+    const keywordBinService = makeKeywordBinService(null);
+    const node = new CommitKeywordBinNode(keywordBinService as any);
+
+    await expect(
+      node.node(
+        baseState({ keyword: 'blockchain', humanDecision: { path: 'A', confirmedTechId: 'react' } }),
+      ),
+    ).rejects.toThrow(/humanDecision\.path/);
+    await expect(
+      node.node(baseState({ keyword: 'blockchain', humanDecision: null })),
+    ).rejects.toThrow(/humanDecision\.path/);
+    expect(keywordBinService.upsert).not.toHaveBeenCalled();
   });
 });

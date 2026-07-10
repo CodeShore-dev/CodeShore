@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 
 import type {
   JobKeywordService,
+  KeywordBinService,
   TechKeywordService,
   TechParentService,
   TechService,
@@ -370,5 +371,71 @@ export class ValidateAndCommitNewTechNode {
     }
 
     return { commitResult: { ok: true, changes } };
+  };
+}
+
+/**
+ * Node 4c (`commitKeywordBin`), design.md's `KeywordCurationGraph` section
+ * (~lines 389-390: "目的：keywordBinService.upsert([{ id: keyword }])"),
+ * requirement 7.2: writes the confirmed path-C keyword to `keyword_bin`
+ * (marking it as noise, excluded from future workflow candidates -- see
+ * requirement 7.1) and reports the outcome as a `CommitResult`.
+ *
+ * Same constructor-injected class-based DI shape as `CommitMappingNode`
+ * (task 3.3) -- `this.node` is a bound arrow-function class property so it
+ * can be passed directly as
+ * `.addNode('commitKeywordBin', commitKeywordBinNode.node)` without losing
+ * its `this` binding.
+ *
+ * Like `CommitMappingNode`/`ValidateAndCommitNewTechNode`, this node is only
+ * reachable via task 3.6's future conditional routing when
+ * `humanDecision.path === 'C'`, so arriving here with `state.humanDecision`
+ * missing or not the path-C variant is an impossible state caused only by a
+ * routing bug, and is thrown rather than encoded as a `CommitResult.ok:
+ * false` value -- same precedent as `CommitMappingNode` (task 3.3).
+ *
+ * design.md has no explicit error-table row for a path-C commit failure;
+ * `CommitMappingNode`'s single-step-commit failure shape
+ * (`partialChanges: []`) is the right template since this is likewise a
+ * single upsert that either fully succeeds or fully fails.
+ */
+@Injectable()
+export class CommitKeywordBinNode {
+  constructor(private readonly keywordBinService: Pick<KeywordBinService, 'upsert'>) {}
+
+  node = async (state: CurationState): Promise<Partial<CurationState>> => {
+    const decision = state.humanDecision;
+    if (decision === null || decision.path !== 'C') {
+      throw new Error(
+        `CommitKeywordBinNode requires humanDecision.path === 'C', got: ${JSON.stringify(decision)}`,
+      );
+    }
+
+    const { error } = await this.keywordBinService.upsert([{ id: state.keyword }]);
+
+    if (error) {
+      // Mirrors `CommitMappingNode`'s failure-path shape (task 3.3): a
+      // single-step commit's failure has no partial state to report.
+      return {
+        commitResult: {
+          ok: false,
+          error: error.message ?? 'Unknown error committing keyword_bin entry',
+          partialChanges: [],
+        },
+      };
+    }
+
+    return {
+      commitResult: {
+        ok: true,
+        changes: [
+          {
+            type: 'keyword_bin',
+            details: { id: state.keyword },
+            status: 'committed',
+          },
+        ],
+      },
+    };
   };
 }
