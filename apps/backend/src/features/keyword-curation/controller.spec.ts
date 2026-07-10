@@ -6,6 +6,8 @@ import { Reflector } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { LoggerModule } from '@codeshore/service-logger';
+
 import { AdminGuard } from '../auth/admin.guard';
 import { AuthGuard } from '../auth/auth.guard';
 import { Controller } from './controller';
@@ -135,8 +137,16 @@ describe('KeywordCuration Controller guard wiring', () => {
   });
 
   it('boots KeywordCurationModule (Controller + Service wiring) without error', async () => {
+    // Task 4.1 added `provideWithLogger(...)`-registered data-utils
+    // providers (`KeywordService` etc.) to `module.ts`, each requiring a
+    // constructor-injected `ServiceLogger` -- the same `@Global()`
+    // `LoggerModule` every other feature module implicitly relies on via
+    // `app.module.ts`'s `LoggerModule.forRoot()` import. This isolated
+    // `KeywordCurationModule`-only test doesn't go through `app.module.ts`,
+    // so it must import `LoggerModule.forRoot()` itself to supply that
+    // dependency, mirroring `app.module.ts`'s own usage.
     const moduleRef = await Test.createTestingModule({
-      imports: [KeywordCurationModule],
+      imports: [LoggerModule.forRoot(), KeywordCurationModule],
     }).compile();
 
     expect(moduleRef.get(Controller)).toBeInstanceOf(Controller);

@@ -99,7 +99,16 @@ export class FetchContextNode {
   }
 }
 
-function toPgArrayContainsLiteral(value: string): string {
+/**
+ * Exported (not just module-private) so `service.ts`'s `getQueue()` (task
+ * 4.1) can share this exact `cs`-operator literal-formatting logic instead
+ * of adding a third copy alongside this one and
+ * `ai-suggestion/generators/keyword-mapping.generator.ts`'s -- both are
+ * within this feature module's own boundary, so importing across
+ * `graph.ts`/`service.ts` here does not cross the `ai-suggestion` boundary
+ * this feature must not depend on.
+ */
+export function toPgArrayContainsLiteral(value: string): string {
   const escaped = value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
   return `{"${escaped}"}`;
 }
