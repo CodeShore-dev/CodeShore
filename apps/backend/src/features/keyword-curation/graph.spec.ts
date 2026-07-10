@@ -1,9 +1,18 @@
 import 'reflect-metadata';
 
+import {
+  Command,
+  END,
+  INTERRUPT,
+  isInterrupted,
+  MemorySaver,
+  START,
+  StateGraph,
+} from '@langchain/langgraph';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { CurationState, TechOption } from './graph.types';
-import { FetchContextNode } from './graph';
+import type { AiRecommendation, CurationState, HumanDecision, TechOption } from './graph.types';
+import { ClassifyNode, CurationAnnotation, FetchContextNode } from './graph';
 
 interface FakeTechRow {
   id: string;
@@ -110,5 +119,151 @@ describe('FetchContextNode.node', () => {
       allTechs: [{ id: 'go', label: 'Go', category: 'language' }],
       affectedJobCount: 7,
     });
+  });
+});
+
+function makeCurationLlmClassifier(recommendation: AiRecommendation) {
+  return { classify: vi.fn().mockResolvedValue(recommendation) };
+}
+
+/**
+ * Task 3.2 scope note: this is a throwaway, test-local graph -- NOT exported
+ * from `graph.ts` -- wiring only `fetchContext -> classify -> END` with a
+ * `MemorySaver` checkpointer. Its sole purpose is to exercise
+ * `ClassifyNode.node`'s `interrupt()`/resume behavior through a real
+ * compiled, checkpointed LangGraph invocation, since `interrupt()` only
+ * functions correctly inside one (design.md's `KeywordCurationGraph` section,
+ * ~lines 393-415). Tasks 3.3-3.5 (commit nodes) and 3.6 (the real full graph
+ * with conditional routing to those commit nodes) are out of this task's
+ * boundary and are NOT reproduced here.
+ */
+function buildFetchThenClassifyTestGraph(
+  fetchContextNode: FetchContextNode,
+  classifyNode: ClassifyNode,
+) {
+  const graph = new StateGraph(CurationAnnotation)
+    .addNode('fetchContext', fetchContextNode.node)
+    .addNode('classify', classifyNode.node)
+    .addEdge(START, 'fetchContext')
+    .addEdge('fetchContext', 'classify')
+    .addEdge('classify', END);
+
+  return graph.compile({ checkpointer: new MemorySaver() });
+}
+
+/**
+ * Task 3.2 completion criteria (requirements 2.1, 2.3, 3.1-3.5): proves that
+ * `graph.invoke()` pauses after the `classify` node with the
+ * `AiRecommendation` (produced by `CurationLlmClassifier.classify()`,
+ * including its `ai_failed` variant) surfaced as the interrupt payload, and
+ * that resuming via `app.invoke(new Command({ resume: humanDecision }),
+ * config)` with the same `thread_id` continues execution past `classify`
+ * with `state.humanDecision` set to the resumed value.
+ */
+describe('ClassifyNode.node (via a minimal fetchContext -> classify -> END test graph)', () => {
+  const techService = makeTechService([{ id: 'react', label: 'React', category: 'frontend' }]);
+  const jobKeywordService = makeJobKeywordService(5);
+
+  it('pauses graph execution after classify and surfaces the AiRecommendation as the interrupt payload (path A)', async () => {
+    const recommendation: AiRecommendation = {
+      path: 'A',
+      matchedTech: { id: 'react', label: 'React', category: 'frontend' },
+      confidence: 0.92,
+      reasoning: 'reactjs is a common alias for React',
+      affectedJobCount: 5,
+    };
+    const curationLlmClassifier = makeCurationLlmClassifier(recommendation);
+    const app = buildFetchThenClassifyTestGraph(
+      new FetchContextNode(techService as any, jobKeywordService as any),
+      new ClassifyNode(curationLlmClassifier),
+    );
+    const config = { configurable: { thread_id: 'thread-path-a' } };
+
+    const result = await app.invoke(baseState({ keyword: 'reactjs' }), config);
+
+    expect(curationLlmClassifier.classify).toHaveBeenCalledWith('reactjs', 5, [
+      { id: 'react', label: 'React', category: 'frontend' },
+    ]);
+    expect(isInterrupted<AiRecommendation>(result)).toBe(true);
+    if (isInterrupted<AiRecommendation>(result)) {
+      expect(result[INTERRUPT]).toHaveLength(1);
+      expect(result[INTERRUPT][0].value).toEqual(recommendation);
+    }
+  });
+
+  it('surfaces the ai_failed variant as the interrupt payload when CurationLlmClassifier.classify() resolves a degraded result (requirement 3.5)', async () => {
+    const recommendation: AiRecommendation = { path: 'ai_failed', error: 'LLM request timed out' };
+    const curationLlmClassifier = makeCurationLlmClassifier(recommendation);
+    const app = buildFetchThenClassifyTestGraph(
+      new FetchContextNode(techService as any, jobKeywordService as any),
+      new ClassifyNode(curationLlmClassifier),
+    );
+    const config = { configurable: { thread_id: 'thread-ai-failed' } };
+
+    const result = await app.invoke(baseState({ keyword: 'reactjs' }), config);
+
+    expect(isInterrupted<AiRecommendation>(result)).toBe(true);
+    if (isInterrupted<AiRecommendation>(result)) {
+      expect(result[INTERRUPT][0].value).toEqual(recommendation);
+    }
+  });
+
+  it('continues past classify to END with state.humanDecision set when resumed via Command({resume}) on the same thread_id', async () => {
+    const recommendation: AiRecommendation = {
+      path: 'C',
+      reasoning: 'not a real technology',
+      affectedJobCount: 5,
+    };
+    const curationLlmClassifier = makeCurationLlmClassifier(recommendation);
+    const app = buildFetchThenClassifyTestGraph(
+      new FetchContextNode(techService as any, jobKeywordService as any),
+      new ClassifyNode(curationLlmClassifier),
+    );
+    const config = { configurable: { thread_id: 'thread-resume' } };
+    const humanDecision: HumanDecision = { path: 'C' };
+
+    const paused = await app.invoke(baseState({ keyword: 'asdf' }), config);
+    expect(isInterrupted<AiRecommendation>(paused)).toBe(true);
+
+    const resumed = await app.invoke(new Command({ resume: humanDecision }), config);
+
+    expect(isInterrupted(resumed)).toBe(false);
+    expect(resumed.aiRecommendation).toEqual(recommendation);
+    expect(resumed.humanDecision).toEqual(humanDecision);
+  });
+
+  it('produces different interrupt payloads for two concurrent sessions (distinct thread_ids do not cross-contaminate)', async () => {
+    const recommendationOne: AiRecommendation = {
+      path: 'C',
+      reasoning: 'noise',
+      affectedJobCount: 5,
+    };
+    const recommendationTwo: AiRecommendation = {
+      path: 'C',
+      reasoning: 'also noise',
+      affectedJobCount: 5,
+    };
+    const classifierOne = makeCurationLlmClassifier(recommendationOne);
+    const classifierTwo = makeCurationLlmClassifier(recommendationTwo);
+    const appOne = buildFetchThenClassifyTestGraph(
+      new FetchContextNode(techService as any, jobKeywordService as any),
+      new ClassifyNode(classifierOne),
+    );
+    const appTwo = buildFetchThenClassifyTestGraph(
+      new FetchContextNode(techService as any, jobKeywordService as any),
+      new ClassifyNode(classifierTwo),
+    );
+    const configOne = { configurable: { thread_id: 'thread-one' } };
+    const configTwo = { configurable: { thread_id: 'thread-two' } };
+
+    const resultOne = await appOne.invoke(baseState({ keyword: 'foo' }), configOne);
+    const resultTwo = await appTwo.invoke(baseState({ keyword: 'bar' }), configTwo);
+
+    expect(isInterrupted<AiRecommendation>(resultOne)).toBe(true);
+    expect(isInterrupted<AiRecommendation>(resultTwo)).toBe(true);
+    if (isInterrupted<AiRecommendation>(resultOne) && isInterrupted<AiRecommendation>(resultTwo)) {
+      expect(resultOne[INTERRUPT][0].value).toEqual(recommendationOne);
+      expect(resultTwo[INTERRUPT][0].value).toEqual(recommendationTwo);
+    }
   });
 });

@@ -1,4 +1,4 @@
-import { Annotation } from '@langchain/langgraph';
+import { Annotation, interrupt } from '@langchain/langgraph';
 import { Injectable } from '@nestjs/common';
 
 import type { JobKeywordService, TechService } from '@codeshore/data-utils';
@@ -10,6 +10,7 @@ import type {
   HumanDecision,
   TechOption,
 } from './graph.types';
+import type { CurationLlmClassifier } from './llm-classifier';
 
 /**
  * design.md's `KeywordCurationGraph`（LangGraph）section, `CurationAnnotation`
@@ -93,4 +94,45 @@ export class FetchContextNode {
 function toPgArrayContainsLiteral(value: string): string {
   const escaped = value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
   return `{"${escaped}"}`;
+}
+
+/**
+ * Node 2 (`classify`), design.md's `KeywordCurationGraph` section (~lines
+ * 360-373), requirements 2.1, 2.3, 3.1-3.5: calls
+ * `CurationLlmClassifier.classify()` to get an `AiRecommendation` (which may
+ * be the `ai_failed` variant -- `classify()` never throws, per task 2.1's
+ * contract, so this node has no try/catch of its own), then calls
+ * `interrupt(recommendation)` to pause the graph and surface the
+ * recommendation as the interrupt payload. When the graph is later resumed
+ * via `app.invoke(new Command({ resume: humanDecision }), config)` with the
+ * same `thread_id`, `interrupt()` "returns" that `humanDecision` value and
+ * node execution continues, so the node's return value captures both the AI
+ * recommendation (set before the pause) and the human decision (only known
+ * after resume) in a single state update.
+ *
+ * Same constructor-injected class-based DI shape as `FetchContextNode`
+ * (task 3.1) -- `this.node` is a bound arrow-function class property so it
+ * can be passed directly as `.addNode('classify', classifyNode.node)`
+ * without losing its `this` binding.
+ */
+@Injectable()
+export class ClassifyNode {
+  constructor(
+    private readonly curationLlmClassifier: Pick<CurationLlmClassifier, 'classify'>,
+  ) {}
+
+  node = async (state: CurationState): Promise<Partial<CurationState>> => {
+    const recommendation = await this.curationLlmClassifier.classify(
+      state.keyword,
+      state.affectedJobCount,
+      state.allTechs,
+    );
+
+    // Pauses graph execution here; on resume via
+    // `app.invoke(new Command({ resume: humanDecision }), config)` this call
+    // returns `humanDecision` and execution continues past this line.
+    const decision = interrupt<AiRecommendation, HumanDecision>(recommendation);
+
+    return { aiRecommendation: recommendation, humanDecision: decision };
+  };
 }
