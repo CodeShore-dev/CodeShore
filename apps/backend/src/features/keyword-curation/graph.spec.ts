@@ -9,10 +9,25 @@ import {
   START,
   StateGraph,
 } from '@langchain/langgraph';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { detectTechParentCycle } from '../ai-suggestion/validation/cycle-check';
 import type { AiRecommendation, CurationState, HumanDecision, TechOption } from './graph.types';
-import { ClassifyNode, CommitMappingNode, CurationAnnotation, FetchContextNode } from './graph';
+import {
+  ClassifyNode,
+  CommitMappingNode,
+  CurationAnnotation,
+  FetchContextNode,
+  ValidateAndCommitNewTechNode,
+} from './graph';
+
+// `vi.mock` calls are hoisted above all imports by vitest, so this applies
+// before `ValidateAndCommitNewTechNode`'s module-level `import {
+// detectTechParentCycle }` (in graph.ts) resolves, regardless of source
+// order here.
+vi.mock('../ai-suggestion/validation/cycle-check', () => ({
+  detectTechParentCycle: vi.fn(),
+}));
 
 interface FakeTechRow {
   id: string;
@@ -333,5 +348,271 @@ describe('CommitMappingNode.node', () => {
       node.node(baseState({ keyword: 'reactjs', humanDecision: null })),
     ).rejects.toThrow(/humanDecision\.path/);
     expect(techKeywordService.upsert).not.toHaveBeenCalled();
+  });
+});
+
+interface FakeExistingTechRow {
+  id: string;
+  [extra: string]: unknown;
+}
+
+function makeTechServiceForCommit(
+  options: {
+    existing?: FakeExistingTechRow[];
+    upsertError?: { message?: string } | null;
+  } = {},
+) {
+  const existing = options.existing ?? [];
+  return {
+    fetchAll: vi
+      .fn()
+      .mockResolvedValue({ result: existing, count: existing.length, searchParams: '' }),
+    upsert: vi.fn().mockResolvedValue({ error: options.upsertError ?? null }),
+  };
+}
+
+function makeTechKeywordServiceForCommit(error: { message?: string } | null = null) {
+  return { upsert: vi.fn().mockResolvedValue({ error }) };
+}
+
+function makeTechParentServiceForCommit(error: { message?: string } | null = null) {
+  return { upsert: vi.fn().mockResolvedValue({ error }) };
+}
+
+/**
+ * Task 3.4 completion criteria (requirements 6.5, 6.7, 6.8, 9.3; design.md's
+ * `KeywordCurationGraph` section, Node 4b `validateAndCommitNewTech`
+ * pseudocode ~lines 381-387, and error-handling table ~lines 631-640): unit
+ * tests with mocked `TechService`/`TechKeywordService`/`TechParentService`
+ * and a mocked `detectTechParentCycle` prove the three-write commit
+ * sequence, its cycle/duplicate-id abort paths, and its "continue past
+ * individual step failure" partial-success behavior.
+ */
+describe('ValidateAndCommitNewTechNode.node', () => {
+  const newTech: HumanDecision & { path: 'B' } = {
+    path: 'B',
+    newTech: {
+      id: 'svelte',
+      label: 'Svelte',
+      category: 'frontend',
+      iconSlugs: ['svelte'],
+      tags: ['javascript', 'frontend'],
+    },
+    confirmedEdges: [
+      { parentId: 'javascript', childId: 'svelte' },
+      { parentId: 'frontend', childId: 'svelte' },
+    ],
+  };
+
+  beforeEach(() => {
+    vi.mocked(detectTechParentCycle).mockReset();
+  });
+
+  it('commits tech, tech_keyword, and one tech_parent entry per confirmed edge when everything succeeds (requirements 6.7, 9.3)', async () => {
+    vi.mocked(detectTechParentCycle).mockResolvedValue({ hasCycle: false });
+    const techService = makeTechServiceForCommit();
+    const techKeywordService = makeTechKeywordServiceForCommit(null);
+    const techParentService = makeTechParentServiceForCommit(null);
+    const node = new ValidateAndCommitNewTechNode(
+      techService as any,
+      techKeywordService as any,
+      techParentService as any,
+    );
+
+    const update = await node.node(baseState({ keyword: 'sveltejs', humanDecision: newTech }));
+
+    expect(detectTechParentCycle).toHaveBeenCalledWith('javascript', 'svelte');
+    expect(detectTechParentCycle).toHaveBeenCalledWith('frontend', 'svelte');
+    expect(techService.upsert).toHaveBeenCalledWith([
+      {
+        id: 'svelte',
+        label: 'Svelte',
+        category: 'frontend',
+        icon_slugs: ['svelte'],
+        tags: ['javascript', 'frontend'],
+      },
+    ]);
+    expect(techKeywordService.upsert).toHaveBeenCalledWith([
+      { tech: 'svelte', keyword: 'sveltejs' },
+    ]);
+    expect(techParentService.upsert).toHaveBeenCalledTimes(2);
+    expect(techParentService.upsert).toHaveBeenCalledWith([
+      { parent: 'javascript', child: 'svelte' },
+    ]);
+    expect(techParentService.upsert).toHaveBeenCalledWith([{ parent: 'frontend', child: 'svelte' }]);
+
+    expect(update.commitResult).toEqual({
+      ok: true,
+      changes: [
+        {
+          type: 'tech',
+          details: { id: 'svelte', label: 'Svelte', category: 'frontend' },
+          status: 'committed',
+        },
+        {
+          type: 'tech_keyword',
+          details: { tech: 'svelte', keyword: 'sveltejs' },
+          status: 'committed',
+        },
+        {
+          type: 'tech_parent',
+          details: { parent: 'javascript', child: 'svelte' },
+          status: 'committed',
+        },
+        {
+          type: 'tech_parent',
+          details: { parent: 'frontend', child: 'svelte' },
+          status: 'committed',
+        },
+      ],
+    });
+  });
+
+  it('aborts the whole commit with no writes when detectTechParentCycle reports a cycle on any edge (requirement 6.5)', async () => {
+    vi.mocked(detectTechParentCycle).mockImplementation(async (parent: string) => {
+      if (parent === 'frontend') return { hasCycle: true, conflictPath: ['svelte', 'frontend'] };
+      return { hasCycle: false };
+    });
+    const techService = makeTechServiceForCommit();
+    const techKeywordService = makeTechKeywordServiceForCommit(null);
+    const techParentService = makeTechParentServiceForCommit(null);
+    const node = new ValidateAndCommitNewTechNode(
+      techService as any,
+      techKeywordService as any,
+      techParentService as any,
+    );
+
+    const update = await node.node(baseState({ keyword: 'sveltejs', humanDecision: newTech }));
+
+    expect(update.commitResult).toEqual({
+      ok: false,
+      error: 'cycle_detected',
+      partialChanges: [],
+    });
+    expect(techService.upsert).not.toHaveBeenCalled();
+    expect(techKeywordService.upsert).not.toHaveBeenCalled();
+    expect(techParentService.upsert).not.toHaveBeenCalled();
+  });
+
+  it('records tech (committed) and tech_keyword (failed) in partialChanges and still attempts tech_parent writes when tech_keyword fails (requirement 9.3)', async () => {
+    vi.mocked(detectTechParentCycle).mockResolvedValue({ hasCycle: false });
+    const techService = makeTechServiceForCommit();
+    const techKeywordService = makeTechKeywordServiceForCommit({
+      message: 'tech_keyword insert failed',
+    });
+    const techParentService = makeTechParentServiceForCommit(null);
+    const node = new ValidateAndCommitNewTechNode(
+      techService as any,
+      techKeywordService as any,
+      techParentService as any,
+    );
+
+    const update = await node.node(baseState({ keyword: 'sveltejs', humanDecision: newTech }));
+
+    expect(techParentService.upsert).toHaveBeenCalledTimes(2);
+    expect(update.commitResult?.ok).toBe(false);
+    if (update.commitResult?.ok === false) {
+      expect(update.commitResult.partialChanges).toContainEqual({
+        type: 'tech',
+        details: { id: 'svelte', label: 'Svelte', category: 'frontend' },
+        status: 'committed',
+      });
+      expect(update.commitResult.partialChanges).toContainEqual({
+        type: 'tech_keyword',
+        details: { tech: 'svelte', keyword: 'sveltejs' },
+        status: 'failed',
+        error: 'tech_keyword insert failed',
+      });
+      expect(update.commitResult.partialChanges).toContainEqual({
+        type: 'tech_parent',
+        details: { parent: 'javascript', child: 'svelte' },
+        status: 'committed',
+      });
+      expect(update.commitResult.partialChanges).toContainEqual({
+        type: 'tech_parent',
+        details: { parent: 'frontend', child: 'svelte' },
+        status: 'committed',
+      });
+      expect(update.commitResult.partialChanges).toHaveLength(4);
+    }
+  });
+
+  it('aborts the whole commit with no writes when the new tech id already exists (requirement 6.8)', async () => {
+    vi.mocked(detectTechParentCycle).mockResolvedValue({ hasCycle: false });
+    const techService = makeTechServiceForCommit({ existing: [{ id: 'svelte' }] });
+    const techKeywordService = makeTechKeywordServiceForCommit(null);
+    const techParentService = makeTechParentServiceForCommit(null);
+    const node = new ValidateAndCommitNewTechNode(
+      techService as any,
+      techKeywordService as any,
+      techParentService as any,
+    );
+
+    const update = await node.node(baseState({ keyword: 'sveltejs', humanDecision: newTech }));
+
+    expect(techService.fetchAll).toHaveBeenCalledWith({ where: { id: { eq: 'svelte' } } });
+    expect(update.commitResult).toEqual({
+      ok: false,
+      error: 'duplicate_id',
+      partialChanges: [],
+    });
+    expect(techService.upsert).not.toHaveBeenCalled();
+    expect(techKeywordService.upsert).not.toHaveBeenCalled();
+    expect(techParentService.upsert).not.toHaveBeenCalled();
+  });
+
+  it('commits tech and tech_keyword with zero tech_parent writes when confirmedEdges is empty (edge case)', async () => {
+    const techService = makeTechServiceForCommit();
+    const techKeywordService = makeTechKeywordServiceForCommit(null);
+    const techParentService = makeTechParentServiceForCommit(null);
+    const node = new ValidateAndCommitNewTechNode(
+      techService as any,
+      techKeywordService as any,
+      techParentService as any,
+    );
+    const decision: HumanDecision = {
+      path: 'B',
+      newTech: newTech.newTech,
+      confirmedEdges: [],
+    };
+
+    const update = await node.node(baseState({ keyword: 'sveltejs', humanDecision: decision }));
+
+    expect(detectTechParentCycle).not.toHaveBeenCalled();
+    expect(techParentService.upsert).not.toHaveBeenCalled();
+    expect(update.commitResult).toEqual({
+      ok: true,
+      changes: [
+        {
+          type: 'tech',
+          details: { id: 'svelte', label: 'Svelte', category: 'frontend' },
+          status: 'committed',
+        },
+        {
+          type: 'tech_keyword',
+          details: { tech: 'svelte', keyword: 'sveltejs' },
+          status: 'committed',
+        },
+      ],
+    });
+  });
+
+  it('throws when reached with a non-path-B (or missing) humanDecision, since this node should only be routed to when decision.path === B', async () => {
+    const techService = makeTechServiceForCommit();
+    const techKeywordService = makeTechKeywordServiceForCommit(null);
+    const techParentService = makeTechParentServiceForCommit(null);
+    const node = new ValidateAndCommitNewTechNode(
+      techService as any,
+      techKeywordService as any,
+      techParentService as any,
+    );
+
+    await expect(
+      node.node(baseState({ keyword: 'sveltejs', humanDecision: { path: 'C' } })),
+    ).rejects.toThrow(/humanDecision\.path/);
+    await expect(
+      node.node(baseState({ keyword: 'sveltejs', humanDecision: null })),
+    ).rejects.toThrow(/humanDecision\.path/);
+    expect(techService.upsert).not.toHaveBeenCalled();
   });
 });

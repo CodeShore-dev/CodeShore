@@ -1,10 +1,17 @@
 import { Annotation, interrupt } from '@langchain/langgraph';
 import { Injectable } from '@nestjs/common';
 
-import type { JobKeywordService, TechKeywordService, TechService } from '@codeshore/data-utils';
+import type {
+  JobKeywordService,
+  TechKeywordService,
+  TechParentService,
+  TechService,
+} from '@codeshore/data-utils';
 
+import { detectTechParentCycle } from '../ai-suggestion/validation/cycle-check';
 import type {
   AiRecommendation,
+  CommittedChange,
   CommitResult,
   CurationState,
   HumanDecision,
@@ -201,5 +208,167 @@ export class CommitMappingNode {
         ],
       },
     };
+  };
+}
+
+/**
+ * Node 4b (`validateAndCommitNewTech`), design.md's `KeywordCurationGraph`
+ * section (~lines 381-387) and error-handling table (~lines 631-640),
+ * requirements 6.5, 6.7, 6.8, 9.3.
+ *
+ * Two validations run before any write, in this order, each aborting the
+ * entire commit with `partialChanges: []` and NO writes on any of the three
+ * services if triggered:
+ *
+ *   1. Cycle check (requirement 6.5): `detectTechParentCycle(parent, child)`
+ *      is called once per `confirmedEdges` entry. If any edge reports
+ *      `hasCycle: true`, the commit aborts with
+ *      `{ ok: false, error: 'cycle_detected', partialChanges: [] }`.
+ *      `detectTechParentCycle` throws on an RPC-level failure (its own
+ *      contract, `ai-suggestion/validation/cycle-check.ts`) rather than
+ *      returning an `ok:false`-shaped result -- that throw is intentionally
+ *      left to propagate out of this node uncaught, mirroring
+ *      `CommitMappingNode`'s precedent (task 3.3) of throwing on states this
+ *      node cannot itself recover from: a broken cycle-check RPC is an
+ *      infrastructure failure the caller must surface, not a normal
+ *      business-level `CommitResult.ok: false` outcome.
+ *   2. Duplicate id pre-check (requirement 6.8): `techService.fetchAll({
+ *      where: { id: { eq: newTech.id } } })` is checked for an existing row
+ *      BEFORE calling `techService.upsert()`. This is deliberate: Postgres
+ *      UPSERT semantics would otherwise silently overwrite an existing tech
+ *      row rather than erroring, but requirement 6.8 needs the admin
+ *      explicitly blocked and asked to change the id, so detecting the
+ *      conflict via a pre-check is more reliable than depending on
+ *      `upsert()` to reject it. On a match, the commit aborts with
+ *      `{ ok: false, error: 'duplicate_id', partialChanges: [] }`.
+ *
+ * Once both validations pass, steps 2-4 (design.md's Node 4b pseudocode
+ * numbering) run in sequence -- `tech` upsert, then `tech_keyword` upsert,
+ * then one `tech_parent` upsert per `confirmedEdges` entry -- and do NOT
+ * abort on individual failure (requirement 9.3 / design.md's "路徑 B 部分失敗"
+ * row: "任一失敗即記錄於 partialChanges，剩餘步驟仍繼續"). Each step's outcome is
+ * recorded as one `CommittedChange`; execution always continues to the next
+ * step regardless of the previous step's outcome. The final result is
+ * `ok: true` with all changes only if every step committed; otherwise
+ * `ok: false` with an aggregate error message naming the failed step(s) and
+ * `partialChanges` containing every step's outcome (committed and failed
+ * alike).
+ *
+ * Same constructor-injected class-based DI shape as the other nodes in this
+ * file -- `this.node` is a bound arrow-function class property so it can be
+ * passed directly as
+ * `.addNode('validateAndCommitNewTech', validateAndCommitNewTechNode.node)`
+ * without losing its `this` binding.
+ *
+ * Like `CommitMappingNode`, this node is only reachable via task 3.6's
+ * future conditional routing when `humanDecision.path === 'B'`, so arriving
+ * here with a missing or non-path-B `humanDecision` is an impossible state
+ * caused only by a routing bug and is thrown rather than encoded as a
+ * `CommitResult.ok: false` value.
+ */
+@Injectable()
+export class ValidateAndCommitNewTechNode {
+  constructor(
+    private readonly techService: Pick<TechService, 'fetchAll' | 'upsert'>,
+    private readonly techKeywordService: Pick<TechKeywordService, 'upsert'>,
+    private readonly techParentService: Pick<TechParentService, 'upsert'>,
+  ) {}
+
+  node = async (state: CurationState): Promise<Partial<CurationState>> => {
+    const decision = state.humanDecision;
+    if (decision === null || decision.path !== 'B') {
+      throw new Error(
+        `ValidateAndCommitNewTechNode requires humanDecision.path === 'B', got: ${JSON.stringify(decision)}`,
+      );
+    }
+
+    const { newTech, confirmedEdges } = decision;
+
+    // Validation 1: cycle check, per edge, before any writes (requirement 6.5).
+    for (const edge of confirmedEdges) {
+      const { hasCycle } = await detectTechParentCycle(edge.parentId, edge.childId);
+      if (hasCycle) {
+        return { commitResult: { ok: false, error: 'cycle_detected', partialChanges: [] } };
+      }
+    }
+
+    // Validation 2: duplicate id pre-check, before any writes (requirement 6.8).
+    const { result: existingTechs } = await this.techService.fetchAll({
+      where: { id: { eq: newTech.id } },
+    });
+    if (existingTechs.length > 0) {
+      return { commitResult: { ok: false, error: 'duplicate_id', partialChanges: [] } };
+    }
+
+    const changes: CommittedChange[] = [];
+
+    // Step 2: tech
+    const techDetails = { id: newTech.id, label: newTech.label, category: newTech.category };
+    const { error: techError } = await this.techService.upsert([
+      {
+        id: newTech.id,
+        label: newTech.label,
+        category: newTech.category,
+        icon_slugs: newTech.iconSlugs,
+        tags: newTech.tags,
+      },
+    ]);
+    changes.push(
+      techError
+        ? {
+            type: 'tech',
+            details: techDetails,
+            status: 'failed',
+            error: techError.message ?? 'Unknown error committing tech',
+          }
+        : { type: 'tech', details: techDetails, status: 'committed' },
+    );
+
+    // Step 3: tech_keyword
+    const keywordDetails = { tech: newTech.id, keyword: state.keyword };
+    const { error: keywordError } = await this.techKeywordService.upsert([
+      { tech: newTech.id, keyword: state.keyword },
+    ]);
+    changes.push(
+      keywordError
+        ? {
+            type: 'tech_keyword',
+            details: keywordDetails,
+            status: 'failed',
+            error: keywordError.message ?? 'Unknown error committing tech_keyword mapping',
+          }
+        : { type: 'tech_keyword', details: keywordDetails, status: 'committed' },
+    );
+
+    // Step 4: tech_parent, once per confirmed edge
+    for (const edge of confirmedEdges) {
+      const edgeDetails = { parent: edge.parentId, child: edge.childId };
+      const { error: edgeError } = await this.techParentService.upsert([
+        { parent: edge.parentId, child: edge.childId },
+      ]);
+      changes.push(
+        edgeError
+          ? {
+              type: 'tech_parent',
+              details: edgeDetails,
+              status: 'failed',
+              error: edgeError.message ?? 'Unknown error committing tech_parent edge',
+            }
+          : { type: 'tech_parent', details: edgeDetails, status: 'committed' },
+      );
+    }
+
+    const failedSteps = changes.filter(change => change.status === 'failed');
+    if (failedSteps.length > 0) {
+      return {
+        commitResult: {
+          ok: false,
+          error: `Failed to commit: ${failedSteps.map(change => change.type).join(', ')}`,
+          partialChanges: changes,
+        },
+      };
+    }
+
+    return { commitResult: { ok: true, changes } };
   };
 }
