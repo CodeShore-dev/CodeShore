@@ -1,17 +1,19 @@
 import 'reflect-metadata';
 
 import type { ExecutionContext } from '@nestjs/common';
-import { UnauthorizedException } from '@nestjs/common';
+import { InternalServerErrorException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { LoggerModule } from '@codeshore/service-logger';
 
 import { AdminGuard } from '../auth/admin.guard';
 import { AuthGuard } from '../auth/auth.guard';
 import { Controller } from './controller';
+import { KeywordCurationGraph } from './graph';
 import { Module as KeywordCurationModule } from './module';
+import { Service } from './service';
 
 /**
  * Task 1.2 completion criterion: "NestJS 伺服器啟動無錯誤；GET
@@ -152,5 +154,132 @@ describe('KeywordCuration Controller guard wiring', () => {
     expect(moduleRef.get(Controller)).toBeInstanceOf(Controller);
 
     await moduleRef.close();
+  });
+
+  /**
+   * Task 4.2's central architectural constraint: `KeywordCurationGraph`'s
+   * compiled `app`/`MemorySaver` must be a single, stable DI singleton
+   * actually wired into `Service`, not left `undefined` -- which is exactly
+   * what would silently happen if any of the graph's `Pick<X, 'method'>`-typed
+   * node constructors were registered as bare classes instead of explicit
+   * `useFactory`/`inject` providers (see `module.ts`'s doc comment: under
+   * this repo's `tsc --emitDecoratorMetadata` build, `Pick<X, K>` params
+   * erase to `Object` in `design:paramtypes`, and Nest's automatic
+   * constructor-injection-by-type cannot resolve that). This test proves the
+   * whole chain -- `KeywordCurationGraph` down through `CurationLlmClassifier`,
+   * `DynamicLlmClient`, and every graph node -- resolves to real instances,
+   * and that `Service` actually received the same singleton `KeywordCurationGraph`
+   * instance the module produced (not a second one, and not `undefined`).
+   */
+  it('wires a real KeywordCurationGraph singleton into Service (not undefined, not a second instance)', async () => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [LoggerModule.forRoot(), KeywordCurationModule],
+    }).compile();
+
+    const graph = moduleRef.get(KeywordCurationGraph);
+    const service = moduleRef.get(Service);
+
+    expect(graph).toBeInstanceOf(KeywordCurationGraph);
+    expect(graph.app).toBeDefined();
+    // `graph` is constructor-injected as `private readonly` -- TypeScript's
+    // `private` is compile-time only, so it is still a real own property on
+    // the instance at runtime and can be asserted on directly here.
+    expect((service as unknown as { graph: unknown }).graph).toBe(graph);
+
+    await moduleRef.close();
+  });
+});
+
+/**
+ * Task 4.2 completion criteria: direct unit tests of `Controller.startSession`/
+ * `Controller.resumeSession`'s HTTP-mapping logic, constructing `Controller`
+ * directly with a mocked `Service` (same lightweight pattern as
+ * `service.spec.ts`'s `createService`, rather than booting the full Nest
+ * module) -- proves the 404 mapping for `thread_not_found`, the 500 mapping
+ * for `graph_error`, and the exact `{ status: 'done', result }` /
+ * `{ threadId, interrupt }` success response shapes design.md's HTTP
+ * contract specifies.
+ */
+describe('Controller.startSession (task 4.2)', () => {
+  it('returns { threadId, interrupt } on success (design.md HTTP contract, 200 response)', async () => {
+    const interrupt = { path: 'C' as const, reasoning: 'not a real technology', affectedJobCount: 3 };
+    const service = {
+      startSession: vi.fn().mockResolvedValue({ ok: true, threadId: 'thread-1', interrupt }),
+    };
+    const controller = new Controller(service as any);
+
+    const response = await controller.startSession('blockchain');
+
+    expect(service.startSession).toHaveBeenCalledWith('blockchain');
+    expect(response).toEqual({ threadId: 'thread-1', interrupt });
+  });
+
+  it('throws InternalServerErrorException when Service.startSession returns ok: false', async () => {
+    const service = {
+      startSession: vi.fn().mockResolvedValue({ ok: false, error: 'OPENROUTER_API_KEY not configured' }),
+    };
+    const controller = new Controller(service as any);
+
+    await expect(controller.startSession('blockchain')).rejects.toBeInstanceOf(
+      InternalServerErrorException,
+    );
+    await expect(controller.startSession('blockchain')).rejects.toThrow(
+      'OPENROUTER_API_KEY not configured',
+    );
+  });
+});
+
+describe('Controller.resumeSession (task 4.2)', () => {
+  it("returns { status: 'done', result } on success (design.md HTTP contract, 200 response)", async () => {
+    const commitResult = {
+      ok: true as const,
+      changes: [{ type: 'keyword_bin' as const, details: { id: 'blockchain' }, status: 'committed' as const }],
+    };
+    const service = {
+      resumeSession: vi.fn().mockResolvedValue({ ok: true, result: commitResult }),
+    };
+    const controller = new Controller(service as any);
+    const decision = { path: 'C' as const };
+
+    const response = await controller.resumeSession('thread-1', decision);
+
+    expect(service.resumeSession).toHaveBeenCalledWith('thread-1', decision);
+    expect(response).toEqual({ status: 'done', result: commitResult });
+  });
+
+  it('throws NotFoundException (404) when Service.resumeSession reports thread_not_found (design.md HTTP contract, 404 response)', async () => {
+    const service = {
+      resumeSession: vi.fn().mockResolvedValue({
+        ok: false,
+        error: 'thread_not_found',
+        message: 'No curation session found for threadId "bad-id"',
+      }),
+    };
+    const controller = new Controller(service as any);
+
+    await expect(controller.resumeSession('bad-id', { path: 'C' })).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    await expect(controller.resumeSession('bad-id', { path: 'C' })).rejects.toThrow(
+      'No curation session found for threadId "bad-id"',
+    );
+  });
+
+  it('throws InternalServerErrorException (500) when Service.resumeSession reports graph_error', async () => {
+    const service = {
+      resumeSession: vi.fn().mockResolvedValue({
+        ok: false,
+        error: 'graph_error',
+        message: 'unexpected commit node failure',
+      }),
+    };
+    const controller = new Controller(service as any);
+
+    await expect(controller.resumeSession('thread-1', { path: 'C' })).rejects.toBeInstanceOf(
+      InternalServerErrorException,
+    );
+    await expect(controller.resumeSession('thread-1', { path: 'C' })).rejects.toThrow(
+      'unexpected commit node failure',
+    );
   });
 });

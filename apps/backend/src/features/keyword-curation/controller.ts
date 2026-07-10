@@ -2,6 +2,8 @@ import {
   Body,
   Controller as ControllerDecorator,
   Get,
+  InternalServerErrorException,
+  NotFoundException,
   Param,
   Post,
 } from '@nestjs/common';
@@ -45,7 +47,11 @@ export class Controller {
       'Requirement 2.1: runs the LangGraph curation graph for the given keyword up to its first interrupt() and returns the AI recommendation for human review.',
   })
   async startSession(@Body('keyword') keyword: string) {
-    return this.service.startSession(keyword);
+    const result = await this.service.startSession(keyword);
+    if (!result.ok) {
+      throw new InternalServerErrorException(result.error);
+    }
+    return { threadId: result.threadId, interrupt: result.interrupt };
   }
 
   @Post('session/:threadId/resume')
@@ -58,6 +64,36 @@ export class Controller {
     @Param('threadId') threadId: string,
     @Body('decision') decision: HumanDecision,
   ) {
-    return this.service.resumeSession(threadId, decision);
+    const result = await this.service.resumeSession(threadId, decision);
+    if (!result.ok) {
+      throw this.toHttpException(result);
+    }
+    // design.md's HTTP contract (POST /keyword-curation/session/:threadId/resume,
+    // 200 response): `{ status: 'done'; result: CommitResult }`.
+    return { status: 'done' as const, result: result.result };
+  }
+
+  /**
+   * Maps `Service.resumeSession`'s discriminated `ok: false` error to the
+   * corresponding HTTP exception, following the same per-`kind`/`error`
+   * mapping convention as `ai-suggestion/controller.ts`'s own
+   * `toHttpException`. `thread_not_found` -> 404 is explicit in design.md's
+   * HTTP contract ("Response (404) — threadId not found in MemorySaver");
+   * `graph_error` covers any other unexpected failure (an infra error, or a
+   * commit node's "impossible state" throw) surfaced as 500, since none of
+   * those are the client's fault to correct and retry with a different
+   * request shape.
+   */
+  private toHttpException(result: {
+    ok: false;
+    error: 'thread_not_found' | 'graph_error';
+    message: string;
+  }) {
+    switch (result.error) {
+      case 'thread_not_found':
+        return new NotFoundException(result.message);
+      case 'graph_error':
+        return new InternalServerErrorException(result.message);
+    }
   }
 }

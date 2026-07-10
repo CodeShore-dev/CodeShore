@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Command, INTERRUPT, isInterrupted } from '@langchain/langgraph';
 
 import type {
   JobKeywordService,
@@ -8,6 +9,7 @@ import type {
 } from '@codeshore/data-utils';
 
 import { toPgArrayContainsLiteral } from './graph';
+import type { KeywordCurationGraph } from './graph';
 import type {
   AiRecommendation,
   CommitResult,
@@ -61,6 +63,7 @@ export class Service {
     private readonly techKeywordService: Pick<TechKeywordService, 'fetchAll'>,
     private readonly keywordBinService: Pick<KeywordBinService, 'fetchAll'>,
     private readonly jobKeywordService: Pick<JobKeywordService, 'fetchAll'>,
+    private readonly graph: Pick<KeywordCurationGraph, 'app'>,
   ) {}
 
   /**
@@ -127,18 +130,104 @@ export class Service {
     return count;
   }
 
+  /**
+   * Requirement 2.1 / design.md's "Session 操作" pseudocode (~lines
+   * 417-425): generates a fresh `thread_id`, invokes the (singleton, shared
+   * `MemorySaver`-backed) `KeywordCurationGraph.app` with the initial
+   * `CurationState` for `keyword`, and runs it to its first `interrupt()` (in
+   * `ClassifyNode`, task 3.2) -- including the `ai_failed` degraded variant
+   * (requirement 3.5, 9.2), which is still an `interrupt()` payload, not a
+   * thrown error. `isInterrupted()`/`INTERRUPT` extraction mirrors the exact
+   * pattern already proven in `graph.spec.ts`'s own tests (tasks 3.2/3.6).
+   */
   async startSession(keyword: string): Promise<StartSessionResult> {
-    throw new Error(
-      `Service.startSession not implemented (keyword: ${keyword})`,
-    );
+    try {
+      const threadId = crypto.randomUUID();
+      const config = { configurable: { thread_id: threadId } };
+
+      const result = await this.graph.app.invoke(
+        {
+          keyword,
+          allTechs: [],
+          affectedJobCount: 0,
+          aiRecommendation: null,
+          humanDecision: null,
+          commitResult: null,
+        },
+        config,
+      );
+
+      if (!isInterrupted<AiRecommendation>(result)) {
+        throw new Error(
+          `KeywordCurationGraph did not pause at interrupt() for keyword "${keyword}" as expected`,
+        );
+      }
+
+      const interrupt = result[INTERRUPT][0].value;
+      if (interrupt === undefined) {
+        throw new Error(
+          `KeywordCurationGraph's interrupt() payload was undefined for keyword "${keyword}"`,
+        );
+      }
+      return { ok: true, threadId, interrupt };
+    } catch (error) {
+      return { ok: false, error: toErrorMessage(error) };
+    }
   }
 
+  /**
+   * Requirement 4.1, 5.2, 6.7, 7.2 / design.md's "Session 操作" pseudocode
+   * (~lines 427-431): resumes the paused graph run for `threadId` with the
+   * admin's `decision` via `Command({ resume: decision })`, running it to
+   * completion (one of the three commit nodes, tasks 3.3-3.5), and returns
+   * the resulting `CommitResult`.
+   *
+   * `threadId` existence is checked first via `graph.app.getState(config)`:
+   * an unrecognized `thread_id` (never started, or a `MemorySaver` that has
+   * since been replaced) resolves with no saved checkpoint tuple, which
+   * `KeywordCurationGraph`'s underlying `@langchain/langgraph` `Pregel.getState`
+   * surfaces as an empty `{ values: {}, next: [], config, tasks: [] }`
+   * snapshot -- `values` is empty *only* in that unknown-thread case, since
+   * any real (paused or completed) session's checkpoint always has at least
+   * `keyword` populated in `values` (it is part of the initial `invoke()`
+   * input merged into the very first checkpoint). Checking `next` alone
+   * would not work here: a *completed* run also has an empty `next` (no
+   * pending tasks), so it would be indistinguishable from an unknown thread.
+   */
   async resumeSession(
     threadId: string,
     decision: HumanDecision,
   ): Promise<ResumeSessionResult> {
-    throw new Error(
-      `Service.resumeSession not implemented (threadId: ${threadId}, decision.path: ${decision.path})`,
-    );
+    const config = { configurable: { thread_id: threadId } };
+
+    try {
+      const state = await this.graph.app.getState(config);
+      if (Object.keys(state.values).length === 0) {
+        return {
+          ok: false,
+          error: 'thread_not_found',
+          message: `No curation session found for threadId "${threadId}"`,
+        };
+      }
+
+      const result = await this.graph.app.invoke(new Command({ resume: decision }), config);
+
+      const commitResult: CommitResult | null = result.commitResult;
+      if (commitResult === null) {
+        return {
+          ok: false,
+          error: 'graph_error',
+          message: `KeywordCurationGraph completed for threadId "${threadId}" without producing a commitResult`,
+        };
+      }
+
+      return { ok: true, result: commitResult };
+    } catch (error) {
+      return { ok: false, error: 'graph_error', message: toErrorMessage(error) };
+    }
   }
+}
+
+function toErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
