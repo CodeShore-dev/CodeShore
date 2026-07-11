@@ -1,6 +1,6 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 
-import { fetchQueue } from './service';
+import { fetchQueue, QUEUE_PAGE_SIZE } from './service';
 
 // Unmapped keyword queue (requirement 1.1-1.3): GET /queue, ordered by count
 // desc, filtered to eligible keywords server-side.
@@ -22,10 +22,10 @@ import { fetchQueue } from './service';
 // `@tanstack/react-query@^5.0.0`) keeps the previously-fetched list visible
 // during a refetch instead of transiently going `undefined`, mirroring
 // `ai-suggestion/queries.ts`'s `useSuggestionsQuery`.
-export function useKeywordQueueQuery() {
+export function useKeywordQueueQuery(page = 1) {
   return useQuery({
-    queryKey: ['keyword-curation', 'queue'],
-    queryFn: () => fetchQueue(),
+    queryKey: ['keyword-curation', 'queue', page],
+    queryFn: () => fetchQueue(page, QUEUE_PAGE_SIZE),
     placeholderData: keepPreviousData,
     staleTime: 30_000,
     refetchOnWindowFocus: false,

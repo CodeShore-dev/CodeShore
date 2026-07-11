@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { useCurationStore } from './curationStore';
-import { resumeSession, startSession } from './service';
+import { bulkExcludeKeywords, resumeSession, startSession } from './service';
 import type { HumanDecision } from './service';
 
 // Extracts a human-readable message from whatever `httpClient` rejects with
@@ -76,6 +76,23 @@ export function useResumeSessionMutation() {
     },
     onError: (error: unknown) => {
       useCurationStore.getState().setError(toErrorMessage(error));
+    },
+  });
+}
+
+// Bulk-rejects the given keywords into keyword_bin (path C) in one request,
+// skipping the per-keyword AI-analysis/human-decision session entirely --
+// for an admin clearing several obviously-noisy keywords at once from the
+// queue's multi-select toolbar. Invalidates the queue query on success so
+// the bulk-excluded keywords drop out of the visible list.
+export function useBulkExcludeKeywordsMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (keywords: string[]) => bulkExcludeKeywords(keywords),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ['keyword-curation', 'queue'],
+      });
     },
   });
 }

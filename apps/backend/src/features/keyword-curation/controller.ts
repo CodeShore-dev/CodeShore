@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller as ControllerDecorator,
   Get,
@@ -6,6 +7,7 @@ import {
   NotFoundException,
   Param,
   Post,
+  Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
@@ -34,10 +36,38 @@ export class Controller {
   @ApiOperation({
     summary: 'List unmapped keywords eligible for curation',
     description:
-      'Requirement 1.1-1.3: keywords at/above the count threshold, not yet mapped to a tech, and not in keyword_bin, ordered by count desc.',
+      'Requirement 1.1-1.3: keywords at/above the count threshold, not yet mapped to a tech, and not in keyword_bin, ordered by count desc. Paginated via ?page (1-based, default 1) and ?pageSize (default 10).',
   })
-  async getQueue() {
-    return this.service.getQueue();
+  async getQueue(
+    @Query('page') pageParam?: string,
+    @Query('pageSize') pageSizeParam?: string,
+  ) {
+    const page = pageParam ? Number(pageParam) : 1;
+    const pageSize = pageSizeParam ? Number(pageSizeParam) : undefined;
+    if (!Number.isInteger(page) || page < 1) {
+      throw new BadRequestException('page must be a positive integer');
+    }
+    if (
+      pageSize !== undefined &&
+      (!Number.isInteger(pageSize) || pageSize < 1)
+    ) {
+      throw new BadRequestException('pageSize must be a positive integer');
+    }
+    return this.service.getQueue(page, pageSize);
+  }
+
+  @Post('bulk-bin')
+  @ApiOperation({
+    summary: 'Bulk-exclude multiple keywords into keyword_bin',
+    description:
+      'Marks every given keyword as noise (path C), skipping the per-keyword AI-analysis/human-decision session, for an admin rejecting several keywords at once from the queue.',
+  })
+  async bulkExcludeKeywords(@Body('keywords') keywords: string[]) {
+    const result = await this.service.bulkExcludeKeywords(keywords ?? []);
+    if (!result.ok) {
+      throw new InternalServerErrorException(result.error);
+    }
+    return { ok: true };
   }
 
   @Post('session')

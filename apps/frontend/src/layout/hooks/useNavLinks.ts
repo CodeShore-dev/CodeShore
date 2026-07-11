@@ -14,7 +14,8 @@ export interface NavLink {
   showInFooter?: boolean;
 }
 
-const NAV_LINKS: NavLink[] = [
+// Primary links: always visible directly in the nav (no admin/editor gate).
+const PRIMARY_LINKS: NavLink[] = [
   { to: '/', label: '首頁', icon: 'home', exact: true },
   {
     to: '/jobs',
@@ -25,6 +26,12 @@ const NAV_LINKS: NavLink[] = [
   },
   { to: '/companies', label: '公司', icon: 'apartment', exact: false },
   { to: '/techs', label: '技術', icon: 'insights', exact: false },
+];
+
+// Editor/admin-only links: grouped under the "更多" dropdown (MoreNavMenu)
+// instead of cluttering the primary nav row -- the nav bar had grown to 7
+// items, most of which only a small admin audience ever uses.
+const MORE_LINKS: NavLink[] = [
   {
     to: '/keywords',
     label: '關鍵字',
@@ -48,11 +55,26 @@ const NAV_LINKS: NavLink[] = [
     requiresEdit: true,
     showInFooter: false,
   },
+  {
+    to: '/admin/keyword-curation',
+    label: '關鍵字策展',
+    icon: 'auto_fix_high',
+    exact: false,
+    requiresEdit: true,
+    showInFooter: false,
+  },
 ];
+
+const NAV_LINKS: NavLink[] = [...PRIMARY_LINKS, ...MORE_LINKS];
 
 export function useNavLinks() {
   const location = useLocation();
   const canEdit = useCanEdit();
+
+  // "更多" is entirely admin-gated content, so a non-admin sees an empty
+  // moreLinks array (AppNavBar/AppMobileNav render nothing for it then) --
+  // same effective visibility as before this reorg, just grouped.
+  const moreLinks = MORE_LINKS.filter(link => !link.requiresEdit || canEdit);
 
   const navLinks = NAV_LINKS.filter(
     link => !link.requiresEdit || canEdit,
@@ -75,5 +97,10 @@ export function useNavLinks() {
     return location.pathname.startsWith(link.to);
   };
 
-  return { navLinks, footerLinks, isActive };
+  return {
+    navLinks: PRIMARY_LINKS,
+    moreLinks,
+    footerLinks,
+    isActive,
+  };
 }

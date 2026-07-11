@@ -9,6 +9,7 @@ const { useKeywordQueueQuery } = vi.hoisted(() => ({
 vi.mock('../queries', () => ({ useKeywordQueueQuery }));
 
 import { INITIAL_CURATION_STATE, useCurationStore } from '../curationStore';
+import { useQueueStore } from '../queueStore';
 import type { QueuedKeyword } from '../service';
 import { KeywordQueueList } from './KeywordQueueList';
 
@@ -23,6 +24,11 @@ function makeKeywords(): QueuedKeyword[] {
 beforeEach(() => {
   vi.clearAllMocks();
   useCurationStore.setState(INITIAL_CURATION_STATE);
+  useQueueStore.setState({
+    currentPage: 1,
+    selectMode: false,
+    selectedIds: new Set(),
+  });
 });
 
 // KeywordQueueList (task 6.1, requirements 1.1-1.3, 2.3): the unmapped
@@ -153,5 +159,49 @@ describe('KeywordQueueList', () => {
     expect(vueButton).not.toBeDisabled();
     await user.click(vueButton);
     expect(onSelectKeyword).toHaveBeenCalledWith('vue');
+  });
+
+  it('fetches the page from useQueueStore and passes it to useKeywordQueueQuery', () => {
+    useQueueStore.setState({ currentPage: 3, selectMode: false, selectedIds: new Set() });
+    useKeywordQueueQuery.mockReturnValue({
+      data: { keywords: makeKeywords(), totalCount: 25 },
+      isLoading: false,
+    });
+
+    render(<KeywordQueueList onSelectKeyword={vi.fn()} />);
+
+    expect(useKeywordQueueQuery).toHaveBeenCalledWith(3);
+  });
+
+  it('shows pagination controls when totalCount exceeds one page, and hides them otherwise', () => {
+    useKeywordQueueQuery.mockReturnValue({
+      data: { keywords: makeKeywords(), totalCount: 25 },
+      isLoading: false,
+    });
+
+    const { rerender } = render(<KeywordQueueList onSelectKeyword={vi.fn()} />);
+    // 25 keywords / 10 per page => 3 pages => a "3" page-number button exists.
+    expect(screen.getByRole('button', { name: '3' })).toBeInTheDocument();
+
+    useKeywordQueueQuery.mockReturnValue({
+      data: { keywords: makeKeywords(), totalCount: 3 },
+      isLoading: false,
+    });
+    rerender(<KeywordQueueList onSelectKeyword={vi.fn()} />);
+    // 3 keywords fit on a single page => Pagination renders nothing.
+    expect(screen.queryByRole('button', { name: '3' })).not.toBeInTheDocument();
+  });
+
+  it('calls useQueueStore.setPage when a pagination control is clicked', async () => {
+    useKeywordQueueQuery.mockReturnValue({
+      data: { keywords: makeKeywords(), totalCount: 25 },
+      isLoading: false,
+    });
+    const user = userEvent.setup();
+
+    render(<KeywordQueueList onSelectKeyword={vi.fn()} />);
+    await user.click(screen.getByRole('button', { name: '2' }));
+
+    expect(useQueueStore.getState().currentPage).toBe(2);
   });
 });

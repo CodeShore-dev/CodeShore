@@ -92,12 +92,27 @@ export interface CommittedChange {
 
 const BASE = '/api/keyword-curation';
 
-// Unmapped keyword queue (requirement 1.1, 1.2).
-export const fetchQueue = async (): Promise<{ keywords: QueuedKeyword[] }> => {
-  const { data } = await httpClient.get<{ keywords: QueuedKeyword[] }>(
-    `${BASE}/queue`,
-  );
+export const QUEUE_PAGE_SIZE = 10;
+
+// Unmapped keyword queue (requirement 1.1, 1.2), paginated 10/page.
+export const fetchQueue = async (
+  page = 1,
+  pageSize = QUEUE_PAGE_SIZE,
+): Promise<{ keywords: QueuedKeyword[]; totalCount: number }> => {
+  const { data } = await httpClient.get<{
+    keywords: QueuedKeyword[];
+    totalCount: number;
+  }>(`${BASE}/queue`, { params: { page, pageSize } });
   return data;
+};
+
+// Bulk-excludes multiple selected keywords into keyword_bin (path C),
+// skipping the per-keyword AI-analysis/human-decision session, for an admin
+// rejecting several obviously-noisy keywords at once from the queue.
+export const bulkExcludeKeywords = async (
+  keywords: string[],
+): Promise<void> => {
+  await httpClient.post(`${BASE}/bulk-bin`, { keywords });
 };
 
 // Starts a curation session for one keyword; the graph runs up to its first

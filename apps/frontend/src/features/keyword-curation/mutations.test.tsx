@@ -5,18 +5,24 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { AiRecommendation, CommitResult, HumanDecision } from './service';
 
-const { startSession, resumeSession } = vi.hoisted(() => ({
+const { startSession, resumeSession, bulkExcludeKeywords } = vi.hoisted(() => ({
   startSession: vi.fn(),
   resumeSession: vi.fn(),
+  bulkExcludeKeywords: vi.fn(),
 }));
 
 vi.mock('./service', () => ({
   startSession,
   resumeSession,
+  bulkExcludeKeywords,
 }));
 
 import { INITIAL_CURATION_STATE, useCurationStore } from './curationStore';
-import { useResumeSessionMutation, useStartSessionMutation } from './mutations';
+import {
+  useBulkExcludeKeywordsMutation,
+  useResumeSessionMutation,
+  useStartSessionMutation,
+} from './mutations';
 
 const pathARecommendation: AiRecommendation = {
   path: 'A',
@@ -253,6 +259,39 @@ describe('useStartSessionMutation / useResumeSessionMutation', () => {
       const state = useCurationStore.getState();
       expect(state.sessionStatus).toBe('error');
       expect(state.errorMessage).toBe('write failed');
+    });
+  });
+
+  describe('useBulkExcludeKeywordsMutation', () => {
+    it('POSTs bulk-bin with the given keywords', async () => {
+      bulkExcludeKeywords.mockResolvedValue(undefined);
+
+      const { result } = renderHook(() => useBulkExcludeKeywordsMutation(), {
+        wrapper,
+      });
+
+      await act(async () => {
+        await result.current.mutateAsync(['blockchain', 'web3']);
+      });
+
+      expect(bulkExcludeKeywords).toHaveBeenCalledWith(['blockchain', 'web3']);
+    });
+
+    it('on success invalidates the ["keyword-curation", "queue"] query', async () => {
+      bulkExcludeKeywords.mockResolvedValue(undefined);
+      const invalidateSpy = vi.spyOn(client, 'invalidateQueries');
+
+      const { result } = renderHook(() => useBulkExcludeKeywordsMutation(), {
+        wrapper,
+      });
+
+      await act(async () => {
+        await result.current.mutateAsync(['blockchain']);
+      });
+
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: ['keyword-curation', 'queue'],
+      });
     });
   });
 });

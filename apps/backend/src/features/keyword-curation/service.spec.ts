@@ -201,6 +201,112 @@ describe('Service.getQueue', () => {
     ]);
   });
 
+  it('paginates results (10/page default) and returns totalCount over the full filtered set', async () => {
+    const keywordService = {
+      fetchAll: vi.fn().mockResolvedValue({
+        result: [
+          { id: 'a', count: 50 },
+          { id: 'b', count: 40 },
+          { id: 'c', count: 30 },
+          { id: 'd', count: 20 },
+          { id: 'e', count: 10 },
+        ],
+        count: 5,
+        searchParams: '',
+      }),
+    };
+    const techKeywordService = {
+      fetchAll: vi.fn().mockResolvedValue({ result: [], count: 0, searchParams: '' }),
+    };
+    const keywordBinService = {
+      fetchAll: vi.fn().mockResolvedValue({ result: [], count: 0, searchParams: '' }),
+    };
+    const jobKeywordService = jobKeywordServiceWithCounts({
+      a: 1, b: 2, c: 3, d: 4, e: 5,
+    });
+    const service = createService({
+      keywordService,
+      techKeywordService,
+      keywordBinService,
+      jobKeywordService,
+    });
+
+    const page1 = await service.getQueue(1, 2);
+    expect(page1.keywords.map(k => k.id)).toEqual(['a', 'b']);
+    expect(page1.totalCount).toBe(5);
+
+    const page2 = await service.getQueue(2, 2);
+    expect(page2.keywords.map(k => k.id)).toEqual(['c', 'd']);
+    expect(page2.totalCount).toBe(5);
+
+    const page3 = await service.getQueue(3, 2);
+    expect(page3.keywords.map(k => k.id)).toEqual(['e']);
+    expect(page3.totalCount).toBe(5);
+  });
+
+  it('only queries affectedJobCount for keywords on the requested page, not the full candidate set', async () => {
+    const keywordService = {
+      fetchAll: vi.fn().mockResolvedValue({
+        result: [
+          { id: 'a', count: 50 },
+          { id: 'b', count: 40 },
+          { id: 'c', count: 30 },
+        ],
+        count: 3,
+        searchParams: '',
+      }),
+    };
+    const techKeywordService = {
+      fetchAll: vi.fn().mockResolvedValue({ result: [], count: 0, searchParams: '' }),
+    };
+    const keywordBinService = {
+      fetchAll: vi.fn().mockResolvedValue({ result: [], count: 0, searchParams: '' }),
+    };
+    const jobKeywordService = jobKeywordServiceWithCounts({ a: 1, b: 2, c: 3 });
+    const service = createService({
+      keywordService,
+      techKeywordService,
+      keywordBinService,
+      jobKeywordService,
+    });
+
+    await service.getQueue(1, 1);
+
+    expect(jobKeywordService.fetchAll).toHaveBeenCalledTimes(1);
+    expect(jobKeywordService.fetchAll).toHaveBeenCalledWith({
+      where: { keywords: { cs: '{"a"}' } },
+    });
+  });
+
+  it('defaults to page 1 with QUEUE_PAGE_SIZE (10) when called with no arguments', async () => {
+    const keywordService = {
+      fetchAll: vi.fn().mockResolvedValue({
+        result: Array.from({ length: 15 }, (_, i) => ({ id: `kw${i}`, count: 100 - i })),
+        count: 15,
+        searchParams: '',
+      }),
+    };
+    const techKeywordService = {
+      fetchAll: vi.fn().mockResolvedValue({ result: [], count: 0, searchParams: '' }),
+    };
+    const keywordBinService = {
+      fetchAll: vi.fn().mockResolvedValue({ result: [], count: 0, searchParams: '' }),
+    };
+    const counts = Object.fromEntries(Array.from({ length: 15 }, (_, i) => [`kw${i}`, i]));
+    const jobKeywordService = jobKeywordServiceWithCounts(counts);
+    const service = createService({
+      keywordService,
+      techKeywordService,
+      keywordBinService,
+      jobKeywordService,
+    });
+
+    const result = await service.getQueue();
+
+    expect(result.keywords).toHaveLength(10);
+    expect(result.totalCount).toBe(15);
+  });
+
   it('includes the correct affectedJobCount for each returned keyword from the job_keyword count query', async () => {
     const keywordService = {
       fetchAll: vi.fn().mockResolvedValue({
@@ -263,8 +369,44 @@ describe('Service.getQueue', () => {
 
     const result = await service.getQueue();
 
-    expect(result).toEqual({ keywords: [] });
+    expect(result).toEqual({ keywords: [], totalCount: 0 });
     expect(jobKeywordService.fetchAll).not.toHaveBeenCalled();
+  });
+});
+
+describe('Service.bulkExcludeKeywords', () => {
+  it('upserts every given keyword into keyword_bin and returns ok: true', async () => {
+    const keywordBinService = { upsert: vi.fn().mockResolvedValue({ error: null }) };
+    const service = createService({ keywordBinService });
+
+    const result = await service.bulkExcludeKeywords(['blockchain', 'web3']);
+
+    expect(keywordBinService.upsert).toHaveBeenCalledWith([
+      { id: 'blockchain' },
+      { id: 'web3' },
+    ]);
+    expect(result).toEqual({ ok: true });
+  });
+
+  it('returns ok: true without calling upsert when given an empty array', async () => {
+    const keywordBinService = { upsert: vi.fn() };
+    const service = createService({ keywordBinService });
+
+    const result = await service.bulkExcludeKeywords([]);
+
+    expect(keywordBinService.upsert).not.toHaveBeenCalled();
+    expect(result).toEqual({ ok: true });
+  });
+
+  it('returns ok: false with the error message when the upsert fails', async () => {
+    const keywordBinService = {
+      upsert: vi.fn().mockResolvedValue({ error: { message: 'db down' } }),
+    };
+    const service = createService({ keywordBinService });
+
+    const result = await service.bulkExcludeKeywords(['blockchain']);
+
+    expect(result).toEqual({ ok: false, error: 'db down' });
   });
 });
 

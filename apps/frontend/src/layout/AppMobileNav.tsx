@@ -1,9 +1,10 @@
 import { Link } from 'react-router';
 
 import { useNavLinks } from './hooks/useNavLinks';
+import { MoreNavMenu } from './MoreNavMenu';
 
 export function AppMobileNav() {
-  const { navLinks, isActive } = useNavLinks();
+  const { navLinks, moreLinks, isActive } = useNavLinks();
 
   return (
     <nav className="fixed bottom-0 left-0 z-50 flex w-full items-end justify-around border-t border-[#c3c6d5]/15 bg-[#f4faff]/90 px-4 pb-4 backdrop-blur-lg md:hidden">
@@ -35,6 +36,7 @@ export function AppMobileNav() {
       >
         <span className="material-symbols-outlined transition">policy</span>
       </Link>
+      <MoreNavMenu links={moreLinks} isActive={isActive} variant="mobile" />
     </nav>
   );
 }

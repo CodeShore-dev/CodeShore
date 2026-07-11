@@ -31,6 +31,9 @@ import type {
  */
 export const KEYWORD_COUNT_THRESHOLD = 10;
 
+/** Default page size for `getQueue()`'s pagination. */
+export const QUEUE_PAGE_SIZE = 10;
+
 /**
  * design.md's `KeywordCurationServiceContract` — result of starting a
  * curation session: the LangGraph run to its first `interrupt()` (task
@@ -61,7 +64,7 @@ export class Service {
   constructor(
     private readonly keywordService: Pick<KeywordService, 'fetchAll'>,
     private readonly techKeywordService: Pick<TechKeywordService, 'fetchAll'>,
-    private readonly keywordBinService: Pick<KeywordBinService, 'fetchAll'>,
+    private readonly keywordBinService: Pick<KeywordBinService, 'fetchAll' | 'upsert'>,
     private readonly jobKeywordService: Pick<JobKeywordService, 'fetchAll'>,
     private readonly graph: Pick<KeywordCurationGraph, 'app'>,
   ) {}
@@ -79,7 +82,10 @@ export class Service {
    * from `ai-suggestion/` crosses this feature's boundary (see
    * `KEYWORD_COUNT_THRESHOLD`'s doc comment above).
    */
-  async getQueue(): Promise<{ keywords: QueuedKeyword[] }> {
+  async getQueue(
+    page = 1,
+    pageSize = QUEUE_PAGE_SIZE,
+  ): Promise<{ keywords: QueuedKeyword[]; totalCount: number }> {
     const [{ result: keywords }, { result: techKeywords }, { result: keywordBinRows }] =
       await Promise.all([
         this.keywordService.fetchAll({
@@ -103,17 +109,47 @@ export class Service {
         !alreadyExcluded.has(keyword.id),
     ) as Array<{ id: string; count: number }>;
 
+    // Sorted first (over the full candidate set), *then* paginated -- only
+    // the page actually being returned needs the per-keyword affectedJobCount
+    // query below, so slicing before that Promise.all avoids running it for
+    // every candidate on every request.
+    candidates.sort((a, b) => b.count - a.count);
+    const totalCount = candidates.length;
+    const pageStart = (page - 1) * pageSize;
+    const pageCandidates = candidates.slice(pageStart, pageStart + pageSize);
+
     const queuedKeywords = await Promise.all(
-      candidates.map(async candidate => ({
+      pageCandidates.map(async candidate => ({
         id: candidate.id,
         count: candidate.count,
         affectedJobCount: await this.countAffectedJobs(candidate.id),
       })),
     );
 
-    queuedKeywords.sort((a, b) => b.count - a.count);
+    return { keywords: queuedKeywords, totalCount };
+  }
 
-    return { keywords: queuedKeywords };
+  /**
+   * Bulk-marks the given keywords as noise (path C's `keyword_bin` write,
+   * skipping the per-keyword AI-analysis/human-decision LangGraph session
+   * entirely) -- for an admin who wants to reject several obviously-noisy
+   * keywords at once from the queue's multi-select toolbar, rather than
+   * running each one through the full curation workflow individually.
+   */
+  async bulkExcludeKeywords(
+    keywords: string[],
+  ): Promise<{ ok: boolean; error?: string }> {
+    if (keywords.length === 0) return { ok: true };
+    const { error } = await this.keywordBinService.upsert(
+      keywords.map(id => ({ id })),
+    );
+    if (error) {
+      return {
+        ok: false,
+        error: error.message ?? 'Unknown error writing to keyword_bin',
+      };
+    }
+    return { ok: true };
   }
 
   /**

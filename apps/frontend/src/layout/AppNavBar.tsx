@@ -3,9 +3,10 @@ import { Link } from 'react-router';
 import { useAuthStore, useIsAuthenticated } from '../features/auth/authStore';
 import { AdminViewToggle } from '../features/auth/components/AdminViewToggle';
 import { useNavLinks } from './hooks/useNavLinks';
+import { MoreNavMenu } from './MoreNavMenu';
 
 export function AppNavBar() {
-  const { navLinks, isActive } = useNavLinks();
+  const { navLinks, moreLinks, isActive } = useNavLinks();
   const user = useAuthStore(state => state.user);
   const isAuthenticated = useIsAuthenticated();
   const isLoading = useAuthStore(state => state.isLoading);
@@ -41,6 +42,7 @@ export function AppNavBar() {
           >
             公開透明
           </Link>
+          <MoreNavMenu links={moreLinks} isActive={isActive} variant="desktop" />
         </div>
 
         <div className="flex items-center gap-3">

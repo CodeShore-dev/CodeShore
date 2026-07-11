@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 
 import type { ExecutionContext } from '@nestjs/common';
-import { InternalServerErrorException, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, InternalServerErrorException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -226,17 +226,75 @@ describe('Controller.getQueue (task 8.2)', () => {
 
     const response = await controller.getQueue();
 
-    expect(service.getQueue).toHaveBeenCalledWith();
+    expect(service.getQueue).toHaveBeenCalledWith(1, undefined);
     expect(response).toEqual(queue);
   });
 
   it('returns an empty keywords array unchanged when the queue has no eligible keyword (requirement 1.3)', async () => {
-    const service = { getQueue: vi.fn().mockResolvedValue({ keywords: [] }) };
+    const service = { getQueue: vi.fn().mockResolvedValue({ keywords: [], totalCount: 0 }) };
     const controller = new Controller(service as any);
 
     const response = await controller.getQueue();
 
-    expect(response).toEqual({ keywords: [] });
+    expect(response).toEqual({ keywords: [], totalCount: 0 });
+  });
+
+  it('parses ?page and ?pageSize query params and forwards them as numbers', async () => {
+    const service = { getQueue: vi.fn().mockResolvedValue({ keywords: [], totalCount: 0 }) };
+    const controller = new Controller(service as any);
+
+    await controller.getQueue('2', '10');
+
+    expect(service.getQueue).toHaveBeenCalledWith(2, 10);
+  });
+
+  it('rejects a non-positive-integer page with 400', async () => {
+    const service = { getQueue: vi.fn() };
+    const controller = new Controller(service as any);
+
+    await expect(controller.getQueue('0')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller.getQueue('abc')).rejects.toBeInstanceOf(BadRequestException);
+    expect(service.getQueue).not.toHaveBeenCalled();
+  });
+
+  it('rejects a non-positive-integer pageSize with 400', async () => {
+    const service = { getQueue: vi.fn() };
+    const controller = new Controller(service as any);
+
+    await expect(controller.getQueue('1', '0')).rejects.toBeInstanceOf(BadRequestException);
+    expect(service.getQueue).not.toHaveBeenCalled();
+  });
+});
+
+describe('Controller.bulkExcludeKeywords', () => {
+  it('calls Service.bulkExcludeKeywords with the given keywords and returns { ok: true }', async () => {
+    const service = { bulkExcludeKeywords: vi.fn().mockResolvedValue({ ok: true }) };
+    const controller = new Controller(service as any);
+
+    const response = await controller.bulkExcludeKeywords(['blockchain', 'web3']);
+
+    expect(service.bulkExcludeKeywords).toHaveBeenCalledWith(['blockchain', 'web3']);
+    expect(response).toEqual({ ok: true });
+  });
+
+  it('defaults to an empty array when no keywords are given', async () => {
+    const service = { bulkExcludeKeywords: vi.fn().mockResolvedValue({ ok: true }) };
+    const controller = new Controller(service as any);
+
+    await controller.bulkExcludeKeywords(undefined as any);
+
+    expect(service.bulkExcludeKeywords).toHaveBeenCalledWith([]);
+  });
+
+  it('throws InternalServerErrorException when Service.bulkExcludeKeywords fails', async () => {
+    const service = {
+      bulkExcludeKeywords: vi.fn().mockResolvedValue({ ok: false, error: 'db error' }),
+    };
+    const controller = new Controller(service as any);
+
+    await expect(
+      controller.bulkExcludeKeywords(['blockchain']),
+    ).rejects.toBeInstanceOf(InternalServerErrorException);
   });
 });
 

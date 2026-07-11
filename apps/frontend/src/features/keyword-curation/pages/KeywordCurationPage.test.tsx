@@ -16,9 +16,14 @@ const { useStartSessionMutation, useResumeSessionMutation } = vi.hoisted(
 vi.mock('../mutations', () => ({
   useStartSessionMutation,
   useResumeSessionMutation,
+  useBulkExcludeKeywordsMutation: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
 }));
 
 import { INITIAL_CURATION_STATE, useCurationStore } from '../curationStore';
+import { useQueueStore } from '../queueStore';
 import type { QueuedKeyword } from '../service';
 import { KeywordCurationPage } from './KeywordCurationPage';
 
@@ -28,6 +33,10 @@ function makeKeywords(): QueuedKeyword[] {
     { id: 'react', count: 42, affectedJobCount: 10 },
     { id: 'svelte', count: 30, affectedJobCount: 6 },
   ];
+}
+
+function queueData(keywords = makeKeywords()) {
+  return { keywords, totalCount: keywords.length };
 }
 
 // KeywordCurationPage (task 7.1, requirements 1.1, 1.3, 2.1, 8.1, 8.2): the
@@ -41,12 +50,17 @@ describe('KeywordCurationPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useCurationStore.setState(INITIAL_CURATION_STATE);
+    useQueueStore.setState({
+      currentPage: 1,
+      selectMode: false,
+      selectedIds: new Set(),
+    });
     useResumeSessionMutation.mockReturnValue({ mutate: vi.fn() });
   });
 
   it('renders both KeywordQueueList and CurationSession fully (task completion criterion: page renders fully)', () => {
     useKeywordQueueQuery.mockReturnValue({
-      data: { keywords: makeKeywords() },
+      data: queueData(),
       isLoading: false,
     });
     useStartSessionMutation.mockReturnValue({ mutate: vi.fn() });
@@ -64,9 +78,9 @@ describe('KeywordCurationPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('shows the remaining/total progress count derived from the queue length (requirement 8.1)', () => {
+  it('shows the remaining/total progress count derived from totalCount (requirement 8.1)', () => {
     useKeywordQueueQuery.mockReturnValue({
-      data: { keywords: makeKeywords() },
+      data: queueData(),
       isLoading: false,
     });
     useStartSessionMutation.mockReturnValue({ mutate: vi.fn() });
@@ -81,7 +95,7 @@ describe('KeywordCurationPage', () => {
 
   it('selecting a keyword triggers useStartSessionMutation.mutate with the correct keyword, and the right panel reflects the loading state once the store updates (requirement 2.1)', async () => {
     useKeywordQueueQuery.mockReturnValue({
-      data: { keywords: makeKeywords() },
+      data: queueData(),
       isLoading: false,
     });
     const mutate = vi.fn();
@@ -110,7 +124,7 @@ describe('KeywordCurationPage', () => {
   it('after a successful resume, the just-resolved keyword no longer appears in the queue list, and the progress count updates', () => {
     useStartSessionMutation.mockReturnValue({ mutate: vi.fn() });
     useKeywordQueueQuery.mockReturnValue({
-      data: { keywords: makeKeywords() },
+      data: queueData(),
       isLoading: false,
     });
 
@@ -127,9 +141,7 @@ describe('KeywordCurationPage', () => {
     // here we only prove the page's rendering wiring reacts correctly to
     // updated query data).
     useKeywordQueueQuery.mockReturnValue({
-      data: {
-        keywords: makeKeywords().filter(k => k.id !== 'react'),
-      },
+      data: queueData(makeKeywords().filter(k => k.id !== 'react')),
       isLoading: false,
     });
 
@@ -143,5 +155,37 @@ describe('KeywordCurationPage', () => {
     expect(screen.getByTestId('curation-progress-count')).toHaveTextContent(
       '1 / 3',
     );
+  });
+
+  it('shows a "多選"/"取消" toggle button that flips useQueueStore.selectMode', async () => {
+    useKeywordQueueQuery.mockReturnValue({
+      data: queueData(),
+      isLoading: false,
+    });
+    useStartSessionMutation.mockReturnValue({ mutate: vi.fn() });
+    const user = userEvent.setup();
+
+    render(<KeywordCurationPage />);
+
+    await user.click(screen.getByRole('button', { name: /多選/ }));
+    expect(useQueueStore.getState().selectMode).toBe(true);
+
+    await user.click(screen.getByRole('button', { name: /取消/ }));
+    expect(useQueueStore.getState().selectMode).toBe(false);
+  });
+
+  it('shows the bulk toolbar only while select mode is on', async () => {
+    useKeywordQueueQuery.mockReturnValue({
+      data: queueData(),
+      isLoading: false,
+    });
+    useStartSessionMutation.mockReturnValue({ mutate: vi.fn() });
+    const user = userEvent.setup();
+
+    render(<KeywordCurationPage />);
+    expect(screen.queryByText(/已選/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /多選/ }));
+    expect(screen.getByText(/已選/)).toBeInTheDocument();
   });
 });

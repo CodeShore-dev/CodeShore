@@ -9,21 +9,50 @@ vi.mock('../../httpClient', () => ({
   httpClient: { get, post },
 }));
 
-import { fetchQueue, resumeSession, startSession } from './service';
+import {
+  bulkExcludeKeywords,
+  fetchQueue,
+  resumeSession,
+  startSession,
+} from './service';
 
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
 describe('fetchQueue', () => {
-  it('calls GET /api/keyword-curation/queue and returns the parsed response', async () => {
+  it('calls GET /api/keyword-curation/queue with default page 1/pageSize 10 and returns the parsed response', async () => {
     const keywords = [{ id: 'react', count: 42, affectedJobCount: 10 }];
-    get.mockResolvedValue({ data: { keywords } });
+    get.mockResolvedValue({ data: { keywords, totalCount: 1 } });
 
     const result = await fetchQueue();
 
-    expect(get).toHaveBeenCalledWith('/api/keyword-curation/queue');
-    expect(result).toEqual({ keywords });
+    expect(get).toHaveBeenCalledWith('/api/keyword-curation/queue', {
+      params: { page: 1, pageSize: 10 },
+    });
+    expect(result).toEqual({ keywords, totalCount: 1 });
+  });
+
+  it('passes the given page/pageSize through as query params', async () => {
+    get.mockResolvedValue({ data: { keywords: [], totalCount: 0 } });
+
+    await fetchQueue(2, 5);
+
+    expect(get).toHaveBeenCalledWith('/api/keyword-curation/queue', {
+      params: { page: 2, pageSize: 5 },
+    });
+  });
+});
+
+describe('bulkExcludeKeywords', () => {
+  it('calls POST /api/keyword-curation/bulk-bin with { keywords }', async () => {
+    post.mockResolvedValue({ data: { ok: true } });
+
+    await bulkExcludeKeywords(['blockchain', 'web3']);
+
+    expect(post).toHaveBeenCalledWith('/api/keyword-curation/bulk-bin', {
+      keywords: ['blockchain', 'web3'],
+    });
   });
 });
 
