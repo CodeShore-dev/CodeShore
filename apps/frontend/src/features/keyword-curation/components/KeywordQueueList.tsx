@@ -70,7 +70,7 @@ export function KeywordQueueList({ onSelectKeyword }: KeywordQueueListProps) {
 
   return (
     <div className="p-4">
-      <ul className="flex flex-col gap-2">
+      <ul className="flex flex-col gap-2 p-0">
         {keywords.map(keyword => (
           <KeywordQueueCard
             key={keyword.id}

@@ -29,7 +29,7 @@ export function KeywordQueueCard({
   };
 
   return (
-    <li>
+    <li className='block'>
       <button
         type="button"
         disabled={!selectMode && disabled}
