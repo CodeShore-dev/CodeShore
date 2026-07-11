@@ -49,7 +49,7 @@ export function CompanyFilterPanel({
 
   return (
     <section>
-      <div className="relative mb-2">
+      <div className="relative lg:mb-0 mb-2">
         <span className="material-symbols-outlined text-on-surface-variant pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-base!">
           search
         </span>

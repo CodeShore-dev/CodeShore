@@ -31,8 +31,16 @@ const { rankingItem, comboItem } = vi.hoisted(() => ({
     job_count: 50,
     median_min_year: 1000000,
     median_max_year: 1400000,
+    pr75_min_year: 1200000,
+    pr75_max_year: 1600000,
+    pr88_min_year: 1500000,
+    pr88_max_year: 2000000,
     median_min_month: 70000,
     median_max_month: 90000,
+    pr75_min_month: 85000,
+    pr75_max_month: 105000,
+    pr88_min_month: 100000,
+    pr88_max_month: 140000,
   },
 }));
 

@@ -3,7 +3,7 @@ import type { StoreApi, UseBoundStore } from 'zustand';
 
 import type { SupabaseView } from '@codeshore/data-types';
 
-import { CATEGORY_LABEL_MAP } from '../../utils/constants';
+import { CATEGORY_LABEL_MAP, TAG_LABEL_MAP } from '../../utils/constants';
 import type { KeywordFilterState } from './keywordFilterStore';
 import {
   type KeywordTab,
@@ -61,7 +61,12 @@ export function useKeywordCatalogView(
   const searchedView = useMemo(() => {
     const q = keywordSearch.trim().toLowerCase();
     if (!q) return [];
-    return techs.filter(g => g.label.toLowerCase().includes(q));
+    return techs.filter(g => {
+      if (g.label.toLowerCase().includes(q)) return true;
+      return (g.tags ?? []).some(tag =>
+        (TAG_LABEL_MAP[tag] ?? tag).toLowerCase().includes(q),
+      );
+    });
   }, [keywordSearch, techs]);
 
   const relatedView = useMemo(() => {

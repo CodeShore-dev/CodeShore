@@ -38,23 +38,13 @@ export function TechsTable({
               <th className="px-4 py-3 font-bold">技術</th>
             )}
             <th className="px-4 py-3 font-bold">標籤</th>
-            {mode === 'popular' && (
-              <th className="px-4 py-3 text-right font-bold">職缺數</th>
-            )}
-            {(mode === 'salary-year' || mode === 'salary-month') && (
-              <>
-                <th className="px-4 py-3 text-right font-bold">PR50</th>
-                <th className="px-4 py-3 text-right font-bold">PR75</th>
-                <th className="px-4 py-3 text-right font-bold">PR88</th>
-              </>
-            )}
-            {isCombos && (
-              <>
-                <th className="px-4 py-3 text-right font-bold">職缺數</th>
-                <th className="px-4 py-3 text-right font-bold">年薪</th>
-                <th className="px-4 py-3 text-right font-bold">月薪</th>
-              </>
-            )}
+            <th className="px-4 py-3 text-right font-bold">職缺數</th>
+            <th className="px-4 py-3 text-right font-bold">年薪 PR50</th>
+            <th className="px-4 py-3 text-right font-bold">年薪 PR75</th>
+            <th className="px-4 py-3 text-right font-bold">年薪 PR88</th>
+            <th className="px-4 py-3 text-right font-bold">月薪 PR50</th>
+            <th className="px-4 py-3 text-right font-bold">月薪 PR75</th>
+            <th className="px-4 py-3 text-right font-bold">月薪 PR88</th>
           </tr>
         </thead>
         <tbody>

@@ -16,10 +16,8 @@ interface TechRankingRowProps {
 const numField = (item: object, key: string): number =>
   (item as Record<string, number>)[key] ?? 0;
 
-export function TechRankingRow({ item, rank, mode }: TechRankingRowProps) {
+export function TechRankingRow({ item, rank }: TechRankingRowProps) {
   const navigate = useNavigate();
-  const isSalary = mode !== 'popular';
-  const salaryType = mode === 'salary-month' ? 'month' : 'year';
 
   const goJobs = () =>
     navigate(`/jobs?${new URLSearchParams({ tags: item.tech })}`);
@@ -48,23 +46,27 @@ export function TechRankingRow({ item, rank, mode }: TechRankingRowProps) {
           ))}
         </div>
       </td>
-      {isSalary ? (
-        <>
-          <td className="px-4 py-3 text-right font-black text-[#003d92] tabular-nums">
-            {toWanInt(numField(item, `${salaryType}_median_avg`))}萬
-          </td>
-          <td className="px-4 py-3 text-right font-black text-[#003d92] tabular-nums">
-            {toWanInt(numField(item, `${salaryType}_pr75_avg`))}萬
-          </td>
-          <td className="px-4 py-3 text-right font-black text-[#003d92] tabular-nums">
-            {toWanInt(numField(item, `${salaryType}_pr88_avg`))}萬
-          </td>
-        </>
-      ) : (
-        <td className="px-4 py-3 text-right font-black text-[#003d92] tabular-nums">
-          {item.job_count.toLocaleString()}
-        </td>
-      )}
+      <td className="px-4 py-3 text-right font-black text-[#003d92] tabular-nums">
+        {item.job_count.toLocaleString()}
+      </td>
+      <td className="px-4 py-3 text-right font-bold text-[#434653] tabular-nums">
+        {toWanInt(numField(item, 'year_median_avg'))}
+      </td>
+      <td className="px-4 py-3 text-right font-bold text-[#434653] tabular-nums">
+        {toWanInt(numField(item, 'year_pr75_avg'))}
+      </td>
+      <td className="px-4 py-3 text-right font-bold text-[#434653] tabular-nums">
+        {toWanInt(numField(item, 'year_pr88_avg'))}
+      </td>
+      <td className="px-4 py-3 text-right font-bold text-[#434653] tabular-nums">
+        {toWanInt(numField(item, 'month_median_avg'))}
+      </td>
+      <td className="px-4 py-3 text-right font-bold text-[#434653] tabular-nums">
+        {toWanInt(numField(item, 'month_pr75_avg'))}
+      </td>
+      <td className="px-4 py-3 text-right font-bold text-[#434653] tabular-nums">
+        {toWanInt(numField(item, 'month_pr88_avg'))}
+      </td>
     </tr>
   );
 }

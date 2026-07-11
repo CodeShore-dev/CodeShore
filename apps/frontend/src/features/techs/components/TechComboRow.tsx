@@ -4,7 +4,7 @@ import { SupabaseView } from '@codeshore/data-types';
 
 import { TechIcon } from '../../../components/TechIcon';
 import { TAG_LABEL_MAP } from '../../../utils/constants';
-import { toWan } from '../../../utils/format';
+import { toWanInt } from '../../../utils/format';
 
 interface TechComboRowProps {
   combo: SupabaseView.MvTechComboStats;
@@ -65,10 +65,22 @@ export function TechComboRow({ combo, rank }: TechComboRowProps) {
         {combo.job_count.toLocaleString()}
       </td>
       <td className="px-4 py-3 text-right font-bold text-[#434653] tabular-nums">
-        {toWan(combo.median_min_year)}–{toWan(combo.median_max_year)}
+        {toWanInt(combo.median_min_year)}–{toWanInt(combo.median_max_year)}
       </td>
       <td className="px-4 py-3 text-right font-bold text-[#434653] tabular-nums">
-        {toWan(combo.median_min_month)}–{toWan(combo.median_max_month)}
+        {toWanInt(combo.pr75_min_year)}–{toWanInt(combo.pr75_max_year)}
+      </td>
+      <td className="px-4 py-3 text-right font-bold text-[#434653] tabular-nums">
+        {toWanInt(combo.pr88_min_year)}–{toWanInt(combo.pr88_max_year)}
+      </td>
+      <td className="px-4 py-3 text-right font-bold text-[#434653] tabular-nums">
+        {toWanInt(combo.median_min_month)}–{toWanInt(combo.median_max_month)}
+      </td>
+      <td className="px-4 py-3 text-right font-bold text-[#434653] tabular-nums">
+        {toWanInt(combo.pr75_min_month)}–{toWanInt(combo.pr75_max_month)}
+      </td>
+      <td className="px-4 py-3 text-right font-bold text-[#434653] tabular-nums">
+        {toWanInt(combo.pr88_min_month)}–{toWanInt(combo.pr88_max_month)}
       </td>
     </tr>
   );

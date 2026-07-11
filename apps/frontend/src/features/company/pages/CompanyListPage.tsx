@@ -102,9 +102,13 @@ export function CompanyListPage() {
         </div>
       </div>
 
-      <div className="mb-6 flex flex-col flex-wrap gap-2 md:flex-row md:items-start">
-        <CompanyNameFilterPanel />
-        <CompanyTechFilterPanel />
+      <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-stretch">
+        <div className="w-full min-w-0 rounded-xl bg-white p-4 shadow-[0_24px_40px_rgba(0,31,42,0.06)] md:w-1/2">
+          <CompanyNameFilterPanel />
+        </div>
+        <div className="w-full min-w-0 rounded-xl bg-white p-4 shadow-[0_24px_40px_rgba(0,31,42,0.06)] md:w-1/2">
+          <CompanyTechFilterPanel />
+        </div>
       </div>
 
       <CompanyActiveFilters onClearAll={clearFilters} />

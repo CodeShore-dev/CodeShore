@@ -195,6 +195,9 @@ export function TechsPage() {
         </div>
       ) : (
         <>
+          <p className="mb-2 text-right text-[11px] font-semibold text-[#8a93a6]">
+            薪資單位：萬元
+          </p>
           <TechsTable
             mode={mode}
             page={page}
