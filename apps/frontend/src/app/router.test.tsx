@@ -70,4 +70,18 @@ describe('routeConfig (previously-authenticated routes unaffected)', () => {
     expect(chain).toContain(ProtectedRoute);
     expect(chain).toContain(AdminRoute);
   });
+
+  // Task 7.2, requirement 2.1: /admin/keyword-curation must resolve and be
+  // nested under the same guards as the other admin-only routes.
+  it('resolves /admin/keyword-curation to a route', () => {
+    const matches = matchRoutes(routeConfig, '/admin/keyword-curation') ?? [];
+    const matchedRoute = matches.find(m => m.route.path === '/admin/keyword-curation');
+    expect(matchedRoute).toBeDefined();
+  });
+
+  it('keeps /admin/keyword-curation nested under ProtectedRoute and AdminRoute', () => {
+    const chain = guardChainFor('/admin/keyword-curation');
+    expect(chain).toContain(ProtectedRoute);
+    expect(chain).toContain(AdminRoute);
+  });
 });

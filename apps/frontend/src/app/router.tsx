@@ -56,6 +56,11 @@ const AiSuggestionReviewPage = lazy(() =>
     default: m.AiSuggestionReviewPage,
   })),
 );
+const KeywordCurationPage = lazy(() =>
+  import('../features/keyword-curation/pages/KeywordCurationPage').then(m => ({
+    default: m.KeywordCurationPage,
+  })),
+);
 const NotFoundPage = lazy(() =>
   import('../features/not-found/pages/NotFoundPage').then(m => ({
     default: m.NotFoundPage,
@@ -125,6 +130,10 @@ export const routeConfig: RouteObject[] = [
               {
                 path: '/admin/ai-suggestions',
                 element: <AiSuggestionReviewPage />,
+              },
+              {
+                path: '/admin/keyword-curation',
+                element: <KeywordCurationPage />,
               },
             ],
           },
