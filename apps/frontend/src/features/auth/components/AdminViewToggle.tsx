@@ -15,14 +15,14 @@ export function AdminViewToggle() {
   return (
     <div className="flex items-center gap-2">
       <span className="hidden text-sm text-[#434653] md:inline">
-        {viewAsRegularUser ? '一般使用者視角' : '管理視角'}
+        {viewAsRegularUser ? '一般' : '管理者'}
       </span>
       <button
         type="button"
         className="rounded-lg bg-[#003d92] px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-[#002a6b] active:scale-95"
         onClick={() => setViewAsRegularUser(!viewAsRegularUser)}
       >
-        {viewAsRegularUser ? '切換為管理視角' : '切換為一般使用者視角'}
+        切換視角
       </button>
     </div>
   );
