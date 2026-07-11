@@ -40,6 +40,14 @@ window.addEventListener('vite:preloadError', () => {
   window.location.reload();
 });
 
+// index.html ships static description/OG/Twitter/canonical tags so
+// non-JS crawlers (link-preview bots) see real metadata. Once React mounts
+// and <PageSeo> renders the route-specific versions, drop the static ones
+// so they don't coexist with React's as duplicate <title>/canonical/meta.
+document
+  .querySelectorAll('[data-static-seo]')
+  .forEach(el => el.remove());
+
 const container = document.getElementById('root');
 if (!container) {
   throw new Error('Root element #root not found');
