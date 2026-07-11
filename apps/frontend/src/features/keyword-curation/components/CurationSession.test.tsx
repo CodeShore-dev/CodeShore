@@ -358,6 +358,41 @@ describe('CurationSession', () => {
     expect(useCurationStore.getState().sessionStatus).toBe('idle');
   });
 
+  it('error: renders a "略過此 keyword" button alongside "重試" (requirement 9.1)', () => {
+    useCurationStore.setState({
+      ...INITIAL_CURATION_STATE,
+      sessionStatus: 'error',
+      activeKeyword: 'reactjs',
+      errorMessage: 'network down',
+    });
+
+    render(<CurationSession />);
+
+    expect(screen.getByRole('button', { name: '重試' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: '略過此 keyword' }),
+    ).toBeInTheDocument();
+  });
+
+  it('error: clicking "略過此 keyword" resets the session back to idle without re-submitting or resuming (requirement 9.1)', async () => {
+    const mutate = vi.fn();
+    useResumeSessionMutation.mockReturnValue({ mutate });
+    useCurationStore.setState({
+      ...INITIAL_CURATION_STATE,
+      sessionStatus: 'error',
+      activeKeyword: 'jquery',
+      threadId: 'thread-1',
+      errorMessage: 'write failed',
+    });
+    const user = userEvent.setup();
+
+    render(<CurationSession />);
+    await user.click(screen.getByRole('button', { name: '略過此 keyword' }));
+
+    expect(useCurationStore.getState().sessionStatus).toBe('idle');
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
   it('error: clicking "重試" after a failed resume re-submits the same threadId/decision', async () => {
     const mutate = vi.fn();
     useResumeSessionMutation.mockReturnValue({ mutate });

@@ -111,6 +111,13 @@ export function CurationSession() {
         >
           重試
         </button>
+        <button
+          type="button"
+          onClick={reset}
+          className="mt-2 w-full cursor-pointer rounded-lg border border-[#c3c6d5] bg-white px-3 py-2 text-sm font-bold text-[#434653] transition hover:bg-[#f3f4f7]"
+        >
+          略過此 keyword
+        </button>
       </div>
     );
   }
