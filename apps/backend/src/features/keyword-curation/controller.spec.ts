@@ -200,6 +200,46 @@ describe('KeywordCuration Controller guard wiring', () => {
  * `{ threadId, interrupt }` success response shapes design.md's HTTP
  * contract specifies.
  */
+/**
+ * Task 8.2 audit gap: `Controller.prototype.getQueue` was only ever
+ * referenced to build a fake `ExecutionContext` for the guard-wiring tests
+ * above -- no test constructed `new Controller(service)` and actually called
+ * `.getQueue()`, unlike `startSession`/`resumeSession` below which each have
+ * a dedicated describe block doing exactly that. `Controller.getQueue()` has
+ * no HTTP-mapping logic of its own (no error branching, no status-code
+ * mapping -- see `controller.ts`: it is a one-line passthrough to
+ * `Service.getQueue()`), so this test only proves the wiring, not the filter
+ * logic itself (that's exhaustively covered by `service.spec.ts`'s
+ * `Service.getQueue` describe block: mapped/keyword_bin/below-threshold
+ * exclusion and count-descending order).
+ */
+describe('Controller.getQueue (task 8.2)', () => {
+  it('returns the queue exactly as resolved by Service.getQueue (design.md HTTP contract, 200 response)', async () => {
+    const queue = {
+      keywords: [
+        { id: 'golang', count: 20, affectedJobCount: 12 },
+        { id: 'react', count: 15, affectedJobCount: 7 },
+      ],
+    };
+    const service = { getQueue: vi.fn().mockResolvedValue(queue) };
+    const controller = new Controller(service as any);
+
+    const response = await controller.getQueue();
+
+    expect(service.getQueue).toHaveBeenCalledWith();
+    expect(response).toEqual(queue);
+  });
+
+  it('returns an empty keywords array unchanged when the queue has no eligible keyword (requirement 1.3)', async () => {
+    const service = { getQueue: vi.fn().mockResolvedValue({ keywords: [] }) };
+    const controller = new Controller(service as any);
+
+    const response = await controller.getQueue();
+
+    expect(response).toEqual({ keywords: [] });
+  });
+});
+
 describe('Controller.startSession (task 4.2)', () => {
   it('returns { threadId, interrupt } on success (design.md HTTP contract, 200 response)', async () => {
     const interrupt = { path: 'C' as const, reasoning: 'not a real technology', affectedJobCount: 3 };
