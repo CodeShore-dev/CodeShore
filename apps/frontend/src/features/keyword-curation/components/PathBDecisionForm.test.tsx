@@ -204,5 +204,40 @@ describe('PathBDecisionForm', () => {
         }),
       );
     });
+
+    it('submits with the ADMIN-EDITED target tech id, not the AI suggestion (requirement 6.4)', async () => {
+      const onSubmit = vi.fn();
+      const user = userEvent.setup();
+      const recommendation = makeRecommendation({
+        suggestedEdges: [
+          { type: 'parent', techId: 'javascript', techLabel: 'JavaScript', reasoning: 'r1' },
+        ],
+      });
+
+      render(
+        <PathBDecisionForm
+          recommendation={recommendation}
+          newTechId="graphql"
+          onSubmit={onSubmit}
+        />,
+      );
+
+      // Modify the suggested edge's target tech id from the AI's suggestion
+      // ('javascript') to a different one ('typescript') before submitting.
+      const techIdInput = screen.getByLabelText('父項 關聯目標技術 ID：JavaScript');
+      await user.clear(techIdInput);
+      await user.type(techIdInput, 'typescript');
+
+      await user.click(screen.getByRole('button', { name: '確認建立新技術' }));
+
+      // The edited id ('typescript') must be used, not the AI's original
+      // suggestion ('javascript'), and the parent-type mapping direction
+      // (parentId = edited techId, childId = newTechId) must still hold.
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          confirmedEdges: [{ parentId: 'typescript', childId: 'graphql' }],
+        }),
+      );
+    });
   });
 });
