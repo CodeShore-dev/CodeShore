@@ -2,6 +2,7 @@ import { SearchInput } from '../../../components/SearchInput';
 import { useDebouncedStoreSync } from '../../../hooks/useDebouncedStoreSync';
 import { useJobFilterStore } from '../jobFilterStore';
 import { JobCompanyFilterPanel } from './JobCompanyFilterPanel';
+import { JobFilterFollowButton } from './JobFilterFollowButton';
 import { JobTechFilterPanel } from './JobTechFilterPanel';
 import { JobLocationFilterPanel } from './JobLocationFilterPanel';
 import { JobSalaryFilterPanel } from './JobSalaryFilterPanel';
@@ -29,6 +30,8 @@ export function JobFilterSidebar() {
           onChange={setLocalSearch}
         />
       </section>
+
+      <JobFilterFollowButton />
 
       <JobCompanyFilterPanel />
       <JobTechFilterPanel />
