@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
 import { KEYWORD_CURATION_INTRO } from '../content/aiWorkflows';
@@ -53,5 +54,26 @@ describe('KeywordCurationWorkflowPanel', () => {
     expect(
       screen.getAllByText(expectedSchemaJson, { normalizer: text => text }),
     ).toHaveLength(1);
+  });
+
+  it('renders the curation flow diagram and shows a node detail on click (req 3.1)', async () => {
+    const user = userEvent.setup();
+    render(<KeywordCurationWorkflowPanel info={MOCK_INFO} />);
+
+    // All 5 real graph.ts nodes render as diagram labels.
+    expect(screen.getByRole('button', { name: '載入背景資料' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'AI 分類與人工決策關卡' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '映射至既有技術條目' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '建立新技術條目' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '移入 keyword bin' })).toBeInTheDocument();
+
+    // No detail panel until a node is selected.
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'AI 分類與人工決策關卡' }));
+
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('AI 判斷 + 暫停等待管理員決策');
+    expect(dialog).toHaveTextContent('LangGraph interrupt');
   });
 });
