@@ -65,24 +65,48 @@ describe('useGuestWatchlistGate', () => {
     expect(result.current.promptOpen).toBe(true);
   });
 
-  it('opens the prompt automatically when a guest mounts the hook, without any requestAction call (req 7.1)', () => {
-    const { result } = renderHook(() => useGuestWatchlistGate(), {
-      wrapper: makeWrapper('/jobs/watchlist'),
-    });
+  it('opens the prompt automatically when a guest mounts the hook with guardMountForGuest, without any requestAction call (req 7.1)', () => {
+    const { result } = renderHook(
+      () => useGuestWatchlistGate({ guardMountForGuest: true }),
+      {
+        wrapper: makeWrapper('/jobs/watchlist'),
+      },
+    );
 
     expect(result.current.promptOpen).toBe(true);
   });
 
-  it('does not open the prompt automatically when authenticated', () => {
+  it('does not open the prompt automatically when authenticated, even with guardMountForGuest', () => {
     useAuthStore.setState({
       user: { id: 'u1', email: 'a@b.com' } as never,
       isLoading: false,
     });
-    const { result } = renderHook(() => useGuestWatchlistGate(), {
-      wrapper: makeWrapper('/jobs/watchlist'),
-    });
+    const { result } = renderHook(
+      () => useGuestWatchlistGate({ guardMountForGuest: true }),
+      {
+        wrapper: makeWrapper('/jobs/watchlist'),
+      },
+    );
 
     expect(result.current.promptOpen).toBe(false);
+  });
+
+  it('does not open the prompt automatically for a guest when guardMountForGuest is omitted, {}, or false (req 1.4 click-only callers)', () => {
+    const noOptions = renderHook(() => useGuestWatchlistGate(), {
+      wrapper: makeWrapper('/jobs'),
+    });
+    expect(noOptions.result.current.promptOpen).toBe(false);
+
+    const emptyOptions = renderHook(() => useGuestWatchlistGate({}), {
+      wrapper: makeWrapper('/jobs'),
+    });
+    expect(emptyOptions.result.current.promptOpen).toBe(false);
+
+    const explicitFalse = renderHook(
+      () => useGuestWatchlistGate({ guardMountForGuest: false }),
+      { wrapper: makeWrapper('/jobs') },
+    );
+    expect(explicitFalse.result.current.promptOpen).toBe(false);
   });
 
   it('confirmLogin stores the current location and navigates to /login without retaining the action', () => {

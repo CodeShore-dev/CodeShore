@@ -4,6 +4,15 @@ import { useLocation, useNavigate } from 'react-router';
 import { useIsAuthenticated } from '../../auth/authStore';
 import { setReturnUrl } from '../../auth/returnUrl';
 
+export interface UseGuestWatchlistGateOptions {
+  // Opt-in: open the prompt automatically when a guest mounts this hook
+  // (requirement 7.1's "直接進入關注清單頁面" case). Defaults to false so a
+  // click-only caller (e.g. JobFilterFollowButton, requirement 1.4) never
+  // sees an unsolicited prompt just from mounting. Only
+  // JobFilterWatchlistPage (task 4.2) passes `true`.
+  guardMountForGuest?: boolean;
+}
+
 export interface UseGuestWatchlistGateResult {
   // Whether the "please log in to continue" prompt is currently shown.
   promptOpen: boolean;
@@ -20,29 +29,36 @@ export interface UseGuestWatchlistGateResult {
 
 // Unified gate for guest-triggered watchlist interactions (requirements 1.4,
 // 7.1): covers both the "follow this filter" click via requestAction and a
-// guest landing directly on the watchlist page via the mount effect below.
+// guest landing directly on the watchlist page via the mount effect below
+// (opt-in via `guardMountForGuest`).
 //
 // Deliberately an independent reimplementation of the pattern in
 // `useGuestPreferenceGate` (apps/frontend/src/features/job/hooks) rather
 // than a shared abstraction -- see research.md 2.4 for why this feature's
 // gate does not reuse or generalize that one.
-export function useGuestWatchlistGate(): UseGuestWatchlistGateResult {
+export function useGuestWatchlistGate(
+  options: UseGuestWatchlistGateOptions = {},
+): UseGuestWatchlistGateResult {
+  const { guardMountForGuest = false } = options;
   const [promptOpen, setPromptOpen] = useState(false);
   const isAuthenticated = useIsAuthenticated();
   const location = useLocation();
   const navigate = useNavigate();
 
   // Covers a guest landing directly on the watchlist page (requirement
-  // 7.1). This hook is only ever mounted from that page (task 4.2), so the
-  // mount itself is the "landing on the page" signal -- reacting to the
-  // guest's auth state at mount time (and whenever it changes) is
-  // sufficient. Unlike useGuestPreferenceGate, there is no page-specific
-  // URL/store state to key off here.
+  // 7.1), opt-in via `guardMountForGuest` so click-only callers (e.g.
+  // JobFilterFollowButton, requirement 1.4) never see an unsolicited
+  // prompt just from mounting. When enabled, this hook is only ever
+  // mounted from the watchlist page (task 4.2), so the mount itself is the
+  // "landing on the page" signal -- reacting to the guest's auth state at
+  // mount time (and whenever it changes) is sufficient. Unlike
+  // useGuestPreferenceGate, there is no page-specific URL/store state to
+  // key off here.
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (guardMountForGuest && !isAuthenticated) {
       setPromptOpen(true);
     }
-  }, [isAuthenticated]);
+  }, [guardMountForGuest, isAuthenticated]);
 
   const requestAction = (action: () => void): void => {
     if (isAuthenticated) {
