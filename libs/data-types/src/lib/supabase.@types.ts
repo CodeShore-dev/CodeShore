@@ -73,6 +73,22 @@ export namespace SupabaseTable {
 
   export type JobDescriptionBin = Database['public']['Tables']['job_description_bin']['Row'];
 
+  // 對應新的 supabase/migrations/20260712100000_create_job_filter_subscription.sql
+  // （job-filter-watchlist spec task 1.2）；該遷移尚未套用到實際 Supabase 專案
+  // （sandbox 無 Supabase CLI／Docker／遠端憑證），套用後需重跑 `pnpm db:sync`
+  // 重新產生 supabase.schema.ts，屆時應核對此手動型別與產生器輸出是否一致並視
+  // 需要調整。`filter_snapshot`/`filter_where` 皆為不透明 jsonb 內容（見
+  // research.md 2.1），比照 `AiSuggestion.payload`/`.evidence` 的既有作法窄化為
+  // `Record<string, unknown>`，不在此層綁定 `JobFilterSnapshot`（該型別留給
+  // `libs/shared-utils` 與後端 service 層使用）。
+  export type JobFilterSubscription = Modify<
+    Database['public']['Tables']['job_filter_subscription']['Row'],
+    {
+      filter_snapshot: Record<string, unknown>;
+      filter_where: Record<string, unknown>;
+    }
+  >;
+
   export type JobPreference = Modify<
     Database['public']['Tables']['job_preference']['Row'],
     {

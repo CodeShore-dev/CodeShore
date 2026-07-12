@@ -204,6 +204,49 @@ export type Database = {
         }
         Relationships: []
       }
+      // Hand-authored, mirroring the generated shape of `ai_suggestion` (same
+      // "uuid id + jsonb columns" pattern). Backs the job-filter-watchlist
+      // spec's `job_filter_subscription` table
+      // (`supabase/migrations/20260712100000_create_job_filter_subscription.sql`).
+      // That migration has not been applied to any live Supabase project in
+      // this sandbox (no Supabase CLI / Docker / remote project
+      // credentials), so this type has not gone through a real `pnpm
+      // db:sync` yet. Re-run `pnpm db:sync` once the migration is applied
+      // and reconcile any diff. Note: like `ai_suggestion.reviewed_by` /
+      // `job_preference.user_id`, the `user_id` foreign key targets
+      // `auth.users(id)` (a different schema) and therefore does not appear
+      // in `Relationships` below -- that matches the generator's existing
+      // behavior for the other two tables.
+      job_filter_subscription: {
+        Row: {
+          created_at: string
+          filter_snapshot: Json
+          filter_where: Json
+          id: string
+          label: string
+          last_viewed_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          filter_snapshot: Json
+          filter_where: Json
+          id?: string
+          label: string
+          last_viewed_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          filter_snapshot?: Json
+          filter_where?: Json
+          id?: string
+          label?: string
+          last_viewed_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       job_keyword: {
         Row: {
           description_ch_en_ratio: number
