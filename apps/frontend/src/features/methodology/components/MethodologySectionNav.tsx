@@ -113,7 +113,7 @@ export function MethodologySectionNav({ items }: MethodologySectionNavProps) {
           aria-label="切換頁面區塊"
           aria-expanded={mobileOpen}
           onClick={() => setMobileOpen(open => !open)}
-          className="flex h-12 w-12 items-center justify-center rounded-full bg-[#003d92] text-white shadow-2xl transition-transform active:scale-95"
+          className="flex h-12 w-12 items-center justify-center rounded-full bg-[#003d92]/60 text-white shadow-2xl backdrop-blur-sm transition-colors transition-transform hover:bg-[#003d92]/85 active:scale-95"
         >
           <span className="material-symbols-outlined">list</span>
         </button>
