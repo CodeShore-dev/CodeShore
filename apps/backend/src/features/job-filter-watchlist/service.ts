@@ -144,6 +144,8 @@ export class Service {
 
     if (error) throw error;
 
+    await this.invalidateCountsCache(userId);
+
     return {
       status: 'created',
       subscription: toSubscriptionWithCounts(
@@ -235,5 +237,53 @@ export class Service {
    */
   async invalidateCountsCache(userId: string): Promise<void> {
     await this.cacheService.invalidate(countsCacheKey(userId));
+  }
+
+  /**
+   * Updates `id`'s `last_viewed_at` to the current time on behalf of
+   * `userId` (design.md `PATCH /:id/viewed`, requirement 3.2), returning
+   * the enriched subscription. `touchLastViewedAt` itself enforces the
+   * `userId + id` ownership scoping (requirement 7.2): a mismatched pair
+   * (wrong owner or nonexistent id) resolves to `null` rather than
+   * mutating or revealing another user's row, and this method mirrors that
+   * with a `null` return -- since nothing changed, the counts cache is left
+   * untouched in that case.
+   */
+  async markViewed(
+    userId: string,
+    id: string,
+  ): Promise<SubscriptionWithCounts | null> {
+    const row = await this.subscriptionService.touchLastViewedAt(
+      userId,
+      id,
+    );
+    if (!row) return null;
+
+    await this.invalidateCountsCache(userId);
+
+    const { totalCount, newCount } = await this.computeSubscriptionCounts(
+      row.filter_where,
+      row.last_viewed_at,
+    );
+    return {
+      ...toSubscriptionWithCounts(row),
+      totalCount,
+      newCount,
+    };
+  }
+
+  /**
+   * Removes `id` from `userId`'s followed list (design.md `DELETE /:id`,
+   * requirements 4.1, 7.2). `deleteByUserAndId` scopes the delete by
+   * `userId + id`, so a mismatched pair deletes nothing, but -- unlike
+   * `touchLastViewedAt` -- it returns `void` and gives no signal either way
+   * (real deletion and no-op are indistinguishable). Since there's no way
+   * to tell whether a row actually changed, invalidation is unconditional
+   * here: the small cost of an unnecessary cache clear is preferable to
+   * ever serving a stale list after a real deletion.
+   */
+  async remove(userId: string, id: string): Promise<void> {
+    await this.subscriptionService.deleteByUserAndId(userId, id);
+    await this.invalidateCountsCache(userId);
   }
 }

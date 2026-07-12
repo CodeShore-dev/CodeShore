@@ -45,6 +45,7 @@ function makeSubscriptionServiceMock(options: {
   insertedRow?: Record<string, unknown>;
   insertError?: unknown;
   findByUser?: Record<string, unknown>[];
+  touchLastViewedAt?: Record<string, unknown> | null;
 }) {
   const single = vi.fn().mockResolvedValue({
     data: options.insertedRow ?? null,
@@ -60,6 +61,10 @@ function makeSubscriptionServiceMock(options: {
     countByUser: vi.fn().mockResolvedValue(options.countByUser ?? 0),
     findByUser: vi.fn().mockResolvedValue(options.findByUser ?? []),
     upsert,
+    touchLastViewedAt: vi
+      .fn()
+      .mockResolvedValue(options.touchLastViewedAt ?? null),
+    deleteByUserAndId: vi.fn().mockResolvedValue(undefined),
     __mocks: { single, select, upsert },
   };
 }
@@ -226,10 +231,11 @@ describe('Service.create', () => {
         countByUser: 19,
         insertedRow,
       });
+      const cacheService = makeCacheServiceMock();
       const service = new Service(
       subscriptionService as any,
       {} as any,
-      {} as any,
+      cacheService as any,
     );
 
       const filterWhere = { searchText: { ilike: '%backend%' } };
@@ -277,6 +283,11 @@ describe('Service.create', () => {
           newCount: 0,
         },
       });
+      // A newly-created row changes the user's followed list, so the
+      // cached counts list must be invalidated (design.md "Count 計算").
+      expect(cacheService.invalidate).toHaveBeenCalledWith(
+        'job-filter-watchlist-counts:user-1',
+      );
     } finally {
       vi.useRealTimers();
     }
@@ -493,6 +504,141 @@ describe('Service.invalidateCountsCache', () => {
 
     expect(cacheService.invalidate).toHaveBeenCalledWith(
       'job-filter-watchlist-counts:user-7',
+    );
+  });
+});
+
+describe('Service.markViewed', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('updates last_viewed_at to now, returns the enriched subscription, and invalidates the counts cache when the subscription belongs to the user (Req 3.2)', async () => {
+    const filterWhere = { searchText: { ilike: '%backend%' } };
+    const touchedRow = makeRow({
+      id: 'sub-1',
+      filter_where: filterWhere,
+      last_viewed_at: '2026-07-12T05:00:00.000Z',
+    });
+    const subscriptionService = makeSubscriptionServiceMock({
+      touchLastViewedAt: touchedRow,
+    });
+    const mvJobService = makeMvJobServiceMock([7, 2]);
+    const cacheService = makeCacheServiceMock();
+    const service = new Service(
+      subscriptionService as any,
+      mvJobService as any,
+      cacheService as any,
+    );
+
+    const result = await service.markViewed('user-1', 'sub-1');
+
+    expect(subscriptionService.touchLastViewedAt).toHaveBeenCalledWith(
+      'user-1',
+      'sub-1',
+    );
+    // Counts are recomputed using the row returned by touchLastViewedAt --
+    // in particular its updated last_viewed_at, not any stale value.
+    const [totalCall, newCall] =
+      mvJobService.fetchMvJobsByUserAndPreference.mock.calls;
+    expect(totalCall).toEqual([
+      { where: filterWhere, from: 0, to: 0 },
+      null,
+    ]);
+    expect(newCall).toEqual([
+      {
+        where: {
+          ...filterWhere,
+          created_at: { gt: '2026-07-12T05:00:00.000Z' },
+        },
+        from: 0,
+        to: 0,
+      },
+      null,
+    ]);
+    expect(result).toEqual({
+      id: 'sub-1',
+      label: 'My filter',
+      lastViewedAt: '2026-07-12T05:00:00.000Z',
+      createdAt: '2026-07-12T00:00:00.000Z',
+      totalCount: 7,
+      newCount: 2,
+    });
+    expect(cacheService.invalidate).toHaveBeenCalledWith(
+      'job-filter-watchlist-counts:user-1',
+    );
+  });
+
+  it('returns null and does not invalidate the cache when the (userId, id) pair matches no row (wrong owner or nonexistent id) (Req 7.2)', async () => {
+    const subscriptionService = makeSubscriptionServiceMock({
+      touchLastViewedAt: null,
+    });
+    const mvJobService = makeMvJobServiceMock([]);
+    const cacheService = makeCacheServiceMock();
+    const service = new Service(
+      subscriptionService as any,
+      mvJobService as any,
+      cacheService as any,
+    );
+
+    const result = await service.markViewed('user-1', 'someone-elses-sub');
+
+    expect(subscriptionService.touchLastViewedAt).toHaveBeenCalledWith(
+      'user-1',
+      'someone-elses-sub',
+    );
+    expect(result).toBeNull();
+    expect(
+      mvJobService.fetchMvJobsByUserAndPreference,
+    ).not.toHaveBeenCalled();
+    expect(cacheService.invalidate).not.toHaveBeenCalled();
+  });
+});
+
+describe('Service.remove', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('deletes the subscription scoped to the requesting user and always invalidates the counts cache afterward (Req 4.1, 7.2)', async () => {
+    const subscriptionService = makeSubscriptionServiceMock({});
+    const mvJobService = makeMvJobServiceMock([]);
+    const cacheService = makeCacheServiceMock();
+    const service = new Service(
+      subscriptionService as any,
+      mvJobService as any,
+      cacheService as any,
+    );
+
+    await service.remove('user-1', 'sub-1');
+
+    expect(subscriptionService.deleteByUserAndId).toHaveBeenCalledWith(
+      'user-1',
+      'sub-1',
+    );
+    expect(cacheService.invalidate).toHaveBeenCalledWith(
+      'job-filter-watchlist-counts:user-1',
+    );
+  });
+
+  it('still invalidates the counts cache even when the (userId, id) pair matches no row, since deleteByUserAndId gives no signal either way', async () => {
+    const subscriptionService = makeSubscriptionServiceMock({});
+    const mvJobService = makeMvJobServiceMock([]);
+    const cacheService = makeCacheServiceMock();
+    const service = new Service(
+      subscriptionService as any,
+      mvJobService as any,
+      cacheService as any,
+    );
+
+    await service.remove('user-1', 'nonexistent-or-not-owned');
+
+    expect(subscriptionService.deleteByUserAndId).toHaveBeenCalledWith(
+      'user-1',
+      'nonexistent-or-not-owned',
+    );
+    expect(cacheService.invalidate).toHaveBeenCalledWith(
+      'job-filter-watchlist-counts:user-1',
     );
   });
 });
