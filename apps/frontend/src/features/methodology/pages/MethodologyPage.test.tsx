@@ -1,12 +1,43 @@
 import { screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
+import { ScrollManager } from '../../../app/ScrollManager';
 import { renderWithProviders } from '../../../test/renderWithProviders';
 import { methodologySections } from '../content/sections';
 import { MethodologyPage } from './MethodologyPage';
 
 vi.mock('../service', () => ({
   fetchMethodologySql: vi.fn().mockResolvedValue({}),
+  // Minimal but shape-accurate AiWorkflowsResponse so AiWorkflowsSection (now
+  // mounted on this page) resolves to real content instead of erroring on an
+  // undefined mock — mirrors AiWorkflowsSection.test.tsx's own MOCK_RESPONSE.
+  fetchAiWorkflows: vi.fn().mockResolvedValue({
+    aiSuggestion: [
+      {
+        workflow: 'keyword_mapping',
+        label: '關鍵字對應技術',
+        steps: [
+          {
+            stepLabel: '關鍵字→技術映射',
+            toolName: 'classify_keyword_to_tech',
+            systemPrompt: 'system prompt for keyword mapping',
+            inputSchema: { type: 'object', properties: {} },
+          },
+        ],
+      },
+    ],
+    keywordCuration: {
+      toolName: 'classify_keyword',
+      systemPrompt: 'system prompt for classifier',
+      inputSchema: { type: 'object', properties: {} },
+      paths: [
+        { path: 'A', label: '路徑 A：映射至既有技術條目' },
+        { path: 'B', label: '路徑 B：建立新技術條目' },
+        { path: 'C', label: '路徑 C：移入 keyword bin' },
+      ],
+    },
+  }),
 }));
 
 // TechIcon (used by the embedded diagram) fetches over the network; stub it.
@@ -153,9 +184,10 @@ describe('MethodologyPage', () => {
     expect(screen.getByRole('heading', { name: '開發方法論' })).toBeInTheDocument();
   });
 
-  it('keeps all five existing section anchors present after the web-tech and dev-methodology content changes (req 5.2)', () => {
-    // Regression: rewriting web-tech and adding dev-methodology must be
-    // additive only — none of the pre-existing anchors may be removed.
+  it('keeps all six existing section anchors present after the web-tech, dev-methodology, and ai-workflows content changes (req 5.2)', () => {
+    // Regression: rewriting web-tech, adding dev-methodology, and mounting
+    // ai-workflows must all be additive only — none of the pre-existing
+    // anchors may be removed.
     const { container } = renderWithProviders(<MethodologyPage />);
 
     expect(container.querySelector('#web-tech')).not.toBeNull();
@@ -163,6 +195,67 @@ describe('MethodologyPage', () => {
     expect(container.querySelector('#data-crawler')).not.toBeNull();
     expect(container.querySelector('#cloud-architecture')).not.toBeNull();
     expect(container.querySelector('#source-sql')).not.toBeNull();
+    expect(container.querySelector('#ai-workflows')).not.toBeNull();
+  });
+
+  it('renders the ai-workflows section mounted after database and before the dynamic content sections (req 1.1)', () => {
+    // New「AI 應用與工作流程」section (task 4.1's AiWorkflowsSection) must be
+    // wired into this page: present, titled, and positioned right after
+    // DatabaseSchemaSection (#database) and before the methodologySections
+    // dynamic block, per design.md's mount-point spec.
+    const { container } = renderWithProviders(<MethodologyPage />);
+
+    expect(container.querySelector('#ai-workflows')).not.toBeNull();
+    expect(
+      screen.getByRole('heading', { name: 'AI 應用與工作流程' }),
+    ).toBeInTheDocument();
+
+    const databaseSection = container.querySelector('#database');
+    expect(databaseSection?.nextElementSibling?.id).toBe('ai-workflows');
+  });
+
+  it('scrolls to the ai-workflows section when navigating to its hash anchor, consistent with other sections (req 1.2)', async () => {
+    // Requirement 1.2: the new section's deep-link behavior must be
+    // identical to every other section's — this page reuses the existing
+    // hash-scroll mechanism (ScrollManager) rather than any new logic, so
+    // this mirrors ScrollManager.test.tsx's own verification technique
+    // (spy on window.scrollTo, click a hash link, assert the offset call)
+    // instead of inventing a new one.
+    const user = userEvent.setup();
+    const scrollSpy = vi
+      .spyOn(window, 'scrollTo')
+      .mockImplementation(() => undefined);
+
+    renderWithProviders(
+      <>
+        <ScrollManager />
+        <MethodologyPage />
+      </>,
+      { route: '/methodology' },
+    );
+    scrollSpy.mockClear(); // ignore the initial-mount scroll
+
+    await user.click(screen.getByRole('link', { name: 'AI 應用與工作流程' }));
+
+    // jsdom reports 0 for getBoundingClientRect()/scrollY, so the computed
+    // target is 0 + 0 - 80 (ScrollManager's HASH_OFFSET) — the same formula
+    // ScrollManager.test.tsx asserts for every other section's hash link.
+    expect(scrollSpy).toHaveBeenCalledWith({ top: -80 });
+
+    scrollSpy.mockRestore();
+  });
+
+  it('renders the ai-workflows section fully for an unauthenticated visitor (req 1.3)', async () => {
+    // Coverage gap: public / no-login access. renderWithProviders wraps the
+    // page with NO auth/login provider, so a successful full render —
+    // including fetched workflow content, not just the empty section shell —
+    // proves the new section is reachable without authentication.
+    renderWithProviders(<MethodologyPage />);
+
+    expect(
+      screen.getByRole('heading', { name: 'AI 應用與工作流程' }),
+    ).toBeInTheDocument();
+    expect(await screen.findByText('關鍵字對應技術')).toBeInTheDocument();
   });
 
   it('renders at least one improvement row in the dev-methodology table (req 4.2)', () => {

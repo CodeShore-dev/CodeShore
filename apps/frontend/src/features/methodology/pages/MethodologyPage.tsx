@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 
 import { PageSeo } from '../../../components/PageSeo';
 import { env } from '../../../config/env';
+import { AiWorkflowsSection } from '../components/AiWorkflowsSection';
 import { CloudArchitectureSection } from '../components/CloudArchitectureSection';
 import { CrawlerPipelineSection } from '../components/CrawlerPipelineSection';
 import { DataNormalizationSection } from '../components/DataNormalizationSection';
@@ -20,6 +21,7 @@ const NAV_SECTIONS = [
   { id: 'data-crawler', title: '資料來源與爬蟲' },
   { id: 'data-normalization', title: '資料正規化流程' },
   { id: 'database', title: '資料庫架構' },
+  { id: 'ai-workflows', title: 'AI 應用與工作流程' },
   ...methodologySections.map(section => ({ id: section.id, title: section.title })),
   { id: 'source-sql', title: '資料來源 SQL' },
 ] as const;
@@ -119,6 +121,8 @@ export function MethodologyPage() {
         <DataNormalizationSection />
 
         <DatabaseSchemaSection />
+
+        <AiWorkflowsSection />
 
         {methodologySections.map(section => (
           <section key={section.id} id={section.id} className="mb-12 scroll-mt-20">
