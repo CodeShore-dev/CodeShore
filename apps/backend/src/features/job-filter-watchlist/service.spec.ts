@@ -44,6 +44,7 @@ function makeSubscriptionServiceMock(options: {
   countByUser?: number;
   insertedRow?: Record<string, unknown>;
   insertError?: unknown;
+  findByUser?: Record<string, unknown>[];
 }) {
   const single = vi.fn().mockResolvedValue({
     data: options.insertedRow ?? null,
@@ -57,9 +58,43 @@ function makeSubscriptionServiceMock(options: {
       .fn()
       .mockResolvedValue(options.findByUserAndSnapshot ?? null),
     countByUser: vi.fn().mockResolvedValue(options.countByUser ?? 0),
+    findByUser: vi.fn().mockResolvedValue(options.findByUser ?? []),
     upsert,
     __mocks: { single, select, upsert },
   };
+}
+
+/**
+ * Builds a mock `MvJobService` whose `fetchMvJobsByUserAndPreference`
+ * resolves to a fixed `count` for every call, recording the `(query, userId)`
+ * arguments it was called with so tests can assert the exact `where` object
+ * and range each count query used (design.md "Count 計算": reuse the
+ * existing query path rather than a new one).
+ */
+function makeMvJobServiceMock(countsByCallIndex: number[]) {
+  let callIndex = 0;
+  const fetchMvJobsByUserAndPreference = vi.fn(() => {
+    const count = countsByCallIndex[callIndex] ?? 0;
+    callIndex += 1;
+    return Promise.resolve({ result: [], count, searchParams: '' });
+  });
+  return { fetchMvJobsByUserAndPreference };
+}
+
+/**
+ * Builds a mock `CacheService`. `getOrSet` defaults to always-miss (invokes
+ * and returns `fn()`, mirroring a real cache miss) so tests exercise the
+ * underlying computation; pass `cachedValue` to simulate a cache hit instead
+ * (resolves immediately without calling `fn`).
+ */
+function makeCacheServiceMock(options: { cachedValue?: unknown } = {}) {
+  const getOrSet = vi.fn((_key: string, fn: () => Promise<unknown>) =>
+    options.cachedValue !== undefined
+      ? Promise.resolve(options.cachedValue)
+      : fn(),
+  );
+  const invalidate = vi.fn().mockResolvedValue(undefined);
+  return { getOrSet, invalidate };
 }
 
 describe('Service.create', () => {
@@ -72,7 +107,11 @@ describe('Service.create', () => {
     const subscriptionService = makeSubscriptionServiceMock({
       findByUserAndSnapshot: existingRow,
     });
-    const service = new Service(subscriptionService as any);
+    const service = new Service(
+      subscriptionService as any,
+      {} as any,
+      {} as any,
+    );
 
     const result = await service.create('user-1', {
       filterSnapshot: makeSnapshot(),
@@ -99,7 +138,11 @@ describe('Service.create', () => {
     const subscriptionService = makeSubscriptionServiceMock({
       findByUserAndSnapshot: makeRow(),
     });
-    const service = new Service(subscriptionService as any);
+    const service = new Service(
+      subscriptionService as any,
+      {} as any,
+      {} as any,
+    );
 
     await service.create('user-1', {
       filterSnapshot: makeSnapshot(),
@@ -130,7 +173,11 @@ describe('Service.create', () => {
       findByUserAndSnapshot: null,
       countByUser: 20,
     });
-    const service = new Service(subscriptionService as any);
+    const service = new Service(
+      subscriptionService as any,
+      {} as any,
+      {} as any,
+    );
 
     const result = await service.create('user-1', {
       filterSnapshot: makeSnapshot(),
@@ -147,7 +194,11 @@ describe('Service.create', () => {
       findByUserAndSnapshot: null,
       countByUser: 21,
     });
-    const service = new Service(subscriptionService as any);
+    const service = new Service(
+      subscriptionService as any,
+      {} as any,
+      {} as any,
+    );
 
     const result = await service.create('user-1', {
       filterSnapshot: makeSnapshot(),
@@ -175,7 +226,11 @@ describe('Service.create', () => {
         countByUser: 19,
         insertedRow,
       });
-      const service = new Service(subscriptionService as any);
+      const service = new Service(
+      subscriptionService as any,
+      {} as any,
+      {} as any,
+    );
 
       const filterWhere = { searchText: { ilike: '%backend%' } };
       const result = await service.create('user-1', {
@@ -234,7 +289,11 @@ describe('Service.create', () => {
       countByUser: 0,
       insertError,
     });
-    const service = new Service(subscriptionService as any);
+    const service = new Service(
+      subscriptionService as any,
+      {} as any,
+      {} as any,
+    );
 
     await expect(
       service.create('user-1', {
@@ -243,5 +302,197 @@ describe('Service.create', () => {
         label: 'My filter',
       }),
     ).rejects.toBe(insertError);
+  });
+});
+
+describe('Service.list', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('computes totalCount/newCount for each subscription by reusing MvJobService with the stored filter_where', async () => {
+    const filterWhere = { searchText: { ilike: '%backend%' } };
+    const row = makeRow({
+      id: 'sub-1',
+      filter_where: filterWhere,
+      last_viewed_at: '2026-07-10T00:00:00.000Z',
+    });
+    const subscriptionService = makeSubscriptionServiceMock({
+      findByUser: [row],
+    });
+    // First call (per subscription) answers totalCount, second answers
+    // newCount -- see the assertions below for which `where` object each
+    // call must have used.
+    const mvJobService = makeMvJobServiceMock([7, 3]);
+    const cacheService = makeCacheServiceMock();
+    const service = new Service(
+      subscriptionService as any,
+      mvJobService as any,
+      cacheService as any,
+    );
+
+    const result = await service.list('user-1');
+
+    expect(subscriptionService.findByUser).toHaveBeenCalledWith('user-1');
+    expect(
+      mvJobService.fetchMvJobsByUserAndPreference,
+    ).toHaveBeenCalledTimes(2);
+
+    const [totalCall, newCall] =
+      mvJobService.fetchMvJobsByUserAndPreference.mock.calls;
+    // totalCount: the stored filter_where, unmodified, count-only range.
+    expect(totalCall).toEqual([
+      { where: filterWhere, from: 0, to: 0 },
+      null,
+    ]);
+    // newCount: same filter_where plus created_at gt last_viewed_at.
+    expect(newCall).toEqual([
+      {
+        where: {
+          ...filterWhere,
+          created_at: { gt: '2026-07-10T00:00:00.000Z' },
+        },
+        from: 0,
+        to: 0,
+      },
+      null,
+    ]);
+
+    expect(result).toEqual([
+      {
+        id: 'sub-1',
+        label: 'My filter',
+        lastViewedAt: '2026-07-10T00:00:00.000Z',
+        createdAt: '2026-07-12T00:00:00.000Z',
+        totalCount: 7,
+        newCount: 3,
+      },
+    ]);
+  });
+
+  it('computes counts for every subscription in the user\'s list, not just the first', async () => {
+    const rowA = makeRow({
+      id: 'sub-a',
+      filter_where: { a: 1 },
+      last_viewed_at: '2026-07-01T00:00:00.000Z',
+    });
+    const rowB = makeRow({
+      id: 'sub-b',
+      filter_where: { b: 1 },
+      last_viewed_at: '2026-07-02T00:00:00.000Z',
+    });
+    const subscriptionService = makeSubscriptionServiceMock({
+      findByUser: [rowA, rowB],
+    });
+    // sub-a: total=1, new=0 -- sub-b: total=5, new=2
+    const mvJobService = makeMvJobServiceMock([1, 0, 5, 2]);
+    const cacheService = makeCacheServiceMock();
+    const service = new Service(
+      subscriptionService as any,
+      mvJobService as any,
+      cacheService as any,
+    );
+
+    const result = await service.list('user-1');
+
+    expect(
+      mvJobService.fetchMvJobsByUserAndPreference,
+    ).toHaveBeenCalledTimes(4);
+    expect(result).toEqual([
+      expect.objectContaining({ id: 'sub-a', totalCount: 1, newCount: 0 }),
+      expect.objectContaining({ id: 'sub-b', totalCount: 5, newCount: 2 }),
+    ]);
+  });
+
+  it('caches the computed list under job-filter-watchlist-counts:${userId} with a 60s TTL via CacheService.getOrSet', async () => {
+    const subscriptionService = makeSubscriptionServiceMock({
+      findByUser: [makeRow({ id: 'sub-1' })],
+    });
+    const mvJobService = makeMvJobServiceMock([0, 0]);
+    const cacheService = makeCacheServiceMock();
+    const service = new Service(
+      subscriptionService as any,
+      mvJobService as any,
+      cacheService as any,
+    );
+
+    await service.list('user-42');
+
+    expect(cacheService.getOrSet).toHaveBeenCalledTimes(1);
+    const [key, , opts] = cacheService.getOrSet.mock.calls[0];
+    expect(key).toBe('job-filter-watchlist-counts:user-42');
+    expect(opts).toEqual({ ttl: 60 * 1000 });
+  });
+
+  it('returns the cached value directly on a cache hit without recomputing', async () => {
+    const cachedValue = [
+      {
+        id: 'sub-cached',
+        label: 'Cached',
+        lastViewedAt: '2026-07-01T00:00:00.000Z',
+        createdAt: '2026-07-01T00:00:00.000Z',
+        totalCount: 42,
+        newCount: 1,
+      },
+    ];
+    const subscriptionService = makeSubscriptionServiceMock({});
+    const mvJobService = makeMvJobServiceMock([]);
+    const cacheService = makeCacheServiceMock({ cachedValue });
+    const service = new Service(
+      subscriptionService as any,
+      mvJobService as any,
+      cacheService as any,
+    );
+
+    const result = await service.list('user-1');
+
+    expect(result).toBe(cachedValue);
+    expect(subscriptionService.findByUser).not.toHaveBeenCalled();
+    expect(
+      mvJobService.fetchMvJobsByUserAndPreference,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('returns an empty array without querying MvJobService when the user follows nothing', async () => {
+    const subscriptionService = makeSubscriptionServiceMock({
+      findByUser: [],
+    });
+    const mvJobService = makeMvJobServiceMock([]);
+    const cacheService = makeCacheServiceMock();
+    const service = new Service(
+      subscriptionService as any,
+      mvJobService as any,
+      cacheService as any,
+    );
+
+    const result = await service.list('user-1');
+
+    expect(result).toEqual([]);
+    expect(
+      mvJobService.fetchMvJobsByUserAndPreference,
+    ).not.toHaveBeenCalled();
+  });
+});
+
+describe('Service.invalidateCountsCache', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('invalidates the job-filter-watchlist-counts:${userId} cache key', async () => {
+    const subscriptionService = makeSubscriptionServiceMock({});
+    const mvJobService = makeMvJobServiceMock([]);
+    const cacheService = makeCacheServiceMock();
+    const service = new Service(
+      subscriptionService as any,
+      mvJobService as any,
+      cacheService as any,
+    );
+
+    await service.invalidateCountsCache('user-7');
+
+    expect(cacheService.invalidate).toHaveBeenCalledWith(
+      'job-filter-watchlist-counts:user-7',
+    );
   });
 });
