@@ -92,6 +92,16 @@ export class AppController {
     return this.service.getMethodologySql();
   }
 
+  @Get('/methodology/ai-workflows')
+  @ApiOperation({
+    summary: 'Get the AI-driven curation workflows behind the database',
+    description:
+      'Returns the real, static system prompts and tool schemas actually used by the ai-suggestion batch-suggestion sub-workflows and the keyword-curation LangGraph classifier, plus its three decision paths, so the methodology page can disclose where and how AI assists data curation. Every AI decision still requires admin confirmation before being written to the database; this endpoint does not expose or affect the ai-suggestion/keyword-curation AdminOnly review pages themselves. Public (no authentication required).',
+  })
+  getAiWorkflows() {
+    return this.service.getAiWorkflows();
+  }
+
   @Sse('/sse')
   sse(): Observable<MessageEvent> {
     return this.messageQueue.pipe(

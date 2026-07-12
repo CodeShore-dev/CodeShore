@@ -15,7 +15,23 @@ import {
   Cacheable,
 } from '@codeshore/service-cache';
 
+import type { WorkflowInfo } from '../features/ai-suggestion/workflow-info';
+import { getWorkflowInfo } from '../features/ai-suggestion/workflow-info';
+import type { KeywordCurationWorkflowInfo } from '../features/keyword-curation/workflow-info';
+import { getKeywordCurationWorkflowInfo } from '../features/keyword-curation/workflow-info';
 import { QueryDto } from '../features/query.dto';
+
+/**
+ * Public transparency payload for the methodology page's「AI 應用與工作流程」
+ * section: the real, static `ai-suggestion` sub-workflow prompts/schemas and
+ * the `keyword-curation` classifier prompt/schema plus its three decision
+ * paths, unmodified from their respective source-of-truth functions (see
+ * `getAiWorkflows()` below and requirements 2.3/3.3).
+ */
+export interface AiWorkflowsResponse {
+  aiSuggestion: readonly WorkflowInfo[];
+  keywordCuration: KeywordCurationWorkflowInfo;
+}
 
 @Injectable()
 export class AppService {
@@ -56,6 +72,23 @@ export class AppService {
    */
   getMethodologySql(): Record<string, string> {
     return SCHEMA_SQL;
+  }
+
+  /**
+   * Aggregates the two existing AI-curation features' real, static
+   * prompt/schema transparency info -- `ai-suggestion`'s 5 sub-workflows and
+   * `keyword-curation`'s classifier + 3 decision paths -- into a single
+   * public payload for the methodology page's「AI 應用與工作流程」section.
+   * A pure passthrough composing each source function's real output: never
+   * reimplements or copies their content (requirements 2.1-2.3, 3.1, 3.3).
+   * No caching per design.md's Out-of-Boundary note (both sources are
+   * already synchronous, in-memory pure functions).
+   */
+  getAiWorkflows(): AiWorkflowsResponse {
+    return {
+      aiSuggestion: getWorkflowInfo(),
+      keywordCuration: getKeywordCurationWorkflowInfo(),
+    };
   }
 
   async getMvTechRanking(query: QueryDto) {
