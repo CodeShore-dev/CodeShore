@@ -87,14 +87,25 @@ export class JobFilterSubscriptionService extends TableService<
    * delete another user's subscription (requirement 7.2): a mismatched
    * `(userId, id)` pair matches zero rows and deletes nothing rather than
    * throwing a distinguishable error.
+   *
+   * Returns whether a row was actually deleted. Chaining `.select()` onto
+   * the delete (mirroring `touchLastViewedAt`'s
+   * `.update(...).eq(...).eq(...).select()` pattern) makes PostgREST return
+   * the deleted row(s) instead of nothing, so `(data ?? []).length > 0`
+   * distinguishes a real deletion from a no-op. Wrong owner and nonexistent
+   * id both resolve to `false` -- the same non-leaking result, by design
+   * (design.md "更正說明(task 2.4 review 階段發現)"): the caller must not be
+   * able to tell those two cases apart from this return value alone.
    */
-  async deleteByUserAndId(userId: string, id: string): Promise<void> {
-    const { error } = await this.table
+  async deleteByUserAndId(userId: string, id: string): Promise<boolean> {
+    const { data, error } = await this.table
       .delete()
       .eq('user_id', userId)
-      .eq('id', id);
+      .eq('id', id)
+      .select();
 
     if (error) throw error;
+    return (data ?? []).length > 0;
   }
 
   /**

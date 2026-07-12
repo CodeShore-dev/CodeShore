@@ -47,6 +47,7 @@ function createFakeBuilder(rows: Row[]) {
   let updateValues: Partial<Row> | null = null;
   let eqFilters: Array<[string, unknown]> = [];
   let wantsMaybeSingle = false;
+  let wantsSelectOnDelete = false;
 
   const applyEqFilters = () => {
     filtered = filtered.filter(row =>
@@ -72,6 +73,14 @@ function createFakeBuilder(rows: Row[]) {
         eqFilters = [];
         wantsMaybeSingle = false;
       }
+      if (mode === 'delete') {
+        // `.delete().eq(...).eq(...).select()` (as `deleteByUserAndId`
+        // uses) -- preserve the delete's filters, but remember that the
+        // caller wants the deleted row(s) reported back as `data` instead
+        // of the bare `{ data: null }` PostgREST returns for a plain
+        // delete.
+        wantsSelectOnDelete = true;
+      }
       selectOptions = options;
       return builder;
     },
@@ -85,6 +94,7 @@ function createFakeBuilder(rows: Row[]) {
     delete() {
       mode = 'delete';
       eqFilters = [];
+      wantsSelectOnDelete = false;
       return builder;
     },
     eq(column: string, value: unknown) {
@@ -112,17 +122,24 @@ function createFakeBuilder(rows: Row[]) {
     then(resolve: (value: any) => void) {
       if (mode === 'delete') {
         applyEqFilters();
+        const deleted: Row[] = [];
         for (let i = rows.length - 1; i >= 0; i--) {
           if (
             eqFilters.every(([col, val]) =>
               valuesEqual((rows[i] as any)[col], val),
             )
           ) {
+            deleted.unshift(rows[i]);
             rows.splice(i, 1);
           }
         }
         mode = 'select';
-        resolve({ data: null, error: null, status: 204, count: null });
+        resolve({
+          data: wantsSelectOnDelete ? deleted : null,
+          error: null,
+          status: wantsSelectOnDelete ? 200 : 204,
+          count: null,
+        });
         return;
       }
       if (mode === 'update') {
@@ -376,29 +393,46 @@ describe('JobFilterSubscriptionService', () => {
   });
 
   describe('deleteByUserAndId', () => {
-    it('deletes a subscription owned by the requesting user', async () => {
+    it('deletes a subscription owned by the requesting user and returns true', async () => {
       fakeRows = [makeRow({ id: 'sub-a1', user_id: userAId })];
       const { JobFilterSubscriptionService } = await import(
         './job_filter_subscription.service'
       );
       const service = new JobFilterSubscriptionService();
 
-      await service.deleteByUserAndId(userAId, 'sub-a1');
+      const result = await service.deleteByUserAndId(userAId, 'sub-a1');
 
+      expect(result).toBe(true);
       expect(fakeRows).toEqual([]);
     });
 
-    it('does not delete a subscription owned by a different user', async () => {
+    it('does not delete a subscription owned by a different user and returns false', async () => {
       fakeRows = [makeRow({ id: 'sub-b1', user_id: userBId })];
       const { JobFilterSubscriptionService } = await import(
         './job_filter_subscription.service'
       );
       const service = new JobFilterSubscriptionService();
 
-      await service.deleteByUserAndId(userAId, 'sub-b1');
+      const result = await service.deleteByUserAndId(userAId, 'sub-b1');
 
+      expect(result).toBe(false);
       expect(fakeRows).toHaveLength(1);
       expect(fakeRows[0].id).toBe('sub-b1');
+    });
+
+    it('returns false when the id does not exist at all', async () => {
+      fakeRows = [];
+      const { JobFilterSubscriptionService } = await import(
+        './job_filter_subscription.service'
+      );
+      const service = new JobFilterSubscriptionService();
+
+      const result = await service.deleteByUserAndId(
+        userAId,
+        'does-not-exist',
+      );
+
+      expect(result).toBe(false);
     });
   });
 

@@ -16,6 +16,7 @@ import { AuthModule } from '../features/auth/auth.module';
 import { Module as CacheModule } from '../features/cache/module';
 import { Module as CompanyModule } from '../features/company/module';
 import { Module as JobModule } from '../features/job/module';
+import { Module as JobFilterWatchlistModule } from '../features/job-filter-watchlist/module';
 import { Module as KeywordModule } from '../features/keyword/module';
 import { Module as KeywordCurationModule } from '../features/keyword-curation/module';
 import { provideWithLogger } from '../features/logger-provider';
@@ -31,6 +32,7 @@ import { AppService } from './app.service';
     CacheModule,
     CompanyModule,
     JobModule,
+    JobFilterWatchlistModule,
     KeywordModule,
     AdminModule,
     AiSuggestionModule,

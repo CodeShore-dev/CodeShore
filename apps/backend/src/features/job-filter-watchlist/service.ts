@@ -275,15 +275,22 @@ export class Service {
   /**
    * Removes `id` from `userId`'s followed list (design.md `DELETE /:id`,
    * requirements 4.1, 7.2). `deleteByUserAndId` scopes the delete by
-   * `userId + id`, so a mismatched pair deletes nothing, but -- unlike
-   * `touchLastViewedAt` -- it returns `void` and gives no signal either way
-   * (real deletion and no-op are indistinguishable). Since there's no way
-   * to tell whether a row actually changed, invalidation is unconditional
-   * here: the small cost of an unnecessary cache clear is preferable to
-   * ever serving a stale list after a real deletion.
+   * `userId + id`, so a mismatched pair (wrong owner or nonexistent id)
+   * deletes nothing and now reports that back as `false` -- the same
+   * non-leaking signal `touchLastViewedAt` gives via `null` (design.md
+   * "更正說明(task 2.4 review 階段發現)"). This method mirrors `markViewed`'s
+   * hit-only invalidation exactly: the counts cache is only invalidated
+   * when a row was actually deleted, since a miss can't have changed
+   * anything worth invalidating.
    */
-  async remove(userId: string, id: string): Promise<void> {
-    await this.subscriptionService.deleteByUserAndId(userId, id);
+  async remove(userId: string, id: string): Promise<boolean> {
+    const deleted = await this.subscriptionService.deleteByUserAndId(
+      userId,
+      id,
+    );
+    if (!deleted) return false;
+
     await this.invalidateCountsCache(userId);
+    return true;
   }
 }

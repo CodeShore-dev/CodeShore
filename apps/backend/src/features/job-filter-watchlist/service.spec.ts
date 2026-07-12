@@ -46,6 +46,7 @@ function makeSubscriptionServiceMock(options: {
   insertError?: unknown;
   findByUser?: Record<string, unknown>[];
   touchLastViewedAt?: Record<string, unknown> | null;
+  deleteByUserAndId?: boolean;
 }) {
   const single = vi.fn().mockResolvedValue({
     data: options.insertedRow ?? null,
@@ -64,7 +65,9 @@ function makeSubscriptionServiceMock(options: {
     touchLastViewedAt: vi
       .fn()
       .mockResolvedValue(options.touchLastViewedAt ?? null),
-    deleteByUserAndId: vi.fn().mockResolvedValue(undefined),
+    deleteByUserAndId: vi
+      .fn()
+      .mockResolvedValue(options.deleteByUserAndId ?? true),
     __mocks: { single, select, upsert },
   };
 }
@@ -600,8 +603,10 @@ describe('Service.remove', () => {
     vi.restoreAllMocks();
   });
 
-  it('deletes the subscription scoped to the requesting user and always invalidates the counts cache afterward (Req 4.1, 7.2)', async () => {
-    const subscriptionService = makeSubscriptionServiceMock({});
+  it('deletes the subscription scoped to the requesting user, invalidates the counts cache, and returns true on a hit (Req 4.1, 7.2)', async () => {
+    const subscriptionService = makeSubscriptionServiceMock({
+      deleteByUserAndId: true,
+    });
     const mvJobService = makeMvJobServiceMock([]);
     const cacheService = makeCacheServiceMock();
     const service = new Service(
@@ -610,8 +615,9 @@ describe('Service.remove', () => {
       cacheService as any,
     );
 
-    await service.remove('user-1', 'sub-1');
+    const result = await service.remove('user-1', 'sub-1');
 
+    expect(result).toBe(true);
     expect(subscriptionService.deleteByUserAndId).toHaveBeenCalledWith(
       'user-1',
       'sub-1',
@@ -621,8 +627,10 @@ describe('Service.remove', () => {
     );
   });
 
-  it('still invalidates the counts cache even when the (userId, id) pair matches no row, since deleteByUserAndId gives no signal either way', async () => {
-    const subscriptionService = makeSubscriptionServiceMock({});
+  it('does NOT invalidate the counts cache and returns false when the (userId, id) pair matches no row (wrong owner or nonexistent id)', async () => {
+    const subscriptionService = makeSubscriptionServiceMock({
+      deleteByUserAndId: false,
+    });
     const mvJobService = makeMvJobServiceMock([]);
     const cacheService = makeCacheServiceMock();
     const service = new Service(
@@ -631,14 +639,13 @@ describe('Service.remove', () => {
       cacheService as any,
     );
 
-    await service.remove('user-1', 'nonexistent-or-not-owned');
+    const result = await service.remove('user-1', 'nonexistent-or-not-owned');
 
+    expect(result).toBe(false);
     expect(subscriptionService.deleteByUserAndId).toHaveBeenCalledWith(
       'user-1',
       'nonexistent-or-not-owned',
     );
-    expect(cacheService.invalidate).toHaveBeenCalledWith(
-      'job-filter-watchlist-counts:user-1',
-    );
+    expect(cacheService.invalidate).not.toHaveBeenCalled();
   });
 });
