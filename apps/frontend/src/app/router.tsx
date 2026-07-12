@@ -36,6 +36,11 @@ const JobPreferencePage = lazy(() =>
     default: m.JobPreferencePage,
   })),
 );
+const JobFilterWatchlistPage = lazy(() =>
+  import('../features/job-filter-watchlist/pages/JobFilterWatchlistPage').then(
+    m => ({ default: m.JobFilterWatchlistPage }),
+  ),
+);
 const CompanyListPage = lazy(() =>
   import('../features/company/pages/CompanyListPage').then(m => ({
     default: m.CompanyListPage,
@@ -114,6 +119,12 @@ export const routeConfig: RouteObject[] = [
       // behavior since only their guard placement moved, not the pages
       // themselves.
       { path: '/jobs', element: <JobPreferencePage /> },
+      // Not wrapped in ProtectedRoute: does its own guest-gating via
+      // useGuestWatchlistGate({ guardMountForGuest: true }) so a signed-out
+      // visit shows a login prompt instead of a /login redirect (design.md's
+      // JobFilterWatchlistPage, requirement 7.1), consistent with how /jobs
+      // itself isn't wrapped despite having login-gated sub-features.
+      { path: '/jobs/watchlist', element: <JobFilterWatchlistPage /> },
       { path: '/companies', element: <CompanyListPage /> },
 
       // Authenticated routes
