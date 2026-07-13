@@ -72,3 +72,48 @@ describe('AppNavBar', () => {
     ).not.toBeInTheDocument();
   });
 });
+
+// Req 6.5, 6.7: the plain-text email + standalone logout button, shown only
+// when signed in, is replaced by the UserMenu dropdown; the signed-out
+// /login link stays untouched. This was a behavioral change to an
+// already-shipped component, implemented under the Feature Flag Protocol --
+// RED was captured with a local, OFF-by-default flag gating the swap (the
+// old span/button still rendered while these UserMenu-shaped assertions
+// failed); GREEN was confirmed with the flag on, then the flag was removed
+// once proven (these tests now cover the unconditional swap).
+describe('AppNavBar account area', () => {
+  it('renders the UserMenu trigger instead of the plain-text email/logout pair when signed in', () => {
+    useAuthStore.setState({ user: normalUser, viewAsRegularUser: false });
+    renderNavBar();
+
+    // UserMenu's trigger button exposes the email as its accessible name
+    // (aria-label), not as visible text content -- so this only passes once
+    // <UserMenu /> replaces the old <span>{user.email}</span>.
+    expect(
+      screen.getByRole('button', { name: normalUser.email }),
+    ).toBeInTheDocument();
+
+    // The old plain-text email span is gone (its text content is no longer
+    // rendered anywhere before the menu is opened).
+    expect(screen.queryByText(normalUser.email)).not.toBeInTheDocument();
+
+    // The old always-visible standalone logout button is gone -- UserMenu's
+    // own logout item only renders once the dropdown is expanded.
+    expect(
+      screen.queryByRole('button', { name: '登出' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('leaves the signed-out /login link and AdminViewToggle placement untouched', () => {
+    renderNavBar();
+
+    expect(screen.getByRole('link', { name: '登入' })).toHaveAttribute(
+      'href',
+      '/login',
+    );
+    expect(
+      screen.queryByRole('button', { name: normalUser.email }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText('管理視角')).not.toBeInTheDocument();
+  });
+});

@@ -4,6 +4,7 @@ import { useAuthStore, useIsAuthenticated } from '../features/auth/authStore';
 import { AdminViewToggle } from '../features/auth/components/AdminViewToggle';
 import { useNavLinks } from './hooks/useNavLinks';
 import { MoreNavMenu } from './MoreNavMenu';
+import { UserMenu } from './UserMenu';
 
 export function AppNavBar() {
   const { navLinks, moreLinks, isActive } = useNavLinks();
@@ -48,18 +49,7 @@ export function AppNavBar() {
         <div className="flex items-center gap-3">
           <AdminViewToggle />
           {isAuthenticated && user ? (
-            <>
-              <span className="hidden text-sm text-[#434653] md:inline">
-                {user.email}
-              </span>
-              <button
-                type="button"
-                className="rounded-lg bg-[#003d92] px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-[#002a6b] active:scale-95"
-                onClick={() => logout()}
-              >
-                登出
-              </button>
-            </>
+            <UserMenu email={user.email} onLogout={() => logout()} />
           ) : (
             !isLoading && (
               <Link
