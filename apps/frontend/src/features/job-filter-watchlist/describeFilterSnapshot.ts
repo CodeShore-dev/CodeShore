@@ -5,33 +5,20 @@ import { toWanInt } from '../../utils/format';
 const SEPARATOR = '・';
 const ALL_JOBS_LABEL = '所有職缺';
 
-function resolveTechLabel(
-  id: string,
-  techLabelsById: Map<string, string>,
-): string {
+function resolveTechLabel(id: string, techLabelsById: Map<string, string>): string {
   return techLabelsById.get(id) ?? id;
 }
 
-function describeIncludedTech(
-  snapshot: JobFilterSnapshot,
-  techLabelsById: Map<string, string>,
-): string | null {
+function describeIncludedTech(snapshot: JobFilterSnapshot, techLabelsById: Map<string, string>): string | null {
   if (snapshot.selectedTags.length === 0) return null;
   const joiner = snapshot.techOperator === 'or' ? ' 或 ' : ', ';
-  const labels = snapshot.selectedTags.map((id) =>
-    resolveTechLabel(id, techLabelsById),
-  );
+  const labels = snapshot.selectedTags.map(id => resolveTechLabel(id, techLabelsById));
   return `技術:${labels.join(joiner)}`;
 }
 
-function describeExcludedTech(
-  snapshot: JobFilterSnapshot,
-  techLabelsById: Map<string, string>,
-): string | null {
+function describeExcludedTech(snapshot: JobFilterSnapshot, techLabelsById: Map<string, string>): string | null {
   if (snapshot.excludedTags.length === 0) return null;
-  const labels = snapshot.excludedTags.map((id) =>
-    resolveTechLabel(id, techLabelsById),
-  );
+  const labels = snapshot.excludedTags.map(id => resolveTechLabel(id, techLabelsById));
   return `排除技術:${labels.join(', ')}`;
 }
 
@@ -53,22 +40,14 @@ function describeLocations(snapshot: JobFilterSnapshot): string | null {
   return `地點:${snapshot.selectedLocations.join(', ')}`;
 }
 
-function describeIncludedCompanies(
-  snapshot: JobFilterSnapshot,
-): string | null {
-  const names = snapshot.companyFilters
-    .filter((entry) => entry.mode === 'include')
-    .map((entry) => entry.name);
+function describeIncludedCompanies(snapshot: JobFilterSnapshot): string | null {
+  const names = snapshot.companyFilters.filter(entry => entry.mode === 'include').map(entry => entry.name);
   if (names.length === 0) return null;
   return `公司:${names.join(', ')}`;
 }
 
-function describeExcludedCompanies(
-  snapshot: JobFilterSnapshot,
-): string | null {
-  const names = snapshot.companyFilters
-    .filter((entry) => entry.mode === 'exclude')
-    .map((entry) => entry.name);
+function describeExcludedCompanies(snapshot: JobFilterSnapshot): string | null {
+  const names = snapshot.companyFilters.filter(entry => entry.mode === 'exclude').map(entry => entry.name);
   if (names.length === 0) return null;
   return `排除公司:${names.join(', ')}`;
 }
@@ -83,11 +62,8 @@ function describeExcludedCompanies(
  * labels via the caller-supplied `techLabelsById` map; an id with no
  * matching label falls back to the raw id.
  */
-export function describeFilterSnapshot(
-  snapshot: JobFilterSnapshot,
-  techLabelsById: Map<string, string>,
-): string {
-  const fragments = [
+function buildFragments(snapshot: JobFilterSnapshot, techLabelsById: Map<string, string>): string[] {
+  return [
     describeIncludedTech(snapshot, techLabelsById),
     describeExcludedTech(snapshot, techLabelsById),
     describeSalaryMode(snapshot),
@@ -96,8 +72,34 @@ export function describeFilterSnapshot(
     describeIncludedCompanies(snapshot),
     describeExcludedCompanies(snapshot),
   ].filter((fragment): fragment is string => fragment !== null);
+}
 
+export function describeFilterSnapshot(snapshot: JobFilterSnapshot, techLabelsById: Map<string, string>): string {
+  const fragments = buildFragments(snapshot, techLabelsById);
   if (fragments.length === 0) return ALL_JOBS_LABEL;
-
   return fragments.join(SEPARATOR);
+}
+
+/**
+ * Whether a snapshot has no active filter condition at all -- i.e. would
+ * produce the same (empty) `deriveJobWhere` result as no filter applied.
+ *
+ * Deliberately NOT based on `buildFragments`: `describeFilterSnapshot`'s
+ * label intentionally omits `searchText` (see that function's own comment),
+ * but `deriveJobWhere` still turns a non-empty `searchText` (and a
+ * `salaryAmount.type` set without an amount) into a real `where` condition,
+ * so both must count as "active" here even though neither shows up in the
+ * label text.
+ */
+export function isFilterSnapshotEmpty(snapshot: JobFilterSnapshot): boolean {
+  return (
+    snapshot.searchText.trim() === '' &&
+    snapshot.companyFilters.length === 0 &&
+    snapshot.salaryFilter === 'none' &&
+    snapshot.salaryAmount.type === '' &&
+    snapshot.salaryAmount.amount === null &&
+    snapshot.selectedLocations.length === 0 &&
+    snapshot.selectedTags.length === 0 &&
+    snapshot.excludedTags.length === 0
+  );
 }

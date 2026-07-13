@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { JobFilterSnapshot } from '@codeshore/shared-utils';
 
-import { describeFilterSnapshot } from './describeFilterSnapshot';
+import { describeFilterSnapshot, isFilterSnapshotEmpty } from './describeFilterSnapshot';
 
 const base: JobFilterSnapshot = {
   searchText: '',
@@ -32,9 +32,7 @@ describe('describeFilterSnapshot', () => {
       // 'php' intentionally missing from the map to exercise the fallback.
     ]);
 
-    expect(describeFilterSnapshot(snapshot, techLabelsById)).toBe(
-      '技術:React, TypeScript・排除技術:php',
-    );
+    expect(describeFilterSnapshot(snapshot, techLabelsById)).toBe('技術:React, TypeScript・排除技術:php');
   });
 
   it('describes tech with the "or" operator using a different joiner', () => {
@@ -48,9 +46,7 @@ describe('describeFilterSnapshot', () => {
       ['vue', 'Vue'],
     ]);
 
-    expect(describeFilterSnapshot(snapshot, techLabelsById)).toBe(
-      '技術:React 或 Vue',
-    );
+    expect(describeFilterSnapshot(snapshot, techLabelsById)).toBe('技術:React 或 Vue');
   });
 
   it('describes only the salary condition when only salaryFilter is set', () => {
@@ -59,9 +55,7 @@ describe('describeFilterSnapshot', () => {
       salaryFilter: 'excluding',
     };
 
-    expect(describeFilterSnapshot(snapshot, new Map())).toBe(
-      '只看有薪資職缺',
-    );
+    expect(describeFilterSnapshot(snapshot, new Map())).toBe('只看有薪資職缺');
   });
 
   it('describes only the salary condition when only salaryFilter "only" is set', () => {
@@ -70,9 +64,7 @@ describe('describeFilterSnapshot', () => {
       salaryFilter: 'only',
     };
 
-    expect(describeFilterSnapshot(snapshot, new Map())).toBe(
-      '只看未公開薪資職缺',
-    );
+    expect(describeFilterSnapshot(snapshot, new Map())).toBe('只看未公開薪資職缺');
   });
 
   it('describes only the salary condition when only salaryAmount is set, using 萬 formatting', () => {
@@ -91,9 +83,7 @@ describe('describeFilterSnapshot', () => {
       salaryAmount: { type: 'year', amount: 1000000 },
     };
 
-    expect(describeFilterSnapshot(snapshot, new Map())).toBe(
-      '只看有薪資職缺・年薪 100萬+',
-    );
+    expect(describeFilterSnapshot(snapshot, new Map())).toBe('只看有薪資職缺・年薪 100萬+');
   });
 
   it('describes a mix of included and excluded companies distinctly', () => {
@@ -106,9 +96,7 @@ describe('describeFilterSnapshot', () => {
       ],
     };
 
-    expect(describeFilterSnapshot(snapshot, new Map())).toBe(
-      '公司:Acme, Globex・排除公司:Initech',
-    );
+    expect(describeFilterSnapshot(snapshot, new Map())).toBe('公司:Acme, Globex・排除公司:Initech');
   });
 
   it('describes the location condition', () => {
@@ -117,9 +105,7 @@ describe('describeFilterSnapshot', () => {
       selectedLocations: ['台北', '新竹'],
     };
 
-    expect(describeFilterSnapshot(snapshot, new Map())).toBe(
-      '地點:台北, 新竹',
-    );
+    expect(describeFilterSnapshot(snapshot, new Map())).toBe('地點:台北, 新竹');
   });
 
   it('combines multiple active conditions in tech, salary, location, company order', () => {
@@ -134,8 +120,42 @@ describe('describeFilterSnapshot', () => {
       ['ts', 'TypeScript'],
     ]);
 
-    expect(describeFilterSnapshot(snapshot, techLabelsById)).toBe(
-      '技術:React, TypeScript・月薪 6萬+・排除公司:A 公司',
-    );
+    expect(describeFilterSnapshot(snapshot, techLabelsById)).toBe('技術:React, TypeScript・月薪 6萬+・排除公司:A 公司');
+  });
+});
+
+describe('isFilterSnapshotEmpty', () => {
+  it('returns true for a fully empty snapshot', () => {
+    expect(isFilterSnapshotEmpty(base)).toBe(true);
+  });
+
+  it('returns false when searchText is set, even though the label omits it', () => {
+    expect(isFilterSnapshotEmpty({ ...base, searchText: 'golang' })).toBe(false);
+  });
+
+  it('returns false when only salaryAmount.type is set with no amount', () => {
+    expect(
+      isFilterSnapshotEmpty({
+        ...base,
+        salaryAmount: { type: 'month', amount: null },
+      }),
+    ).toBe(false);
+  });
+
+  it('returns false when a tech tag is selected', () => {
+    expect(isFilterSnapshotEmpty({ ...base, selectedTags: ['react'] })).toBe(false);
+  });
+
+  it('returns false when a company filter is set', () => {
+    expect(
+      isFilterSnapshotEmpty({
+        ...base,
+        companyFilters: [{ name: 'Acme', mode: 'include' }],
+      }),
+    ).toBe(false);
+  });
+
+  it('returns false when a location is selected', () => {
+    expect(isFilterSnapshotEmpty({ ...base, selectedLocations: ['台北'] })).toBe(false);
   });
 });
