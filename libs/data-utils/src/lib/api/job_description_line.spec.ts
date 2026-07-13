@@ -21,6 +21,7 @@ function createFakeBuilder(rows: Row[]) {
   let insertPayload: Row[] | null = null;
   let eqFilters: Array<[string, unknown]> = [];
   let neqFilters: Array<[string, unknown]> = [];
+  let inFilters: Array<[string, unknown[]]> = [];
 
   const builder: any = {
     url: new URL('https://example.test/job_description_line'),
@@ -58,6 +59,7 @@ function createFakeBuilder(rows: Row[]) {
       mode = 'delete';
       eqFilters = [];
       neqFilters = [];
+      inFilters = [];
       return builder;
     },
     eq(column: string, value: unknown) {
@@ -66,6 +68,14 @@ function createFakeBuilder(rows: Row[]) {
     },
     neq(column: string, value: unknown) {
       neqFilters.push([column, value]);
+      return builder;
+    },
+    in(column: string, values: unknown[]) {
+      if (mode === 'select') {
+        filtered = filtered.filter(row => values.includes((row as any)[column]));
+      } else {
+        inFilters.push([column, values]);
+      }
       return builder;
     },
     then(resolve: (value: any) => void) {
@@ -85,7 +95,9 @@ function createFakeBuilder(rows: Row[]) {
       if (mode === 'delete') {
         // Mirrors the real `deleteAll` helper: a plain `.neq(idField, '')`
         // matches every row (all real ids are non-empty strings), so a
-        // `reset()` truncates the whole table before re-inserting.
+        // `reset()` truncates the whole table before re-inserting. A
+        // `.in(column, values)` delete (`deleteWhereIn`/`replaceWhereIn`)
+        // only removes rows whose `column` is one of `values`.
         for (let i = rows.length - 1; i >= 0; i--) {
           const matchesNeq = neqFilters.every(
             ([col, val]) => (rows[i] as any)[col] !== val,
@@ -93,7 +105,10 @@ function createFakeBuilder(rows: Row[]) {
           const matchesEq = eqFilters.every(
             ([col, val]) => (rows[i] as any)[col] === val,
           );
-          if (matchesNeq && matchesEq) {
+          const matchesIn = inFilters.every(
+            ([col, vals]) => vals.includes((rows[i] as any)[col]),
+          );
+          if (matchesNeq && matchesEq && matchesIn) {
             rows.splice(i, 1);
           }
         }
@@ -218,6 +233,69 @@ describe('JobDescriptionLineService', () => {
 
       const { result } = await service.fetchAll();
       expect(result).toEqual([]);
+    });
+  });
+
+  describe('findWhereIn', () => {
+    it('returns rows whose job_id is one of the given values, across multiple jobs', async () => {
+      fakeRows = [
+        makeRow({ id: 'line-1', job_id: 'job-a' }),
+        makeRow({ id: 'line-2', job_id: 'job-b' }),
+        makeRow({ id: 'line-3', job_id: 'job-c' }),
+      ];
+      const { JobDescriptionLineService } = await import(
+        './job_description_line.service'
+      );
+      const service = new JobDescriptionLineService();
+
+      const { result } = await service.findWhereIn('job_id', ['job-a', 'job-c']);
+
+      expect(result.map(row => row.id).sort()).toEqual(['line-1', 'line-3']);
+    });
+
+    it('returns an empty result without matching anything when values is empty', async () => {
+      fakeRows = [makeRow({ id: 'line-1', job_id: 'job-a' })];
+      const { JobDescriptionLineService } = await import(
+        './job_description_line.service'
+      );
+      const service = new JobDescriptionLineService();
+
+      const { result } = await service.findWhereIn('job_id', []);
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('replaceWhereIn', () => {
+    it('replaces only the rows scoped to the given job_ids, leaving other jobs untouched', async () => {
+      fakeRows = [
+        makeRow({ id: 'stale-a', job_id: 'job-a', content: 'stale a' }),
+        makeRow({ id: 'keep-b', job_id: 'job-b', content: 'untouched b' }),
+      ];
+      const { JobDescriptionLineService } = await import(
+        './job_description_line.service'
+      );
+      const service = new JobDescriptionLineService();
+
+      await service.replaceWhereIn('job_id', ['job-a'], [
+        makeRow({ id: 'fresh-a', job_id: 'job-a', content: 'fresh a' }),
+      ]);
+
+      const { result } = await service.fetchAll();
+      expect(result.map(row => row.id).sort()).toEqual(['fresh-a', 'keep-b']);
+    });
+
+    it('is a no-op delete (and no insert) when scopeValues is empty and records is empty', async () => {
+      fakeRows = [makeRow({ id: 'keep-a', job_id: 'job-a' })];
+      const { JobDescriptionLineService } = await import(
+        './job_description_line.service'
+      );
+      const service = new JobDescriptionLineService();
+
+      await service.replaceWhereIn('job_id', [], []);
+
+      const { result } = await service.fetchAll();
+      expect(result.map(row => row.id)).toEqual(['keep-a']);
     });
   });
 });

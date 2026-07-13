@@ -81,6 +81,32 @@ export async function deleteAll(
   return builder.delete().neq(idField, '');
 }
 
+/**
+ * Deletes only the rows whose `field` is one of `values`, instead of every
+ * row in the table (unlike `deleteAll`). Used for scoped batch replace where
+ * the caller has narrowed the operation to a specific set of parent ids
+ * (e.g. a `where`-filtered subset of jobs) rather than the whole table.
+ * `values` empty is a no-op (an `.in()` filter with an empty array would
+ * otherwise be an easy-to-misread "delete nothing" vs. "delete everything"
+ * ambiguity at the Postgrest layer).
+ */
+export async function deleteWhereIn(
+  builder: PostgrestQueryBuilder<
+    any,
+    any,
+    any,
+    string,
+    unknown
+  >,
+  field: string,
+  values: string[],
+): Promise<{ error: unknown }> {
+  if (values.length === 0) {
+    return { error: null };
+  }
+  return builder.delete().in(field, values);
+}
+
 export const distinct = <T>(
   source: T[],
   predicate: (x: T, y: T) => boolean,

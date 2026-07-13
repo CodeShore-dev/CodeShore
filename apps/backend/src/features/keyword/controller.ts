@@ -16,7 +16,12 @@ import {
 
 import { AdminOnly, Public } from '../auth/auth.decorator';
 import { QueryDto } from '../query.dto';
-import { CreateTechDto, UpdateIconSlugsDto, UpdateTechDto } from './dto';
+import {
+  CreateTechDto,
+  JobDescriptionWhereDto,
+  UpdateIconSlugsDto,
+  UpdateTechDto,
+} from './dto';
 import { Service } from './service';
 
 const name = 'keyword';
@@ -61,6 +66,32 @@ export class Controller {
   @AdminOnly()
   resetJobKeywords_Keywords_JobTech() {
     return this.service.resetJobKeywords_Keywords_JobTech();
+  }
+
+  @Post('group/lines/reset')
+  @ApiOperation({
+    summary:
+      'Rebuild job_description_line only, for jobs matching an optional filter (admin only)',
+    description:
+      "Splits job.description into per-line job_description_line rows (job.description -> job_description_line stage only). Independent of the combined 'group/reset' route above -- does not touch job_description_line_keyword or job_keyword, and is not called by 'group/reset'. Scoped to the optional `where` filter on `job`; omit it to process every job.",
+  })
+  @AdminOnly()
+  resetJobDescriptionLines(@Body() dto: JobDescriptionWhereDto) {
+    return this.service.resetJobDescriptionLines(dto.where);
+  }
+
+  @Post('group/line-keywords/reset')
+  @ApiOperation({
+    summary:
+      'Rebuild job_description_line_keyword only, for jobs matching an optional filter (admin only)',
+    description:
+      "Rule-extracts and AI-reviews the keywords for each existing job_description_line row (job_description_line -> job_description_line_keyword stage only; run 'group/lines/reset' first if the lines do not exist yet). Independent of the combined 'group/reset' route above -- does not touch job_keyword. Scoped to the optional `where` filter on `job`; omit it to process every job's existing lines.",
+  })
+  @AdminOnly()
+  resetJobDescriptionLineKeywords(
+    @Body() dto: JobDescriptionWhereDto,
+  ) {
+    return this.service.resetJobDescriptionLineKeywords(dto.where);
   }
 
   @Patch('group/icon-slugs')

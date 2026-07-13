@@ -1,12 +1,20 @@
 import { Injectable } from '@nestjs/common';
 
 import {
+  DEFAULT_MODEL_FALLBACK,
+  DEFAULT_MODEL_SETTING_KEY,
+  OpenRouterLlmClient,
+} from '@codeshore/ai-client';
+import {
+  AiLlmSettingService,
   TechService,
   TechKeywordService,
   TechParentService,
   KeywordService,
   MvTechCategoryService,
   MvTechService,
+  generateJobDescriptionLineKeywords,
+  generateJobDescriptionLines,
   resetJobKeywords_Keywords_JobTech,
 } from '@codeshore/data-utils';
 import {
@@ -55,6 +63,37 @@ export class Service {
       tech,
       keyword,
     );
+  }
+
+  /**
+   * `job.description` -> `job_description_line` only, independent of the
+   * combined `resetJobKeywords_Keywords_JobTech` route above (which this
+   * method does not call and is not called by). Scoped to `where`-matched
+   * jobs when provided; omitted `where` means every job.
+   */
+  resetJobDescriptionLines(where?: Record<string, unknown>) {
+    return generateJobDescriptionLines({ where });
+  }
+
+  /**
+   * Existing `job_description_line` rows -> rule extraction -> AI review ->
+   * `job_description_line_keyword` only. Deliberately does not touch
+   * `job_keyword` (that stays owned by the combined
+   * `resetJobKeywords_Keywords_JobTech` route). Model resolution mirrors
+   * `resetJobKeywords`'s own resolution in `libs/data-utils`.
+   */
+  async resetJobDescriptionLineKeywords(
+    where?: Record<string, unknown>,
+  ) {
+    const model =
+      (await new AiLlmSettingService().getValue(
+        DEFAULT_MODEL_SETTING_KEY,
+      )) ?? DEFAULT_MODEL_FALLBACK;
+    const llmClient = new OpenRouterLlmClient(model);
+    return generateJobDescriptionLineKeywords({
+      llmClient,
+      where,
+    });
   }
 
   async updateTechIconSlugs(

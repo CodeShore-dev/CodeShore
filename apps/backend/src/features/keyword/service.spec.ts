@@ -1,3 +1,40 @@
+/**
+ * `Service.resetJobDescriptionLines`/`resetJobDescriptionLineKeywords` call
+ * `@codeshore/data-utils`'s `generateJobDescriptionLines`/
+ * `generateJobDescriptionLineKeywords` (plus `AiLlmSettingService` for model
+ * resolution) directly, not via constructor injection -- mocked the same way
+ * `apps/crawler/src/main.spec.ts` mocks the equivalent
+ * `resetJobKeywords`/`generateJobKeywordsFromLines` model-resolution flow.
+ */
+const {
+  generateJobDescriptionLinesMock,
+  generateJobDescriptionLineKeywordsMock,
+  aiLlmSettingGetValueMock,
+} = vi.hoisted(() => ({
+  generateJobDescriptionLinesMock: vi.fn(async () => undefined),
+  generateJobDescriptionLineKeywordsMock: vi.fn(async () => undefined),
+  aiLlmSettingGetValueMock: vi.fn(async () => null as string | null),
+}));
+
+vi.mock('@codeshore/data-utils', async importOriginal => ({
+  ...(await importOriginal<typeof import('@codeshore/data-utils')>()),
+  AiLlmSettingService: vi.fn(() => ({ getValue: aiLlmSettingGetValueMock })),
+  generateJobDescriptionLines: generateJobDescriptionLinesMock,
+  generateJobDescriptionLineKeywords: generateJobDescriptionLineKeywordsMock,
+}));
+
+const { openRouterLlmClientMock } = vi.hoisted(() => ({
+  openRouterLlmClientMock: vi.fn(function (this: unknown, _model: string) {
+    return { marker: 'fake-llm-client' };
+  }),
+}));
+
+vi.mock('@codeshore/ai-client', () => ({
+  OpenRouterLlmClient: openRouterLlmClientMock,
+  DEFAULT_MODEL_SETTING_KEY: 'default_model',
+  DEFAULT_MODEL_FALLBACK: 'meta-llama/llama-3.3-70b-instruct:free',
+}));
+
 import { Service } from './service';
 
 /**
@@ -245,6 +282,64 @@ describe('Service.deleteTech', () => {
     const service = createService({ techService });
 
     await expect(service.deleteTech('react')).rejects.toThrow('db unavailable');
+  });
+});
+
+describe('Service.resetJobDescriptionLines', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    generateJobDescriptionLinesMock.mockResolvedValue(undefined);
+  });
+
+  it('forwards the where filter to generateJobDescriptionLines', async () => {
+    const service = createService();
+    const where = { closed: { eq: false } };
+
+    await service.resetJobDescriptionLines(where);
+
+    expect(generateJobDescriptionLinesMock).toHaveBeenCalledWith({ where });
+  });
+
+  it('calls generateJobDescriptionLines with where undefined when no filter is given', async () => {
+    const service = createService();
+
+    await service.resetJobDescriptionLines();
+
+    expect(generateJobDescriptionLinesMock).toHaveBeenCalledWith({ where: undefined });
+  });
+});
+
+describe('Service.resetJobDescriptionLineKeywords', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    generateJobDescriptionLineKeywordsMock.mockResolvedValue(undefined);
+    aiLlmSettingGetValueMock.mockResolvedValue(null);
+  });
+
+  it('resolves the configured model, constructs an OpenRouterLlmClient, and forwards where', async () => {
+    aiLlmSettingGetValueMock.mockResolvedValueOnce('some/model-id');
+    const service = createService();
+    const where = { id: { eq: 'job-a' } };
+
+    await service.resetJobDescriptionLineKeywords(where);
+
+    expect(aiLlmSettingGetValueMock).toHaveBeenCalledWith('default_model');
+    expect(openRouterLlmClientMock).toHaveBeenCalledWith('some/model-id');
+    expect(generateJobDescriptionLineKeywordsMock).toHaveBeenCalledTimes(1);
+    const call = generateJobDescriptionLineKeywordsMock.mock.calls[0][0];
+    expect(call.where).toEqual(where);
+    expect(call.llmClient).toEqual({ marker: 'fake-llm-client' });
+  });
+
+  it('falls back to DEFAULT_MODEL_FALLBACK when no model setting is configured', async () => {
+    aiLlmSettingGetValueMock.mockResolvedValueOnce(null);
+    const service = createService();
+
+    await service.resetJobDescriptionLineKeywords();
+
+    expect(openRouterLlmClientMock).toHaveBeenCalledWith(
+      'meta-llama/llama-3.3-70b-instruct:free',
+    );
   });
 });
 

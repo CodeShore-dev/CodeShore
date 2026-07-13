@@ -32,4 +32,5 @@ export * from './lib/api/job_filter_subscription.service';
 export * from './lib/api/job_description_line.service';
 export * from './lib/api/job_description_line_keyword.service';
 export * from './lib/job-keyword-line-extraction';
+export * from './lib/job-description-line-extraction';
 export * from './lib/mv-refresh-all';

@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsObject, IsOptional, IsString } from 'class-validator';
 
 export class UpdateIconSlugsDto {
   @ApiProperty({
@@ -81,6 +81,26 @@ export class CreateTechDto {
  * says for both `undefined`-omission and, for `category`/`parent`, literal
  * `null`).
  */
+/**
+ * Body DTO shared by `POST /keyword/group/lines/reset` and
+ * `POST /keyword/group/line-keywords/reset`. `where` has the same shape as
+ * `QueryDto.where` (Postgrest filter conditions, column -> operator -> value),
+ * but is a plain JSON object here since it arrives as a POST body field
+ * rather than a query-string-encoded JSON string. Omitting `where` means
+ * "every job".
+ */
+export class JobDescriptionWhereDto {
+  @ApiPropertyOptional({
+    type: Object,
+    description:
+      'Optional filter on `job` (same shape as QueryDto.where). Only jobs matching this filter are processed. Omit to process every job. Example: {"closed":{"eq":false}}',
+    example: { closed: { eq: false } },
+  })
+  @IsOptional()
+  @IsObject()
+  where?: Record<string, unknown>;
+}
+
 export class UpdateTechDto {
   @ApiPropertyOptional({
     type: [String],
