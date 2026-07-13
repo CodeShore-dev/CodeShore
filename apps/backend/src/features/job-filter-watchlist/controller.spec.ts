@@ -1,11 +1,14 @@
-import { HttpStatus, NotFoundException } from '@nestjs/common';
+import type { ExecutionContext } from '@nestjs/common';
+import { HttpStatus, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { LoggerModule } from '@codeshore/service-logger';
+import { Reflector } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import { User } from '@supabase/supabase-js';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { JobFilterSnapshot } from '@codeshore/shared-utils';
 
+import { AuthGuard } from '../auth/auth.guard';
 import { Controller } from './controller';
 import { Module } from './module';
 import { Service, SubscriptionWithCounts } from './service';
@@ -198,6 +201,112 @@ describe('Controller.remove (design.md DELETE /api/job-filter-watchlist/:id)', (
     );
   });
 });
+
+/**
+ * Task 7.1 (requirement 7.1, 7.2): confirms each of the 4 watchlist
+ * endpoints rejects an unauthenticated request.
+ *
+ * Repo convention survey before writing this (see
+ * `../keyword-curation/controller.spec.ts`'s doc comment and
+ * `../auth/auth.guard.spec.ts`): this backend has no `supertest` dependency
+ * and no `apps/backend-e2e` project. A full `Test.createTestingModule` +
+ * `app.listen()` + real HTTP request was already tried and abandoned for
+ * keyword-curation's equivalent task because this repo's Vitest/esbuild
+ * pipeline does not emit TypeScript's `design:paramtypes` decorator
+ * metadata, so Nest's automatic constructor-injection-by-type silently
+ * constructs `AuthGuard` with `reflector` left `undefined` at request time
+ * (resolves 500, not 401) -- a pre-existing environment gap, not something
+ * this task can fix within its boundary. The established convention instead
+ * exercises the real, globally-registered `AuthGuard` (see
+ * `../auth/auth.module.ts`'s `APP_GUARD` registration) directly against a
+ * hand-built `ExecutionContext` whose `getHandler()`/`getClass()` return the
+ * actual `Controller` class and its real `Controller.prototype.<method>`
+ * function. `@Public()`/`@OptionalAuth()` are applied via `SetMetadata`,
+ * which Nest writes directly onto the method/class at decoration time,
+ * independent of DI/param-type reflection -- so reading metadata off the
+ * real prototype method here faithfully reflects what `AuthGuard` would see
+ * for a real, un-mocked request in production. None of `create`/`list`/
+ * `markViewed`/`remove` (controller.ts) carry either decorator, so
+ * `AuthGuard` must reject every one of them with 401.
+ */
+describe('AuthGuard rejects unauthenticated requests to job-filter-watchlist (requirement 7.1, 7.2)', () => {
+  let guard: AuthGuard;
+
+  function makeContext(handler: (...args: unknown[]) => unknown): ExecutionContext {
+    const request = { headers: {}, query: {} };
+    return {
+      getHandler: () => handler,
+      getClass: () => Controller,
+      switchToHttp: () => ({ getRequest: () => request }),
+    } as unknown as ExecutionContext;
+  }
+
+  beforeEach(() => {
+    guard = new AuthGuard(new Reflector());
+  });
+
+  it('rejects an unauthenticated POST /job-filter-watchlist with 401 (UnauthorizedException)', async () => {
+    const context = makeContext(Controller.prototype.create);
+
+    await expect(guard.canActivate(context)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      'Missing bearer token',
+    );
+  });
+
+  it('rejects an unauthenticated GET /job-filter-watchlist with 401', async () => {
+    const context = makeContext(Controller.prototype.list);
+
+    await expect(guard.canActivate(context)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+  });
+
+  it('rejects an unauthenticated PATCH /job-filter-watchlist/:id/viewed with 401', async () => {
+    const context = makeContext(Controller.prototype.markViewed);
+
+    await expect(guard.canActivate(context)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+  });
+
+  it('rejects an unauthenticated DELETE /job-filter-watchlist/:id with 401', async () => {
+    const context = makeContext(Controller.prototype.remove);
+
+    await expect(guard.canActivate(context)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+  });
+});
+
+/**
+ * Task 7.1's other half -- "a request to mark-viewed or remove a
+ * combination that belongs to a different user returns a not-found outcome
+ * rather than another user's data" -- is already proven end-to-end by two
+ * existing, approved test suites and is intentionally NOT duplicated here:
+ *
+ * 1. `./service.spec.ts`'s `Service.markViewed`/`Service.remove` describe
+ *    blocks (task 2.3, requirement 7.2) prove that when the `(userId, id)`
+ *    pair matches no row -- i.e. the id belongs to a different user, or
+ *    doesn't exist -- `Service` returns `null`/`false`, using ids explicitly
+ *    named `'someone-elses-sub'` / `'nonexistent-or-not-owned'`.
+ * 2. This file's `Controller.markViewed`/`Controller.remove` describe blocks
+ *    above (task 2.4) already assert, with those exact same wrong-owner ids,
+ *    that the controller maps a `null`/`false` `Service` result to a thrown
+ *    `NotFoundException` (404) -- see "throws NotFoundException (404) when
+ *    Service.markViewed returns null (requirement 7.2: wrong owner or
+ *    nonexistent id)" and the equivalent `remove` test.
+ * 3. `libs/data-utils/src/lib/api/job_filter_subscription.spec.ts` (task
+ *    1.3) proves the underlying `JobFilterSubscriptionService` methods scope
+ *    every query by `user_id`, so a different user's id can never match.
+ *
+ * Chained together these three suites trace "wrong user's id" all the way to
+ * "404 at the controller" -- this task's boundary -- without needing a
+ * fourth, differently-worded test that would assert the identical
+ * null-in/404-out contract the tests above already cover.
+ */
 
 describe('Module wiring (task 2.4)', () => {
   it('boots the job-filter-watchlist Module (Controller + Service + data-utils providers) without error', async () => {
