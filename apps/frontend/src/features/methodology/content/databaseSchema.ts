@@ -14,13 +14,14 @@
  * 語系：zh-TW。物件名稱（label）沿用資料庫實際命名以利對照 schema.sql。
  */
 
-// 群組框：五類資料表 + 物化視圖（依關係再分四個子群組）+ function。
+// 群組框：六類資料表 + 物化視圖（依關係再分四個子群組）+ function。
 export type DbGroupId =
   | 'job' // 職缺核心
   | 'tech' // 技術字典
   | 'location' // 地點
   | 'pref' // 使用者偏好
   | 'source' // 爬蟲來源
+  | 'ai' // AI 建議審核
   | 'mv-salary' // 物化視圖：薪資彙總
   | 'mv-job' // 物化視圖：職缺 / 公司彙總
   | 'mv-tech' // 物化視圖：技術彙總
@@ -245,6 +246,44 @@ export const databaseSchema: DatabaseSchema = {
         usage: '主鍵 (url, page_index)；以 status（pending／completed／failed）記錄各列表頁抓取進度，供爬蟲斷點續抓。',
       },
     },
+    {
+      id: 'job_filter_subscription',
+      label: 'job_filter_subscription',
+      group: 'pref',
+      status: 'active',
+      interactive: true,
+      detail: {
+        role: '使用者關注的篩選組合',
+        usage:
+          '主鍵 id；user_id 外鍵連向 auth.users。存正規化後的篩選快照、已推導的職缺查詢條件、顯示標籤與最後檢視時間，供「篩選組合關注清單」頁計算最後檢視後新增的符合職缺數。',
+      },
+    },
+
+    // ──────────── AI 建議審核 ────────────
+    {
+      id: 'ai_llm_setting',
+      label: '[AI] ai_llm_setting',
+      group: 'ai',
+      status: 'active',
+      interactive: true,
+      detail: {
+        role: 'AI 建議產生器可調設定',
+        usage:
+          '主鍵 key；存放可由後台調整的設定值（如目前用於產生建議的預設 LLM model），調整後立即生效、無需重新部署。無對外外鍵。',
+      },
+    },
+    {
+      id: 'ai_suggestion',
+      label: '[AI] ai_suggestion',
+      group: 'ai',
+      status: 'active',
+      interactive: true,
+      detail: {
+        role: 'AI 建議審核佇列',
+        usage:
+          '主鍵 id；記錄 AI 針對技術字典、關鍵字對應、地點正規化等提出的建議內容（目標資料表、動作、payload）與判斷依據（evidence），reviewed_by 外鍵連向 auth.users。僅在管理員核准後才會寫入對應目標資料表（如 tech、tech_keyword、tech_parent、location_group(_location)、job_description_bin、keyword_bin）。',
+      },
+    },
 
     // ──────────── 物化視圖（materialized view） ────────────
     {
@@ -292,6 +331,18 @@ export const databaseSchema: DatabaseSchema = {
       detail: {
         role: '公司彙總',
         usage: '每間公司的有效（開放中）職缺數與技術分布。來源：company、job、job_tech。供公司列表。',
+      },
+    },
+    {
+      id: 'mv_company_tech',
+      label: 'mv_company_tech',
+      group: 'mv-job',
+      status: 'active',
+      interactive: true,
+      detail: {
+        role: '公司 × 技術 職缺數彙總',
+        usage:
+          '每間公司底下各技術的有效（開放中）職缺數，依職缺數由多到少排序。來源：company、job、job_tech。供公司詳情頁的技術分布統計。',
       },
     },
     {
@@ -462,6 +513,18 @@ export const databaseSchema: DatabaseSchema = {
           '把 job_keyword.keywords 展開聚合重算次數、補上 tech_keyword 中未出現的關鍵字，重建 keyword 表。讀自 job_keyword、tech_keyword，寫入 keyword。',
       },
     },
+    {
+      id: 'detect_tech_parent_cycle',
+      label: 'detect_tech_parent_cycle',
+      group: 'fn',
+      status: 'active',
+      interactive: true,
+      detail: {
+        role: '技術階層循環偵測',
+        usage:
+          '給定欲新增的 parent／child，沿既有 tech_parent 邊遞迴走訪，找出是否會形成循環階層並回傳衝突路徑。讀自 tech_parent；供核准「新增技術父子關聯」類 AI 建議前的寫入前檢查，偵測到循環即擋下、不寫入。',
+      },
+    },
   ],
   views: {
     // tab 1：資料表外鍵關聯（依領域分群組框，箭頭 parent → child 表示被哪張表以哪個欄位參照）
@@ -471,11 +534,13 @@ export const databaseSchema: DatabaseSchema = {
       tiers: [
         ['company', 'job', 'job_tech', 'keyword_bin', 'location_group', 'job_source'],
         ['keyword', 'location_group_location', 'tech', 'job_source_url'],
-        ['job_description_bin', 'job_keyword', 'tech_keyword', 'tech_parent', 'job_preference'],
+        ['job_description_bin', 'job_keyword', 'tech_keyword', 'tech_parent', 'job_preference', 'job_filter_subscription'],
+        ['ai_llm_setting', 'ai_suggestion'],
       ],
       clusterRows: [
         ['job', 'tech'],
         ['location', 'pref', 'source'],
+        ['ai'],
       ],
       edges: [
         { from: 'company', to: 'job', label: 'company.id<->job.company_id' },
@@ -522,6 +587,7 @@ export const databaseSchema: DatabaseSchema = {
           'mv_location_group',
           'mv_job',
           'mv_company',
+          'mv_company_tech',
           'mv_salary_type_median_ratio',
           'mv_tech_combo_stats',
           'mv_tech_ranking',
@@ -546,6 +612,10 @@ export const databaseSchema: DatabaseSchema = {
         { from: 'company', to: 'mv_company' },
         { from: 'job', to: 'mv_company' },
         { from: 'job_tech', to: 'mv_company' },
+        // mv_company_tech
+        { from: 'company', to: 'mv_company_tech' },
+        { from: 'job', to: 'mv_company_tech' },
+        { from: 'job_tech', to: 'mv_company_tech' },
         // mv_job
         { from: 'job', to: 'mv_job' },
         { from: 'job_keyword', to: 'mv_job' },
@@ -590,6 +660,7 @@ export const databaseSchema: DatabaseSchema = {
           'location_group_location',
           'keyword',
           'tech_keyword',
+          'tech_parent',
         ],
         [
           'get_jobs_by_preference',
@@ -601,17 +672,15 @@ export const databaseSchema: DatabaseSchema = {
           'get_job_crawl_stats',
           'get_location_anomaly_jobs',
           'reset_keywords',
+          'detect_tech_parent_cycle',
         ],
       ],
       clusterRows: [['mv-tech', 'mv-job', 'pref', 'job', 'location', 'tech'], ['fn']],
       edges: [
         // 讀取型 function（讀自資料表）
-        { from: 'job', to: 'get_job_count', label: '讀取' },
         { from: 'job', to: 'get_job_crawl_stats', label: '讀取' },
         { from: 'job', to: 'get_job_host_statistics', label: '讀取' },
         { from: 'job', to: 'get_job_update_date_counts', label: '讀取' },
-        { from: 'job', to: 'get_job_preference_count', label: '讀取' },
-        { from: 'job_preference', to: 'get_job_preference_count', label: '讀取' },
         { from: 'job', to: 'get_location_anomaly_jobs', label: '讀取' },
         { from: 'location_group_location', to: 'get_location_anomaly_jobs', label: '讀取' },
         // 讀取型 function（讀自物化視圖）
@@ -619,10 +688,15 @@ export const databaseSchema: DatabaseSchema = {
         { from: 'job_preference', to: 'get_jobs_by_preference', label: '讀取' },
         { from: 'mv_job', to: 'get_unreviewed_jobs', label: '讀取' },
         { from: 'job_preference', to: 'get_unreviewed_jobs', label: '讀取' },
+        { from: 'mv_job', to: 'get_job_count', label: '讀取' },
+        { from: 'mv_job', to: 'get_job_preference_count', label: '讀取' },
+        { from: 'job_preference', to: 'get_job_preference_count', label: '讀取' },
         // reset_keywords：讀 job_keyword／tech_keyword、寫 keyword
         { from: 'job_keyword', to: 'reset_keywords', label: '讀取' },
         { from: 'tech_keyword', to: 'reset_keywords', label: '讀取' },
         { from: 'reset_keywords', to: 'keyword', label: '重建' },
+        // detect_tech_parent_cycle：讀 tech_parent（不寫入，僅供核准前檢查）
+        { from: 'tech_parent', to: 'detect_tech_parent_cycle', label: '讀取' },
       ],
     },
   },

@@ -10,6 +10,7 @@ export const GROUP_META: Record<
   location: { name: '地點', hex: '#0891b2', slugs: ['iconify:mdi:map-marker-outline'] },
   pref: { name: '使用者偏好', hex: '#db2777', slugs: ['iconify:mdi:heart-outline'] },
   source: { name: '爬蟲來源', hex: '#ea580c', slugs: ['iconify:mdi:database-import-outline'] },
+  ai: { name: 'AI 建議審核', hex: '#f59e0b', slugs: ['iconify:mdi:robot-outline'] },
   // 物化視圖依關係分成四個子群組（與「資料正規化流程」圖的子群組同色，便於對照）。
   'mv-salary': { name: '物化視圖‧薪資', hex: '#0d9488', slugs: ['iconify:mdi:cash-multiple'] },
   'mv-job': { name: '物化視圖‧職缺', hex: '#0f766e', slugs: ['iconify:mdi:table-eye'] },
@@ -34,4 +35,7 @@ export const NODE_ICON_SLUGS: Record<string, readonly string[]> = {
   job_preference: ['iconify:mdi:thumbs-up-down-outline'],
   job_source: ['iconify:mdi:link-box-variant-outline'],
   job_source_url: ['iconify:mdi:progress-clock'],
+  job_filter_subscription: ['iconify:mdi:bookmark-outline'],
+  ai_suggestion: ['iconify:mdi:clipboard-check-outline'],
+  detect_tech_parent_cycle: ['iconify:mdi:vector-polyline'],
 };

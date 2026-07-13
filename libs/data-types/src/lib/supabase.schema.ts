@@ -14,30 +14,21 @@ export type Database = {
   }
   public: {
     Tables: {
-      // Hand-authored, mirroring the generated shape of every other table
-      // below (see `ai_suggestion` immediately after this one for the same
-      // task-1.1-established pattern). This table backs the OpenRouter
-      // default-model setting added on top of the completed
-      // `ai-database-maintenance-workflow` spec; the migration that creates
-      // it (`supabase/migrations/*_create_ai_llm_setting.sql`) has not been
-      // applied to any live Supabase project in this sandbox, so this type
-      // has not gone through a real `pnpm db:sync` yet. Re-run `pnpm
-      // db:sync` once the migration is applied and reconcile any diff.
       ai_llm_setting: {
         Row: {
           key: string
-          value: string
           updated_at: string
+          value: string
         }
         Insert: {
           key: string
-          value: string
           updated_at?: string
+          value: string
         }
         Update: {
           key?: string
-          value?: string
           updated_at?: string
+          value?: string
         }
         Relationships: []
       }
@@ -204,19 +195,6 @@ export type Database = {
         }
         Relationships: []
       }
-      // Hand-authored, mirroring the generated shape of `ai_suggestion` (same
-      // "uuid id + jsonb columns" pattern). Backs the job-filter-watchlist
-      // spec's `job_filter_subscription` table
-      // (`supabase/migrations/20260712100000_create_job_filter_subscription.sql`).
-      // That migration has not been applied to any live Supabase project in
-      // this sandbox (no Supabase CLI / Docker / remote project
-      // credentials), so this type has not gone through a real `pnpm
-      // db:sync` yet. Re-run `pnpm db:sync` once the migration is applied
-      // and reconcile any diff. Note: like `ai_suggestion.reviewed_by` /
-      // `job_preference.user_id`, the `user_id` foreign key targets
-      // `auth.users(id)` (a different schema) and therefore does not appear
-      // in `Relationships` below -- that matches the generator's existing
-      // behavior for the other two tables.
       job_filter_subscription: {
         Row: {
           created_at: string
@@ -706,6 +684,10 @@ export type Database = {
       }
     }
     Functions: {
+      detect_tech_parent_cycle: {
+        Args: { p_child: string; p_parent: string }
+        Returns: string[]
+      }
       get_job_count: {
         Args: never
         Returns: {
