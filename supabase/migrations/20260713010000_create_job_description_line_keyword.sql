@@ -8,14 +8,11 @@
 -- .kiro/specs/job-keyword-ai-review/requirements.md
 --   -> Requirement 3（3.4）, Requirement 4（4.2）
 --
--- IMPORTANT: this is a reviewable, versioned artifact only. The sandbox this
--- migration was authored in has no live Supabase project available (no
--- Docker daemon, no remote project credentials), so it has NOT been applied
--- anywhere. A human must apply it to the real Supabase project (e.g. via
--- `supabase db push` or the SQL editor) and then re-run
--- `scripts/sync-supabase-schema.mjs` (`pnpm db:sync`) so that
--- `supabase/schema.sql` and the generated types in `libs/data-types`
--- reflect the live database.
+-- Applied to the live Supabase project (lsizfvkzpwxkwvohrkmn) via the
+-- Supabase MCP `apply_migration` tool; `pnpm db:sync` has been re-run so
+-- `supabase/schema.sql` and `libs/data-types` reflect the live database.
+-- RLS was enabled after this migration landed — see
+-- `20260713020000_enable_rls_job_description_line_tables.sql`.
 
 CREATE TABLE public."job_description_line_keyword" (
   "id" uuid DEFAULT gen_random_uuid() NOT NULL,

@@ -217,7 +217,22 @@ export type Database = {
           job_id?: string
           line_no?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "job_description_line_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_description_line_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "mv_job"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       job_description_line_keyword: {
         Row: {
@@ -247,7 +262,15 @@ export type Database = {
           reviewed_at?: string
           rule_keywords?: string[]
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "job_description_line_keyword_line_id_fkey"
+            columns: ["line_id"]
+            isOneToOne: true
+            referencedRelation: "job_description_line"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       job_filter_subscription: {
         Row: {
