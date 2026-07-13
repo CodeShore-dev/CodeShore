@@ -37,6 +37,11 @@ export interface CreateSubscriptionInput {
 export interface SubscriptionWithCounts {
   id: string;
   label: string;
+  // Added (task 4.3 preparation, design.md "更正說明(task 4.3 準備階段發現)"):
+  // the frontend's "view" action needs the original filter combination to
+  // reconstruct the /jobs URL it was created from. Purely additive -- comes
+  // straight from the stored row's `filter_snapshot` column.
+  filterSnapshot: JobFilterSnapshot;
   lastViewedAt: string;
   createdAt: string;
   totalCount: number;
@@ -65,6 +70,7 @@ function toSubscriptionWithCounts(
   return {
     id: row.id,
     label: row.label,
+    filterSnapshot: row.filter_snapshot as unknown as JobFilterSnapshot,
     lastViewedAt: row.last_viewed_at,
     createdAt: row.created_at,
     totalCount: 0,

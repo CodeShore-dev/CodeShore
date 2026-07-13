@@ -4,11 +4,24 @@ import { Test } from '@nestjs/testing';
 import { User } from '@supabase/supabase-js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { JobFilterSnapshot } from '@codeshore/shared-utils';
+
 import { Controller } from './controller';
 import { Module } from './module';
 import { Service, SubscriptionWithCounts } from './service';
 
 const user = { id: 'user-1' } as User;
+
+const defaultSnapshot: JobFilterSnapshot = {
+  searchText: '',
+  companyFilters: [],
+  salaryFilter: 'none',
+  salaryAmount: { type: '', amount: null },
+  selectedLocations: [],
+  selectedTags: [],
+  excludedTags: [],
+  techOperator: 'and',
+};
 
 function makeSubscription(
   overrides: Partial<SubscriptionWithCounts> = {},
@@ -16,6 +29,7 @@ function makeSubscription(
   return {
     id: 'sub-1',
     label: 'My filter',
+    filterSnapshot: defaultSnapshot,
     lastViewedAt: '2026-07-12T00:00:00.000Z',
     createdAt: '2026-07-12T00:00:00.000Z',
     totalCount: 0,

@@ -13,6 +13,10 @@ const BASE = '/api/job-filter-watchlist';
 export interface SubscriptionWithCounts {
   id: string;
   label: string;
+  // Added (task 4.3): the filter combination this subscription was created
+  // from, so the "view" action can reconstruct the /jobs URL that
+  // reproduces it (see buildJobListSearchParams.ts).
+  filterSnapshot: JobFilterSnapshot;
   lastViewedAt: string;
   createdAt: string;
   totalCount: number;

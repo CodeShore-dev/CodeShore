@@ -34,6 +34,7 @@ const snapshot = {
 const subscription = {
   id: 'sub-1',
   label: '技術:React',
+  filterSnapshot: snapshot,
   lastViewedAt: '2026-07-12T00:00:00.000Z',
   createdAt: '2026-07-12T00:00:00.000Z',
   totalCount: 10,

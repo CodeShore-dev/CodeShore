@@ -132,6 +132,7 @@ describe('Service.create', () => {
       subscription: {
         id: 'existing-sub',
         label: 'My filter',
+        filterSnapshot: {},
         lastViewedAt: '2026-07-12T00:00:00.000Z',
         createdAt: '2026-07-12T00:00:00.000Z',
         totalCount: 0,
@@ -280,6 +281,7 @@ describe('Service.create', () => {
         subscription: {
           id: 'new-sub',
           label: 'My filter',
+          filterSnapshot: {},
           lastViewedAt: creationTime,
           createdAt: creationTime,
           totalCount: 0,
@@ -376,6 +378,7 @@ describe('Service.list', () => {
       {
         id: 'sub-1',
         label: 'My filter',
+        filterSnapshot: {},
         lastViewedAt: '2026-07-10T00:00:00.000Z',
         createdAt: '2026-07-12T00:00:00.000Z',
         totalCount: 7,
@@ -562,6 +565,7 @@ describe('Service.markViewed', () => {
     expect(result).toEqual({
       id: 'sub-1',
       label: 'My filter',
+      filterSnapshot: {},
       lastViewedAt: '2026-07-12T05:00:00.000Z',
       createdAt: '2026-07-12T00:00:00.000Z',
       totalCount: 7,

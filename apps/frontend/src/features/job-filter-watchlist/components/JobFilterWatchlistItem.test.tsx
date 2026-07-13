@@ -8,6 +8,16 @@ import { JobFilterWatchlistItem } from './JobFilterWatchlistItem';
 const baseSubscription: SubscriptionWithCounts = {
   id: 'sub-1',
   label: '技術：React・薪資 60k+',
+  filterSnapshot: {
+    searchText: '',
+    companyFilters: [],
+    salaryFilter: 'none',
+    salaryAmount: { type: '', amount: null },
+    selectedLocations: [],
+    selectedTags: [],
+    excludedTags: [],
+    techOperator: 'and',
+  },
   lastViewedAt: '2026-07-10T00:00:00.000Z',
   createdAt: '2026-07-01T00:00:00.000Z',
   totalCount: 42,

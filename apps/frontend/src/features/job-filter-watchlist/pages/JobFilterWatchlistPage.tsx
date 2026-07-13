@@ -1,10 +1,13 @@
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 
 import { ConfirmDialog } from '../../../components/ConfirmDialog';
 import { PageSeo } from '../../../components/PageSeo';
+import { buildJobListSearchParams } from '../buildJobListSearchParams';
 import { JobFilterWatchlistItem } from '../components/JobFilterWatchlistItem';
 import { useGuestWatchlistGate } from '../hooks/useGuestWatchlistGate';
+import { useMarkViewedMutation, useUnfollowMutation } from '../mutations';
 import { useWatchlistQuery } from '../queries';
+import type { SubscriptionWithCounts } from '../service';
 
 // Watchlist page (task 4.2, design.md's JobFilterWatchlistPage, requirements
 // 2.1-2.3, 7.1): lists the signed-in user's followed filter combinations
@@ -55,6 +58,37 @@ export function JobFilterWatchlistPage() {
 function JobFilterWatchlistContent() {
   const watchlistQuery = useWatchlistQuery();
   const subscriptions = watchlistQuery.data ?? [];
+  const navigate = useNavigate();
+  const unfollowMutation = useUnfollowMutation();
+  const markViewedMutation = useMarkViewedMutation();
+
+  // Marks the combination as viewed first (requirement 3.2), then -- only
+  // once that succeeds -- navigates back to /jobs reproducing the same
+  // filter conditions it was created with (requirement 3.3: a plain /jobs
+  // visit that happens to reapply the same filters, not routed through
+  // this "view" action, must not touch last_viewed_at; gating the
+  // navigation on markViewed's onSuccess keeps that ordering intact).
+  //
+  // This was a behavioral change to the already-shipped /jobs/watchlist
+  // page (task 4.2's no-op onView/onUnfollow), implemented under the
+  // Feature Flag Protocol: RED was captured against the shipped no-ops
+  // (equivalent to an off-by-default flag) and again with an explicit
+  // `ENABLE_WATCHLIST_ACTIONS = false` local flag gating this wiring;
+  // GREEN was confirmed with the flag flipped on, then the flag was
+  // removed once proven -- this now covers the unconditional wiring below.
+  const handleView = (subscription: SubscriptionWithCounts) => {
+    markViewedMutation.mutate(subscription.id, {
+      onSuccess: () => {
+        const params = buildJobListSearchParams(subscription.filterSnapshot);
+        const qs = params.toString();
+        navigate(qs ? `/jobs?${qs}` : '/jobs');
+      },
+    });
+  };
+
+  const handleUnfollow = (id: string) => {
+    unfollowMutation.mutate(id);
+  };
 
   return (
     <>
@@ -91,10 +125,8 @@ function JobFilterWatchlistContent() {
             <JobFilterWatchlistItem
               key={subscription.id}
               subscription={subscription}
-              // task 4.3 wires the real markViewed/unfollow behavior; this
-              // task only renders the read-only per-item display.
-              onView={() => {}}
-              onUnfollow={() => {}}
+              onView={() => handleView(subscription)}
+              onUnfollow={() => handleUnfollow(subscription.id)}
             />
           ))}
         </ul>
