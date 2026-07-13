@@ -105,21 +105,27 @@ describe('parseWhereExpr / splitTopLevel (re-crawl=<whereExpr> parsing, unchange
 // it the same way `persistence.spec.ts`/`staleness-sync.spec.ts`/
 // `104/handler.spec.ts` do so importing `main.ts` never touches Supabase or
 // reads real env config.
-const { mvTechFetchAllMock, jobServiceFetchAllMock, jobServiceUpdateMultipleMock, jobKeywordUpdateMultipleMock } =
-  vi.hoisted(() => ({
-    mvTechFetchAllMock: vi.fn(async () => ({
-      result: [] as { keywords: string[] }[],
-      count: 0,
-      searchParams: '',
-    })),
-    jobServiceFetchAllMock: vi.fn(async () => ({
-      result: [] as unknown[],
-      count: 0,
-      searchParams: '',
-    })),
-    jobServiceUpdateMultipleMock: vi.fn(async () => undefined),
-    jobKeywordUpdateMultipleMock: vi.fn(async () => undefined),
-  }));
+const {
+  mvTechFetchAllMock,
+  jobServiceFetchAllMock,
+  jobServiceUpdateMultipleMock,
+  aiLlmSettingGetValueMock,
+  generateJobKeywordsFromLinesMock,
+} = vi.hoisted(() => ({
+  mvTechFetchAllMock: vi.fn(async () => ({
+    result: [] as { keywords: string[] }[],
+    count: 0,
+    searchParams: '',
+  })),
+  jobServiceFetchAllMock: vi.fn(async () => ({
+    result: [] as unknown[],
+    count: 0,
+    searchParams: '',
+  })),
+  jobServiceUpdateMultipleMock: vi.fn(async () => undefined),
+  aiLlmSettingGetValueMock: vi.fn(async () => null as string | null),
+  generateJobKeywordsFromLinesMock: vi.fn(async () => undefined),
+}));
 
 vi.mock('@codeshore/data-utils', () => ({
   MvTechService: vi.fn(() => ({ fetchAll: mvTechFetchAllMock })),
@@ -127,9 +133,25 @@ vi.mock('@codeshore/data-utils', () => ({
     fetchAll: jobServiceFetchAllMock,
     updateMultiple: jobServiceUpdateMultipleMock,
   })),
-  JobKeywordService: vi.fn(() => ({
-    updateMultiple: jobKeywordUpdateMultipleMock,
+  AiLlmSettingService: vi.fn(() => ({
+    getValue: aiLlmSettingGetValueMock,
   })),
+  generateJobKeywordsFromLines: generateJobKeywordsFromLinesMock,
+}));
+
+// `@codeshore/ai-client` constructs a real OpenRouter-backed client; mock it
+// so the `job-keyword` mode test can assert `main.ts` constructs it with the
+// resolved model id without making real HTTP calls.
+const { openRouterLlmClientMock } = vi.hoisted(() => ({
+  openRouterLlmClientMock: vi.fn(function (this: unknown, _model: string) {
+    return { marker: 'fake-llm-client' };
+  }),
+}));
+
+vi.mock('@codeshore/ai-client', () => ({
+  OpenRouterLlmClient: openRouterLlmClientMock,
+  DEFAULT_MODEL_SETTING_KEY: 'default_model',
+  DEFAULT_MODEL_FALLBACK: 'meta-llama/llama-3.3-70b-instruct:free',
 }));
 
 // `@codeshore/crawler-core` constructs a real stealth puppeteer launch
@@ -343,21 +365,32 @@ describe('main() dispatch wiring (post sync-core migration)', () => {
     expect(createStalenessSyncEngineMock).not.toHaveBeenCalled();
   });
 
-  it('job-keyword mode is untouched: still queries JobService and calls JobKeywordService.updateMultiple, without touching sync-core at all', async () => {
-    jobServiceFetchAllMock.mockResolvedValueOnce({
-      result: [{ id: 'job-1', description: 'Node.js 後端工程師' }],
-      count: 1,
-      searchParams: '',
-    });
+  it('job-keyword mode resolves the configured model and forwards a freshly constructed OpenRouterLlmClient to generateJobKeywordsFromLines, without touching sync-core at all', async () => {
+    aiLlmSettingGetValueMock.mockResolvedValueOnce('some/model-id');
 
     await runMainWithArgv(['job-keyword']);
 
-    expect(jobServiceFetchAllMock).toHaveBeenCalledWith({
-      select: 'id,description',
+    expect(aiLlmSettingGetValueMock).toHaveBeenCalledWith('default_model');
+    expect(openRouterLlmClientMock).toHaveBeenCalledWith('some/model-id');
+    expect(generateJobKeywordsFromLinesMock).toHaveBeenCalledTimes(1);
+    const generateCalls = generateJobKeywordsFromLinesMock.mock
+      .calls as unknown as [{ llmClient: unknown }][];
+    expect(generateCalls[0][0].llmClient).toEqual({
+      marker: 'fake-llm-client',
     });
-    expect(jobKeywordUpdateMultipleMock).toHaveBeenCalledTimes(1);
+    expect(jobServiceFetchAllMock).not.toHaveBeenCalled();
     expect(resolveSourcesToProcessMock).not.toHaveBeenCalled();
     expect(createStalenessSyncEngineMock).not.toHaveBeenCalled();
+  });
+
+  it('job-keyword mode falls back to DEFAULT_MODEL_FALLBACK when no model setting is configured', async () => {
+    aiLlmSettingGetValueMock.mockResolvedValueOnce(null);
+
+    await runMainWithArgv(['job-keyword']);
+
+    expect(openRouterLlmClientMock).toHaveBeenCalledWith(
+      'meta-llama/llama-3.3-70b-instruct:free',
+    );
   });
 
   it('crawl mode never touches createJobStalenessSyncConfig/createStalenessSyncEngine (mode-exclusive dispatch)', async () => {

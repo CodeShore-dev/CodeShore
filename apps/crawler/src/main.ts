@@ -8,14 +8,17 @@ import {
   setPageIndex,
 } from '@codeshore/crawler-core';
 import {
-  JobKeywordService,
+  DEFAULT_MODEL_FALLBACK,
+  DEFAULT_MODEL_SETTING_KEY,
+  OpenRouterLlmClient,
+} from '@codeshore/ai-client';
+import {
+  AiLlmSettingService,
   JobService,
   MvTechService,
+  generateJobKeywordsFromLines,
 } from '@codeshore/data-utils';
-import {
-  parseKeywordsOut,
-  parseSalary,
-} from '@codeshore/shared-utils';
+import { parseSalary } from '@codeshore/shared-utils';
 import {
   createStalenessSyncEngine,
   resolveSourcesToProcess,
@@ -178,15 +181,12 @@ async function main() {
     }
 
     case 'job-keyword': {
-      const { result } = await new JobService().fetchAll({
-        select: 'id,description',
-      });
-      await new JobKeywordService().updateMultiple(
-        result.map(x => ({
-          id: x.id,
-          ...parseKeywordsOut(x.description, keywords),
-        })),
-      );
+      const model =
+        (await new AiLlmSettingService().getValue(
+          DEFAULT_MODEL_SETTING_KEY,
+        )) ?? DEFAULT_MODEL_FALLBACK;
+      const llmClient = new OpenRouterLlmClient(model);
+      await generateJobKeywordsFromLines({ llmClient });
       break;
     }
 
