@@ -30,4 +30,5 @@ export * from './lib/api/location_group.service';
 export * from './lib/api/location_group_location.service';
 export * from './lib/api/job_filter_subscription.service';
 export * from './lib/api/job_description_line.service';
+export * from './lib/api/job_description_line_keyword.service';
 export * from './lib/mv-refresh-all';

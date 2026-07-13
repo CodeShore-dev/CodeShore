@@ -81,6 +81,21 @@ export namespace SupabaseTable {
   // 的既有簡單別名模式，直接沿用生成型別的 `Row` 形狀，不需要 `Modify<...>` 窄化。
   export type JobDescriptionLine = Database['public']['Tables']['job_description_line']['Row'];
 
+  // 對應新的 supabase/migrations/20260713010000_create_job_description_line_keyword.sql
+  // （job-keyword-ai-review spec task 1.2）；該遷移尚未套用到實際 Supabase 專案
+  // （sandbox 無 Supabase CLI／Docker／遠端憑證），套用後需重跑 `pnpm db:sync`
+  // 重新產生 supabase.schema.ts，屆時應核對此手動型別與產生器輸出是否一致並視
+  // 需要調整。比照 `AiSuggestion.status` 的既有窄化作法，`ai_status` 欄位有
+  // CHECK 約束（'ok' | 'failed'），以 `Modify<Row, {...}>` 窄化為聯合型別；
+  // `ai_is_correct` 為單純可為 null 的 boolean 欄位，生成型別即為
+  // `boolean | null`，不需額外窄化。
+  export type JobDescriptionLineKeyword = Modify<
+    Database['public']['Tables']['job_description_line_keyword']['Row'],
+    {
+      ai_status: 'ok' | 'failed';
+    }
+  >;
+
   // 對應新的 supabase/migrations/20260712100000_create_job_filter_subscription.sql
   // （job-filter-watchlist spec task 1.2）；該遷移尚未套用到實際 Supabase 專案
   // （sandbox 無 Supabase CLI／Docker／遠端憑證），套用後需重跑 `pnpm db:sync`

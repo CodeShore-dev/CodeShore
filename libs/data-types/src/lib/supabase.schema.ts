@@ -219,6 +219,36 @@ export type Database = {
         }
         Relationships: []
       }
+      job_description_line_keyword: {
+        Row: {
+          ai_is_correct: boolean | null
+          ai_status: string
+          final_keywords: string[]
+          id: string
+          line_id: string
+          reviewed_at: string
+          rule_keywords: string[]
+        }
+        Insert: {
+          ai_is_correct?: boolean | null
+          ai_status: string
+          final_keywords: string[]
+          id?: string
+          line_id: string
+          reviewed_at?: string
+          rule_keywords: string[]
+        }
+        Update: {
+          ai_is_correct?: boolean | null
+          ai_status?: string
+          final_keywords?: string[]
+          id?: string
+          line_id?: string
+          reviewed_at?: string
+          rule_keywords?: string[]
+        }
+        Relationships: []
+      }
       job_filter_subscription: {
         Row: {
           created_at: string
