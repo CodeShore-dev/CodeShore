@@ -49,7 +49,7 @@ export function AppNavBar() {
         <div className="flex items-center gap-3">
           <AdminViewToggle />
           {isAuthenticated && user ? (
-            <UserMenu email={user.email} onLogout={() => logout()} />
+            <UserMenu email={user.email ?? ''} onLogout={() => logout()} />
           ) : (
             !isLoading && (
               <Link

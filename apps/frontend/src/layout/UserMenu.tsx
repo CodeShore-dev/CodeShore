@@ -9,7 +9,7 @@ export interface UserMenuProps {
 // 右上角使用者下拉選單。實作結構直接比照 MoreNavMenu.tsx:
 // useState(open) + containerRef + mousedown 監聽點外部關閉、
 // absolute/relative 定位,不使用 portal(header 無巢狀捲動/overflow 限制)。
-export function UserMenu({ email, onLogout }: UserMenuProps): JSX.Element {
+export function UserMenu({ email, onLogout }: UserMenuProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
