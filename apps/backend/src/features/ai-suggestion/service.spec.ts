@@ -17,17 +17,27 @@ vi.mock('./validation/cycle-check', () => ({
 // `vi.mock`'s factory is itself hoisted above all imports/top-level
 // variables -- referencing a non-hoisted `const` from inside it throws a
 // temporal-dead-zone `ReferenceError`.
+// Only `OpenRouterLlmClient` is stubbed; `DEFAULT_MODEL_SETTING_KEY` /
+// `DEFAULT_MODEL_FALLBACK` are passed through from the real module (via
+// `importOriginal`) so `service.ts`'s own `getValue(DEFAULT_MODEL_SETTING_KEY)`
+// call still resolves to the real `'default_model'` key the assertions below
+// expect.
 const { openRouterLlmClientCtor } = vi.hoisted(() => ({
   openRouterLlmClientCtor: vi.fn(),
 }));
-vi.mock('./llm-client', () => ({
-  OpenRouterLlmClient: openRouterLlmClientCtor,
-}));
+vi.mock('@codeshore/ai-client', async importOriginal => {
+  const actual = await importOriginal<typeof import('@codeshore/ai-client')>();
+  return {
+    ...actual,
+    OpenRouterLlmClient: openRouterLlmClientCtor,
+  };
+});
 
 import { refreshAllMaterializedViews } from '@codeshore/data-utils';
+import { DEFAULT_MODEL_FALLBACK } from '@codeshore/ai-client';
 
 import { detectTechParentCycle } from './validation/cycle-check';
-import { DEFAULT_MODEL_FALLBACK, Service } from './service';
+import { Service } from './service';
 import { getWorkflowInfo } from './workflow-info';
 
 const baseRecord = {
@@ -1366,8 +1376,8 @@ describe('Service.generateStream', () => {
  * `options.model` wins outright (the settings table is never even
  * consulted); otherwise the stored `ai_llm_setting.default_model` value is
  * used; and if that row doesn't exist yet either, `DEFAULT_MODEL_FALLBACK`
- * is used. `OpenRouterLlmClient` itself is module-mocked above (`vi.mock('./
- * llm-client', ...)`), so these tests assert directly on the constructor
+ * is used. `OpenRouterLlmClient` itself is module-mocked above (`vi.mock('@codeshore/ai-client',
+ * ...)`), so these tests assert directly on the constructor
  * call args rather than needing a real `OPENROUTER_API_KEY` / network call.
  * `TestableService`'s `buildGenerators()` override still ignores whatever
  * `LlmClient` instance `generate()` passes it (irrelevant to model

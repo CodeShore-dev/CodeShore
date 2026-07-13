@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
 
+import type { LlmClient } from '@codeshore/ai-client';
 import type { CreateAiSuggestionInput, JobService, KeywordService } from '@codeshore/data-utils';
 
 import type { AiSuggestionEvidence } from '../service';
-import type { LlmClient } from '../llm-client';
 
 import {
   emptyGeneratorResult,

@@ -1,3 +1,4 @@
+import type { LlmClient } from '@codeshore/ai-client';
 import type {
   CreateAiSuggestionInput,
   KeywordBinService,
@@ -7,7 +8,6 @@ import type {
 } from '@codeshore/data-utils';
 
 import type { AiSuggestionEvidence } from '../service';
-import type { LlmClient } from '../llm-client';
 import {
   findSimilarTech as defaultFindSimilarTech,
   SimilarityMatch,

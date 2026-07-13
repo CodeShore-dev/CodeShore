@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import type { LlmClient } from '../ai-suggestion/llm-client';
+import type { LlmClient } from '@codeshore/ai-client';
 
 import type { AiRecommendation, SuggestedEdge, SuggestedNewTech, TechOption } from './graph.types';
 

@@ -1,8 +1,8 @@
+import type { LlmClient } from '@codeshore/ai-client';
 import type { CreateAiSuggestionInput, LocationGroupService } from '@codeshore/data-utils';
 import { fetchLocationAnomalyJobs } from '@codeshore/data-utils';
 
 import type { AiSuggestionEvidence } from '../service';
-import type { LlmClient } from '../llm-client';
 
 import {
   emptyGeneratorResult,

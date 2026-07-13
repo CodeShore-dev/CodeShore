@@ -9,9 +9,13 @@ const { openRouterLlmClientCtor, completeStructuredMock } = vi.hoisted(() => ({
   openRouterLlmClientCtor: vi.fn(),
   completeStructuredMock: vi.fn(),
 }));
-vi.mock('../ai-suggestion/llm-client', () => ({
-  OpenRouterLlmClient: openRouterLlmClientCtor,
-}));
+vi.mock('@codeshore/ai-client', async importOriginal => {
+  const actual = await importOriginal<typeof import('@codeshore/ai-client')>();
+  return {
+    ...actual,
+    OpenRouterLlmClient: openRouterLlmClientCtor,
+  };
+});
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 

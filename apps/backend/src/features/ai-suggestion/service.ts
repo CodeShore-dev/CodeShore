@@ -23,27 +23,16 @@ import {
   refreshAllMaterializedViews,
 } from '@codeshore/data-utils';
 
+import { DEFAULT_MODEL_FALLBACK, DEFAULT_MODEL_SETTING_KEY, LlmClient, OpenRouterLlmClient } from '@codeshore/ai-client';
+
 import { KeywordMappingGenerator } from './generators/keyword-mapping.generator';
 import { LocationMappingGenerator } from './generators/location-mapping.generator';
 import { NoiseDetectionGenerator } from './generators/noise-detection.generator';
 import { TechDictionaryGenerator } from './generators/tech-dictionary.generator';
 import { TechHierarchyGenerator } from './generators/tech-hierarchy.generator';
 import { SuggestionCreator, SuggestionGenerator } from './generators/types';
-import { LlmClient, OpenRouterLlmClient } from './llm-client';
 import { detectTechParentCycle } from './validation/cycle-check';
 import { WorkflowInfo, getWorkflowInfo } from './workflow-info';
-
-/**
- * Hardcoded last-resort model id, used only when the `ai_llm_setting` table
- * has no `default_model` row yet -- e.g. right after a fresh deploy, before
- * the migration's seed row has landed or before anyone has called `PATCH
- * ai-suggestion/llm-settings`. Everyday default-model changes should go
- * through that admin endpoint (`updateLlmSettings`), not this constant.
- */
-export const DEFAULT_MODEL_FALLBACK = 'meta-llama/llama-3.3-70b-instruct:free';
-
-/** Key this feature stores its adjustable default model under in `ai_llm_setting`. */
-const DEFAULT_MODEL_SETTING_KEY = 'default_model';
 
 /**
  * `AiSuggestionEvidence` per design.md's "AiSuggestionService（Full Block）"

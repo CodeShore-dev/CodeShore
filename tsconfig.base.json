@@ -46,6 +46,9 @@
       "@codeshore/shared-utils": [
         "libs/shared-utils/src/index.ts"
       ],
+      "@codeshore/ai-client": [
+        "libs/ai-client/src/index.ts"
+      ],
       "@codeshore/crawler-core": [
         "libs/crawler-core/src/index.ts"
       ],

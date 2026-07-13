@@ -1,3 +1,4 @@
+import type { LlmClient } from '@codeshore/ai-client';
 import type {
   CreateAiSuggestionInput,
   TechParentService,
@@ -5,7 +6,6 @@ import type {
 } from '@codeshore/data-utils';
 
 import type { AiSuggestionEvidence } from '../service';
-import type { LlmClient } from '../llm-client';
 import { detectTechParentCycle } from '../validation/cycle-check';
 
 import {

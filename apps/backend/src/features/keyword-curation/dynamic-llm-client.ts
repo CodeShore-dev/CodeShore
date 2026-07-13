@@ -1,20 +1,19 @@
 import { Injectable } from '@nestjs/common';
 
+import type { LlmClient, StructuredCompletionRequest, StructuredCompletionResult } from '@codeshore/ai-client';
+import { OpenRouterLlmClient } from '@codeshore/ai-client';
 import type { AiLlmSettingService } from '@codeshore/data-utils';
-
-import type { LlmClient, StructuredCompletionRequest, StructuredCompletionResult } from '../ai-suggestion/llm-client';
-import { OpenRouterLlmClient } from '../ai-suggestion/llm-client';
 
 /**
  * Same `ai_llm_setting` table/row `ai-suggestion/service.ts`'s `generate()`
  * reads its adjustable default model from (`DEFAULT_MODEL_SETTING_KEY` /
- * `DEFAULT_MODEL_FALLBACK` there). Neither constant is exported from that
- * module in a way this feature's boundary allows importing (design.md's
- * inbound-dependency table only lists `ai-suggestion/llm-client.ts`'s
- * `LlmClient` type and `validation/cycle-check.ts`'s
- * `detectTechParentCycle()` as allowed imports), so they are redefined
- * locally here, deliberately using the identical key string and fallback
- * model id since both features resolve the same underlying row.
+ * `DEFAULT_MODEL_FALLBACK` there, now sourced from `@codeshore/ai-client`).
+ * This feature's boundary (design.md's inbound-dependency table) only lists
+ * `@codeshore/ai-client`'s `LlmClient` type and
+ * `validation/cycle-check.ts`'s `detectTechParentCycle()` as allowed
+ * imports, so these two constants are redefined locally here rather than
+ * imported, deliberately using the identical key string and fallback model
+ * id since both features resolve the same underlying row.
  */
 const DEFAULT_MODEL_SETTING_KEY = 'default_model';
 const DEFAULT_MODEL_FALLBACK = 'meta-llama/llama-3.3-70b-instruct:free';
@@ -29,7 +28,7 @@ const DEFAULT_MODEL_FALLBACK = 'meta-llama/llama-3.3-70b-instruct:free';
  *      paused run. That singleton is built once at module-init time from
  *      `ClassifyNode` -> `CurationLlmClassifier` -> a constructor-injected
  *      `LlmClient`.
- *   2. `OpenRouterLlmClient` (`ai-suggestion/llm-client.ts`) is explicitly
+ *   2. `OpenRouterLlmClient` (`@codeshore/ai-client`) is explicitly
  *      NOT meant to be a stable DI singleton in this repo's convention (see
  *      `ai-suggestion/module.ts`'s comment) -- its constructor takes a fixed
  *      `model: string`, but the actual default model must be re-resolved

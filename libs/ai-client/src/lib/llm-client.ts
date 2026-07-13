@@ -1,5 +1,4 @@
 import { OpenRouter } from '@openrouter/sdk';
-import { Injectable } from '@nestjs/common';
 
 /**
  * A single "give me a structured judgement" request shared by every
@@ -40,8 +39,15 @@ export interface LlmClient {
  * a hardcoded last-resort constant) -- this class stays a simple, stateless
  * "send this exact model to OpenRouter" wrapper so a fresh instance can be
  * constructed per `generate()` run without duplicating that fallback logic.
+ *
+ * Not a NestJS `@Injectable()` provider: this lib is framework-agnostic (see
+ * design.md's `libs/ai-client` boundary note) so it can also be used from
+ * `apps/crawler`, a non-NestJS execution environment. `apps/backend`'s
+ * existing call sites already construct this with a manual `new
+ * OpenRouterLlmClient(model)` rather than NestJS DI (it is not registered in
+ * any module's `providers: [...]` array), so removing the decorator has no
+ * behavioral impact there.
  */
-@Injectable()
 export class OpenRouterLlmClient implements LlmClient {
   private readonly client: OpenRouter;
   private readonly model: string;
@@ -160,3 +166,15 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
+
+/**
+ * Hardcoded last-resort model id, used only when the `ai_llm_setting` table
+ * has no `default_model` row yet -- e.g. right after a fresh deploy, before
+ * the migration's seed row has landed or before anyone has called `PATCH
+ * ai-suggestion/llm-settings`. Everyday default-model changes should go
+ * through that admin endpoint (`updateLlmSettings`), not this constant.
+ */
+export const DEFAULT_MODEL_FALLBACK = 'meta-llama/llama-3.3-70b-instruct:free';
+
+/** Key this feature stores its adjustable default model under in `ai_llm_setting`. */
+export const DEFAULT_MODEL_SETTING_KEY = 'default_model';
