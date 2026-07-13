@@ -195,6 +195,30 @@ export type Database = {
         }
         Relationships: []
       }
+      job_description_line: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          job_id: string
+          line_no: number
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          job_id: string
+          line_no: number
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          job_id?: string
+          line_no?: number
+        }
+        Relationships: []
+      }
       job_filter_subscription: {
         Row: {
           created_at: string
