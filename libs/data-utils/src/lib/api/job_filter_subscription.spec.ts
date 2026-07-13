@@ -26,16 +26,28 @@ type FakeSelectOptions = {
  * `filter_snapshot` is a jsonb column, so `eq()` filtering against it needs
  * value (deep) equality rather than the reference equality used for scalar
  * columns elsewhere in the codebase's fake builders.
+ *
+ * This also doubles as a regression guard for a real production bug: real
+ * postgrest-js's `.eq()` builds the URL filter param via a
+ * `` `eq.${value}` `` template-literal interpolation. Passing a raw object
+ * (instead of an already-`JSON.stringify()`'d string) coerces to the
+ * literal text "[object Object]", which Postgres rejects with "invalid
+ * input syntax for type json" -- this shipped and broke in production for
+ * `findByUserAndSnapshot` before being fixed to `JSON.stringify()` the
+ * comparison value. Since a stored jsonb field (`a`) is always an object
+ * here, requiring `b` to be a string (then JSON.parsing it before
+ * comparing) means this fake builder throws the same way real Postgres
+ * would if the service ever regresses to passing a raw object again.
  */
 function valuesEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true;
-  if (
-    typeof a === 'object' &&
-    a !== null &&
-    typeof b === 'object' &&
-    b !== null
-  ) {
-    return JSON.stringify(a) === JSON.stringify(b);
+  if (typeof a === 'object' && a !== null) {
+    if (typeof b !== 'string') {
+      throw new Error(
+        'invalid input syntax for type json (simulated: a jsonb .eq() filter must be passed as a JSON string, not a raw object)',
+      );
+    }
+    return JSON.stringify(a) === JSON.stringify(JSON.parse(b));
   }
   return false;
 }

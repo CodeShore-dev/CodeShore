@@ -45,9 +45,14 @@ export class JobFilterSubscriptionService extends TableService<
    * `filter_snapshot` is `jsonb`; Postgres/PostgREST `.eq()` performs
    * byte-identical JSON-value equality, which is sufficient because callers
    * are expected to pass an already-`normalizeFilterSnapshot`-normalized
-   * value. `.maybeSingle()` reports "no match" as `null` data rather than an
-   * error, since the `(user_id, filter_snapshot)` unique index guarantees at
-   * most one row can match.
+   * value. The comparison value must be passed as a JSON *string*: postgrest-js's
+   * `.eq()` builds the query param via `` `eq.${value}` `` template-literal
+   * interpolation, so passing the object itself coerces to the literal string
+   * `"[object Object]"` (not JSON), which Postgres rejects with "invalid input
+   * syntax for type json" -- `JSON.stringify` here is what makes this a real
+   * JSON-string comparison instead. `.maybeSingle()` reports "no match" as
+   * `null` data rather than an error, since the `(user_id, filter_snapshot)`
+   * unique index guarantees at most one row can match.
    */
   async findByUserAndSnapshot(
     userId: string,
@@ -56,10 +61,7 @@ export class JobFilterSubscriptionService extends TableService<
     const { data, error } = await this.table
       .select()
       .eq('user_id', userId)
-      .eq(
-        'filter_snapshot',
-        normalizedSnapshot as unknown as Record<string, unknown>,
-      )
+      .eq('filter_snapshot', JSON.stringify(normalizedSnapshot))
       .maybeSingle();
 
     if (error) throw error;
