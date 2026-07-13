@@ -12,6 +12,7 @@ import { JobService } from './api/job.service';
 import { JobDescriptionBinService } from './api/job_description_bin.service';
 import { JobDescriptionLineService } from './api/job_description_line.service';
 import { JobDescriptionLineKeywordService } from './api/job_description_line_keyword.service';
+import { JobKeywordService } from './api/job_keyword.service';
 import { MvTechService } from './api/mv_tech';
 
 /** Default number of AI review calls allowed in flight at once (design.md's `AI_REVIEW_CONCURRENCY`). */
@@ -27,13 +28,7 @@ export interface GenerateJobKeywordsOptions {
 /**
  * Per-job result of steps 1-4 (fetch, noise-strip, per-line rule extraction,
  * AI review) that design.md's steps 5 and 7 (aggregate+dedupe, upsert
- * `job_keyword`) consume. This task (2.2) only covers steps 1-4 plus writing
- * the two new line tables (design.md step 6); the follow-up task (2.3) will
- * extend this same function -- not create a second one -- to flatMap +
- * `Set`-dedupe each job's `lineFinalKeywords` and call
- * `JobKeywordService().upsert(...)` with the result and
- * `description_ch_en_ratio` below. See CONCERNS in this task's status report
- * for the reasoning behind stopping here.
+ * `job_keyword`) consume below.
  */
 interface JobLineKeywordResult {
   jobId: string;
@@ -165,10 +160,17 @@ export async function generateJobKeywordsFromLines(
   await new JobDescriptionLineService().reset(lineRows);
   await new JobDescriptionLineKeywordService().reset(lineKeywordRows);
 
-  // `jobResults` (each job's per-line final keyword sets + description_ch_en_ratio)
-  // is intentionally left unused past this point in task 2.2 -- task 2.3 adds
-  // design.md steps 5 (flatMap + Set-dedupe per job) and 7
-  // (`JobKeywordService().upsert(...)`) here, consuming `jobResults` directly
-  // rather than recomputing it.
-  void jobResults;
+  // design.md step 5 (5.1, 5.3): aggregate each job's per-line final keyword
+  // sets by flattening + `Set`-dedupe. A job with zero lines has an empty
+  // `lineFinalKeywords` array, so `flat()` + `new Set(...)` naturally yields
+  // `[]` -- no special-casing needed for the "no valid lines" case.
+  const jobKeywords: SupabaseTable.Job_.Keyword[] = jobResults.map(jobResult => ({
+    id: jobResult.jobId,
+    keywords: Array.from(new Set(jobResult.lineFinalKeywords.flat())),
+    description_ch_en_ratio: jobResult.description_ch_en_ratio,
+  }));
+
+  // design.md step 7 (5.2): same shape/interface as the existing
+  // `resetJobKeywords()`'s `JobKeywordService().upsert(jobKeywords)` call.
+  await new JobKeywordService().upsert(jobKeywords);
 }

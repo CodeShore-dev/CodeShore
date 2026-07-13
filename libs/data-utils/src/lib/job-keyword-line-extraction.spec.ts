@@ -17,10 +17,17 @@ const mvTechFetchAll = vi.fn();
 const jobFetchAll = vi.fn();
 const lineServiceReset = vi.fn().mockResolvedValue(undefined);
 const lineKeywordServiceReset = vi.fn().mockResolvedValue(undefined);
+const jobKeywordUpsert = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('./api/job_description_bin.service', () => ({
   JobDescriptionBinService: vi.fn().mockImplementation(() => ({
     fetchAll: jobDescriptionBinFetchAll,
+  })),
+}));
+
+vi.mock('./api/job_keyword.service', () => ({
+  JobKeywordService: vi.fn().mockImplementation(() => ({
+    upsert: jobKeywordUpsert,
   })),
 }));
 
@@ -75,6 +82,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   lineServiceReset.mockResolvedValue(undefined);
   lineKeywordServiceReset.mockResolvedValue(undefined);
+  jobKeywordUpsert.mockResolvedValue(undefined);
 });
 
 describe('generateJobKeywordsFromLines', () => {
@@ -196,5 +204,65 @@ describe('generateJobKeywordsFromLines', () => {
     expect(peak).toBeLessThanOrEqual(2);
     // Sanity check the fake actually exercised concurrency (not fully serial).
     expect(peak).toBeGreaterThan(1);
+  });
+
+  it('aggregates a job\'s multiple lines into one deduped keyword set and upserts it with description_ch_en_ratio (5.1, 5.2)', async () => {
+    setupServices([{ id: 'job-1', description: 'React 前端工程師\nReact TypeScript 開發' }]);
+    // Both lines' rule-extracted candidate sets are accepted as-is
+    // (isCorrect: true), so line 1 -> ['react'], line 2 -> ['react', 'typescript']
+    // once run through the real `parseKeywordsOut`/tech matching -- to keep
+    // this test independent of that matching logic, force the AI review
+    // result to return overlapping keyword sets directly via isCorrect:false.
+    const completeStructured = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        result: { isCorrect: false, keywords: ['react', 'typescript'], reasoning: 'line 1' },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        result: { isCorrect: false, keywords: ['typescript', 'react'], reasoning: 'line 2 (duplicate)' },
+      });
+    const llmClient: LlmClient = { completeStructured };
+
+    await generateJobKeywordsFromLines({ llmClient });
+
+    expect(jobKeywordUpsert).toHaveBeenCalledTimes(1);
+    const upsertRows = jobKeywordUpsert.mock.calls[0][0];
+    expect(upsertRows).toHaveLength(1);
+    expect(upsertRows[0].id).toBe('job-1');
+    expect(upsertRows[0].keywords.slice().sort()).toEqual(['react', 'typescript']);
+    expect(typeof upsertRows[0].description_ch_en_ratio).toBe('number');
+    // Only the three documented fields -- shape matches the existing
+    // `job_keyword` row exactly (SupabaseTable.Job_.Keyword).
+    expect(Object.keys(upsertRows[0]).sort()).toEqual(
+      ['description_ch_en_ratio', 'id', 'keywords'].sort(),
+    );
+  });
+
+  it('produces an empty keywords array (not an omitted row) for a job with no valid lines (5.3)', async () => {
+    setupServices([{ id: 'job-blank', description: '   \n\n   ' }]);
+
+    await generateJobKeywordsFromLines({ llmClient: makeAlwaysCorrectLlmClient() });
+
+    expect(jobKeywordUpsert).toHaveBeenCalledTimes(1);
+    const upsertRows = jobKeywordUpsert.mock.calls[0][0];
+    expect(upsertRows).toHaveLength(1);
+    expect(upsertRows[0].id).toBe('job-blank');
+    expect(upsertRows[0].keywords).toEqual([]);
+  });
+
+  it('upserts one row per job across the whole batch, each carrying its own description_ch_en_ratio', async () => {
+    setupServices([
+      { id: 'job-a', description: 'line a' },
+      { id: 'job-b', description: 'line b' },
+    ]);
+
+    await generateJobKeywordsFromLines({ llmClient: makeAlwaysCorrectLlmClient() });
+
+    expect(jobKeywordUpsert).toHaveBeenCalledTimes(1);
+    const upsertRows = jobKeywordUpsert.mock.calls[0][0];
+    expect(upsertRows).toHaveLength(2);
+    expect(upsertRows.map((r: any) => r.id).sort()).toEqual(['job-a', 'job-b']);
   });
 });
