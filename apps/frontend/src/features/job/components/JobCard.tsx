@@ -19,6 +19,7 @@ import {
   type TechTooltipData,
 } from './JobDescriptionHighlighter';
 import { JobHandoffCTA } from './JobHandoffCTA';
+import { JobKeywordGroups } from './JobKeywordGroups';
 import { JobTechChips } from './JobTechChips';
 import { JobTechPopover } from './JobTechPopover';
 
@@ -162,10 +163,17 @@ export function JobCard({ job = {}, loading, crawl }: JobCardProps) {
               </div>
             </div>
 
-            <JobTechChips
-              mapping={techMapping}
-              selectedTechsSet={selectedKeywordsSet}
-            />
+            {job.keyword_groups?.length ? (
+              <JobKeywordGroups
+                groups={job.keyword_groups}
+                selectedKeywordsSet={selectedKeywordsSet}
+              />
+            ) : (
+              <JobTechChips
+                mapping={techMapping}
+                selectedTechsSet={selectedKeywordsSet}
+              />
+            )}
             <JobHandoffCTA detailLink={job.detail_link} />
 
             <div className="mb-3 text-[11px] font-bold tracking-[0.12em] text-[#434653]">

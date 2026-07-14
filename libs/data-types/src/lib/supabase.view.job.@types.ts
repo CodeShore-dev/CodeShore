@@ -1,3 +1,4 @@
+import { KeywordGroup } from './keyword-group.@types';
 import { Database } from './supabase.schema';
 import { Modify, NonNull } from './utils.@types';
 
@@ -21,6 +22,7 @@ export namespace SupabaseJobView {
     {
       updated_at: Date;
       created_at: Date;
+      keyword_groups: KeywordGroup[];
       /**
        * Only present when rows come from get_jobs_by_preference
        * (the liked / disliked lists); reflects when the current
