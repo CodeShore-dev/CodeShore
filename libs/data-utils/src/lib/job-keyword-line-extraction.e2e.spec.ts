@@ -9,13 +9,12 @@ import type { LlmClient } from '@codeshore/ai-client';
  * on the exact rows written to all three destination services in a single
  * run, proving the pieces compose correctly together:
  *
- *   - Job A: 4 description lines (one blank), exercising isCorrect:true
- *     ("keep candidate"), isCorrect:false ("adopt AI adjustment", including
- *     AI introducing a keyword absent from the rule-based candidate set),
- *     and a same-job cross-line keyword duplicate that must be deduped in
- *     the final `job_keyword.keywords`.
+ *   - Job A: 4 description lines (one blank), exercising successful AI
+ *     identification of keywords (including one the rule-based approach
+ *     would have missed: 'graphql'), and a cross-line keyword duplicate
+ *     that must be deduped in the final `job_keyword.keywords`.
  *   - Job B: 2 lines, one AI success and one AI failure -- proving the
- *     failure degrades only that line (rule-based fallback, ai_status
+ *     failure degrades only that line (empty fallback groups, ai_status
  *     'failed') without affecting Job B's own successful line or any of Job
  *     A's already-processed lines (requirement 4.3's cross-job isolation).
  *   - Job C: an entirely blank description -- zero `job_description_line`
@@ -25,15 +24,8 @@ import type { LlmClient } from '@codeshore/ai-client';
  * `job-keyword-line-extraction.spec.ts` (own module-level mocks, since
  * `vi.mock` is hoisted per test file).
  *
- * Rule-keyword predictability: `MvTechService().fetchAll()` is faked to
- * return a single tech row with a fixed `keywords` list. All fixture line
- * text is composed so `checkHighlyEnglish` classifies it "highly English"
- * (chinese-char ratio 0, well under the 0.4 threshold), which routes
- * `parseKeywordsOut` through `scanKeywordsFromGroups` -- a simple
- * "does this known keyword appear in the text" filter against that fixed
- * list, with no word-tokenization ambiguity. This keeps `rule_keywords`
- * fully deterministic without needing to model the non-English branch's
- * (unrelated, more complex) HTML/regex tokenization.
+ * All non-blank lines are sent to the AI reviewer regardless of content.
+ * `rule_keywords` is always `[]` and `ai_is_correct` is always `null`.
  */
 
 const jobDescriptionBinFetchAll = vi.fn();
@@ -111,17 +103,17 @@ describe('generateJobKeywordsFromLines (end-to-end, task 4.1)', () => {
       {
         id: 'job-a',
         description: [
-          'Requires 3+ years of Python experience.', // line 1: rule -> ['python'], AI isCorrect:true
+          'Requires 3+ years of Python experience.', // line 1: AI identifies ['python']
           '   ', // line 2: blank -> no job_description_line row, but line_no gap preserved
-          'Build features using TypeScript and React.', // line 3: rule -> ['typescript','react'], AI isCorrect:false -> adds 'graphql'
-          'Node integration and TypeScript services.', // line 4: rule -> ['typescript','node'], AI isCorrect:false -> drops to ['typescript'] (duplicates line 3's 'typescript')
+          'Build features using TypeScript and React.', // line 3: AI identifies ['typescript','react','graphql']
+          'Node integration and TypeScript services.', // line 4: AI identifies ['typescript'] only (node = generic term)
         ].join('\n'),
       },
       {
         id: 'job-b',
         description: [
-          'Vue frontend engineering role.', // line 1: rule -> ['vue'], AI isCorrect:true
-          'Vue backend integration work.', // line 2: rule -> ['vue'], AI call fails -> degrades to ['vue'], ai_status 'failed'
+          'Vue frontend engineering role.', // line 1: AI identifies ['vue']
+          'Vue backend integration work.', // line 2: AI call fails -> empty fallback, ai_status 'failed'
         ].join('\n'),
       },
       {
@@ -135,13 +127,12 @@ describe('generateJobKeywordsFromLines (end-to-end, task 4.1)', () => {
       // job-a line 1 ("Requires 3+ years of Python experience.")
       .mockResolvedValueOnce({
         ok: true,
-        result: { isCorrect: true, groups: [{ category: 'lang', keywords: ['python'] }], reasoning: 'python confirmed' },
+        result: { groups: [{ category: 'lang', keywords: ['python'] }], reasoning: 'python confirmed' },
       })
       // job-a line 3 ("Build features using TypeScript and React.")
       .mockResolvedValueOnce({
         ok: true,
         result: {
-          isCorrect: false,
           groups: [
             { category: 'lang', keywords: ['typescript'] },
             { category: 'lang', keywords: ['react'] },
@@ -154,7 +145,6 @@ describe('generateJobKeywordsFromLines (end-to-end, task 4.1)', () => {
       .mockResolvedValueOnce({
         ok: true,
         result: {
-          isCorrect: false,
           groups: [{ category: 'lang', keywords: ['typescript'] }],
           reasoning: 'node here refers to a generic term, not Node.js',
         },
@@ -162,7 +152,7 @@ describe('generateJobKeywordsFromLines (end-to-end, task 4.1)', () => {
       // job-b line 1 ("Vue frontend engineering role.")
       .mockResolvedValueOnce({
         ok: true,
-        result: { isCorrect: true, groups: [{ category: 'lang', keywords: ['vue'] }], reasoning: 'vue confirmed' },
+        result: { groups: [{ category: 'lang', keywords: ['vue'] }], reasoning: 'vue confirmed' },
       })
       // job-b line 2 ("Vue backend integration work.") -- AI call fails
       .mockResolvedValueOnce({
@@ -224,48 +214,44 @@ describe('generateJobKeywordsFromLines (end-to-end, task 4.1)', () => {
       return row;
     }
 
-    // job-a line 1: AI isCorrect:true -> groups returned by AI are used verbatim.
+    // job-a line 1: AI identifies python -> groups returned verbatim.
     const jobALine1 = reviewRowFor('job-a', 1);
-    expect(jobALine1.rule_keywords).toEqual(['python']);
+    expect(jobALine1.rule_keywords).toEqual([]);
     expect(jobALine1.ai_status).toBe('ok');
-    expect(jobALine1.ai_is_correct).toBe(true);
+    expect(jobALine1.ai_is_correct).toBeNull();
     expect(jobALine1.final_keyword_groups).toEqual([{ category: 'lang', keywords: ['python'] }]);
 
-    // job-a line 3: AI isCorrect:false -> adopts AI's adjusted groups (which
-    // include 'graphql', absent from the rule-based candidate set).
+    // job-a line 3: AI identifies typescript, react, and graphql.
     const jobALine3 = reviewRowFor('job-a', 3);
-    expect(jobALine3.rule_keywords).toEqual(['typescript', 'react']);
+    expect(jobALine3.rule_keywords).toEqual([]);
     expect(jobALine3.ai_status).toBe('ok');
-    expect(jobALine3.ai_is_correct).toBe(false);
+    expect(jobALine3.ai_is_correct).toBeNull();
     expect(jobALine3.final_keyword_groups).toEqual([
       { category: 'lang', keywords: ['typescript'] },
       { category: 'lang', keywords: ['react'] },
       { category: 'other', keywords: ['graphql'] },
     ]);
 
-    // job-a line 4: AI isCorrect:false -> adopts AI's adjusted (narrower) groups.
+    // job-a line 4: AI identifies only typescript (node is a generic term here).
     const jobALine4 = reviewRowFor('job-a', 4);
-    expect(jobALine4.rule_keywords).toEqual(['typescript', 'node']);
+    expect(jobALine4.rule_keywords).toEqual([]);
     expect(jobALine4.ai_status).toBe('ok');
-    expect(jobALine4.ai_is_correct).toBe(false);
+    expect(jobALine4.ai_is_correct).toBeNull();
     expect(jobALine4.final_keyword_groups).toEqual([{ category: 'lang', keywords: ['typescript'] }]);
 
-    // job-b line 1: AI isCorrect:true -> AI-returned groups used. Proves
-    // job-a's lines didn't leak state into job-b's processing.
+    // job-b line 1: AI identifies vue. Proves job-a's lines didn't leak state.
     const jobBLine1 = reviewRowFor('job-b', 1);
-    expect(jobBLine1.rule_keywords).toEqual(['vue']);
+    expect(jobBLine1.rule_keywords).toEqual([]);
     expect(jobBLine1.ai_status).toBe('ok');
-    expect(jobBLine1.ai_is_correct).toBe(true);
+    expect(jobBLine1.ai_is_correct).toBeNull();
     expect(jobBLine1.final_keyword_groups).toEqual([{ category: 'lang', keywords: ['vue'] }]);
 
-    // job-b line 2: AI call failed -> degrades to fallback groups built from
-    // rule_keywords, ai_status recorded as 'failed', ai_is_correct null (4.1, 4.2).
-    // keywordCategoryMap has 'vue' -> 'lang', so fallback group is [{category:'lang',keywords:['vue']}].
+    // job-b line 2: AI call failed -> empty fallback groups, ai_status 'failed' (4.1, 4.2).
     const jobBLine2 = reviewRowFor('job-b', 2);
-    expect(jobBLine2.rule_keywords).toEqual(['vue']);
+    expect(jobBLine2.rule_keywords).toEqual([]);
     expect(jobBLine2.ai_status).toBe('failed');
     expect(jobBLine2.ai_is_correct).toBeNull();
-    expect(jobBLine2.final_keyword_groups).toEqual([{ category: 'lang', keywords: ['vue'] }]);
+    expect(jobBLine2.final_keyword_groups).toEqual([]);
 
     // job-b line 1 (processed just before the failing line 2) is unaffected
     // by line 2's failure -- proving same-job isolation (4.3).
@@ -287,8 +273,7 @@ describe('generateJobKeywordsFromLines (end-to-end, task 4.1)', () => {
     expect(typeof jobAKeywords.description_ch_en_ratio).toBe('number');
 
     const jobBKeywords = keywordRows.find(r => r.id === 'job-b');
-    // ['vue'] (line 1, ok) + ['vue'] (line 2, degraded) -- same-job dedup
-    // collapses the coincidental duplicate to a single entry. job-b's AI
+    // ['vue'] from line 1 (ok); line 2 failed -> empty []. job-b's AI
     // failure on line 2 did not drop or corrupt line 1's contribution.
     expect(jobBKeywords.keywords).toEqual(['vue']);
     expect(typeof jobBKeywords.description_ch_en_ratio).toBe('number');
