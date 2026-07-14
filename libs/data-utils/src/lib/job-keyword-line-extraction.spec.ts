@@ -68,12 +68,12 @@ function setupServices(jobs: FakeJob[]) {
   jobFetchAll.mockResolvedValue({ result: jobs, count: jobs.length, searchParams: '' });
 }
 
-/** Always resolves ok:true, isCorrect:true (candidate set confirmed as-is). */
+/** Always resolves ok:true, isCorrect:true (candidate set confirmed as-is, empty groups). */
 function makeAlwaysCorrectLlmClient(): LlmClient {
   return {
     completeStructured: vi.fn().mockResolvedValue({
       ok: true,
-      result: { isCorrect: true, keywords: [], reasoning: 'looks right' },
+      result: { isCorrect: true, groups: [], reasoning: 'looks right' },
     }),
   };
 }
@@ -88,7 +88,7 @@ beforeEach(() => {
 describe('generateJobKeywordsFromLines', () => {
   it('does not produce a job_description_line record for blank lines', async () => {
     setupServices([
-      { id: 'job-1', description: 'React 前端工程師\n\n   \n3 年以上經驗' },
+      { id: 'job-1', description: 'React 前端工程師\n\n   \nNode.js 後端工程師' },
     ]);
 
     await generateJobKeywordsFromLines({ llmClient: makeAlwaysCorrectLlmClient() });
@@ -98,7 +98,7 @@ describe('generateJobKeywordsFromLines', () => {
     expect(rows).toHaveLength(2);
     expect(rows.map((r: any) => r.content)).toEqual([
       'React 前端工程師',
-      '3 年以上經驗',
+      'Node.js 後端工程師',
     ]);
     expect(rows.every((r: any) => r.content.trim().length > 0)).toBe(true);
   });
@@ -119,7 +119,10 @@ describe('generateJobKeywordsFromLines', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].ai_status).toBe('failed');
     expect(rows[0].ai_is_correct).toBeNull();
-    expect(rows[0].final_keywords).toEqual(rows[0].rule_keywords);
+    // Fallback: final_keyword_groups is built from rule_keywords (one group per keyword, category 'other'
+    // since no techs are configured). The union of all keywords must match rule_keywords exactly.
+    const fallbackKeywords = rows[0].final_keyword_groups.flatMap((g: any) => g.keywords).sort();
+    expect(fallbackKeywords).toEqual([...rows[0].rule_keywords].sort());
   });
 
   it('adopts the AI-returned keyword set and records ai_status "ok" when the AI judges the candidates incorrect', async () => {
@@ -127,7 +130,11 @@ describe('generateJobKeywordsFromLines', () => {
     const llmClient: LlmClient = {
       completeStructured: vi.fn().mockResolvedValue({
         ok: true,
-        result: { isCorrect: false, keywords: ['react', 'typescript'], reasoning: 'missing typescript' },
+        result: {
+          isCorrect: false,
+          groups: [{ category: 'other', keywords: ['react', 'typescript'] }],
+          reasoning: 'missing typescript',
+        },
       }),
     };
 
@@ -136,13 +143,13 @@ describe('generateJobKeywordsFromLines', () => {
     const rows = lineKeywordServiceReset.mock.calls[0][0];
     expect(rows[0].ai_status).toBe('ok');
     expect(rows[0].ai_is_correct).toBe(false);
-    expect(rows[0].final_keywords).toEqual(['react', 'typescript']);
+    expect(rows[0].final_keyword_groups).toEqual([{ category: 'other', keywords: ['react', 'typescript'] }]);
   });
 
   it('isolates a single failed line/job: other lines in the same job and other jobs still process normally', async () => {
     setupServices([
-      { id: 'job-fail', description: 'line one\nline two' },
-      { id: 'job-ok', description: 'line three' },
+      { id: 'job-fail', description: 'React 前端工程師\nNode.js 後端工程師' },
+      { id: 'job-ok', description: 'Python 後端開發工程師' },
     ]);
 
     // job-fail's first line fails, its second line and job-ok's line succeed.
@@ -151,11 +158,11 @@ describe('generateJobKeywordsFromLines', () => {
       .mockResolvedValueOnce({ ok: false, error: 'timeout' })
       .mockResolvedValueOnce({
         ok: true,
-        result: { isCorrect: true, keywords: [], reasoning: 'ok' },
+        result: { isCorrect: true, groups: [], reasoning: 'ok' },
       })
       .mockResolvedValueOnce({
         ok: true,
-        result: { isCorrect: true, keywords: [], reasoning: 'ok' },
+        result: { isCorrect: true, groups: [], reasoning: 'ok' },
       });
     const llmClient: LlmClient = { completeStructured };
 
@@ -174,7 +181,10 @@ describe('generateJobKeywordsFromLines', () => {
 
     const failedRow = reviewRows.find((r: any) => r.ai_status === 'failed');
     expect(failedRow).toBeDefined();
-    expect(failedRow.final_keywords).toEqual(failedRow.rule_keywords);
+    // Fallback: final_keyword_groups is built from rule_keywords (one group per keyword, category 'other').
+    // The union of all keywords in the groups must match rule_keywords exactly.
+    const failedFallbackKeywords = failedRow.final_keyword_groups.flatMap((g: any) => g.keywords).sort();
+    expect(failedFallbackKeywords).toEqual([...failedRow.rule_keywords].sort());
 
     const okRows = reviewRows.filter((r: any) => r.ai_status === 'ok');
     expect(okRows).toHaveLength(2);
@@ -183,7 +193,7 @@ describe('generateJobKeywordsFromLines', () => {
   it('keeps the number of concurrently in-flight AI review calls within the configured concurrency limit', async () => {
     const jobs = Array.from({ length: 6 }, (_, i) => ({
       id: `job-${i}`,
-      description: `line for job ${i}`,
+      description: `React 前端工程師 ${i}`,
     }));
     setupServices(jobs);
 
@@ -194,7 +204,7 @@ describe('generateJobKeywordsFromLines', () => {
       peak = Math.max(peak, current);
       await new Promise(resolve => setTimeout(resolve, 15));
       current -= 1;
-      return { ok: true, result: { isCorrect: true, keywords: [], reasoning: 'ok' } };
+      return { ok: true, result: { isCorrect: true, groups: [], reasoning: 'ok' } };
     });
     const llmClient: LlmClient = { completeStructured };
 
@@ -217,11 +227,19 @@ describe('generateJobKeywordsFromLines', () => {
       .fn()
       .mockResolvedValueOnce({
         ok: true,
-        result: { isCorrect: false, keywords: ['react', 'typescript'], reasoning: 'line 1' },
+        result: {
+          isCorrect: false,
+          groups: [{ category: 'other', keywords: ['react', 'typescript'] }],
+          reasoning: 'line 1',
+        },
       })
       .mockResolvedValueOnce({
         ok: true,
-        result: { isCorrect: false, keywords: ['typescript', 'react'], reasoning: 'line 2 (duplicate)' },
+        result: {
+          isCorrect: false,
+          groups: [{ category: 'other', keywords: ['typescript', 'react'] }],
+          reasoning: 'line 2 (duplicate)',
+        },
       });
     const llmClient: LlmClient = { completeStructured };
 
@@ -233,10 +251,9 @@ describe('generateJobKeywordsFromLines', () => {
     expect(upsertRows[0].id).toBe('job-1');
     expect(upsertRows[0].keywords.slice().sort()).toEqual(['react', 'typescript']);
     expect(typeof upsertRows[0].description_ch_en_ratio).toBe('number');
-    // Only the three documented fields -- shape matches the existing
-    // `job_keyword` row exactly (SupabaseTable.Job_.Keyword).
+    // Shape matches SupabaseTable.Job_.Keyword (id, keywords, description_ch_en_ratio, keyword_groups).
     expect(Object.keys(upsertRows[0]).sort()).toEqual(
-      ['description_ch_en_ratio', 'id', 'keywords'].sort(),
+      ['description_ch_en_ratio', 'id', 'keyword_groups', 'keywords'].sort(),
     );
   });
 
@@ -254,8 +271,8 @@ describe('generateJobKeywordsFromLines', () => {
 
   it('upserts one row per job across the whole batch, each carrying its own description_ch_en_ratio', async () => {
     setupServices([
-      { id: 'job-a', description: 'line a' },
-      { id: 'job-b', description: 'line b' },
+      { id: 'job-a', description: 'React 前端工程師甲' },
+      { id: 'job-b', description: 'Node.js 後端工程師乙' },
     ]);
 
     await generateJobKeywordsFromLines({ llmClient: makeAlwaysCorrectLlmClient() });
@@ -264,5 +281,27 @@ describe('generateJobKeywordsFromLines', () => {
     const upsertRows = jobKeywordUpsert.mock.calls[0][0];
     expect(upsertRows).toHaveLength(2);
     expect(upsertRows.map((r: any) => r.id).sort()).toEqual(['job-a', 'job-b']);
+  });
+
+  it('does not store or review lines with no candidate keywords', async () => {
+    // Description has one non-keyword line (pure Chinese, no English tokens)
+    // and one line with a keyword (React). Only the keyword line should be
+    // stored and sent to AI review (requirements 1.1, 1.2).
+    setupServices([
+      { id: 'job-1', description: '我們提供優良的工作環境\nReact 前端工程師' },
+    ]);
+
+    await generateJobKeywordsFromLines({ llmClient: makeAlwaysCorrectLlmClient() });
+
+    expect(lineServiceReset).toHaveBeenCalledTimes(1);
+    const lineRows = lineServiceReset.mock.calls[0][0];
+    // The non-keyword line must NOT be stored.
+    expect(lineRows).toHaveLength(1);
+    expect(lineRows[0].content).toBe('React 前端工程師');
+
+    // AI reviewer must NOT be called for the non-keyword line.
+    expect(lineKeywordServiceReset).toHaveBeenCalledTimes(1);
+    const reviewRows = lineKeywordServiceReset.mock.calls[0][0];
+    expect(reviewRows).toHaveLength(1);
   });
 });

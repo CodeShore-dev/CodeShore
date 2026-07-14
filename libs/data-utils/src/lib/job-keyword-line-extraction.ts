@@ -5,7 +5,7 @@
 import pLimit = require('p-limit');
 
 import { LineKeywordAiReviewer, LlmClient } from '@codeshore/ai-client';
-import { SupabaseTable } from '@codeshore/data-types';
+import { KeywordGroup, SupabaseTable } from '@codeshore/data-types';
 import { parseKeywordsOut, splitDescriptionIntoLines } from '@codeshore/shared-utils';
 
 import { JobService } from './api/job.service';
@@ -35,6 +35,8 @@ interface JobLineKeywordResult {
   description_ch_en_ratio: number;
   /** One entry per non-blank line (in line order); each entry is that line's final keyword set. */
   lineFinalKeywords: string[][];
+  /** One entry per non-blank line; each entry is that line's final keyword groups (grouped by category). */
+  lineGroups: KeywordGroup[][];
 }
 
 /**
@@ -66,6 +68,11 @@ export async function generateJobKeywordsFromLines(
     .flatMap(m => m.keywords)
     .concat([tech, keyword].filter(Boolean) as string[]);
 
+  // Build keyword → category map for the AI reviewer (req 2.2) and fallback groups (req 5.1).
+  const keywordCategoryMap: Record<string, string> = Object.fromEntries(
+    techs.flatMap(t => (t.keywords ?? []).map(k => [k, t.category ?? 'other'])),
+  );
+
   const lineRows: SupabaseTable.JobDescriptionLine[] = [];
   const lineKeywordRows: SupabaseTable.JobDescriptionLineKeyword[] = [];
   const jobResults: JobLineKeywordResult[] = [];
@@ -93,16 +100,22 @@ export async function generateJobKeywordsFromLines(
     const jobResult: JobLineKeywordResult = {
       jobId: job.id,
       description_ch_en_ratio,
-      lineFinalKeywords: new Array(lines.length),
+      lineFinalKeywords: [],
+      lineGroups: [],
     };
     jobResults.push(jobResult);
 
-    lines.forEach((line, lineIndex) => {
-      const lineId = crypto.randomUUID();
+    for (const line of lines) {
       const { keywords: candidateKeywords } = parseKeywordsOut(
         line.content,
         allGroupKeywords,
       );
+
+      // Requirements 1.1, 1.2: only lines containing at least one candidate
+      // keyword are stored and sent to AI review.
+      if (candidateKeywords.length === 0) continue;
+
+      const lineId = crypto.randomUUID();
 
       lineRows.push({
         id: lineId,
@@ -122,24 +135,32 @@ export async function generateJobKeywordsFromLines(
           const review = await reviewer.review({
             lineText: line.content,
             candidateKeywords,
+            keywordCategoryMap,
           });
 
+          let finalGroups: KeywordGroup[];
           let finalKeywords: string[];
           let ai_status: SupabaseTable.JobDescriptionLineKeyword['ai_status'];
           let ai_is_correct: boolean | null;
 
           if (review.ok) {
-            finalKeywords = review.isCorrect ? candidateKeywords : review.keywords;
+            finalGroups = review.groups;
+            finalKeywords = Array.from(new Set(finalGroups.flatMap(g => g.keywords)));
             ai_status = 'ok';
             ai_is_correct = review.isCorrect;
           } else {
             // Degrade: fall back to the rule-based candidate set (requirement 4.1).
+            finalGroups = candidateKeywords.map(k => ({
+              category: keywordCategoryMap[k] ?? 'other',
+              keywords: [k],
+            }));
             finalKeywords = candidateKeywords;
             ai_status = 'failed';
             ai_is_correct = null;
           }
 
-          jobResult.lineFinalKeywords[lineIndex] = finalKeywords;
+          jobResult.lineFinalKeywords.push(finalKeywords);
+          jobResult.lineGroups.push(finalGroups);
 
           lineKeywordRows.push({
             id: crypto.randomUUID(),
@@ -147,12 +168,12 @@ export async function generateJobKeywordsFromLines(
             rule_keywords: candidateKeywords,
             ai_status,
             ai_is_correct,
-            final_keywords: finalKeywords,
+            final_keyword_groups: finalGroups,
             reviewed_at: new Date().toISOString(),
           });
         }),
       );
-    });
+    }
   }
 
   await Promise.all(reviewTasks);
@@ -164,11 +185,22 @@ export async function generateJobKeywordsFromLines(
   // sets by flattening + `Set`-dedupe. A job with zero lines has an empty
   // `lineFinalKeywords` array, so `flat()` + `new Set(...)` naturally yields
   // `[]` -- no special-casing needed for the "no valid lines" case.
-  const jobKeywords: SupabaseTable.Job_.Keyword[] = jobResults.map(jobResult => ({
-    id: jobResult.jobId,
-    keywords: Array.from(new Set(jobResult.lineFinalKeywords.flat())),
-    description_ch_en_ratio: jobResult.description_ch_en_ratio,
-  }));
+  const jobKeywords: SupabaseTable.Job_.Keyword[] = jobResults.map(jobResult => {
+    const allGroups: KeywordGroup[] = jobResult.lineGroups.flat();
+    const seen = new Set<string>();
+    const keyword_groups: KeywordGroup[] = allGroups.filter(g => {
+      const key = `${g.category}:${[...g.keywords].sort().join(',')}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    return {
+      id: jobResult.jobId,
+      keywords: Array.from(new Set(keyword_groups.flatMap(g => g.keywords))),
+      description_ch_en_ratio: jobResult.description_ch_en_ratio,
+      keyword_groups,
+    };
+  });
 
   // design.md step 7 (5.2): same shape/interface as the existing
   // `resetJobKeywords()`'s `JobKeywordService().upsert(jobKeywords)` call.

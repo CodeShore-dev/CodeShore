@@ -135,14 +135,18 @@ describe('generateJobKeywordsFromLines (end-to-end, task 4.1)', () => {
       // job-a line 1 ("Requires 3+ years of Python experience.")
       .mockResolvedValueOnce({
         ok: true,
-        result: { isCorrect: true, keywords: [], reasoning: 'python confirmed' },
+        result: { isCorrect: true, groups: [{ category: 'lang', keywords: ['python'] }], reasoning: 'python confirmed' },
       })
       // job-a line 3 ("Build features using TypeScript and React.")
       .mockResolvedValueOnce({
         ok: true,
         result: {
           isCorrect: false,
-          keywords: ['typescript', 'react', 'graphql'],
+          groups: [
+            { category: 'lang', keywords: ['typescript'] },
+            { category: 'lang', keywords: ['react'] },
+            { category: 'other', keywords: ['graphql'] },
+          ],
           reasoning: 'also mentions GraphQL implicitly via API design context',
         },
       })
@@ -151,14 +155,14 @@ describe('generateJobKeywordsFromLines (end-to-end, task 4.1)', () => {
         ok: true,
         result: {
           isCorrect: false,
-          keywords: ['typescript'],
+          groups: [{ category: 'lang', keywords: ['typescript'] }],
           reasoning: 'node here refers to a generic term, not Node.js',
         },
       })
       // job-b line 1 ("Vue frontend engineering role.")
       .mockResolvedValueOnce({
         ok: true,
-        result: { isCorrect: true, keywords: [], reasoning: 'vue confirmed' },
+        result: { isCorrect: true, groups: [{ category: 'lang', keywords: ['vue'] }], reasoning: 'vue confirmed' },
       })
       // job-b line 2 ("Vue backend integration work.") -- AI call fails
       .mockResolvedValueOnce({
@@ -220,43 +224,48 @@ describe('generateJobKeywordsFromLines (end-to-end, task 4.1)', () => {
       return row;
     }
 
-    // job-a line 1: AI isCorrect:true -> candidate kept verbatim.
+    // job-a line 1: AI isCorrect:true -> groups returned by AI are used verbatim.
     const jobALine1 = reviewRowFor('job-a', 1);
     expect(jobALine1.rule_keywords).toEqual(['python']);
     expect(jobALine1.ai_status).toBe('ok');
     expect(jobALine1.ai_is_correct).toBe(true);
-    expect(jobALine1.final_keywords).toEqual(jobALine1.rule_keywords);
+    expect(jobALine1.final_keyword_groups).toEqual([{ category: 'lang', keywords: ['python'] }]);
 
-    // job-a line 3: AI isCorrect:false -> adopts AI's adjusted set (which
-    // adds a keyword, 'graphql', absent from the rule-based candidate set).
+    // job-a line 3: AI isCorrect:false -> adopts AI's adjusted groups (which
+    // include 'graphql', absent from the rule-based candidate set).
     const jobALine3 = reviewRowFor('job-a', 3);
     expect(jobALine3.rule_keywords).toEqual(['typescript', 'react']);
     expect(jobALine3.ai_status).toBe('ok');
     expect(jobALine3.ai_is_correct).toBe(false);
-    expect(jobALine3.final_keywords).toEqual(['typescript', 'react', 'graphql']);
+    expect(jobALine3.final_keyword_groups).toEqual([
+      { category: 'lang', keywords: ['typescript'] },
+      { category: 'lang', keywords: ['react'] },
+      { category: 'other', keywords: ['graphql'] },
+    ]);
 
-    // job-a line 4: AI isCorrect:false -> adopts AI's adjusted (narrower) set.
+    // job-a line 4: AI isCorrect:false -> adopts AI's adjusted (narrower) groups.
     const jobALine4 = reviewRowFor('job-a', 4);
     expect(jobALine4.rule_keywords).toEqual(['typescript', 'node']);
     expect(jobALine4.ai_status).toBe('ok');
     expect(jobALine4.ai_is_correct).toBe(false);
-    expect(jobALine4.final_keywords).toEqual(['typescript']);
+    expect(jobALine4.final_keyword_groups).toEqual([{ category: 'lang', keywords: ['typescript'] }]);
 
-    // job-b line 1: AI isCorrect:true -> candidate kept verbatim. Proves
+    // job-b line 1: AI isCorrect:true -> AI-returned groups used. Proves
     // job-a's lines didn't leak state into job-b's processing.
     const jobBLine1 = reviewRowFor('job-b', 1);
     expect(jobBLine1.rule_keywords).toEqual(['vue']);
     expect(jobBLine1.ai_status).toBe('ok');
     expect(jobBLine1.ai_is_correct).toBe(true);
-    expect(jobBLine1.final_keywords).toEqual(['vue']);
+    expect(jobBLine1.final_keyword_groups).toEqual([{ category: 'lang', keywords: ['vue'] }]);
 
-    // job-b line 2: AI call failed -> degrades to the rule-based candidate
-    // set, ai_status recorded as 'failed', ai_is_correct null (4.1, 4.2).
+    // job-b line 2: AI call failed -> degrades to fallback groups built from
+    // rule_keywords, ai_status recorded as 'failed', ai_is_correct null (4.1, 4.2).
+    // keywordCategoryMap has 'vue' -> 'lang', so fallback group is [{category:'lang',keywords:['vue']}].
     const jobBLine2 = reviewRowFor('job-b', 2);
     expect(jobBLine2.rule_keywords).toEqual(['vue']);
     expect(jobBLine2.ai_status).toBe('failed');
     expect(jobBLine2.ai_is_correct).toBeNull();
-    expect(jobBLine2.final_keywords).toEqual(jobBLine2.rule_keywords);
+    expect(jobBLine2.final_keyword_groups).toEqual([{ category: 'lang', keywords: ['vue'] }]);
 
     // job-b line 1 (processed just before the failing line 2) is unaffected
     // by line 2's failure -- proving same-job isolation (4.3).
@@ -291,10 +300,10 @@ describe('generateJobKeywordsFromLines (end-to-end, task 4.1)', () => {
     expect(jobCKeywords.keywords).toEqual([]);
     expect(typeof jobCKeywords.description_ch_en_ratio).toBe('number');
 
-    // Every job_keyword row carries exactly the existing 3-field shape.
+    // Every job_keyword row carries the 4-field shape (id, keywords, description_ch_en_ratio, keyword_groups).
     for (const row of keywordRows) {
       expect(Object.keys(row).sort()).toEqual(
-        ['description_ch_en_ratio', 'id', 'keywords'].sort(),
+        ['description_ch_en_ratio', 'id', 'keyword_groups', 'keywords'].sort(),
       );
     }
   });

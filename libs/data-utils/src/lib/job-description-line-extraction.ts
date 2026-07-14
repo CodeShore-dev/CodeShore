@@ -5,7 +5,7 @@
 import pLimit = require('p-limit');
 
 import { LineKeywordAiReviewer, LlmClient } from '@codeshore/ai-client';
-import { SupabaseTable } from '@codeshore/data-types';
+import { KeywordGroup, SupabaseTable } from '@codeshore/data-types';
 import { parseKeywordsOut, splitDescriptionIntoLines } from '@codeshore/shared-utils';
 
 import { JobService } from './api/job.service';
@@ -28,6 +28,10 @@ export interface GenerateJobDescriptionLinesOptions {
  * function). Scoped to `options.where`-matched jobs: only those jobs'
  * existing line rows are replaced, via `replaceWhereIn` rather than
  * `reset()`, so an out-of-scope job's lines are left untouched.
+ *
+ * Pre-filter (requirements 1.1, 1.2): after splitting, only lines that contain
+ * at least one candidate keyword (as determined by `parseKeywordsOut`) are
+ * stored. Lines with no candidate keywords are silently dropped.
  */
 export async function generateJobDescriptionLines(
   options: GenerateJobDescriptionLinesOptions = {},
@@ -40,6 +44,12 @@ export async function generateJobDescriptionLines(
     select: 'id,description',
   });
 
+  // Fetch mv_tech to build the keyword vocabulary for pre-filtering (req 1.1).
+  const { result: techs } = await new MvTechService().fetchAll({
+    where: { category: { 'not.is': null } },
+  });
+  const allGroupKeywords = techs.flatMap(m => m.keywords ?? []);
+
   const lineRows: SupabaseTable.JobDescriptionLine[] = [];
 
   for (const job of jobs) {
@@ -50,7 +60,14 @@ export async function generateJobDescriptionLines(
       job.description,
     );
 
-    for (const line of splitDescriptionIntoLines(strippedDescription)) {
+    // Pre-filter: only store lines that contain at least one candidate keyword
+    // (requirements 1.1, 1.2). Lines with no candidates are silently skipped.
+    const filteredLines = splitDescriptionIntoLines(strippedDescription).filter(line => {
+      const { keywords } = parseKeywordsOut(line.content, allGroupKeywords);
+      return keywords.length > 0;
+    });
+
+    for (const line of filteredLines) {
       lineRows.push({
         id: crypto.randomUUID(),
         job_id: job.id,
@@ -62,6 +79,7 @@ export async function generateJobDescriptionLines(
   }
 
   const jobIds = jobs.map(job => job.id);
+  // `replaceWhereIn` replaces all previous rows for these job ids (req 1.3).
   await new JobDescriptionLineService().replaceWhereIn('job_id', jobIds, lineRows);
 }
 
@@ -82,6 +100,15 @@ export interface GenerateJobDescriptionLineKeywordsOptions {
  * whichever `job_description_line` rows already exist for those job ids
  * (does not re-derive lines from `job.description` itself -- run stage 1
  * first if the lines aren't there yet).
+ *
+ * AI output (requirements 2.1–2.4): the updated `LineKeywordAiReviewer` returns
+ * `groups: KeywordGroup[]` (each group has a `category` and `keywords[]`).
+ * These are written to `final_keyword_groups` (requirement 3.1, 3.2).
+ *
+ * AI failure fallback (requirements 5.1–5.3): each candidate keyword becomes a
+ * single-member group with its category looked up from `keywordCategoryMap`
+ * (defaulting to 'other' when not found). A single line's failure never
+ * aborts sibling lines.
  */
 export async function generateJobDescriptionLineKeywords(
   options: GenerateJobDescriptionLineKeywordsOptions,
@@ -96,7 +123,12 @@ export async function generateJobDescriptionLineKeywords(
   const { result: techs } = await new MvTechService().fetchAll({
     where: { category: { 'not.is': null } },
   });
-  const allGroupKeywords = techs.flatMap(m => m.keywords);
+  const allGroupKeywords = techs.flatMap(m => m.keywords ?? []);
+
+  // Build keyword → category map for the AI prompt and fallback groups (req 2.2, 5.1).
+  const keywordCategoryMap: Record<string, string> = Object.fromEntries(
+    techs.flatMap(t => (t.keywords ?? []).map(k => [k, t.category ?? 'other'])),
+  );
 
   const { result: jobs } = await new JobService().fetchAll({ where, select: 'id' });
   const jobIds = jobs.map(job => job.id);
@@ -113,26 +145,32 @@ export async function generateJobDescriptionLineKeywords(
     const { keywords: candidateKeywords } = parseKeywordsOut(line.content, allGroupKeywords);
 
     // `LineKeywordAiReviewer.review()` never throws -- a single line's AI
-    // failure can never abort sibling lines (requirement 4.3's isolation
-    // guarantee, unchanged from `generateJobKeywordsFromLines`).
+    // failure can never abort sibling lines (requirement 5.3's isolation
+    // guarantee).
     reviewTasks.push(
       limit(async () => {
         const review = await reviewer.review({
           lineText: line.content,
           candidateKeywords,
+          keywordCategoryMap,
         });
 
-        let finalKeywords: string[];
+        let finalKeywordGroups: KeywordGroup[];
         let ai_status: SupabaseTable.JobDescriptionLineKeyword['ai_status'];
         let ai_is_correct: boolean | null;
 
         if (review.ok) {
-          finalKeywords = review.isCorrect ? candidateKeywords : review.keywords;
+          // AI returned grouped result (requirements 2.1–2.4, 3.1).
+          finalKeywordGroups = review.groups;
           ai_status = 'ok';
           ai_is_correct = review.isCorrect;
         } else {
-          // Degrade: fall back to the rule-based candidate set.
-          finalKeywords = candidateKeywords;
+          // Fallback: each candidate keyword becomes a single-member group
+          // with category from keywordCategoryMap (requirements 5.1, 5.2).
+          finalKeywordGroups = candidateKeywords.map(k => ({
+            category: keywordCategoryMap[k] ?? 'other',
+            keywords: [k],
+          }));
           ai_status = 'failed';
           ai_is_correct = null;
         }
@@ -143,7 +181,7 @@ export async function generateJobDescriptionLineKeywords(
           rule_keywords: candidateKeywords,
           ai_status,
           ai_is_correct,
-          final_keywords: finalKeywords,
+          final_keyword_groups: finalKeywordGroups,
           reviewed_at: new Date().toISOString(),
         });
       }),
