@@ -1,5 +1,6 @@
 ﻿import { Database } from './supabase.schema';
 import { Modify } from './utils.@types';
+import { KeywordGroup } from './keyword-group.@types';
 
 // `ai_suggestion` 佇列表的欄位型別（見 ai-database-maintenance-workflow spec
 // design.md「Logical Data Model：ai_suggestion」）。這些型別名稱刻意不放進
@@ -60,7 +61,13 @@ export namespace SupabaseTable {
   >;
 
   export namespace Job_ {
-    export type Keyword = Database['public']['Tables']['job_keyword']['Row'];
+    // `job_keyword_groups` 欄位對應新的 migration（job-keyword-grouped-extraction spec
+    // task 1.1）；該遷移尚未套用到實際 Supabase 專案，套用後需重跑 `pnpm db:sync`
+    // 重新產生 supabase.schema.ts，屆時應改為以 `Modify<Row, {...}>` 窄化並移除
+    // 此 intersection 寫法。
+    export type Keyword = Database['public']['Tables']['job_keyword']['Row'] & {
+      keyword_groups: KeywordGroup[];
+    };
     export type Tech = Database['public']['Tables']['job_tech']['Row'];
   }
 
@@ -89,12 +96,21 @@ export namespace SupabaseTable {
   // CHECK 約束（'ok' | 'failed'），以 `Modify<Row, {...}>` 窄化為聯合型別；
   // `ai_is_correct` 為單純可為 null 的 boolean 欄位，生成型別即為
   // `boolean | null`，不需額外窄化。
-  export type JobDescriptionLineKeyword = Modify<
-    Database['public']['Tables']['job_description_line_keyword']['Row'],
-    {
-      ai_status: 'ok' | 'failed';
-    }
-  >;
+  // `final_keyword_groups` 欄位對應新的 migration（job-keyword-grouped-extraction spec
+  // task 1.1）；該遷移尚未套用到實際 Supabase 專案，套用後需重跑 `pnpm db:sync`
+  // 重新產生 supabase.schema.ts，屆時應將 intersection 寫法合併回 `Modify<Row, {...}>`
+  // 並移除 `Omit<..., 'final_keywords'>` 包裝。
+  export type JobDescriptionLineKeyword = Omit<
+    Modify<
+      Database['public']['Tables']['job_description_line_keyword']['Row'],
+      {
+        ai_status: 'ok' | 'failed';
+      }
+    >,
+    'final_keywords'
+  > & {
+    final_keyword_groups: KeywordGroup[];
+  };
 
   // 對應新的 supabase/migrations/20260712100000_create_job_filter_subscription.sql
   // （job-filter-watchlist spec task 1.2）；該遷移尚未套用到實際 Supabase 專案
