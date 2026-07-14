@@ -1,3 +1,6 @@
+import * as cheerio from 'cheerio';
+import { stripLinks } from './utils';
+
 export interface DescriptionLine {
   lineNo: number;
   content: string;
@@ -12,10 +15,18 @@ export interface DescriptionLine {
  * blank lines are not renumbered around.
  */
 export function splitDescriptionIntoLines(
-  description: string,
+  textOrHtml: string,
 ): DescriptionLine[] {
-  return description
-    .split('\n')
+  const $ = cheerio.load(textOrHtml);
+      $('div, p, li, h1, h2, h3, h4, h5, br').each(
+        (_, el) => {
+          $(el).append('\n');
+        },
+      );
+  const text = stripLinks($.text());
+
+  return text
+    .split(/\r?\n/)
     .map((content, index) => ({
       lineNo: index + 1,
       content: content.trim(),
