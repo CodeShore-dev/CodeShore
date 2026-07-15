@@ -174,7 +174,7 @@ function toErrorMessage(error: unknown): string {
  * ai-suggestion/llm-settings`. Everyday default-model changes should go
  * through that admin endpoint (`updateLlmSettings`), not this constant.
  */
-export const DEFAULT_MODEL_FALLBACK = 'tencent/hy3:free';
+export const DEFAULT_MODEL_FALLBACK = 'meta-llama/llama-3.3-70b-instruct:free';
 
 /** Key this feature stores its adjustable default model under in `ai_llm_setting`. */
 export const DEFAULT_MODEL_SETTING_KEY = 'default_model';
