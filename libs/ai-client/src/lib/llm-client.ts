@@ -83,79 +83,92 @@ export class OpenRouterLlmClient implements LlmClient {
     // (verified: `tsc` reports TS2307 for it), and the `OpenRouter` class
     // itself carries no merged type namespace to import `ChatResult` from
     // instead (unlike `@anthropic-ai/sdk`'s `Anthropic.Message`).
-    let response;
-    try {
-      response = await this.client.chat.send({
-        chatRequest: {
-          model: this.model,
-          messages: [
-            { role: 'system', content: request.systemPrompt },
-            { role: 'user', content: request.userPrompt },
-          ],
-          tools: [
-            {
-              type: 'function',
-              function: {
-                name: request.toolName,
-                parameters: request.inputSchema,
+
+    // Free-tier models occasionally return a text response instead of a tool
+    // call despite toolChoice forcing one. Retry up to 2 extra times before
+    // giving up so transient model non-compliance doesn't surface as a hard failure.
+    const MAX_ATTEMPTS = 3;
+    let lastFinishReason: string | undefined;
+
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      let response;
+      try {
+        response = await this.client.chat.send({
+          chatRequest: {
+            model: this.model,
+            messages: [
+              { role: 'system', content: request.systemPrompt },
+              { role: 'user', content: request.userPrompt },
+            ],
+            tools: [
+              {
+                type: 'function',
+                function: {
+                  name: request.toolName,
+                  parameters: request.inputSchema,
+                },
               },
-            },
-          ],
-          // Forces the model to respond with exactly this tool call, so a
-          // successful response is guaranteed to be schema-shaped rather
-          // than free-form text.
-          toolChoice: { type: 'function', function: { name: request.toolName } },
-        },
-      });
-    } catch (error) {
-      return {
-        ok: false,
-        error: `OpenRouter API request failed: ${toErrorMessage(error)}`,
-      };
+            ],
+            // Forces the model to respond with exactly this tool call, so a
+            // successful response is guaranteed to be schema-shaped rather
+            // than free-form text.
+            toolChoice: { type: 'function', function: { name: request.toolName } },
+          },
+        });
+      } catch (error) {
+        return {
+          ok: false,
+          error: `OpenRouter API request failed: ${toErrorMessage(error)}`,
+        };
+      }
+
+      const choice = response.choices[0];
+      const toolCall = choice?.message?.toolCalls?.[0];
+      lastFinishReason = choice?.finishReason ?? 'unknown';
+
+      if (!toolCall) {
+        // Model returned text instead of a tool call; retry if attempts remain.
+        continue;
+      }
+
+      if (toolCall.type !== 'function') {
+        return {
+          ok: false,
+          error: `OpenRouter response used a non-function tool call type "${toolCall.type}"`,
+        };
+      }
+
+      if (toolCall.function.name !== request.toolName) {
+        return {
+          ok: false,
+          error: `OpenRouter response used unexpected tool "${toolCall.function.name}", expected "${request.toolName}"`,
+        };
+      }
+
+      let parsedArguments: unknown;
+      try {
+        parsedArguments = JSON.parse(toolCall.function.arguments);
+      } catch (error) {
+        return {
+          ok: false,
+          error: `OpenRouter tool call arguments were not valid JSON: ${toErrorMessage(error)}`,
+        };
+      }
+
+      if (!isPlainObject(parsedArguments)) {
+        return {
+          ok: false,
+          error: 'OpenRouter tool call arguments did not parse to a JSON object',
+        };
+      }
+
+      return { ok: true, result: parsedArguments as TResult };
     }
 
-    const choice = response.choices[0];
-    const toolCall = choice?.message?.toolCalls?.[0];
-
-    if (!toolCall) {
-      return {
-        ok: false,
-        error: `OpenRouter response did not contain a tool call (finishReason: ${choice?.finishReason ?? 'unknown'})`,
-      };
-    }
-
-    if (toolCall.type !== 'function') {
-      return {
-        ok: false,
-        error: `OpenRouter response used a non-function tool call type "${toolCall.type}"`,
-      };
-    }
-
-    if (toolCall.function.name !== request.toolName) {
-      return {
-        ok: false,
-        error: `OpenRouter response used unexpected tool "${toolCall.function.name}", expected "${request.toolName}"`,
-      };
-    }
-
-    let parsedArguments: unknown;
-    try {
-      parsedArguments = JSON.parse(toolCall.function.arguments);
-    } catch (error) {
-      return {
-        ok: false,
-        error: `OpenRouter tool call arguments were not valid JSON: ${toErrorMessage(error)}`,
-      };
-    }
-
-    if (!isPlainObject(parsedArguments)) {
-      return {
-        ok: false,
-        error: 'OpenRouter tool call arguments did not parse to a JSON object',
-      };
-    }
-
-    return { ok: true, result: parsedArguments as TResult };
+    return {
+      ok: false,
+      error: `OpenRouter response did not contain a tool call after ${MAX_ATTEMPTS} attempts (finishReason: ${lastFinishReason})`,
+    };
   }
 }
 
