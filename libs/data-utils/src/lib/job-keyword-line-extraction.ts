@@ -1,7 +1,3 @@
-// `p-limit` ships a CJS `export =` declaration, so it must be imported via
-// `import ... = require(...)` to remain valid regardless of whether the
-// consuming tsconfig enables `esModuleInterop` (same convention as
-// `libs/crawler-core/src/browser/stealth-launch.ts`'s `StealthPlugin` import).
 import pLimit = require('p-limit');
 
 import { LineKeywordAiReviewer, LlmClient } from '@codeshore/ai-client';
@@ -15,7 +11,7 @@ import { JobDescriptionLineKeywordService } from './api/job_description_line_key
 import { JobKeywordService } from './api/job_keyword.service';
 import { MvTechService } from './api/mv_tech';
 
-/** Default number of AI review calls allowed in flight at once (design.md's `AI_REVIEW_CONCURRENCY`). */
+/** Default number of AI review calls allowed in flight at once. */
 export const AI_REVIEW_CONCURRENCY = 5;
 
 export interface GenerateJobKeywordsOptions {
@@ -25,28 +21,18 @@ export interface GenerateJobKeywordsOptions {
   keyword?: string;
 }
 
-/**
- * Per-job result of steps 1-4 (fetch, noise-strip, per-line rule extraction,
- * AI review) that design.md's steps 5 and 7 (aggregate+dedupe, upsert
- * `job_keyword`) consume below.
- */
 interface JobLineKeywordResult {
   jobId: string;
   description_ch_en_ratio: number;
-  /** One entry per non-blank line (in line order); each entry is that line's final keyword set. */
-  lineFinalKeywords: string[][];
-  /** One entry per non-blank line; each entry is that line's final keyword groups (grouped by category). */
+  /** One entry per stored line; each entry is that line's AI-identified keyword groups. */
   lineGroups: KeywordGroup[][];
 }
 
 /**
- * Batch orchestration: expands every job's `description` into per-line
- * records, runs the existing rule-based extractor per line, submits each
- * line's text + candidate keywords to AI review (bounded by a single shared
- * concurrency limiter across the whole batch), and writes the two new line
- * tables. Mirrors `resetJobKeywords`'s existing pattern of directly
- * constructing its data services rather than receiving them by injection
- * (requirements 1.1-1.4, 2.1-2.2, 3.1-3.4, 4.1-4.3).
+ * Batch orchestration: splits every job's `description` into per-line
+ * records, submits each line to AI review (no pre-extracted candidate hints),
+ * and writes `job_description_line` and `job_description_line_keyword`.
+ * All non-blank lines are stored and sent to AI regardless of content.
  */
 export async function generateJobKeywordsFromLines(
   options: GenerateJobKeywordsOptions,
@@ -54,8 +40,6 @@ export async function generateJobKeywordsFromLines(
   const { llmClient, concurrency = AI_REVIEW_CONCURRENCY, tech, keyword } = options;
 
   const reviewer = new LineKeywordAiReviewer(llmClient);
-  // Single shared limiter for every line across every job in this batch, per
-  // research.md §6.3 -- not one limiter per job.
   const limit = pLimit(concurrency);
 
   const { result: jobDescriptionBins } = await new JobDescriptionBinService().fetchAll();
@@ -64,14 +48,13 @@ export async function generateJobKeywordsFromLines(
   });
   const { result: jobs } = await new JobService().fetchAll();
 
+  // `allGroupKeywords` used only for `description_ch_en_ratio` on the whole description.
   const allGroupKeywords = techs
     .flatMap(m => m.keywords)
     .concat([tech, keyword].filter(Boolean) as string[]);
 
-  // Build keyword → category map for the AI reviewer (req 2.2) and fallback groups (req 5.1).
-  const keywordCategoryMap: Record<string, string> = Object.fromEntries(
-    techs.flatMap(t => (t.keywords ?? []).map(k => [k, t.category ?? 'other'])),
-  );
+  // Unique category names — small vocabulary list passed to AI instead of the full keyword map.
+  const categories = Array.from(new Set(techs.map(t => t.category).filter(Boolean))) as string[];
 
   const lineRows: SupabaseTable.JobDescriptionLine[] = [];
   const lineKeywordRows: SupabaseTable.JobDescriptionLineKeyword[] = [];
@@ -79,42 +62,25 @@ export async function generateJobKeywordsFromLines(
   const reviewTasks: Promise<void>[] = [];
 
   for (const job of jobs) {
-    // Same noise-strip `reduce`/`replace` logic as `resetJobKeywords` (task
-    // 3.1 will migrate that function to call this one; this task does not
-    // modify `resetJobKeywords` itself).
     const strippedDescription = jobDescriptionBins.reduce(
       (prev, curr) => prev.replace(curr.content, ''),
       job.description,
     );
 
-    // Only `description_ch_en_ratio` is used from this call -- `keywords`
-    // (the whole-description extraction) is superseded by the per-line
-    // extraction below (research.md §6.3's "description_ch_en_ratio 計算方式" decision).
-    const { description_ch_en_ratio } = parseKeywordsOut(
-      strippedDescription,
-      allGroupKeywords,
-    );
+    const { description_ch_en_ratio } = parseKeywordsOut(strippedDescription, allGroupKeywords);
 
-    const lines = splitDescriptionIntoLines(strippedDescription);
+    const lines = splitDescriptionIntoLines(strippedDescription).filter(
+      line => line.content.trim().length > 0,
+    );
 
     const jobResult: JobLineKeywordResult = {
       jobId: job.id,
       description_ch_en_ratio,
-      lineFinalKeywords: [],
       lineGroups: [],
     };
     jobResults.push(jobResult);
 
     for (const line of lines) {
-      const { keywords: candidateKeywords } = parseKeywordsOut(
-        line.content,
-        allGroupKeywords,
-      );
-
-      // Requirements 1.1, 1.2: only lines containing at least one candidate
-      // keyword are stored and sent to AI review.
-      if (candidateKeywords.length === 0) continue;
-
       const lineId = crypto.randomUUID();
 
       lineRows.push({
@@ -125,49 +91,32 @@ export async function generateJobKeywordsFromLines(
         created_at: new Date().toISOString(),
       });
 
-      // `LineKeywordAiReviewer.review()` never throws (see
-      // `line-keyword-reviewer.ts`) -- its `{ ok: false, error }` result is a
-      // normal resolved value, so a single line's AI failure can never cause
-      // this task (or `Promise.all` below) to reject and abort sibling
-      // lines/jobs (requirement 4.3).
       reviewTasks.push(
         limit(async () => {
           const review = await reviewer.review({
             lineText: line.content,
-            candidateKeywords,
-            keywordCategoryMap,
+            categories,
           });
 
           let finalGroups: KeywordGroup[];
-          let finalKeywords: string[];
           let ai_status: SupabaseTable.JobDescriptionLineKeyword['ai_status'];
-          let ai_is_correct: boolean | null;
 
           if (review.ok) {
             finalGroups = review.groups;
-            finalKeywords = Array.from(new Set(finalGroups.flatMap(g => g.keywords)));
             ai_status = 'ok';
-            ai_is_correct = review.isCorrect;
           } else {
-            // Degrade: fall back to the rule-based candidate set (requirement 4.1).
-            finalGroups = candidateKeywords.map(k => ({
-              category: keywordCategoryMap[k] ?? 'other',
-              keywords: [k],
-            }));
-            finalKeywords = candidateKeywords;
+            finalGroups = [];
             ai_status = 'failed';
-            ai_is_correct = null;
           }
 
-          jobResult.lineFinalKeywords.push(finalKeywords);
           jobResult.lineGroups.push(finalGroups);
 
           lineKeywordRows.push({
             id: crypto.randomUUID(),
             line_id: lineId,
-            rule_keywords: candidateKeywords,
+            rule_keywords: [],
             ai_status,
-            ai_is_correct,
+            ai_is_correct: null,
             final_keyword_groups: finalGroups,
             reviewed_at: new Date().toISOString(),
           });
@@ -181,10 +130,6 @@ export async function generateJobKeywordsFromLines(
   await new JobDescriptionLineService().reset(lineRows);
   await new JobDescriptionLineKeywordService().reset(lineKeywordRows);
 
-  // design.md step 5 (5.1, 5.3): aggregate each job's per-line final keyword
-  // sets by flattening + `Set`-dedupe. A job with zero lines has an empty
-  // `lineFinalKeywords` array, so `flat()` + `new Set(...)` naturally yields
-  // `[]` -- no special-casing needed for the "no valid lines" case.
   const jobKeywords: SupabaseTable.Job_.Keyword[] = jobResults.map(jobResult => {
     const allGroups: KeywordGroup[] = jobResult.lineGroups.flat();
     const seen = new Set<string>();
@@ -202,7 +147,5 @@ export async function generateJobKeywordsFromLines(
     };
   });
 
-  // design.md step 7 (5.2): same shape/interface as the existing
-  // `resetJobKeywords()`'s `JobKeywordService().upsert(jobKeywords)` call.
   await new JobKeywordService().upsert(jobKeywords);
 }

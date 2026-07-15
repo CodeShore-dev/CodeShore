@@ -1,6 +1,6 @@
 import { LineKeywordAiReviewer, TOOL_NAME, INPUT_SCHEMA } from './line-keyword-reviewer';
 
-describe('LineKeywordAiReviewer.review (legacy — isCorrect + keywords)', () => {
+describe('LineKeywordAiReviewer.review', () => {
   it('passes through the { ok: false, error } result from completeStructured without catching/throwing', async () => {
     const llmClient = {
       completeStructured: vi.fn().mockResolvedValue({
@@ -12,21 +12,17 @@ describe('LineKeywordAiReviewer.review (legacy — isCorrect + keywords)', () =>
 
     const result = await reviewer.review({
       lineText: 'We use React.',
-      candidateKeywords: ['react'],
-      keywordCategoryMap: {},
+      categories: ['frontend_framework'],
     });
 
     expect(result).toEqual({ ok: false, error: 'OpenRouter API request failed: timeout' });
   });
-});
 
-describe('LineKeywordAiReviewer.review (grouped output)', () => {
-  it('returns ok:true with groups when AI confirms the candidate set (isCorrect:true)', async () => {
+  it('returns ok:true with groups when AI identifies keywords from the line', async () => {
     const llmClient = {
       completeStructured: vi.fn().mockResolvedValue({
         ok: true,
         result: {
-          isCorrect: true,
           groups: [
             { category: 'language', keywords: ['typescript'] },
             { category: 'frontend_framework', keywords: ['react'] },
@@ -39,13 +35,11 @@ describe('LineKeywordAiReviewer.review (grouped output)', () => {
 
     const result = await reviewer.review({
       lineText: 'We use TypeScript and React.',
-      candidateKeywords: ['typescript', 'react'],
-      keywordCategoryMap: { typescript: 'language', react: 'frontend_framework' },
+      categories: ['language', 'frontend_framework'],
     });
 
     expect(result).toEqual({
       ok: true,
-      isCorrect: true,
       groups: [
         { category: 'language', keywords: ['typescript'] },
         { category: 'frontend_framework', keywords: ['react'] },
@@ -54,30 +48,27 @@ describe('LineKeywordAiReviewer.review (grouped output)', () => {
     });
   });
 
-  it('returns ok:true with corrected groups when AI adjusts the candidate set (isCorrect:false)', async () => {
+  it('returns ok:true with empty groups when no tech keywords are found', async () => {
     const llmClient = {
       completeStructured: vi.fn().mockResolvedValue({
         ok: true,
         result: {
-          isCorrect: false,
-          groups: [{ category: 'frontend_framework', keywords: ['react'] }],
-          reasoning: '"TypeScript" was a false positive; only React is mentioned.',
+          groups: [],
+          reasoning: 'No technology keywords in this line.',
         },
       }),
     };
     const reviewer = new LineKeywordAiReviewer(llmClient as any);
 
     const result = await reviewer.review({
-      lineText: 'We use React.',
-      candidateKeywords: ['react', 'typescript'],
-      keywordCategoryMap: { react: 'frontend_framework', typescript: 'language' },
+      lineText: '具備良好溝通能力',
+      categories: ['frontend_framework'],
     });
 
     expect(result).toEqual({
       ok: true,
-      isCorrect: false,
-      groups: [{ category: 'frontend_framework', keywords: ['react'] }],
-      reasoning: '"TypeScript" was a false positive; only React is mentioned.',
+      groups: [],
+      reasoning: 'No technology keywords in this line.',
     });
   });
 
@@ -86,7 +77,6 @@ describe('LineKeywordAiReviewer.review (grouped output)', () => {
       completeStructured: vi.fn().mockResolvedValue({
         ok: true,
         result: {
-          isCorrect: true,
           groups: [{ category: 'backend_runtime', keywords: ['node.js', 'golang'] }],
           reasoning: '"或" indicates alternatives — placed in same OR group.',
         },
@@ -96,13 +86,11 @@ describe('LineKeywordAiReviewer.review (grouped output)', () => {
 
     const result = await reviewer.review({
       lineText: 'Node.js 或 Golang',
-      candidateKeywords: ['node.js', 'golang'],
-      keywordCategoryMap: { 'node.js': 'backend_runtime', golang: 'backend_runtime' },
+      categories: ['backend_runtime'],
     });
 
     expect(result).toEqual({
       ok: true,
-      isCorrect: true,
       groups: [{ category: 'backend_runtime', keywords: ['node.js', 'golang'] }],
       reasoning: '"或" indicates alternatives — placed in same OR group.',
     });
@@ -113,7 +101,6 @@ describe('LineKeywordAiReviewer.review (grouped output)', () => {
       completeStructured: vi.fn().mockResolvedValue({
         ok: true,
         result: {
-          isCorrect: true,
           groups: [
             { category: 'backend_runtime', keywords: ['node.js'] },
             { category: 'backend_runtime', keywords: ['golang'] },
@@ -126,13 +113,11 @@ describe('LineKeywordAiReviewer.review (grouped output)', () => {
 
     const result = await reviewer.review({
       lineText: 'Node.js 和 Golang',
-      candidateKeywords: ['node.js', 'golang'],
-      keywordCategoryMap: { 'node.js': 'backend_runtime', golang: 'backend_runtime' },
+      categories: ['backend_runtime'],
     });
 
     expect(result).toEqual({
       ok: true,
-      isCorrect: true,
       groups: [
         { category: 'backend_runtime', keywords: ['node.js'] },
         { category: 'backend_runtime', keywords: ['golang'] },
@@ -141,51 +126,44 @@ describe('LineKeywordAiReviewer.review (grouped output)', () => {
     });
   });
 
-  it('passes keywordCategoryMap in the input forwarded to completeStructured', async () => {
+  it('passes categories in the input forwarded to completeStructured', async () => {
     const llmClient = {
       completeStructured: vi.fn().mockResolvedValue({
         ok: true,
         result: {
-          isCorrect: true,
           groups: [{ category: 'language', keywords: ['typescript'] }],
           reasoning: 'Correct.',
         },
       }),
     };
     const reviewer = new LineKeywordAiReviewer(llmClient as any);
-    const keywordCategoryMap = { typescript: 'language' };
+    const categories = ['language', 'frontend_framework'];
 
     await reviewer.review({
       lineText: 'TypeScript required.',
-      candidateKeywords: ['typescript'],
-      keywordCategoryMap,
+      categories,
     });
 
     expect(llmClient.completeStructured).toHaveBeenCalledWith(
       expect.objectContaining({
         toolName: TOOL_NAME,
-        input: expect.objectContaining({ keywordCategoryMap }),
+        input: expect.objectContaining({ categories }),
       }),
     );
   });
 
-  it('requests the review_line_keywords tool with inputSchema requiring isCorrect, groups, and reasoning', async () => {
+  it('requests the review_line_keywords tool with inputSchema requiring groups and reasoning', async () => {
     const llmClient = {
       completeStructured: vi.fn().mockResolvedValue({
         ok: true,
-        result: {
-          isCorrect: true,
-          groups: [],
-          reasoning: 'No keywords found in this line.',
-        },
+        result: { groups: [], reasoning: 'No keywords found.' },
       }),
     };
     const reviewer = new LineKeywordAiReviewer(llmClient as any);
 
     await reviewer.review({
       lineText: 'Nothing technical here.',
-      candidateKeywords: [],
-      keywordCategoryMap: {},
+      categories: [],
     });
 
     expect(llmClient.completeStructured).toHaveBeenCalledWith(
@@ -193,15 +171,17 @@ describe('LineKeywordAiReviewer.review (grouped output)', () => {
         toolName: 'review_line_keywords',
         inputSchema: expect.objectContaining({
           type: 'object',
-          required: expect.arrayContaining(['isCorrect', 'groups', 'reasoning']),
+          required: expect.arrayContaining(['groups', 'reasoning']),
         }),
       }),
     );
   });
 
-  it('INPUT_SCHEMA does not contain "keywords" as a top-level required field', () => {
+  it('INPUT_SCHEMA required fields are exactly ["groups", "reasoning"] with no "keywords" or "isCorrect"', () => {
     const schema = INPUT_SCHEMA as { required?: string[] };
     expect(schema.required).not.toContain('keywords');
+    expect(schema.required).not.toContain('isCorrect');
     expect(schema.required).toContain('groups');
+    expect(schema.required).toContain('reasoning');
   });
 });

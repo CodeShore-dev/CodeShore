@@ -303,7 +303,7 @@ describe('generateJobDescriptionLineKeywords', () => {
     expect(successRow.final_keyword_groups).toEqual([{ category: 'backend_runtime', keywords: ['node.js'] }]);
   });
 
-  it('passes keywordCategoryMap to the reviewer so AI can assign categories', async () => {
+  it('passes categories (not full keyword map) to the reviewer so AI can assign categories', async () => {
     setupJobs([{ id: 'job-a' }]);
     mvTechFetchAll.mockResolvedValue({
       result: [
@@ -333,10 +333,9 @@ describe('generateJobDescriptionLineKeywords', () => {
     expect(completeStructured).toHaveBeenCalledTimes(1);
     const callArg = completeStructured.mock.calls[0][0];
     expect(callArg.input).toMatchObject({
-      keywordCategoryMap: expect.objectContaining({
-        'react': 'frontend_framework',
-        'typescript': 'language',
-      }),
+      categories: expect.arrayContaining(['frontend_framework', 'language']),
     });
+    // Must NOT contain the full keyword-to-category map.
+    expect(callArg.input).not.toHaveProperty('keywordCategoryMap');
   });
 });
