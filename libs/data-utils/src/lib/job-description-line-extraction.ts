@@ -10,6 +10,7 @@ import { JobDescriptionLineService } from './api/job_description_line.service';
 import { JobDescriptionLineKeywordService } from './api/job_description_line_keyword.service';
 import { MvTechService } from './api/mv_tech';
 import { AI_REVIEW_CONCURRENCY } from './job-keyword-line-extraction';
+import { ServiceLogger } from '@codeshore/service-logger';
 
 export interface GenerateJobDescriptionLinesOptions {
   /** Optional filter on `job`; omitted means every job. */
@@ -64,6 +65,7 @@ export interface GenerateJobDescriptionLineKeywordsOptions {
   concurrency?: number;
   /** Optional filter on `job`; omitted means every job's existing lines. */
   where?: Record<string, unknown>;
+  logger?: ServiceLogger;
 }
 
 /**
@@ -77,7 +79,7 @@ export async function generateJobDescriptionLineKeywords(
 ): Promise<void> {
   const { llmClient, concurrency = AI_REVIEW_CONCURRENCY, where } = options;
 
-  const reviewer = new LineKeywordAiReviewer(llmClient);
+  const reviewer = new LineKeywordAiReviewer(llmClient, options.logger);
   const limit = pLimit(concurrency);
 
   const { result: techs } = await new MvTechService().fetchAll({
@@ -130,5 +132,5 @@ export async function generateJobDescriptionLineKeywords(
   await Promise.all(reviewTasks);
 
   const lineIds = lines.map(line => line.id);
-  await new JobDescriptionLineKeywordService().replaceWhereIn('line_id', lineIds, lineKeywordRows);
+  await new JobDescriptionLineKeywordService(options.logger).replaceWhereIn('line_id', lineIds, lineKeywordRows);
 }

@@ -66,7 +66,7 @@ export namespace SupabaseTable {
     // 重新產生 supabase.schema.ts，屆時應改為以 `Modify<Row, {...}>` 窄化並移除
     // 此 intersection 寫法。
     export type Keyword = Database['public']['Tables']['job_keyword']['Row'] & {
-      keyword_groups: KeywordGroup[];
+      keyword_groups?: KeywordGroup[];
     };
     export type Tech = Database['public']['Tables']['job_tech']['Row'];
   }

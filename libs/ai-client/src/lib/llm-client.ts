@@ -147,7 +147,7 @@ export class OpenRouterLlmClient implements LlmClient {
 
       let parsedArguments: unknown;
       try {
-        parsedArguments = JSON.parse(toolCall.function.arguments);
+        parsedArguments = parseToolArguments(toolCall.function.arguments);
       } catch (error) {
         return {
           ok: false,
@@ -169,6 +169,21 @@ export class OpenRouterLlmClient implements LlmClient {
       ok: false,
       error: `OpenRouter response did not contain a tool call after ${MAX_ATTEMPTS} attempts (finishReason: ${lastFinishReason})`,
     };
+  }
+}
+
+// Some models (e.g. tencent/hy3) return tool call arguments wrapped in
+// <tool_call>{"name":"...","arguments":{...}}</tool_call> XML instead of raw JSON.
+function parseToolArguments(raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    const xmlMatch = raw.match(/<tool_call>\s*([\s\S]*?)\s*<\/tool_call>/);
+    if (xmlMatch) {
+      const inner = JSON.parse(xmlMatch[1]); // throws if inner is also malformed
+      return (inner as Record<string, unknown>)['arguments'] ?? inner;
+    }
+    throw new SyntaxError(`Not valid JSON: ${raw.slice(0, 80)}`);
   }
 }
 

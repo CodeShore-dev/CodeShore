@@ -23,10 +23,12 @@ import {
 } from '@codeshore/service-cache';
 
 import { QueryDto } from './../query.dto';
+import { ServiceLogger } from '@codeshore/service-logger';
 
 @Injectable()
 export class Service {
   constructor(
+    private readonly logger: ServiceLogger,
     private readonly cacheService: CacheService,
     private readonly techService: TechService,
     private readonly techKeywordService: TechKeywordService,
@@ -93,6 +95,7 @@ export class Service {
     return generateJobDescriptionLineKeywords({
       llmClient,
       where,
+      logger: this.logger
     });
   }
 

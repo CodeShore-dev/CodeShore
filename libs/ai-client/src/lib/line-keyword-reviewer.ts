@@ -1,6 +1,7 @@
 import type { KeywordGroup } from '@codeshore/data-types';
+
+import { ServiceLogger, OutboundLogger } from '@codeshore/service-logger';
 import type { LlmClient } from './llm-client';
-import type { OutboundLogger } from './outbound-logger';
 
 export interface LineKeywordReviewInput {
   lineText: string;
@@ -72,10 +73,17 @@ Examples:
 export class LineKeywordAiReviewer {
   constructor(
     private readonly llmClient: LlmClient,
-    private readonly logger?: OutboundLogger,
+    private readonly logger?: ServiceLogger,
   ) {}
 
   async review(input: LineKeywordReviewInput): Promise<LineKeywordReviewResult> {
+    const logger = this.logger ? new OutboundLogger(this.logger) : undefined;
+
+    const logRequest = logger?.logRequest({
+      name: 'LineKeywordAiReviewer.review',
+      body: input,
+    });
+
     const completion = await this.llmClient.completeStructured<LineKeywordReviewLlmResult>({
       systemPrompt: SYSTEM_PROMPT,
       userPrompt: buildUserPrompt(input),
@@ -85,8 +93,14 @@ export class LineKeywordAiReviewer {
     });
 
     if (!completion.ok) {
+      logRequest?.logException(completion.error);
       return completion;
     }
+
+    logRequest?.logResponse({
+      data: completion.result,
+      status: 200,
+    });
 
     const { groups, reasoning } = completion.result;
     return { ok: true, groups, reasoning };
@@ -104,3 +118,4 @@ function buildUserPrompt(input: LineKeywordReviewInput): string {
     'Identify technology keywords in this line, group them by OR/AND semantics, and assign each group a category.',
   ].join('\n');
 }
+
