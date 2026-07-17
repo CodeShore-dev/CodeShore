@@ -12,7 +12,7 @@ export function AppMobileNav() {
         <Link
           key={link.to}
           to={link.to}
-          className={`flex flex-col items-center justify-center p-2 transition ${
+          className={`flex min-w-0 flex-col items-center justify-center gap-0.5 p-1 transition ${
             isActive(link)
               ? 'text-[#003d92]'
               : 'text-[#434653] hover:text-[#003d92]'
@@ -28,13 +28,19 @@ export function AppMobileNav() {
           >
             {link.icon}
           </span>
+          <span className="whitespace-nowrap text-[10px] leading-none font-medium">
+            {link.label}
+          </span>
         </Link>
       ))}
       <Link
         to="/methodology"
-        className="flex flex-col items-center justify-center p-2 text-[#434653] transition hover:text-[#003d92]"
+        className="flex min-w-0 flex-col items-center justify-center gap-0.5 p-1 text-[#434653] transition hover:text-[#003d92]"
       >
         <span className="material-symbols-outlined transition">policy</span>
+        <span className="whitespace-nowrap text-[10px] leading-none font-medium">
+          公開透明
+        </span>
       </Link>
       <MoreNavMenu links={moreLinks} isActive={isActive} variant="mobile" />
     </nav>

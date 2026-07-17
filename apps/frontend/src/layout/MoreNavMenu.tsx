@@ -51,7 +51,7 @@ export function MoreNavMenu({ links, isActive, variant }: MoreNavMenuProps) {
                   ? 'bg-[#003d92]/10 text-[#003d92]'
                   : 'text-[#434653] hover:bg-[#001f2a]/4 hover:text-[#001f2a]'
               }`
-            : `flex flex-col items-center justify-center p-2 transition ${
+            : `flex min-w-0 flex-col items-center justify-center gap-0.5 p-1 transition ${
                 anyActive ? 'text-[#003d92]' : 'text-[#434653] hover:text-[#003d92]'
               }`
         }
@@ -64,9 +64,14 @@ export function MoreNavMenu({ links, isActive, variant }: MoreNavMenuProps) {
             </span>
           </>
         ) : (
-          <span className="material-symbols-outlined transition">
-            more_horiz
-          </span>
+          <>
+            <span className="material-symbols-outlined transition">
+              more_horiz
+            </span>
+            <span className="whitespace-nowrap text-[10px] leading-none font-medium">
+              更多
+            </span>
+          </>
         )}
       </button>
 
