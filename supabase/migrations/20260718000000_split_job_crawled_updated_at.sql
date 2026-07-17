@@ -172,3 +172,61 @@ AS $function$
        AND jp.user_id = p_user_id
    );
  $function$;
+
+-- Step 9 (task 1.3): rewrite the two crawl-activity statistics functions to
+-- read the job table's `crawled_at` column instead of `updated_at`.
+--
+-- Requirement 4.2: 管理後台顯示每日爬取數量統計或依日期分組的爬取數量, shall
+--   以「爬取時間」作為統計依據 -- these two functions back the admin crawl
+--   activity dashboards, and their purpose has always been "how many jobs
+--   did the crawler touch", not "how many jobs really changed content". Now
+--   that those are two different physical columns, the functions must keep
+--   reading the crawl-time column, which after Step 1 above is `crawled_at`
+--   (the old `updated_at` was renamed there; leaving these functions
+--   unchanged would silently repoint them at the new real-change-time
+--   `updated_at` column added in Step 2, breaking Requirement 4.2).
+--
+-- Both functions query the base `job` table directly (not `mv_job`, which
+-- intentionally does not expose `crawled_at` per design.md Non-Goals), so
+-- only the column name referenced in the SQL body changes here.
+--
+-- `RETURNS TABLE(...)` column names/order are left byte-for-byte identical
+-- to the current `schema.sql` definitions (`new_jobs_date`, `new_jobs_count`,
+-- `updated_jobs_date`, `updated_jobs_count` / `updated_date`, `count`) --
+-- only the internal reference to which physical column to read from changes,
+-- per design.md §6.1 steps 7-8. Downstream TypeScript types (`JobCrawlStats`,
+-- `JobUpdateDateCount`) are derived from these return shapes and do not need
+-- to change.
+--
+-- Neither function is touched by any migration pending between
+-- `alter_refresh_mv_job_statement_timeout` (last applied) and this file, so
+-- `schema.sql`'s current text for both is the correct base to modify.
+CREATE OR REPLACE FUNCTION public.get_job_crawl_stats(p_days integer DEFAULT 7)
+ RETURNS TABLE(new_jobs_date date, new_jobs_count bigint, updated_jobs_date date, updated_jobs_count bigint)
+ LANGUAGE sql
+ STABLE
+AS $function$
+  WITH bounds AS (
+    SELECT
+      max(created_at)::date AS c_date,
+      max(crawled_at)::date AS u_date
+    FROM job
+  )
+  SELECT
+    b.c_date AS new_jobs_date,
+    (SELECT count(*) FROM job WHERE created_at::date >= b.c_date - p_days) AS new_jobs_count,
+    b.u_date AS updated_jobs_date,
+    (SELECT count(*) FROM job WHERE crawled_at::date >= b.u_date - p_days) AS updated_jobs_count
+  FROM bounds b;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.get_job_update_date_counts()
+ RETURNS TABLE(updated_date date, count bigint)
+ LANGUAGE sql
+ STABLE
+AS $function$
+  SELECT crawled_at::date AS updated_date, count(*) AS count
+  FROM job
+  GROUP BY crawled_at::date
+  ORDER BY crawled_at::date DESC;
+$function$;
