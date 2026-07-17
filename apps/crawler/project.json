@@ -42,7 +42,7 @@
       "dependsOn": ["build"],
       "executor": "nx:run-commands",
       "options": {
-        "command": "powershell -Command \"if (Test-Path _dist) { Remove-Item -Recurse -Force _dist }; New-Item -ItemType Directory _dist | Out-Null; Get-ChildItem dist | Copy-Item -Destination _dist -Recurse\""
+        "command": "node scripts/copy-dist.mjs"
       }
     },
     "prune-lockfile": {
