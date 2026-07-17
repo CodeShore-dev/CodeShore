@@ -636,7 +636,6 @@ export type Database = {
           description_ch_en_ratio: number | null
           detail_link: string | null
           id: string | null
-          keyword_groups: Json | null
           location: string | null
           max_salary: number | null
           min_salary: number | null
@@ -814,7 +813,6 @@ export type Database = {
           description_ch_en_ratio: number
           detail_link: string
           id: string
-          keyword_groups: Json
           location: string
           max_salary: number
           min_salary: number
@@ -866,7 +864,6 @@ export type Database = {
           description_ch_en_ratio: number | null
           detail_link: string | null
           id: string | null
-          keyword_groups: Json | null
           location: string | null
           max_salary: number | null
           min_salary: number | null
