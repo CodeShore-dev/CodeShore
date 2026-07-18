@@ -220,10 +220,22 @@ async function main() {
   try {
     mkdirSync(dirname(TYPES_FILE), { recursive: true });
     // The CLI reads SUPABASE_ACCESS_TOKEN from the environment (already loaded).
-    const types = execSync(
+    const rawTypes = execSync(
       `pnpm supabase gen types typescript --project-id ${PROJECT_ID} --schema public`,
       { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, cwd: PROJECT_ROOT }
     );
+    // pnpm sometimes prints an "Unsupported engine" warning to stdout ahead of
+    // the actual command output (observed when the local Node version doesn't
+    // match package.json's engines.node), which would otherwise get baked
+    // into the generated file as invalid TypeScript. The real output always
+    // starts with the `Json` type alias, so discard anything before that.
+    const markerIndex = rawTypes.indexOf('export type Json');
+    if (markerIndex === -1) {
+      throw new Error(
+        'Could not find "export type Json" in `supabase gen types typescript` output -- CLI output format may have changed or the command failed silently.'
+      );
+    }
+    const types = rawTypes.slice(markerIndex);
     writeFileSync(TYPES_FILE, types, 'utf8');
     log(`Types written to ${TYPES_FILE}`);
   } catch (err) {

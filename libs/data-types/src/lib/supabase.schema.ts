@@ -1,4 +1,3 @@
-[43m[33m[[39m[49m[43m[30mWARN[39m[49m[43m[33m][39m[49m Unsupported engine: wanted: {"node":"22.x"} (current: {"node":"v24.18.0","pnpm":"11.13.0"})
 export type Json =
   | string
   | number
