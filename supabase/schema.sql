@@ -181,7 +181,7 @@ CREATE UNIQUE INDEX ux_ai_suggestion_pending_target ON public.ai_suggestion USIN
 CREATE INDEX ix_job_closed ON public.job USING btree (closed);
 CREATE INDEX ix_job_closed_company_id ON public.job USING btree (closed, company_id);
 CREATE INDEX ix_job_company_id ON public.job USING btree (company_id);
-CREATE INDEX ix_job_min_salary_max_salary_updated_at ON public.job USING btree (min_salary DESC, max_salary DESC, crawled_at DESC);
+CREATE INDEX ix_job_min_salary_max_salary_updated_at ON public.job USING btree (min_salary DESC, max_salary DESC, updated_at DESC);
 CREATE INDEX job_location_idx ON public.job USING btree (location);
 CREATE INDEX ix_job_description_line_job_id ON public.job_description_line USING btree (job_id);
 CREATE UNIQUE INDEX ux_job_filter_subscription_user_snapshot ON public.job_filter_subscription USING btree (user_id, filter_snapshot);
