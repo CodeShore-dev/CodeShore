@@ -88,6 +88,30 @@ function buildRequireToCrawlJobFields(
   };
 }
 
+// Task 3.2: `ExistingJob` (apps/crawler/src/@types.ts) was widened in task
+// 2.2 to carry title/description/location/salary/salary_manual/closed on
+// top of id/updated_at/created_at, so `hasJobFieldsChanged` has real fields
+// to diff against. Fixture defaults intentionally mirror
+// `buildJobOnAPIFixture`/`buildDetailFixture`'s defaults (same title,
+// location, description-with-tags, salary) so a "no override" existingItem
+// represents an unchanged job.
+function buildExistingItemFixture(
+  overrides: Partial<NonNullable<RequireToCrawlJob['existingItem']>> = {},
+): NonNullable<RequireToCrawlJob['existingItem']> {
+  return {
+    id: 'senior-backend-engineer',
+    updated_at: new Date('2026-01-01T00:00:00.000Z'),
+    created_at: new Date('2025-01-01T00:00:00.000Z'),
+    title: '資深後端工程師',
+    description: '負責後端服務開發與維運\nTags: 後端, Node.js',
+    location: '台北市信義區',
+    salary: '月薪 70,000 元以上',
+    salary_manual: false,
+    closed: false,
+    ...overrides,
+  };
+}
+
 describe('cookRawJob (pure transform, pre-migration behavior preserved)', () => {
   it('produces the same Entry shape as before for a normal (non-empty description) job', () => {
     const job = {
@@ -115,6 +139,104 @@ describe('cookRawJob (pure transform, pre-migration behavior preserved)', () => 
       type: '軟體及網路相關業',
     });
     expect(entry.jobKeyword.id).toBe('senior-backend-engineer');
+  });
+});
+
+// Task 3.2: `crawled_at`/`updated_at` split per design.md §6.3 一般爬取路徑.
+// `crawled_at` always advances to "now" on every re-process; `updated_at`
+// only advances when `hasJobFieldsChanged` detects a real content diff
+// against `existingItem` (with the `salary_manual` exemption honored).
+describe('cookRawJob crawled_at / updated_at split (task 3.2)', () => {
+  it('new job (needToCreate: true): sets both crawled_at and updated_at to now', () => {
+    const job = {
+      ...buildJobOnAPIFixture(),
+      ...buildRequireToCrawlJobFields({
+        needToCreate: true,
+        existingItem: undefined,
+      }),
+    };
+    const detail = buildDetailFixture();
+
+    const before = Date.now();
+    const entry = cookRawJob(job, detail);
+    const after = Date.now();
+
+    expect(entry.job.crawled_at).toBeInstanceOf(Date);
+    expect(entry.job.updated_at).toBeInstanceOf(Date);
+    const crawledAtTime = (entry.job.crawled_at as unknown as Date).getTime();
+    const updatedAtTime = (entry.job.updated_at as unknown as Date).getTime();
+    expect(crawledAtTime).toBeGreaterThanOrEqual(before);
+    expect(crawledAtTime).toBeLessThanOrEqual(after);
+    expect(updatedAtTime).toBeGreaterThanOrEqual(before);
+    expect(updatedAtTime).toBeLessThanOrEqual(after);
+  });
+
+  it('existing job, no field changed: crawled_at updates to now, updated_at stays as existingItem.updated_at', () => {
+    const existingItem = buildExistingItemFixture();
+    const job = {
+      ...buildJobOnAPIFixture(),
+      ...buildRequireToCrawlJobFields({
+        needToCreate: false,
+        existingItem,
+      }),
+    };
+    // Matches existingItem's title/location/description(+tags)/salary exactly.
+    const detail = buildDetailFixture();
+
+    const before = Date.now();
+    const entry = cookRawJob(job, detail);
+    const after = Date.now();
+
+    const crawledAtTime = (entry.job.crawled_at as unknown as Date).getTime();
+    expect(crawledAtTime).toBeGreaterThanOrEqual(before);
+    expect(crawledAtTime).toBeLessThanOrEqual(after);
+    expect(entry.job.updated_at).toEqual(existingItem.updated_at);
+  });
+
+  it('existing job, some field changed (description): both crawled_at and updated_at update to now', () => {
+    const existingItem = buildExistingItemFixture();
+    const job = {
+      ...buildJobOnAPIFixture(),
+      ...buildRequireToCrawlJobFields({
+        needToCreate: false,
+        existingItem,
+      }),
+    };
+    const detail = buildDetailFixture({ description: '全新的職缺描述內容' });
+
+    const before = Date.now();
+    const entry = cookRawJob(job, detail);
+    const after = Date.now();
+
+    const crawledAtTime = (entry.job.crawled_at as unknown as Date).getTime();
+    const updatedAtTime = (entry.job.updated_at as unknown as Date).getTime();
+    expect(crawledAtTime).toBeGreaterThanOrEqual(before);
+    expect(crawledAtTime).toBeLessThanOrEqual(after);
+    expect(updatedAtTime).toBeGreaterThanOrEqual(before);
+    expect(updatedAtTime).toBeLessThanOrEqual(after);
+  });
+
+  it('existing job with salary_manual: true and only salary differs: updated_at does NOT update (salary comparison excluded)', () => {
+    const existingItem = buildExistingItemFixture({
+      salary_manual: true,
+      salary: '面議（人工調整）',
+    });
+    const job = {
+      ...buildJobOnAPIFixture(),
+      ...buildRequireToCrawlJobFields({
+        needToCreate: false,
+        existingItem,
+      }),
+    };
+    // Only salary differs from existingItem; title/location/description match.
+    const detail = buildDetailFixture({ salary: '月薪 90,000 元以上' });
+
+    const entry = cookRawJob(job, detail);
+
+    // The Entry's own `salary` field is still freshly written (salary_manual
+    // only exempts the *comparison*, not the write).
+    expect(entry.job.salary).toBe('月薪 90,000 元以上');
+    expect(entry.job.updated_at).toEqual(existingItem.updated_at);
   });
 });
 
@@ -148,11 +270,7 @@ describe('buildPersistItem (new CrawlRouterConfig.buildPersistItem callback, tas
   });
 
   it('(b) empty-description + existing item: produces a closed-job update equivalent to the original {...existingJob, updated_at, closed:true} fallback', () => {
-    const existingItem = {
-      id: 'senior-backend-engineer',
-      updated_at: new Date('2026-01-01T00:00:00.000Z'),
-      created_at: new Date('2025-01-01T00:00:00.000Z'),
-    };
+    const existingItem = buildExistingItemFixture({ closed: false });
     const item = {
       ...buildJobOnAPIFixture(),
       ...buildRequireToCrawlJobFields({
@@ -247,11 +365,12 @@ describe('buildPersistItem (new CrawlRouterConfig.buildPersistItem callback, tas
       company_type: '軟體及網路相關業',
     });
 
-    const existingItemB = {
+    const existingItemB = buildExistingItemFixture({
       id: 'data-engineer',
       updated_at: new Date('2026-02-01T00:00:00.000Z'),
       created_at: new Date('2025-02-01T00:00:00.000Z'),
-    };
+      closed: false,
+    });
     const jobB = {
       ...buildJobOnAPIFixture({
         path: 'data-engineer',
@@ -341,5 +460,59 @@ describe('buildPersistItem (new CrawlRouterConfig.buildPersistItem callback, tas
 
     // Cross-item isolation: job-A's fields must not leak into job-B's result.
     expect(resultB.job.id).not.toBe(resultA.job.id);
+  });
+
+  // Task 3.2: closed-fallback branch crawled_at/updated_at split per
+  // design.md §6.3 一般爬取路徑 closed-fallback 分支.
+  it('(e) closed-fallback, job was NOT already closed: crawled_at updates and updated_at updates too (real transition)', () => {
+    const existingItem = buildExistingItemFixture({ closed: false });
+    const item = {
+      ...buildJobOnAPIFixture(),
+      ...buildRequireToCrawlJobFields({
+        needToCreate: false,
+        existingItem,
+      }),
+    };
+    const detail = buildDetailFixture({ description: '' });
+
+    const before = Date.now();
+    const result = buildPersistItem([])(item, detail);
+    const after = Date.now();
+
+    expect(result?.job.closed).toBe(true);
+    const crawledAtTime = (
+      result?.job.crawled_at as unknown as Date
+    ).getTime();
+    const updatedAtTime = (
+      result?.job.updated_at as unknown as Date
+    ).getTime();
+    expect(crawledAtTime).toBeGreaterThanOrEqual(before);
+    expect(crawledAtTime).toBeLessThanOrEqual(after);
+    expect(updatedAtTime).toBeGreaterThanOrEqual(before);
+    expect(updatedAtTime).toBeLessThanOrEqual(after);
+  });
+
+  it('(f) closed-fallback, job WAS already closed: crawled_at updates, updated_at stays unchanged', () => {
+    const existingItem = buildExistingItemFixture({ closed: true });
+    const item = {
+      ...buildJobOnAPIFixture(),
+      ...buildRequireToCrawlJobFields({
+        needToCreate: false,
+        existingItem,
+      }),
+    };
+    const detail = buildDetailFixture({ description: '' });
+
+    const before = Date.now();
+    const result = buildPersistItem([])(item, detail);
+    const after = Date.now();
+
+    expect(result?.job.closed).toBe(true);
+    const crawledAtTime = (
+      result?.job.crawled_at as unknown as Date
+    ).getTime();
+    expect(crawledAtTime).toBeGreaterThanOrEqual(before);
+    expect(crawledAtTime).toBeLessThanOrEqual(after);
+    expect(result?.job.updated_at).toEqual(existingItem.updated_at);
   });
 });
