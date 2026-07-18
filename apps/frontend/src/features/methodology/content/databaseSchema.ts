@@ -90,7 +90,7 @@ export const databaseSchema: DatabaseSchema = {
       detail: {
         role: '職缺主表・所有分析的事實來源',
         usage:
-          '保存標題、地點、薪資原字串與解析出的 min/max_salary、salary_type、職缺描述、closed 等；以 company_id 外鍵連向 company。是所有物化視圖與多數 function 的事實基礎。',
+          '保存標題、地點、薪資原字串與解析出的 min/max_salary、salary_type、職缺描述、closed、crawled_at（最近一次被爬蟲處理的時間，不論內容是否改變）與 updated_at（該筆職缺內容真正發生異動的時間）等；以 company_id 外鍵連向 company。是所有物化視圖與多數 function 的事實基礎。',
       },
     },
     {
@@ -453,8 +453,8 @@ export const databaseSchema: DatabaseSchema = {
       status: 'active',
       interactive: true,
       detail: {
-        role: '更新日期分布',
-        usage: '依 updated_at 日期統計職缺數。讀自 job。',
+        role: '爬取日期分布',
+        usage: '依 crawled_at（爬取時間）日期統計職缺數。讀自 job。供爬蟲監測，不受內容是否真的異動影響。',
       },
     },
     {
