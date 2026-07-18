@@ -15,7 +15,8 @@ apps/
     config/         ← 集中式環境讀取（env.ts）
     utils/          ← 純工具函式（format.ts 等）
   backend/src/
-    modules/        ← NestJS 模組
+    app/            ← Nest 進入模組（AppModule）
+    features/       ← 功能模組（feature-first，對應 frontend 模式）
 libs/
   data-types/           ← 前後端共用型別（@codeshore/data-types）
   data-utils/           ← Supabase 資料存取層（@codeshore/data-utils）
@@ -25,9 +26,28 @@ libs/
   service-logger/       ← NestJS logging 模組
   service-utils/        ← NestJS utilities（全域例外 filter、request wrapper）
   service-cache/        ← NestJS 快取模組（in-memory cache + interceptor）
-  service-config/       ← NestJS 設定模組
+  service-transport/    ← NestJS 傳輸層（inbound interceptor、全域 exception filter）
   service-serve-static/ ← NestJS 靜態檔案服務
+  ai-client/            ← LLM client 封裝（LangChain/LangGraph + Anthropic SDK，如 line-keyword-reviewer）
+  crawler-core/         ← 爬蟲共用工具（url、time、human-behavior 反偵測）
+  sync-core/            ← 資料同步引擎（source registry + staleness-based sync）
+  codebook/             ← 共用錯誤碼（ServiceCode enum + ServiceException）
 ```
+
+## Backend Feature-First 模式
+
+後端與前端共用 feature-first 組織原則，每個功能模組自包：
+
+```
+features/{feature}/
+  controller.ts   ← NestJS controller（路由入口）
+  service.ts      ← 業務邏輯
+  module.ts       ← NestJS module 定義
+  dto.ts          ← 請求/回應 DTO（視功能而定）
+  *.spec.ts       ← 與被測檔案同層（如 service.spec.ts）
+```
+
+**現有 backend features**：`admin`、`ai-suggestion`、`auth`、`cache`、`company`、`job`、`job-filter-watchlist`、`keyword`、`keyword-curation`
 
 ## Feature-First 模式
 
@@ -44,7 +64,7 @@ features/{feature}/
   service.ts      ← API 呼叫（async functions，框架無關，直接 import）
 ```
 
-**現有 features**：`admin`、`auth`、`company`、`home`、`job`、`keyword`、`methodology`、`techs`
+**現有 frontend features**：`admin`、`ai-suggestion`、`auth`、`company`、`home`、`job`、`job-filter-watchlist`、`keyword`、`keyword-curation`、`methodology`、`not-found`、`techs`
 
 ## 命名慣例
 

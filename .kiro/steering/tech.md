@@ -25,7 +25,7 @@
 - **NestJS 11.x**（Express platform）
 - **Supabase** PostgreSQL 作為主資料庫
 - **Puppeteer + Crawlee** 爬蟲
-- **LangChain / LangGraph + Anthropic SDK** 用於 AI 功能
+- **LangChain / LangGraph + Anthropic SDK** 用於 AI 功能，經 `@langchain/openrouter` 走 OpenRouter 路由（非直連單一 provider），封裝於 `@codeshore/ai-client`
 
 ## TypeScript
 
