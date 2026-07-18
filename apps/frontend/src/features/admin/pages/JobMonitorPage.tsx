@@ -23,6 +23,7 @@ interface Condition {
 }
 
 const CONDITION_COLUMNS = [
+  { value: 'crawled_at', label: '爬取時間 crawled_at' },
   { value: 'updated_at', label: '更新時間 updated_at' },
   { value: 'created_at', label: '建立時間 created_at' },
   { value: 'salary_type', label: '薪資類型 salary_type' },
@@ -85,7 +86,7 @@ export function JobMonitorPage() {
   const [statsDaysDraft, setStatsDaysDraft] = useState(statsDays);
   const [staleDays, setStaleDays] = useState(30);
   const [conditions, setConditions] = useState<Condition[]>([
-    { column: 'updated_at', operator: 'lt', value: '' },
+    { column: 'crawled_at', operator: 'lt', value: '' },
   ]);
 
   const logRef = useRef<HTMLDivElement | null>(null);
@@ -130,7 +131,7 @@ export function JobMonitorPage() {
   const addCondition = (): void =>
     setConditions(cs => [
       ...cs,
-      { column: 'updated_at', operator: 'lt', value: '' },
+      { column: 'crawled_at', operator: 'lt', value: '' },
     ]);
 
   const removeCondition = (i: number): void =>
@@ -138,14 +139,14 @@ export function JobMonitorPage() {
       const next = cs.filter((_, idx) => idx !== i);
       return next.length
         ? next
-        : [{ column: 'updated_at', operator: 'lt', value: '' }];
+        : [{ column: 'crawled_at', operator: 'lt', value: '' }];
     });
 
   const addStaleCondition = (): void =>
     setConditions(cs => [
       ...cs,
       {
-        column: 'updated_at',
+        column: 'crawled_at',
         operator: 'lt',
         value: dayjs()
           .subtract(staleDays || 0, 'day')
