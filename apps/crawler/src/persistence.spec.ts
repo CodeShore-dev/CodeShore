@@ -110,7 +110,8 @@ describe('persistence', () => {
 
       expect(fetchAllMock).toHaveBeenCalledTimes(1);
       expect(fetchAllMock).toHaveBeenCalledWith({
-        select: 'id, updated_at, created_at',
+        select:
+          'id, updated_at, created_at, title, description, location, salary, salary_manual, closed',
       });
       expect(mapA).toBeInstanceOf(Map);
       expect(mapA.get('job-1')).toEqual({

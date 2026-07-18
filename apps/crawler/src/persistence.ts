@@ -34,7 +34,15 @@ import type {
 /** 既有 Job 的最小中繼資訊,對應原 `apps/crawler/src/@types.ts` 的 `ExistingJob`。 */
 export type ExistingJobMeta = Pick<
   SupabaseTable.Job,
-  'id' | 'updated_at' | 'created_at'
+  | 'id'
+  | 'updated_at'
+  | 'created_at'
+  | 'title'
+  | 'description'
+  | 'location'
+  | 'salary'
+  | 'salary_manual'
+  | 'closed'
 >;
 
 /**
@@ -69,7 +77,10 @@ export const syncRepository: SyncRepository<PersistItem, ExistingJobMeta> = {
   fetchExisting(): Promise<Map<string, ExistingJobMeta>> {
     if (!existingMetaPromise) {
       existingMetaPromise = new JobService()
-        .fetchAll({ select: 'id, updated_at, created_at' })
+        .fetchAll({
+          select:
+            'id, updated_at, created_at, title, description, location, salary, salary_manual, closed',
+        })
         .then(({ result }) => {
           const map = new Map<string, ExistingJobMeta>();
           for (const job of result as ExistingJobMeta[]) {

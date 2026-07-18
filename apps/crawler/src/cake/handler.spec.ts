@@ -231,7 +231,8 @@ describe('cake/handler.ts createHandler (post sync-core migration)', () => {
     // reproducing the pre-migration resolveExisting's Supabase query shape.
     const existingMap = await passedConfig.resolveExisting();
     expect(fetchAllMock).toHaveBeenCalledWith({
-      select: 'id, updated_at, created_at',
+      select:
+        'id, updated_at, created_at, title, description, location, salary, salary_manual, closed',
     });
     expect(existingMap.get('job-existing')).toEqual({
       id: 'job-existing',

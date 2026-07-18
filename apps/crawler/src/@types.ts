@@ -7,7 +7,15 @@ import type { RequireDetailCrawl } from '@codeshore/crawler-core';
  */
 export type ExistingJob = Pick<
   SupabaseTable.Job,
-  'id' | 'updated_at' | 'created_at'
+  | 'id'
+  | 'updated_at'
+  | 'created_at'
+  | 'title'
+  | 'description'
+  | 'location'
+  | 'salary'
+  | 'salary_manual'
+  | 'closed'
 >;
 
 /**
