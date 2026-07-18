@@ -135,7 +135,7 @@ export function LocationGroupTable({
                                 {job.title || '(無標題)'}
                               </a>
                               <span className="text-on-surface-variant shrink-0">
-                                {job.location || '—'} · {fmt(job.updated_at)}
+                                {job.location || '—'} · {fmt(job.crawled_at)}
                               </span>
                             </div>
                           ))}

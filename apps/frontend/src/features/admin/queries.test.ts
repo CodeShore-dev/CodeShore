@@ -8,7 +8,7 @@ import {
 import { AnomalyJob } from './service';
 
 const job = (id: string, location: string): AnomalyJob =>
-  ({ id, location, title: id, detail_link: '', updated_at: '' }) as AnomalyJob;
+  ({ id, location, title: id, detail_link: '', crawled_at: '' }) as AnomalyJob;
 
 describe('groupUnmappedJobs', () => {
   it('keeps locations at or above the threshold as their own rows', () => {

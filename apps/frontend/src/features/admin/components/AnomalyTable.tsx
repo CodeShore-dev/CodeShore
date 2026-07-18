@@ -210,7 +210,7 @@ export function AnomalyTable({
                     </td>
                   )}
                   <td className="text-on-surface-variant px-3 py-2 whitespace-nowrap sm:px-5">
-                    {fmt(job.updated_at)}
+                    {fmt(job.crawled_at)}
                   </td>
                   <td className="px-3 py-2 text-right sm:px-5">
                     <button

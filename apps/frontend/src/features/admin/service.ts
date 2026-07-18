@@ -13,7 +13,7 @@ export type AnomalyJob = {
   id: string;
   title: string;
   detail_link: string;
-  updated_at: string;
+  crawled_at: string;
   salary?: string;
   salary_type?: string;
   min_salary?: number;
