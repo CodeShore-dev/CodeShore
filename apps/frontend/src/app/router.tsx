@@ -1,5 +1,5 @@
 import { lazy } from 'react';
-import { createBrowserRouter, Navigate, type RouteObject } from 'react-router';
+import { Navigate, type RouteObject, createBrowserRouter } from 'react-router';
 
 import { AdminRoute } from './AdminRoute';
 import { ProtectedRoute } from './ProtectedRoute';
@@ -12,20 +12,14 @@ import { RouteErrorBoundary } from './RouteErrorBoundary';
 // fallback covers the entire router. Structural / guard components
 // (RootLayout, ProtectedRoute, AdminRoute) are NOT lazy because they are
 // always needed on first render.
-const HomePage = lazy(() =>
-  import('../features/home/pages/HomePage').then(m => ({ default: m.HomePage })),
-);
-const TechsPage = lazy(() =>
-  import('../features/techs/pages/TechsPage').then(m => ({ default: m.TechsPage })),
-);
+const HomePage = lazy(() => import('../features/home/pages/HomePage').then(m => ({ default: m.HomePage })));
+const TechsPage = lazy(() => import('../features/techs/pages/TechsPage').then(m => ({ default: m.TechsPage })));
 const MethodologyPage = lazy(() =>
   import('../features/methodology/pages/MethodologyPage').then(m => ({
     default: m.MethodologyPage,
   })),
 );
-const LoginPage = lazy(() =>
-  import('../features/auth/pages/LoginPage').then(m => ({ default: m.LoginPage })),
-);
+const LoginPage = lazy(() => import('../features/auth/pages/LoginPage').then(m => ({ default: m.LoginPage })));
 const AuthCallbackPage = lazy(() =>
   import('../features/auth/pages/AuthCallbackPage').then(m => ({
     default: m.AuthCallbackPage,
@@ -37,9 +31,9 @@ const JobPreferencePage = lazy(() =>
   })),
 );
 const JobFilterWatchlistPage = lazy(() =>
-  import('../features/job-filter-watchlist/pages/JobFilterWatchlistPage').then(
-    m => ({ default: m.JobFilterWatchlistPage }),
-  ),
+  import('../features/job-filter-watchlist/pages/JobFilterWatchlistPage').then(m => ({
+    default: m.JobFilterWatchlistPage,
+  })),
 );
 const CompanyListPage = lazy(() =>
   import('../features/company/pages/CompanyListPage').then(m => ({
@@ -66,6 +60,21 @@ const KeywordCurationPage = lazy(() =>
     default: m.KeywordCurationPage,
   })),
 );
+const OpenSourcePage = lazy(() =>
+  import('../features/about/pages/OpenSourcePage').then(m => ({
+    default: m.OpenSourcePage,
+  })),
+);
+const LegalNoticePage = lazy(() =>
+  import('../features/about/pages/LegalNoticePage').then(m => ({
+    default: m.LegalNoticePage,
+  })),
+);
+const ContactPage = lazy(() =>
+  import('../features/about/pages/ContactPage').then(m => ({
+    default: m.ContactPage,
+  })),
+);
 const NotFoundPage = lazy(() =>
   import('../features/not-found/pages/NotFoundPage').then(m => ({
     default: m.NotFoundPage,
@@ -84,6 +93,9 @@ export const PUBLIC_PATHS = [
   '/methodology',
   '/jobs',
   '/companies',
+  '/open-source',
+  '/legal',
+  '/contact',
 ] as const;
 
 // Full 10-route table (task 10.1) mapping every legacy vue-router path to its
@@ -126,6 +138,10 @@ export const routeConfig: RouteObject[] = [
       // itself isn't wrapped despite having login-gated sub-features.
       { path: '/jobs/watchlist', element: <JobFilterWatchlistPage /> },
       { path: '/companies', element: <CompanyListPage /> },
+
+      { path: '/open-source', element: <OpenSourcePage /> },
+      { path: '/legal', element: <LegalNoticePage /> },
+      { path: '/contact', element: <ContactPage /> },
 
       // Authenticated routes
       {

@@ -1,4 +1,4 @@
-import { matchRoutes, Navigate } from 'react-router';
+import { Navigate, matchRoutes } from 'react-router';
 import { describe, expect, it } from 'vitest';
 
 import { AdminRoute } from './AdminRoute';
@@ -15,9 +15,7 @@ function guardChainFor(path: string) {
   const matches = matchRoutes(routeConfig, path) ?? [];
   return matches.map(match => {
     const element = match.route.element;
-    return typeof element === 'object' && element !== null && 'type' in element
-      ? element.type
-      : undefined;
+    return typeof element === 'object' && element !== null && 'type' in element ? element.type : undefined;
   });
 }
 
@@ -83,5 +81,25 @@ describe('routeConfig (previously-authenticated routes unaffected)', () => {
     const chain = guardChainFor('/admin/keyword-curation');
     expect(chain).toContain(ProtectedRoute);
     expect(chain).toContain(AdminRoute);
+  });
+});
+
+describe('routeConfig (footer 關於 pages, public)', () => {
+  it('documents the about pages as public in PUBLIC_PATHS', () => {
+    expect(PUBLIC_PATHS).toContain('/open-source');
+    expect(PUBLIC_PATHS).toContain('/legal');
+    expect(PUBLIC_PATHS).toContain('/contact');
+  });
+
+  it('does not nest /open-source under ProtectedRoute', () => {
+    expect(guardChainFor('/open-source')).not.toContain(ProtectedRoute);
+  });
+
+  it('does not nest /legal under ProtectedRoute', () => {
+    expect(guardChainFor('/legal')).not.toContain(ProtectedRoute);
+  });
+
+  it('does not nest /contact under ProtectedRoute', () => {
+    expect(guardChainFor('/contact')).not.toContain(ProtectedRoute);
   });
 });
