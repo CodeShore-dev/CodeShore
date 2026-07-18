@@ -234,7 +234,7 @@ export const crawlerPipeline: CrawlerPipeline = {
       detail: {
         role: '決定重抓範圍・續抓起點',
         usage:
-          '更新流程的起點：預設只挑「昨日 00:00 之前未更新」的職缺使資料滾動更新，也可帶條件縮小為指定單筆 id 或某段更新時間區間。撈出後依 min_salary 由高到低排序，逐筆交給爬蟲引擎重抓詳細頁。續抓機制：更新流程不使用<strong>職缺來源表</strong>，而是以職缺的 updated_at 為依據——每批寫回即把已處理者的 updated_at 前移，故中斷後直接重跑，預設條件會自動排除今天已更新者、只接續剩下的職缺。',
+          '更新流程的起點：預設只挑「昨日 00:00 之前未重新爬取」的職缺使資料滾動更新，也可帶條件縮小為指定單筆 id 或某段爬取時間區間。撈出後依 min_salary 由高到低排序，逐筆交給爬蟲引擎重抓詳細頁。續抓機制：更新流程不使用<strong>職缺來源表</strong>，而是以職缺的 crawled_at（最近一次爬取時間）為依據——每批寫回即把已處理者的 crawled_at 前移，故中斷後直接重跑，預設條件會自動排除今天已爬取者、只接續剩下的職缺。',
       },
     },
     {
@@ -281,7 +281,7 @@ export const crawlerPipeline: CrawlerPipeline = {
       detail: {
         role: '欄位有變動',
         usage:
-          '三向結果之一（欄位有變動）：套用新值，薪資變動時一併重算 min／max、以新職缺描述重算技術關鍵字，closed=false、updated_at 設為現在，再交「批次寫回 DB」。',
+          '三向結果之一（欄位有變動）：套用新值，薪資變動時一併重算 min／max、以新職缺描述重算技術關鍵字，closed=false、crawled_at 與 updated_at 皆設為現在（內容真的有異動，爬取時間與異動時間一併前移），再交「批次寫回 DB」。',
       },
     },
     {
@@ -292,7 +292,8 @@ export const crawlerPipeline: CrawlerPipeline = {
       interactive: true,
       detail: {
         role: '欄位皆未變動',
-        usage: '三向結果之一（三個欄位皆未變動）：只把 updated_at 更新為現在、closed=false，不重算關鍵字，再交「批次寫回 DB」。',
+        usage:
+          '三向結果之一（三個欄位皆未變動）：只把 crawled_at 更新為現在、closed=false；updated_at（真異動時間）維持不變，因為內容並無真的改變，不重算關鍵字，再交「批次寫回 DB」。',
       },
     },
     {
@@ -303,7 +304,8 @@ export const crawlerPipeline: CrawlerPipeline = {
       interactive: true,
       detail: {
         role: '頁面已下架',
-        usage: '三向結果之一（職缺描述為空＝已下架）：closed=true 並更新 updated_at，再交「批次寫回 DB」。',
+        usage:
+          '三向結果之一（職缺描述為空＝已下架）：closed=true，crawled_at 一律更新為現在；updated_at 只在該職缺原本未關閉時才一併更新為現在——本來就已關閉、這次仍為空不算新的異動，updated_at 維持不變，再交「批次寫回 DB」。',
       },
     },
     {
@@ -315,7 +317,7 @@ export const crawlerPipeline: CrawlerPipeline = {
       detail: {
         role: '批次 upsert・落地續抓進度',
         usage:
-          '三種結果都先推入待寫緩衝，每累積 n 筆即一次性 upsert 寫回「job／company／job_keyword 資料表」的 job（必要時連同 job_keyword），跑完再 flush 剩餘。續抓機制：因每 n 筆就落地、且寫回時 updated_at 前移，進度不會整批遺失——即使中斷，已寫回的職缺下次重跑會被預設條件排除，等同從斷點接續。',
+          '三種結果都先推入待寫緩衝，每累積 n 筆即一次性 upsert 寫回「job／company／job_keyword 資料表」的 job（必要時連同 job_keyword），跑完再 flush 剩餘。續抓機制：因每 n 筆就落地、且寫回時 crawled_at 前移，進度不會整批遺失——即使中斷，已寫回的職缺下次重跑會被預設條件排除，等同從斷點接續。',
       },
     },
   ],
