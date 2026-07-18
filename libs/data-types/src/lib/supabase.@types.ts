@@ -54,6 +54,7 @@ export namespace SupabaseTable {
   export type Job = Modify<
     Database['public']['Tables']['job']['Row'],
     {
+      crawled_at?: Date;
       updated_at?: Date;
       created_at?: Date;
       salary_manual?: boolean;
