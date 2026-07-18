@@ -1,3 +1,4 @@
+[43m[33m[[39m[49m[43m[30mWARN[39m[49m[43m[33m][39m[49m Unsupported engine: wanted: {"node":"22.x"} (current: {"node":"v24.18.0","pnpm":"11.13.0"})
 export type Json =
   | string
   | number
@@ -111,6 +112,7 @@ export type Database = {
         Row: {
           closed: boolean
           company_id: string
+          crawled_at: string
           created_at: string
           description: string
           detail_link: string
@@ -127,6 +129,7 @@ export type Database = {
         Insert: {
           closed?: boolean
           company_id: string
+          crawled_at?: string
           created_at?: string
           description: string
           detail_link: string
@@ -143,6 +146,7 @@ export type Database = {
         Update: {
           closed?: boolean
           company_id?: string
+          crawled_at?: string
           created_at?: string
           description?: string
           detail_link?: string
@@ -238,7 +242,7 @@ export type Database = {
         Row: {
           ai_is_correct: boolean | null
           ai_status: string
-          final_keywords: string[]
+          final_keyword_groups: Json
           id: string
           line_id: string
           reviewed_at: string
@@ -247,7 +251,7 @@ export type Database = {
         Insert: {
           ai_is_correct?: boolean | null
           ai_status: string
-          final_keywords: string[]
+          final_keyword_groups?: Json
           id?: string
           line_id: string
           reviewed_at?: string
@@ -256,7 +260,7 @@ export type Database = {
         Update: {
           ai_is_correct?: boolean | null
           ai_status?: string
-          final_keywords?: string[]
+          final_keyword_groups?: Json
           id?: string
           line_id?: string
           reviewed_at?: string
@@ -306,16 +310,19 @@ export type Database = {
         Row: {
           description_ch_en_ratio: number
           id: string
+          keyword_groups: Json
           keywords: string[]
         }
         Insert: {
           description_ch_en_ratio: number
           id: string
+          keyword_groups?: Json
           keywords: string[]
         }
         Update: {
           description_ch_en_ratio?: number
           id?: string
+          keyword_groups?: Json
           keywords?: string[]
         }
         Relationships: [
@@ -636,6 +643,7 @@ export type Database = {
           description_ch_en_ratio: number | null
           detail_link: string | null
           id: string | null
+          keyword_groups: Json | null
           location: string | null
           max_salary: number | null
           min_salary: number | null
@@ -813,6 +821,7 @@ export type Database = {
           description_ch_en_ratio: number
           detail_link: string
           id: string
+          keyword_groups: Json
           location: string
           max_salary: number
           min_salary: number
@@ -830,6 +839,7 @@ export type Database = {
         Returns: {
           closed: boolean
           company_id: string
+          crawled_at: string
           created_at: string
           description: string
           detail_link: string
@@ -864,6 +874,7 @@ export type Database = {
           description_ch_en_ratio: number | null
           detail_link: string | null
           id: string | null
+          keyword_groups: Json | null
           location: string | null
           max_salary: number | null
           min_salary: number | null
