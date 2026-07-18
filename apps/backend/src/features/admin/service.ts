@@ -18,11 +18,11 @@ import {
 import { QueryDto } from '../query.dto';
 
 const SALARY_SELECT =
-  'id,title,detail_link,salary,salary_type,min_salary,max_salary,salary_manual,updated_at';
+  'id,title,detail_link,salary,salary_type,min_salary,max_salary,salary_manual,crawled_at,updated_at';
 const LOCATION_SELECT =
   'id,title,detail_link,location,updated_at';
 const DESCRIPTION_SELECT =
-  'id,title,detail_link,updated_at';
+  'id,title,detail_link,crawled_at,updated_at';
 
 const SAFE_ID = /^[A-Za-z0-9_-]+$/;
 const SAFE_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -45,6 +45,7 @@ const CONDITION_COLUMNS = new Set([
   'company_id',
   'closed',
   'created_at',
+  'crawled_at',
   'updated_at',
   'detail_link',
 ]);
@@ -356,7 +357,7 @@ export class Service {
     }
     const segments = safe.map(d => {
       const next = dayjs(d).add(1, 'day').format('YYYY-MM-DD');
-      return `and(updated_at.gte.${d},updated_at.lt.${next})`;
+      return `and(crawled_at.gte.${d},crawled_at.lt.${next})`;
     });
     return `re-crawl=(${segments.join('|')})`;
   }
