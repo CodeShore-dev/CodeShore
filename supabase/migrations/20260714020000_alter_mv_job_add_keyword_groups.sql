@@ -2,10 +2,17 @@
 --
 -- `get_unreviewed_jobs` returns SETOF mv_job and must be dropped first (it
 -- depends on the view's composite type), then recreated after.
--- `get_jobs_by_preference` uses an explicit RETURNS TABLE so only needs
--- CREATE OR REPLACE to extend its column list.
+-- `get_jobs_by_preference` uses an explicit RETURNS TABLE, but Postgres
+-- still rejects `CREATE OR REPLACE FUNCTION` when the OUT-parameter row
+-- shape changes (adding `keyword_groups` here does) -- confirmed against
+-- the live project via `apply_migration`, which failed with:
+--   42P13: cannot change return type of existing function
+--   DETAIL: Row type defined by OUT parameters is different.
+--   HINT: Use DROP FUNCTION get_jobs_by_preference(uuid,text) first.
+-- So it must be dropped first too, same as get_unreviewed_jobs.
 
 DROP FUNCTION IF EXISTS public.get_unreviewed_jobs(uuid);
+DROP FUNCTION IF EXISTS public.get_jobs_by_preference(uuid, text);
 DROP MATERIALIZED VIEW IF EXISTS public.mv_job;
 
 CREATE MATERIALIZED VIEW public."mv_job" AS
