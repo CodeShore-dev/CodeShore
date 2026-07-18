@@ -50,6 +50,7 @@ export async function resetJobKeywordsV1(
   const jobKeywords: SupabaseTable.Job_.Keyword[] =
     jobs.map(x => ({
       id: x.id,
+      keyword_groups: [],
       ...parseKeywordsOut(
         jobDescriptionBins.reduce((prev, curr) => {
           return prev.replace(curr.content, '');
