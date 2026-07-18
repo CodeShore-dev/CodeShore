@@ -9,8 +9,8 @@ export const metricExplanations: Record<
 > = {
   'home.statRow': {
     key: 'home.statRow',
-    title: '職缺數量',
-    intro: '這一區四個數字的算法：',
+    title: '這些職缺數量有何差別？',
+    intro: '差在計算範圍，四種各自這樣算：',
     items: [
       {
         name: '全部職缺',
@@ -37,8 +37,8 @@ export const metricExplanations: Record<
   },
   'home.salaryBenchmark': {
     key: 'home.salaryBenchmark',
-    title: '市場薪資行情',
-    intro: '月薪與年薪分開計算，各自呈現以下水準：',
+    title: '說明薪資中位數/高標/頂標',
+    intro: '月薪與年薪分開計算，各自代表以下水準：',
     items: [
       {
         name: '代表薪資',
@@ -51,11 +51,11 @@ export const metricExplanations: Record<
           '把所有代表薪資由低到高排，取正中間的值。',
       },
       {
-        name: '偏高（PR75）',
+        name: '高標（PR75）',
         detail: '高過約 75% 職缺的薪資水準。',
       },
       {
-        name: '頂端（PR88）',
+        name: '頂標（PR88）',
         detail: '高過約 88% 職缺的薪資水準。',
       },
     ],
@@ -65,8 +65,8 @@ export const metricExplanations: Record<
   },
   'home.salaryRangeMultiplier': {
     key: 'home.salaryRangeMultiplier',
-    title: '薪資範圍倍率',
-    intro: '用來推估「面議／以上」職缺薪資的係數：',
+    title: '甚麼是薪資範圍倍率?',
+    intro: '是用來推估「面議／以上」職缺薪資的係數：',
     items: [
       {
         name: '怎麼算',
@@ -90,8 +90,8 @@ export const metricExplanations: Record<
   },
   'home.popularTech': {
     key: 'home.popularTech',
-    title: '熱門技術',
-    intro: '依職缺數排出最熱門的技術：',
+    title: '熱門技術的定義',
+    intro: '指依職缺數排序、職缺數最多的技術：',
     items: [
       {
         name: '職缺數',
@@ -109,8 +109,8 @@ export const metricExplanations: Record<
   },
   'home.highSalaryTech.year': {
     key: 'home.highSalaryTech.year',
-    title: '高薪技術（年薪）',
-    intro: '依年薪中位數排出最高薪的技術：',
+    title: '高薪技術(年薪)是如何排名?',
+    intro: '依年薪中位數由高到低排序：',
     items: [
       {
         name: '中位數年薪（PR50）',
@@ -118,11 +118,11 @@ export const metricExplanations: Record<
           '該技術所有年薪職缺的代表薪資，取正中間的值。',
       },
       {
-        name: '偏高年薪（PR75）',
+        name: '高標年薪（PR75）',
         detail: '高過約 75% 該技術職缺的年薪水準。',
       },
       {
-        name: '頂端年薪（PR88）',
+        name: '頂標年薪（PR88）',
         detail: '高過約 88% 該技術職缺的年薪水準。',
       },
       {
@@ -136,8 +136,8 @@ export const metricExplanations: Record<
   },
   'home.highSalaryTech.month': {
     key: 'home.highSalaryTech.month',
-    title: '高薪技術（月薪）',
-    intro: '依月薪中位數排出最高薪的技術：',
+    title: '高薪技術(月薪)是如何排名?',
+    intro: '依月薪中位數由高到低排序：',
     items: [
       {
         name: '中位數月薪（PR50）',
@@ -145,11 +145,11 @@ export const metricExplanations: Record<
           '該技術所有月薪職缺的代表薪資，取正中間的值。',
       },
       {
-        name: '偏高月薪（PR75）',
+        name: '高標月薪（PR75）',
         detail: '高過約 75% 該技術職缺的月薪水準。',
       },
       {
-        name: '頂端月薪（PR88）',
+        name: '頂標月薪（PR88）',
         detail: '高過約 88% 該技術職缺的月薪水準。',
       },
       {
@@ -163,8 +163,8 @@ export const metricExplanations: Record<
   },
   'home.hotCombos': {
     key: 'home.hotCombos',
-    title: '熱門技術組合',
-    intro: '找出最常一起出現在同一職缺的兩種技術：',
+    title: '熱門技術組合的定義',
+    intro: '指同一職缺中最常同時出現的兩種技術組合：',
     items: [
       {
         name: '技術組合',
@@ -179,7 +179,7 @@ export const metricExplanations: Record<
       {
         name: '月／年薪',
         detail:
-          '該組合職缺的薪資水準（中位數、偏高、頂端）。',
+          '該組合職缺的薪資水準（中位數、高標、頂標）。',
       },
       {
         name: '排名',
@@ -192,8 +192,8 @@ export const metricExplanations: Record<
   },
   'techs.ranking': {
     key: 'techs.ranking',
-    title: '技術排行',
-    intro: '可切換「熱門」或「薪資」模式排序：',
+    title: '熱門模式跟薪資模式排序有什麼不同？',
+    intro: '差別在排序依據，可切換「熱門」或「薪資」模式：',
     items: [
       {
         name: '職缺數',
@@ -203,7 +203,7 @@ export const metricExplanations: Record<
       {
         name: '薪資（PR50／PR75／PR88）',
         detail:
-          '該技術職缺的中位數、偏高、頂端薪資水準。',
+          '該技術職缺的中位數、高標、頂標薪資水準。',
       },
       {
         name: '排名',
@@ -217,8 +217,8 @@ export const metricExplanations: Record<
   },
   'techs.combos': {
     key: 'techs.combos',
-    title: '技術組合',
-    intro: '看所選語言最常搭配哪些其他技術：',
+    title: '這個語言最常搭配哪些技術？',
+    intro: '依職缺數排序，列出最常搭配的技術：',
     items: [
       {
         name: '技術組合',
@@ -232,7 +232,7 @@ export const metricExplanations: Record<
       {
         name: '薪資（PR50／PR75／PR88）',
         detail:
-          '該組合職缺的中位數、偏高、頂端薪資水準。',
+          '該組合職缺的中位數、高標、頂標薪資水準。',
       },
       {
         name: '排名',
@@ -245,8 +245,8 @@ export const metricExplanations: Record<
   },
   'company.list': {
     key: 'company.list',
-    title: '公司列表',
-    intro: '列出有在徵才的公司：',
+    title: '公司列表是怎麼列出來的？',
+    intro: '篩出目前有在徵才的公司，規則如下：',
     items: [
       {
         name: '收錄條件',
@@ -273,8 +273,8 @@ export const metricExplanations: Record<
   },
   'job.list': {
     key: 'job.list',
-    title: '職缺列表',
-    intro: '列出開放中的職缺，可再用條件篩選：',
+    title: '職缺列表怎麼篩選、排序的？',
+    intro: '先篩出開放中的職缺，再依以下規則排序：',
     items: [
       {
         name: '收錄條件',
@@ -298,8 +298,8 @@ export const metricExplanations: Record<
   },
   'job.salary': {
     key: 'job.salary',
-    title: '職缺薪資',
-    intro: '單一職缺的薪資怎麼來：',
+    title: '這筆職缺的薪資是怎麼算出來的？',
+    intro: '依薪資文字類型，分別這樣算：',
     items: [
       {
         name: '薪資範圍',

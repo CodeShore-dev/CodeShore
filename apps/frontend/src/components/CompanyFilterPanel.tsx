@@ -72,21 +72,21 @@ export function CompanyFilterPanel({
           </button>
         )}
         {showSuggestions && search.trim() && (
-          <ul className="border-surface-container-highest absolute top-full left-0 z-10 mt-1 max-h-52 w-full overflow-y-auto rounded-lg border bg-white shadow-lg">
+          <ul className="border-surface-container-highest absolute top-full left-0 z-10 m-0 mt-1 max-h-52 w-full list-none overflow-y-auto rounded-lg border bg-white p-0 shadow-lg">
             {isFetching && (
-              <li className="text-on-surface-variant px-3 py-2 text-xs">
+              <li className="text-on-surface-variant m-0 px-3 py-2 text-xs">
                 搜尋中...
               </li>
             )}
             {!isFetching && suggestions.length === 0 && (
-              <li className="text-on-surface-variant px-3 py-2 text-xs">
+              <li className="text-on-surface-variant m-0 px-3 py-2 text-xs">
                 沒有符合的公司
               </li>
             )}
             {suggestions.map(c => (
               <li
                 key={c.company_id}
-                className="hover:bg-primary-container hover:text-on-primary cursor-pointer px-3 py-2 text-sm font-bold"
+                className="hover:bg-primary-container hover:text-on-primary m-0 cursor-pointer px-3 py-2 text-sm font-bold"
                 onMouseDown={e => {
                   e.preventDefault();
                   selectCompany(c.company_name ?? '');
