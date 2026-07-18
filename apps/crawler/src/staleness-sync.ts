@@ -15,6 +15,8 @@ import {
   isTheHost as isCakeHost,
   waitFordDetailPageSelector as waitForSelectorOnCake,
 } from './cake/utils';
+import type { ComparableJobFields } from './job-diff';
+import { hasJobFieldsChanged } from './job-diff';
 
 /**
  * Job 詳情頁擷取結果的共同形狀,104/Cake 兩邊的 `JobDetailOnHTML` 皆與此相容
@@ -56,15 +58,17 @@ export function createJobStalenessSyncConfig(
   return {
     /**
      * 對應原 `reCrawlJobs`(`main.ts` L100-109)的 stale 項目查詢:預設條件為
-     * `updated_at` 早於「昨天午夜」,呼叫端可透過 `where` 覆寫查詢條件
-     * (對應 `main.ts` 的 `re-crawl=<whereExpr>` CLI 參數)。
+     * `crawled_at` 早於「昨天午夜」,呼叫端可透過 `where` 覆寫查詢條件
+     * (對應 `main.ts` 的 `re-crawl=<whereExpr>` CLI 參數)。改用
+     * `crawled_at`(而非 `updated_at`)是因為 admin 重新爬取的選取邏輯須
+     * 反映真實的爬取活動,不受「內容是否真的改變」影響(需求 4.1)。
      */
     async fetchStaleEntities(): Promise<SupabaseTable.Job[]> {
       const todayDayjs = dayjs();
       const yesterday = todayDayjs.subtract(1, 'day').toDate();
       yesterday.setHours(0, 0, 0, 0);
       const resolvedWhere = where ?? {
-        updated_at: { lt: yesterday.toISOString() },
+        crawled_at: { lt: yesterday.toISOString() },
       };
       const { result: jobs } = await new JobService().fetchAll({
         where: resolvedWhere,
@@ -118,24 +122,48 @@ export function createJobStalenessSyncConfig(
       | { action: 'unchanged'; entity: SupabaseTable.Job }
       | { action: 'update'; entity: SupabaseTable.Job }
       | { action: 'close'; entity: SupabaseTable.Job } {
+      const now = new Date();
+
       if (!detail || !detail.description.trim()) {
         // 對應 main.ts L242-251:擷取不到有效內容,標記為 closed。
+        // `crawled_at` 一律更新(需求 2.1);`updated_at` 只有在本來未關閉
+        // 時才前移(本來就已關閉不算新異動,需求 2.3),對應 104/Cake
+        // closed-fallback 分支已實作的同一條規則(design.md §6.3/§8)。
         return {
           action: 'close',
           entity: {
             ...entity,
-            updated_at: new Date(),
+            crawled_at: now,
+            updated_at: entity.closed !== true ? now : entity.updated_at,
             closed: true,
           },
         };
       }
 
-      const descriptionChanged = detail.description !== entity.description;
+      // 僅 salary 是否變動仍需個別追蹤,因為 `update` 分支需要依此決定是否
+      // 重新套用 `parseSalary` 的衍生欄位(min_salary/max_salary/salary_type);
+      // description/location 的變動與否不需要個別追蹤,「是否視為真的變動」
+      // 整體交由下方 `hasJobFieldsChanged` 判斷。
       const salaryChanged =
         !entity.salary_manual && detail.salary !== entity.salary;
-      const locationChanged = detail.location !== entity.location;
 
-      if (descriptionChanged || salaryChanged || locationChanged) {
+      // 與 `hasJobFieldsChanged` 語意一致的比對:只比對 description/
+      // location/salary(非 manual)三欄位,`salary_manual` 為真時兩側都
+      // 省略 `salary` key。「是否視為真的變動」的判斷交由 `hasJobFieldsChanged`
+      // 表達,與 104/Cake 共用的比對語意一致(design.md §6.2/§6.3)。
+      const previousComparable: ComparableJobFields = {
+        description: entity.description,
+        location: entity.location,
+        ...(entity.salary_manual ? {} : { salary: entity.salary }),
+      };
+      const freshComparable: ComparableJobFields = {
+        description: detail.description,
+        location: detail.location,
+        ...(entity.salary_manual ? {} : { salary: detail.salary }),
+      };
+      const changed = hasJobFieldsChanged(previousComparable, freshComparable);
+
+      if (changed) {
         // 對應 main.ts L211-224:至少一個欄位變動,套用更新,並標記這個
         // entity id 需要在 onBatchReady 重新計算/寫入 job_keyword
         // (對應 main.ts L225-231 的 pending.jobKeywords.push)。
@@ -153,18 +181,21 @@ export function createJobStalenessSyncConfig(
             description: detail.description,
             location: detail.location,
             ...salaryUpdate,
-            updated_at: new Date(),
+            crawled_at: now,
+            updated_at: now,
             closed: false,
           },
         };
       }
 
-      // 對應 main.ts L235-241:有內容但三個欄位皆無變動,僅刷新時間戳記。
+      // 對應 main.ts L235-241:有內容但三個欄位皆無變動。`crawled_at` 仍一律
+      // 更新(需求 2.1),但 `updated_at` 維持原值不變(需求 2.3)。
       return {
         action: 'unchanged',
         entity: {
           ...entity,
-          updated_at: new Date(),
+          crawled_at: now,
+          updated_at: entity.updated_at,
           closed: false,
         },
       };

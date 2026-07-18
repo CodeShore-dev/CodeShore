@@ -56,6 +56,7 @@ function buildJob(overrides: Partial<SupabaseTable.Job> = {}): SupabaseTable.Job
     company_id: 'cust-001',
     closed: false,
     updated_at: new Date('2026-01-01T00:00:00.000Z'),
+    crawled_at: new Date('2026-01-01T00:00:00.000Z'),
     created_at: new Date('2025-01-01T00:00:00.000Z'),
     ...overrides,
   } as SupabaseTable.Job;
@@ -174,6 +175,8 @@ describe('staleness-sync.ts createJobStalenessSyncConfig', () => {
       expect(result.entity.closed).toBe(false);
       expect(result.entity.updated_at).toBeInstanceOf(Date);
       expect(result.entity.updated_at).not.toEqual(job.updated_at);
+      expect(result.entity.crawled_at).toBeInstanceOf(Date);
+      expect(result.entity.crawled_at).not.toEqual(job.crawled_at);
       // salary was not part of the diff (unchanged) so no salary re-parse
       // fields should be forcibly injected beyond what parseSalary produces
       // when salaryChanged is true; here salary is untouched entirely.
@@ -202,6 +205,8 @@ describe('staleness-sync.ts createJobStalenessSyncConfig', () => {
       // based on the shared-utils parsing logic (single-number => min only).
       expect(result.entity.min_salary).toBe(80000);
       expect(result.entity.closed).toBe(false);
+      expect(result.entity.updated_at).not.toEqual(job.updated_at);
+      expect(result.entity.crawled_at).not.toEqual(job.crawled_at);
     });
 
     it('does NOT treat salary as changed when salary_manual is true, even if detail.salary differs (matches reCrawlJobs !job.salary_manual guard)', async () => {
@@ -224,6 +229,8 @@ describe('staleness-sync.ts createJobStalenessSyncConfig', () => {
       // so this must fall into the "unchanged" branch, not "update".
       expect(result.action).toBe('unchanged');
       expect(result.entity.salary).toBe('月薪 60,000 元以上');
+      expect(result.entity.updated_at).toEqual(job.updated_at);
+      expect(result.entity.crawled_at).not.toEqual(job.crawled_at);
     });
 
     it('returns action "update" when location changed', async () => {
@@ -244,17 +251,21 @@ describe('staleness-sync.ts createJobStalenessSyncConfig', () => {
       expect(result.action).toBe('update');
       expect(result.entity.location).toBe('新北市板橋區');
       expect(result.entity.closed).toBe(false);
+      expect(result.entity.updated_at).not.toEqual(job.updated_at);
+      expect(result.entity.crawled_at).not.toEqual(job.crawled_at);
     });
 
-    it('returns action "unchanged" and still refreshes updated_at when nothing changed, without altering other fields', async () => {
+    it('returns action "unchanged" and bumps crawled_at while leaving updated_at exactly as it was, without altering other fields', async () => {
       const { createJobStalenessSyncConfig } = await import('./staleness-sync');
       const config = createJobStalenessSyncConfig([]);
       const originalUpdatedAt = new Date('2026-01-01T00:00:00.000Z');
+      const originalCrawledAt = new Date('2026-01-01T00:00:00.000Z');
       const job = buildJob({
         description: '相同描述',
         salary: '月薪 60,000 元以上',
         location: '台北市信義區',
         updated_at: originalUpdatedAt,
+        crawled_at: originalCrawledAt,
       });
 
       const result = config.diffAndBuildUpdate(job, {
@@ -268,14 +279,24 @@ describe('staleness-sync.ts createJobStalenessSyncConfig', () => {
       expect(result.entity.salary).toBe('月薪 60,000 元以上');
       expect(result.entity.location).toBe('台北市信義區');
       expect(result.entity.closed).toBe(false);
-      expect(result.entity.updated_at).toBeInstanceOf(Date);
-      expect(result.entity.updated_at).not.toEqual(originalUpdatedAt);
+      // `updated_at` must stay exactly as it was on the input entity — no
+      // real content change was detected (Requirement 2.3).
+      expect(result.entity.updated_at).toEqual(originalUpdatedAt);
+      // `crawled_at` always advances, regardless of outcome (Requirement 2.1).
+      expect(result.entity.crawled_at).toBeInstanceOf(Date);
+      expect(result.entity.crawled_at).not.toEqual(originalCrawledAt);
     });
 
-    it('returns action "close" when extracted content has no valid description (whitespace only)', async () => {
+    it('returns action "close" when extracted content has no valid description (whitespace only), bumping both timestamps when the job was NOT already closed', async () => {
       const { createJobStalenessSyncConfig } = await import('./staleness-sync');
       const config = createJobStalenessSyncConfig([]);
-      const job = buildJob({ closed: false });
+      const originalUpdatedAt = new Date('2026-01-01T00:00:00.000Z');
+      const originalCrawledAt = new Date('2026-01-01T00:00:00.000Z');
+      const job = buildJob({
+        closed: false,
+        updated_at: originalUpdatedAt,
+        crawled_at: originalCrawledAt,
+      });
 
       const result = config.diffAndBuildUpdate(job, {
         description: '   ',
@@ -286,6 +307,34 @@ describe('staleness-sync.ts createJobStalenessSyncConfig', () => {
       expect(result.action).toBe('close');
       expect(result.entity.closed).toBe(true);
       expect(result.entity.updated_at).toBeInstanceOf(Date);
+      expect(result.entity.updated_at).not.toEqual(originalUpdatedAt);
+      expect(result.entity.crawled_at).toBeInstanceOf(Date);
+      expect(result.entity.crawled_at).not.toEqual(originalCrawledAt);
+    });
+
+    it('returns action "close" and only bumps crawled_at (leaving updated_at unchanged) when the job was ALREADY closed', async () => {
+      const { createJobStalenessSyncConfig } = await import('./staleness-sync');
+      const config = createJobStalenessSyncConfig([]);
+      const originalUpdatedAt = new Date('2026-01-01T00:00:00.000Z');
+      const originalCrawledAt = new Date('2026-01-01T00:00:00.000Z');
+      const job = buildJob({
+        closed: true,
+        updated_at: originalUpdatedAt,
+        crawled_at: originalCrawledAt,
+      });
+
+      const result = config.diffAndBuildUpdate(job, {
+        description: '   ',
+        salary: '',
+        location: '',
+      });
+
+      expect(result.action).toBe('close');
+      expect(result.entity.closed).toBe(true);
+      // Already closed before => not a new transition, updated_at stays put.
+      expect(result.entity.updated_at).toEqual(originalUpdatedAt);
+      expect(result.entity.crawled_at).toBeInstanceOf(Date);
+      expect(result.entity.crawled_at).not.toEqual(originalCrawledAt);
     });
 
     it('returns action "close" when detail is undefined (extraction failed entirely)', async () => {
@@ -297,6 +346,8 @@ describe('staleness-sync.ts createJobStalenessSyncConfig', () => {
 
       expect(result.action).toBe('close');
       expect(result.entity.closed).toBe(true);
+      expect(result.entity.updated_at).not.toEqual(job.updated_at);
+      expect(result.entity.crawled_at).not.toEqual(job.crawled_at);
     });
 
     it('does not mutate the input entity object', async () => {
@@ -396,7 +447,7 @@ describe('staleness-sync.ts createJobStalenessSyncConfig', () => {
   });
 
   describe('fetchStaleEntities', () => {
-    it('queries JobService with the default "updated_at before yesterday midnight" condition when no where override is given', async () => {
+    it('queries JobService with the default "crawled_at before yesterday midnight" condition when no where override is given', async () => {
       const { createJobStalenessSyncConfig } = await import('./staleness-sync');
       const config = createJobStalenessSyncConfig([]);
 
@@ -405,7 +456,7 @@ describe('staleness-sync.ts createJobStalenessSyncConfig', () => {
       expect(fetchAllMock).toHaveBeenCalledTimes(1);
       const calls = fetchAllMock.mock.calls as unknown as unknown[][];
       const callArg = calls[0][0] as {
-        where: { updated_at: { lt: string } };
+        where: { crawled_at: { lt: string } };
         orders: { column: string; ascending: boolean }[];
       };
       expect(callArg.orders).toEqual([
@@ -419,10 +470,12 @@ describe('staleness-sync.ts createJobStalenessSyncConfig', () => {
       // "00:00:00.000Z" — it's local midnight expressed in UTC. Assert this
       // ISO string equals what the identical calculation produces directly,
       // rather than assuming a fixed UTC offset.
+      // Per Requirement 4.1, admin re-crawl selection tracks crawl activity
+      // (`crawled_at`), not content-change activity (`updated_at`).
       const expectedYesterday = new Date();
       expectedYesterday.setDate(expectedYesterday.getDate() - 1);
       expectedYesterday.setHours(0, 0, 0, 0);
-      expect(callArg.where.updated_at.lt).toBe(
+      expect(callArg.where.crawled_at.lt).toBe(
         expectedYesterday.toISOString(),
       );
     });
