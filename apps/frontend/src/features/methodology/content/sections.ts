@@ -198,4 +198,24 @@ export const methodologySections: readonly MethodologySection[] = [
       },
     ],
   },
+  {
+    id: 'seo',
+    title: 'SEO 與可被搜尋性',
+    blocks: [
+      {
+        kind: 'paragraph',
+        text: '本站對搜尋引擎與社群分享的可見度，目前由以下幾層機制共同組成：',
+      },
+      {
+        kind: 'list',
+        items: [
+          '每頁專屬 SEO metadata：所有公開頁面（首頁、職缺瀏覽、公司列表、技術熱度、公開透明、開源於 GitHub、隱私權與服務條款、聯絡我們）皆透過共用的 <PageSeo> 元件各自宣告自己的 title、description、canonical 網址與 hreflang（zh-TW／x-default），而非全站共用同一組標題描述。',
+          'Open Graph／Twitter Card：<PageSeo> 同時輸出 og:title、og:description、og:image、twitter:card 等標籤，讓在 LINE、Slack、X 等平台分享連結時能正確顯示各頁自己的標題、描述與預覽圖，而非固定顯示首頁內容。',
+          'JSON-LD structured data：首頁宣告 Organization 與帶 SearchAction 的 WebSite（讓 Google 有機會在搜尋結果直接顯示站內搜尋框）；職缺瀏覽、公司列表、技術熱度、公開透明與「關於」系列頁面則各自宣告 BreadcrumbList，對應該頁在網站架構中的層級路徑。',
+          'Sitemap：public/sitemap.xml 列出全站可索引頁面（首頁、/jobs、/companies、/techs、/methodology、/open-source、/legal、/contact），並依各頁內容更新頻率標註 changefreq 與 priority，供搜尋引擎判斷收錄與重新爬取的優先順序。',
+          'robots.txt：開放全站頁面被索引，僅排除 /admin（後台管理）、/auth（登入流程）、/keywords（技術詞庫管理）三個與一般訪客無關的路徑，並指向 sitemap.xml 的位置。',
+        ],
+      },
+    ],
+  },
 ] as const;

@@ -1,7 +1,7 @@
 import { AboutPageShell } from '../components/AboutPageShell';
 
 const GITHUB_REPO_URL = 'https://github.com/CodeShore-dev/CodeShore';
-const CONTACT_EMAIL = 'hello@codeshore.dev';
+const CONTACT_EMAIL = 'ucnsaythtagn@gmail.com';
 
 const CHANNELS: { icon: string; title: string; desc: string; action: string; href: string; external?: boolean }[] = [
   {

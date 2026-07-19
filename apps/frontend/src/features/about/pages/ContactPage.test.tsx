@@ -13,8 +13,8 @@ describe('ContactPage', () => {
 
   it('provides a mailto contact link', () => {
     renderWithProviders(<ContactPage />);
-    const link = screen.getByRole('link', { name: /hello@codeshore\.dev/ });
-    expect(link).toHaveAttribute('href', 'mailto:hello@codeshore.dev');
+    const link = screen.getByRole('link', { name: /ucnsaythtagn@gmail\.com/ });
+    expect(link).toHaveAttribute('href', 'mailto:ucnsaythtagn@gmail.com');
   });
 
   it('links to the GitHub repository and issues', () => {
