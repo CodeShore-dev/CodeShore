@@ -3,7 +3,19 @@ import { type MouseEvent, useMemo } from 'react';
 
 import { SupabaseView } from '@codeshore/data-types';
 
+import { TechIcon } from '../../../components/TechIcon';
 import { formatDateInfo } from '../../../utils/format';
+import { useTechsQuery } from '../../keyword/queries';
+
+const TECH_STACK_CATEGORIES = ['language', 'framework', 'database'];
+
+interface TechItem {
+  key?: string;
+  category: string;
+  label: string;
+  icon_slugs?: string[] | null;
+  parents?: string[] | null;
+}
 
 interface JobListItemProps {
   job: SupabaseView.MvJob;
@@ -34,6 +46,107 @@ export function JobListItem({
       ),
     [updatedAt, job.updated_at],
   );
+
+  // `keyword_groups` (per-JD AI grouping) is the preferred source once
+  // populated, but as of writing that pipeline hasn't run on any job yet --
+  // every row falls back to `tech_mappings` (populated on ~90% of jobs),
+  // the same fallback JobCard.tsx already uses for its detail-drawer chips.
+  const { data: techs = [] } = useTechsQuery();
+
+  const techStackChips = useMemo(() => {
+    const techMap = new Map(techs.map(t => [t.tech, t]));
+
+    // One entry per present language/framework/database tech, each keyed to
+    // its `mv_tech` record (when resolvable) so framework<->language pairing
+    // below can walk the `parents` FK (e.g. 'react' -> parents: ['javascript']),
+    // and so each tech item can render with its own icon (CompanyCard style).
+    let present: TechItem[];
+
+    if (job.keyword_groups?.length) {
+      present = job.keyword_groups
+        .filter(g => TECH_STACK_CATEGORIES.includes(g.category))
+        .map(g => {
+          const matched = techs.find(
+            t =>
+              t.category === g.category &&
+              g.keywords.some(k =>
+                t.keywords?.map(x => x.toLowerCase()).includes(k.toLowerCase()),
+              ),
+          );
+          return {
+            key: matched?.tech,
+            category: g.category,
+            label: g.keywords.join(' / '),
+            icon_slugs: matched?.icon_slugs,
+            parents: matched?.parents,
+          };
+        });
+    } else {
+      const seenKeys = new Set<string>();
+      present = [];
+      for (const mapping of job.tech_mappings ?? []) {
+        const key = mapping.split(':')[0];
+        const meta = techMap.get(key);
+        if (
+          !meta?.category ||
+          !TECH_STACK_CATEGORIES.includes(meta.category) ||
+          seenKeys.has(key)
+        ) {
+          continue;
+        }
+        seenKeys.add(key);
+        present.push({
+          key,
+          category: meta.category,
+          label: meta.label ?? key,
+          icon_slugs: meta.icon_slugs,
+          parents: meta.parents,
+        });
+      }
+    }
+
+    const languages = present.filter(p => p.category === 'language');
+    const frameworks = present.filter(p => p.category === 'framework');
+    const databases = present.filter(p => p.category === 'database');
+
+    // Pair each framework with a present parent language (e.g. Python +
+    // Django); a framework with no present parent, or a language with no
+    // paired framework, is shown on its own instead of merged in.
+    const frameworksByLanguageKey = new Map<string, TechItem[]>();
+    const standaloneFrameworks: TechItem[] = [];
+    for (const fw of frameworks) {
+      const parentLanguage = fw.key
+        ? languages.find(l => l.key && fw.parents?.includes(l.key))
+        : undefined;
+      if (parentLanguage?.key) {
+        const paired = frameworksByLanguageKey.get(parentLanguage.key) ?? [];
+        paired.push(fw);
+        frameworksByLanguageKey.set(parentLanguage.key, paired);
+      } else {
+        standaloneFrameworks.push(fw);
+      }
+    }
+
+    // Each chip is a small ordered list of tech items -- a paired chip holds
+    // [language, ...frameworks], a standalone chip holds just [tech].
+    const chips: { key: string; items: TechItem[] }[] = [];
+    for (const lang of languages) {
+      const pairedFrameworks = lang.key
+        ? frameworksByLanguageKey.get(lang.key)
+        : undefined;
+      chips.push({
+        key: lang.key ?? lang.label,
+        items: pairedFrameworks?.length ? [lang, ...pairedFrameworks] : [lang],
+      });
+    }
+    for (const fw of standaloneFrameworks) {
+      chips.push({ key: fw.key ?? fw.label, items: [fw] });
+    }
+    for (const db of databases) {
+      chips.push({ key: db.key ?? db.label, items: [db] });
+    }
+    return chips;
+  }, [job.keyword_groups, job.tech_mappings, techs]);
 
   const handleLike = (event: MouseEvent) => {
     event.stopPropagation();
@@ -75,6 +188,37 @@ export function JobListItem({
         >
           {job.title}
         </div>
+
+        {techStackChips.length > 0 && (
+          <div className="mb-2.5 flex flex-wrap items-center gap-1.5">
+            {techStackChips.map(chip => (
+              <div
+                key={chip.key}
+                data-testid="tech-chip"
+                className="flex items-center gap-1.5 rounded-full border border-[#e8eaf0] bg-[#f4faff] px-2.5 py-1 text-xs font-semibold text-[#001f2a]"
+              >
+                {chip.items.map((item, index) => (
+                  <span
+                    key={item.key ?? item.label}
+                    className="flex items-center gap-1"
+                  >
+                    {index > 0 && (
+                      <span className="text-[#434653]/60">
+                        {index === 1 ? '+' : '/'}
+                      </span>
+                    )}
+                    <TechIcon
+                      slugs={item.icon_slugs}
+                      label={item.label}
+                      size={16}
+                    />
+                    {item.label}
+                  </span>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="mb-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#434653]">
           <span className="inline-flex items-center gap-1">
