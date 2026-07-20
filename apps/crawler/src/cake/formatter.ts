@@ -83,6 +83,9 @@ export function cookRawJob(
         detail.description,
         allGroupKeywords,
       ),
+      // AI 分批流程(generateJobKeywordsFromLines)才是 keyword_groups 的真正
+      // 來源,每次執行會整表重新推導並覆蓋此值;爬蟲端只需滿足 NOT NULL。
+      keyword_groups: [],
     },
   };
 }

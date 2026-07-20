@@ -448,6 +448,12 @@ describe('104/handler.ts createHandler (post sync-core migration)', () => {
       id: 'job-001',
       updated_at: new Date('2026-01-01T00:00:00.000Z'),
       created_at: new Date('2025-01-01T00:00:00.000Z'),
+      title: '資深後端工程師',
+      description: '負責後端服務開發與維運',
+      location: '台北市信義區',
+      salary: '',
+      salary_manual: false,
+      closed: false,
     };
     const item: JobOnAPI & RequireToCrawlJob = {
       ...buildJobOnAPIFixture(),

@@ -404,6 +404,12 @@ describe('cake/handler.ts createHandler (post sync-core migration)', () => {
       id: 'senior-backend-engineer',
       updated_at: new Date('2026-01-01T00:00:00.000Z'),
       created_at: new Date('2025-01-01T00:00:00.000Z'),
+      title: '資深後端工程師',
+      description: '負責後端服務開發與維運',
+      location: '台北市信義區',
+      salary: '',
+      salary_manual: false,
+      closed: false,
     };
     const item: JobOnAPI & RequireToCrawlJob = {
       ...buildJobOnAPIFixture(),
