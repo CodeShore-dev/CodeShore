@@ -1,5 +1,6 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { Cache } from 'cache-manager';
 
 import { cacheALS } from './cache-context';
@@ -87,7 +88,7 @@ export class CacheService implements OnModuleInit {
     const now = Date.now();
     const result: CacheEntryInfo[] = [];
     for (const [key, m] of this.meta) {
-      const expiresAtMs = m.ttl != null ? m.createdAt + m.ttl : null;
+      const expiresAtMs = this.expiresAtMsOf(m);
       if (expiresAtMs != null && expiresAtMs <= now) {
         this.meta.delete(key);
         continue;
@@ -105,6 +106,30 @@ export class CacheService implements OnModuleInit {
       });
     }
     return result;
+  }
+
+  /**
+   * `meta` only tracks bookkeeping for this admin `list()`/size-stats view
+   * -- the real cache-manager store already expires entries on its own via
+   * the `ttl` passed to `cache.set()`. Without this, `meta` would grow
+   * unboundedly for any key nobody ever calls `list()`/`invalidate()` on
+   * again after it expires (e.g. a one-off admin lookup that's never
+   * repeated). `list()` already prunes lazily on read; this just makes sure
+   * pruning happens even if nobody calls `list()` for a while.
+   */
+  @Cron(CronExpression.EVERY_10_MINUTES)
+  private pruneExpiredMeta(): void {
+    const now = Date.now();
+    for (const [key, m] of this.meta) {
+      const expiresAtMs = this.expiresAtMsOf(m);
+      if (expiresAtMs != null && expiresAtMs <= now) {
+        this.meta.delete(key);
+      }
+    }
+  }
+
+  private expiresAtMsOf(m: CacheEntryMeta): number | null {
+    return m.ttl != null ? m.createdAt + m.ttl : null;
   }
 }
 

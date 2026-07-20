@@ -1,5 +1,5 @@
 import dayjs from 'dayjs';
-import { type MouseEvent, useMemo } from 'react';
+import { memo, type MouseEvent, useMemo } from 'react';
 
 import { SupabaseView } from '@codeshore/data-types';
 
@@ -28,7 +28,10 @@ interface JobListItemProps {
 }
 
 // Single row in the job list (task 7.5), ported from JobListItem.vue.
-export function JobListItem({
+// Memoized since JobList re-renders on every selection/preference change but
+// most rows' props stay referentially equal (see JobList.tsx's useCallback
+// wiring for onSelect/onPreference/innerRef).
+export const JobListItem = memo(function JobListItem({
   job,
   selected,
   listViewPreference,
@@ -311,4 +314,4 @@ export function JobListItem({
       </div>
     </li>
   );
-}
+});

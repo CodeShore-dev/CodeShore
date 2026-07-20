@@ -1,5 +1,6 @@
 import type { ExecutionContext } from '@nestjs/common';
 import { HttpStatus, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { getAppCacheModule } from '@codeshore/service-cache';
 import { LoggerModule } from '@codeshore/service-logger';
 import { Reflector } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
@@ -311,7 +312,7 @@ describe('AuthGuard rejects unauthenticated requests to job-filter-watchlist (re
 describe('Module wiring (task 2.4)', () => {
   it('boots the job-filter-watchlist Module (Controller + Service + data-utils providers) without error', async () => {
     const moduleRef = await Test.createTestingModule({
-      imports: [LoggerModule.forRoot(), Module],
+      imports: [LoggerModule.forRoot(), getAppCacheModule(), Module],
     }).compile();
 
     expect(moduleRef.get(Controller)).toBeInstanceOf(Controller);

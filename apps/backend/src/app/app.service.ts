@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
 import type { SupabaseFunction } from '@codeshore/data-types';
 import { SCHEMA_SQL } from '@codeshore/data-types';
@@ -36,10 +36,14 @@ export interface AiWorkflowsResponse {
 @Injectable()
 export class AppService {
   constructor(
-    private readonly cacheService: CacheService,
+    @Inject(CacheService) private readonly cacheService: CacheService,
+    @Inject(MvSalaryTypeMedianRatioService)
     private readonly mvSalaryTypeMedianRatioService: MvSalaryTypeMedianRatioService,
+    @Inject(MvSalaryRangeMultiplierService)
     private readonly mvSalaryRangeMultiplierService: MvSalaryRangeMultiplierService,
+    @Inject(MvTechRankingService)
     private readonly mvTechRankingService: MvTechRankingService,
+    @Inject(MvTechComboStatsService)
     private readonly mvTechComboStatsService: MvTechComboStatsService,
   ) {}
 

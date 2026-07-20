@@ -2,9 +2,13 @@
 // `detectTechParentCycle` and triggers `refreshAllMaterializedViews` after a
 // successful write -- both are mocked at the module boundary per the
 // implementer protocol, rather than exercising real Postgres/RPC calls.
-vi.mock('@codeshore/data-utils', () => ({
-  refreshAllMaterializedViews: vi.fn(),
-}));
+vi.mock('@codeshore/data-utils', async importOriginal => {
+  const actual = await importOriginal<typeof import('@codeshore/data-utils')>();
+  return {
+    ...actual,
+    refreshAllMaterializedViews: vi.fn(),
+  };
+});
 vi.mock('./validation/cycle-check', () => ({
   detectTechParentCycle: vi.fn(),
 }));

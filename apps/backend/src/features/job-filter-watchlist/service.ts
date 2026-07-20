@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
 import { SupabaseTable } from '@codeshore/data-types';
 import {
@@ -81,9 +81,10 @@ function toSubscriptionWithCounts(
 @Injectable()
 export class Service {
   constructor(
+    @Inject(JobFilterSubscriptionService)
     private readonly subscriptionService: JobFilterSubscriptionService,
-    private readonly mvJobService: MvJobService,
-    private readonly cacheService: CacheService,
+    @Inject(MvJobService) private readonly mvJobService: MvJobService,
+    @Inject(CacheService) private readonly cacheService: CacheService,
   ) {}
 
   /**

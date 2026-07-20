@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
 } from '@nestjs/common';
 import { spawn } from 'child_process';
@@ -150,7 +151,7 @@ export interface CrawlOptions {
 
 @Injectable()
 export class Service {
-  constructor(private readonly jobService: JobService) {}
+  constructor(@Inject(JobService) private readonly jobService: JobService) {}
 
   getStats(days = 7) {
     return getJobCrawlStats(days);

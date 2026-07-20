@@ -1,6 +1,7 @@
 import {
   Controller as ControllerDecorator,
   Get,
+  Inject,
   Param,
   Query,
 } from '@nestjs/common';
@@ -22,7 +23,7 @@ const name = 'company';
 @ApiTags(name)
 @ControllerDecorator(name)
 export class Controller {
-  constructor(private readonly service: Service) {}
+  constructor(@Inject(Service) private readonly service: Service) {}
 
   @Get()
   @Public()

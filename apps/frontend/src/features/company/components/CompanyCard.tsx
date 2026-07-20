@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 
 import { SupabaseView } from '@codeshore/data-types';
 
@@ -21,7 +21,7 @@ const CATEGORY_PRIORITY: Record<string, number> = {
   tool: 5,
 };
 
-export function CompanyCard({
+export const CompanyCard = memo(function CompanyCard({
   company,
   techs,
   categoryLabelMap,
@@ -164,4 +164,4 @@ export function CompanyCard({
       </div>
     </div>
   );
-}
+});

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { spawn } from 'child_process';
 import { Observable } from 'rxjs';
 
@@ -20,10 +20,12 @@ const PREFERENCE_COUNT_TTL = 60 * 1000; // 60 seconds
 @Injectable()
 export class Service {
   constructor(
-    private readonly cacheService: CacheService,
+    @Inject(CacheService) private readonly cacheService: CacheService,
+    @Inject(JobPreferenceService)
     private readonly jobPreferenceService: JobPreferenceService,
+    @Inject(MvLocationGroupService)
     private readonly mvLocationGroupService: MvLocationGroupService,
-    private readonly mvJobService: MvJobService,
+    @Inject(MvJobService) private readonly mvJobService: MvJobService,
   ) {}
 
   async getMvJobs(query: QueryDto, userId: string | null) {

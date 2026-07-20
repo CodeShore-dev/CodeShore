@@ -3,6 +3,7 @@ import {
   Body,
   Controller as ControllerDecorator,
   Get,
+  Inject,
   InternalServerErrorException,
   NotFoundException,
   Param,
@@ -30,7 +31,7 @@ const name = 'keyword-curation';
 @AdminOnly()
 @ControllerDecorator(name)
 export class Controller {
-  constructor(private readonly service: Service) {}
+  constructor(@Inject(Service) private readonly service: Service) {}
 
   @Get('queue')
   @ApiOperation({

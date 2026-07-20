@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { Observable } from 'rxjs';
 
 import { AiSuggestionAction, AiSuggestionStatus, AiSuggestionWorkflow, SupabaseTable } from '@codeshore/data-types';
@@ -293,19 +293,29 @@ async function writeCompositeKey(
 @Injectable()
 export class Service {
   constructor(
+    @Inject(AiSuggestionService)
     private readonly aiSuggestionService: AiSuggestionService,
+    @Inject(JobDescriptionBinService)
     private readonly jobDescriptionBinService: JobDescriptionBinService,
-    private readonly techService: TechService,
+    @Inject(TechService) private readonly techService: TechService,
+    @Inject(KeywordBinService)
     private readonly keywordBinService: KeywordBinService,
+    @Inject(TechKeywordService)
     private readonly techKeywordService: TechKeywordService,
+    @Inject(TechParentService)
     private readonly techParentService: TechParentService,
+    @Inject(LocationGroupService)
     private readonly locationGroupService: LocationGroupService,
+    @Inject(LocationGroupLocationService)
     private readonly locationGroupLocationService: LocationGroupLocationService,
-    private readonly mvTechService: MvTechService,
+    @Inject(MvTechService) private readonly mvTechService: MvTechService,
+    @Inject(MvLocationGroupService)
     private readonly mvLocationGroupService: MvLocationGroupService,
-    private readonly keywordService: KeywordService,
+    @Inject(KeywordService) private readonly keywordService: KeywordService,
+    @Inject(JobKeywordService)
     private readonly jobKeywordService: JobKeywordService,
-    private readonly jobService: JobService,
+    @Inject(JobService) private readonly jobService: JobService,
+    @Inject(AiLlmSettingService)
     private readonly llmSettingService: AiLlmSettingService,
   ) {}
 

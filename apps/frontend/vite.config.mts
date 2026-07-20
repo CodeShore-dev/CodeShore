@@ -4,6 +4,7 @@ import { nxViteTsPaths } from '@nx/vite/plugins/nx-tsconfig-paths.plugin';
 import react from '@vitejs/plugin-react';
 import { execSync } from 'node:child_process';
 import { defineConfig } from 'vite';
+import { visualizer } from 'rollup-plugin-visualizer';
 
 function resolveAppVer(): string {
   if (process.env.VITE_APP_VER)
@@ -37,6 +38,15 @@ export default defineConfig(() => ({
     react(),
     nxViteTsPaths(),
     nxCopyAssetsPlugin(['*.md']),
+    // Run `ANALYZE=true npx nx build frontend` to get a treemap of chunk
+    // contents at dist/apps/frontend/stats.html.
+    process.env.ANALYZE &&
+      visualizer({
+        filename: '../../dist/apps/frontend/stats.html',
+        gzipSize: true,
+        brotliSize: true,
+        template: 'treemap',
+      }),
   ],
   // Uncomment this if you are using workers.
   // worker: {
@@ -48,6 +58,14 @@ export default defineConfig(() => ({
     reportCompressedSize: true,
     commonjsOptions: {
       transformMixedEsModules: true,
+    },
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router'],
+          'vendor-query': ['@tanstack/react-query'],
+        },
+      },
     },
   },
   test: {

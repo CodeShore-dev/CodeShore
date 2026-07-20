@@ -2,6 +2,7 @@ import {
   Body,
   Controller as ControllerDecorator,
   Get,
+  Inject,
   Param,
   Patch,
   Query,
@@ -32,7 +33,7 @@ const name = 'admin/job';
 @AdminOnly()
 @ControllerDecorator(name)
 export class Controller {
-  constructor(private readonly service: Service) {}
+  constructor(@Inject(Service) private readonly service: Service) {}
 
   @Get('stats')
   @ApiOperation({

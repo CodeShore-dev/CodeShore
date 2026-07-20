@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
 import {
   DEFAULT_MODEL_FALLBACK,
@@ -28,13 +28,16 @@ import { ServiceLogger } from '@codeshore/service-logger';
 @Injectable()
 export class Service {
   constructor(
-    private readonly logger: ServiceLogger,
-    private readonly cacheService: CacheService,
-    private readonly techService: TechService,
+    @Inject(ServiceLogger) private readonly logger: ServiceLogger,
+    @Inject(CacheService) private readonly cacheService: CacheService,
+    @Inject(TechService) private readonly techService: TechService,
+    @Inject(TechKeywordService)
     private readonly techKeywordService: TechKeywordService,
+    @Inject(TechParentService)
     private readonly techParentService: TechParentService,
-    private readonly keywordService: KeywordService,
-    private readonly mvTechService: MvTechService,
+    @Inject(KeywordService) private readonly keywordService: KeywordService,
+    @Inject(MvTechService) private readonly mvTechService: MvTechService,
+    @Inject(MvTechCategoryService)
     private readonly mvTechCategoryService: MvTechCategoryService,
   ) {}
 

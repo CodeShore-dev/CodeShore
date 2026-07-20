@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 
 import { SupabaseView } from '@codeshore/data-types';
 
@@ -100,14 +100,34 @@ export function JobList({
     });
   };
 
-  const onPreference = (id: string, preference: 'like' | 'dislike') => {
-    onGuardPreference(() => {
-      preferenceMutation.mutate({ id, preference });
-    });
-  };
+  const onPreference = useCallback(
+    (id: string, preference: 'like' | 'dislike') => {
+      onGuardPreference(() => {
+        preferenceMutation.mutate({ id, preference });
+      });
+    },
+    [onGuardPreference, preferenceMutation.mutate],
+  );
 
   // Keep the selected row visible as the drawer steps through jobs.
   const itemElMap = useRef(new Map<string, HTMLLIElement>());
+  // One stable ref-callback per job id, cached across renders, so each
+  // JobListItem's `innerRef` prop stays referentially equal and doesn't
+  // defeat its React.memo.
+  const itemRefCallbacks = useRef(
+    new Map<string, (el: HTMLLIElement | null) => void>(),
+  );
+  const getItemRef = useCallback((jobId: string) => {
+    let cb = itemRefCallbacks.current.get(jobId);
+    if (!cb) {
+      cb = el => {
+        if (el) itemElMap.current.set(jobId, el);
+        else itemElMap.current.delete(jobId);
+      };
+      itemRefCallbacks.current.set(jobId, cb);
+    }
+    return cb;
+  }, []);
   useEffect(() => {
     if (selectedJobId) {
       itemElMap.current
@@ -148,10 +168,7 @@ export function JobList({
               {jobs.map(job => (
                 <JobListItem
                   key={job.id}
-                  innerRef={el => {
-                    if (el) itemElMap.current.set(job.id, el);
-                    else itemElMap.current.delete(job.id);
-                  }}
+                  innerRef={getItemRef(job.id)}
                   job={job}
                   selected={selectedJobId === job.id}
                   listViewPreference={listViewPreference}

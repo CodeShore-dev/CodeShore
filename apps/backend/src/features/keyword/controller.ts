@@ -3,6 +3,7 @@ import {
   Controller as ControllerDecorator,
   Delete,
   Get,
+  Inject,
   Param,
   Patch,
   Post,
@@ -30,7 +31,7 @@ const name = 'keyword';
 @ApiTags(name)
 @ControllerDecorator(name)
 export class Controller {
-  constructor(private readonly service: Service) {}
+  constructor(@Inject(Service) private readonly service: Service) {}
 
   @Get('group')
   @Public()

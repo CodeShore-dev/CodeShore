@@ -1,4 +1,3 @@
-import * as cheerio from 'cheerio';
 import dayjs from 'dayjs';
 import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -91,13 +90,20 @@ export function JobCard({ job = {}, loading, crawl }: JobCardProps) {
     [updatedAt, job.updated_at],
   );
 
+  // Strips every attribute (onerror=, style=, etc.) from the crawled JD HTML
+  // before it's rendered via dangerouslySetInnerHTML below. Previously used
+  // cheerio for this, but that pulls a full server-oriented HTML parser
+  // (parse5/htmlparser2) into the browser bundle for ~300KB of dead weight;
+  // the browser's own parser does the identical job for free.
   const description = useMemo(() => {
     if (!job.description) return '';
-    const $ = cheerio.load(job.description);
-    $('*').each((_, el) => {
-      (el as unknown as { attribs: Record<string, string> }).attribs = {};
-    });
-    return $('body').html()?.trim() ?? '';
+    const doc = new DOMParser().parseFromString(job.description, 'text/html');
+    for (const el of Array.from(doc.body.querySelectorAll('*'))) {
+      for (const attr of Array.from(el.attributes)) {
+        el.removeAttribute(attr.name);
+      }
+    }
+    return doc.body.innerHTML.trim();
   }, [job.description]);
 
   const handleKeywordSelect = (keyword: string) => {

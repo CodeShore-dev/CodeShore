@@ -3,6 +3,7 @@ import {
   ConflictException,
   Controller as ControllerDecorator,
   Get,
+  Inject,
   InternalServerErrorException,
   NotFoundException,
   Param,
@@ -39,7 +40,7 @@ const name = 'ai-suggestion';
 @AdminOnly()
 @ControllerDecorator(name)
 export class Controller {
-  constructor(private readonly service: Service) {}
+  constructor(@Inject(Service) private readonly service: Service) {}
 
   @Get()
   @ApiOperation({

@@ -6,7 +6,14 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { ServiceCode, ServiceException } from '@codeshore/codebook';
+import { ServiceLogger } from '@codeshore/service-logger';
 import type { ServiceResponse } from './@types';
+
+interface HttpRequestLike {
+  method?: string;
+  url?: string;
+  path?: string;
+}
 
 interface HttpResponseLike {
   status(code: number): this;
@@ -15,11 +22,32 @@ interface HttpResponseLike {
 
 const UNEXPECTED_MESSAGE = 'Internal server error';
 
+/**
+ * The last-resort boundary for every exception, including ones thrown by
+ * Guards -- those never reach InboundInterceptor (guards run before
+ * interceptors), so this filter is the only place guaranteed to see them.
+ * Logging here, in addition to InboundInterceptor's own access-log entry for
+ * exceptions that do reach it, is what makes 401/403/400 guard rejections
+ * (auth failures, permission denials, query-limit violations) show up in the
+ * logs at all.
+ */
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
+  constructor(private readonly logger: ServiceLogger) {}
+
   catch(exception: unknown, host: ArgumentsHost): void {
+    const request = host.switchToHttp().getRequest<HttpRequestLike>();
     const response = host.switchToHttp().getResponse<HttpResponseLike>();
     const { status, body } = this.resolve(exception);
+
+    this.logger.error(undefined, exception, {
+      method: request?.method,
+      path: request?.path ?? request?.url,
+      status,
+      response_body: JSON.stringify(body),
+      type: 'response',
+    });
+
     response.status(status).json(body);
   }
 

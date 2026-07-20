@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Inject,
   Query,
   Sse,
 } from '@nestjs/common';
@@ -16,7 +17,7 @@ import { AppService } from './app.service';
 export class AppController {
   private messageQueue: Subject<string> = new Subject();
 
-  constructor(private readonly service: AppService) {}
+  constructor(@Inject(AppService) private readonly service: AppService) {}
 
   @Get('/job-count')
   @ApiOperation({

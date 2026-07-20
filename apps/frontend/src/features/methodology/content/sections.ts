@@ -196,6 +196,36 @@ export const methodologySections: readonly MethodologySection[] = [
           ],
         ],
       },
+      {
+        kind: 'paragraph',
+        text: '這套流程對「驗證」的要求同樣具體：agent 交付一項變更前，不能只憑「build 成功」「看起來合理」就宣稱完成，必須提出可重現的新鮮證據——而且證據要能排除「這個問題本來就存在、與這次改動無關」的可能。以一次實際的前端效能優化為例：',
+      },
+      {
+        kind: 'table',
+        headers: ['驗證方式', '具體做法與目的'],
+        rows: [
+          [
+            '前後對照隔離既有問題',
+            '改動後跑測試若出現失敗，先用 `git stash` 把這次改動暫時收起、在乾淨的基準版本上重跑同一批測試；若基準版本本來就失敗，才能確認失敗與這次改動無關，而不是把既有問題誤算進成果或誤判成新 bug。',
+          ],
+          [
+            'Bundle 體積用視覺化報告佐證，不用猜的',
+            'Vite build 接上 `rollup-plugin-visualizer`（`ANALYZE=true npx nx build frontend`，輸出 `dist/apps/frontend/stats.html` 的 treemap），直接在報告裡點出哪個第三方套件佔用了不成比例的體積，而不是憑印象猜測「應該是某個套件太大」。',
+          ],
+          [
+            '執行期真實觀察，不只信賴編譯成功',
+            '「typecheck／build 過」只代表程式碼合法，不代表功能真的如預期運作。例如替後端加上回應壓縮後，實際把服務跑起來、用 `curl -H "Accept-Encoding: gzip" -D - -o /dev/null <url>` 檢查回應標頭真的出現 `Content-Encoding: gzip`，而非只看到 build 沒報錯就視為完成。',
+          ],
+          [
+            '影響範圍全掃過一輪，不只測被改到的檔案',
+            '一項改動可能牽動共用元件、共用 hook 或跨專案的共用套件（如 `libs/service-utils` 同時被 `backend` 與 `backend-lambda` 使用），因此驗證會涵蓋所有可能受影響的專案（`nx run-many --target=typecheck`、對應的完整測試套件），而不是只跑被直接編輯的那個檔案的測試。',
+          ],
+        ],
+      },
+      {
+        kind: 'paragraph',
+        text: '這些報告與指令都可自行重現：本站的原始碼在「開源於 GitHub」頁面公開，任何人都能拉下程式碼、跑同樣的指令、看到同樣的輸出——這正是「公開透明」希望呈現的，不是單方面宣稱「AI 有做驗證」，而是驗證過程本身可被檢視、可被重做。',
+      },
     ],
   },
   {

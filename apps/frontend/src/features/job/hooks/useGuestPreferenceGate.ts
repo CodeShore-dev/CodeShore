@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 
 import { useIsAuthenticated } from '../../auth/authStore';
@@ -43,15 +43,20 @@ export function useGuestPreferenceGate(): UseGuestPreferenceGateResult {
     }
   }, [isAuthenticated, listViewPreference]);
 
-  const requestPreference = (action: () => void): void => {
-    if (isAuthenticated) {
-      action();
-      return;
-    }
-    // Deliberately do not retain `action` anywhere: it must not be
-    // replayable after a later login (requirement 4.2).
-    setPromptOpen(true);
-  };
+  // Stable across renders (only changes with isAuthenticated) so it can be
+  // passed down as a prop to memoized list rows without busting their memo.
+  const requestPreference = useCallback(
+    (action: () => void): void => {
+      if (isAuthenticated) {
+        action();
+        return;
+      }
+      // Deliberately do not retain `action` anywhere: it must not be
+      // replayable after a later login (requirement 4.2).
+      setPromptOpen(true);
+    },
+    [isAuthenticated],
+  );
 
   const confirmLogin = (): void => {
     setPromptOpen(false);

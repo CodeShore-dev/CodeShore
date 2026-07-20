@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 
 import { SupabaseView } from '@codeshore/data-types';
@@ -55,8 +55,11 @@ export function CompanyListPage() {
     [tabs],
   );
 
-  const goToJobs = (companyName: string) =>
-    navigate(`/jobs?${new URLSearchParams({ companies: companyName })}`);
+  const goToJobs = useCallback(
+    (companyName: string) =>
+      navigate(`/jobs?${new URLSearchParams({ companies: companyName })}`),
+    [navigate],
+  );
 
   return (
     <div className="w-full">

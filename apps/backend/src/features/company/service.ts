@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
 import {
   MvCompanyService,
@@ -10,7 +10,8 @@ import { QueryDto } from '../query.dto';
 @Injectable()
 export class Service {
   constructor(
-    private readonly mvCompanyService: MvCompanyService,
+    @Inject(MvCompanyService) private readonly mvCompanyService: MvCompanyService,
+    @Inject(MvCompanyTechService)
     private readonly mvCompanyTechService: MvCompanyTechService,
   ) {}
 

@@ -1,4 +1,5 @@
-import { Logger, ValidationPipe } from '@nestjs/common';
+import compression = require('compression');
+import { Logger } from '@nestjs/common';
 import {
   IEntryNestModule,
   NestFactory,
@@ -8,8 +9,27 @@ import {
   SwaggerModule,
 } from '@nestjs/swagger';
 
-import { ServiceLogger } from '@codeshore/service-logger';
-import { AllExceptionsFilter, InboundInterceptor } from '@codeshore/service-transport';
+// The frontend is same-origin in production (ServeStaticModule serves it
+// from this same app) and only ever calls the API cross-origin from the
+// local Vite dev server, so the allowlist only needs the prod domain plus
+// the two local dev ports (`serve`/`preview`, see apps/frontend/vite.config.mts).
+// CORS_ORIGINS lets a deployment add more (e.g. a staging domain) without a
+// code change. Note this only restricts browser JS on other origins from
+// reading responses -- curl/Postman/server-to-server calls are never subject
+// to CORS, so this is not an access-control mechanism by itself.
+const DEFAULT_ALLOWED_ORIGINS = [
+  'https://codeshore.dev',
+  'http://localhost:4200',
+  'http://localhost:4300',
+];
+
+function resolveAllowedOrigins(): string[] {
+  const extra = (process.env['CORS_ORIGINS'] ?? '')
+    .split(',')
+    .map(origin => origin.trim())
+    .filter(Boolean);
+  return [...DEFAULT_ALLOWED_ORIGINS, ...extra];
+}
 
 /**
  * 建立並完整設定好 Nest app，但「不呼叫 listen」。
@@ -35,18 +55,19 @@ export async function createApp(
   const prefix = 'api';
 
   const app = await NestFactory.create(AppModule);
-  const logger = app.get(ServiceLogger);
-  app.enableCors();
+  // Gzips every response on the fly -- this is what actually compresses the
+  // frontend's static JS/CSS bundle in production, since ServeStaticModule
+  // (see @codeshore/service-serve-static) serves files as-is with no
+  // built-in compression.
+  app.use(compression());
+  app.enableCors({ origin: resolveAllowedOrigins() });
   app.setGlobalPrefix(prefix);
-  app.useGlobalInterceptors(new InboundInterceptor(logger));
-  app.useGlobalPipes(
-    new ValidationPipe({
-      transform: true,
-      whitelist: true,
-      forbidNonWhitelisted: false,
-    }),
-  );
-  app.useGlobalFilters(new AllExceptionsFilter());
+  // InboundInterceptor / AllExceptionsFilter / the global ValidationPipe are
+  // registered via DI (APP_INTERCEPTOR/APP_FILTER/APP_PIPE) by
+  // TransportModule (see @codeshore/service-transport), imported into
+  // AppModule -- not here -- so they can have dependencies (ServiceLogger)
+  // injected instead of being constructed with `new X()` outside the
+  // container.
   app.enableShutdownHooks();
 
   const options = new DocumentBuilder()

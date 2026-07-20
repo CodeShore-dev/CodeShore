@@ -2,6 +2,7 @@ import {
   Controller as ControllerDecorator,
   Delete,
   Get,
+  Inject,
   Param,
   Query,
 } from '@nestjs/common';
@@ -24,7 +25,7 @@ const name = 'cache';
 @AdminOnly()
 @ControllerDecorator(name)
 export class Controller {
-  constructor(private readonly cacheService: CacheService) {}
+  constructor(@Inject(CacheService) private readonly cacheService: CacheService) {}
 
   @Get()
   @ApiOperation({
