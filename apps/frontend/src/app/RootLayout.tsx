@@ -3,6 +3,7 @@ import { Outlet } from 'react-router';
 import { AppFooter } from '../layout/AppFooter';
 import { AppMobileNav } from '../layout/AppMobileNav';
 import { AppNavBar } from '../layout/AppNavBar';
+import { Analytics } from './Analytics';
 import { ScrollManager } from './ScrollManager';
 
 // App shell (task 3.2) — the App.vue equivalent. Hosts the global scroll
@@ -12,6 +13,7 @@ export function RootLayout() {
   return (
     <div className="bg-background font-body text-on-surface min-h-screen">
       <ScrollManager />
+      <Analytics />
 
       <div className="fixed top-0 z-50 w-full">
         <div className="hidden bg-[#001f2a] text-xs font-bold tracking-wider text-[#f4faff] md:block">

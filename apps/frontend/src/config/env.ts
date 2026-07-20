@@ -15,6 +15,11 @@ interface AppEnv {
    * 由 VITE_SITE_URL 環境變數注入；未設定時預設 'https://codeshore.dev'。
    */
   readonly siteUrl: string;
+  /**
+   * GA4 Measurement ID（格式 G-XXXXXXXXXX）。
+   * 由 VITE_GA_MEASUREMENT_ID 環境變數注入；未設定時為空字串，Analytics 元件會停用追蹤。
+   */
+  readonly gaMeasurementId: string;
 }
 
 const parseAdminEmails = (raw: string): string[] =>
@@ -31,4 +36,5 @@ export const env: AppEnv = {
   supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
   supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
   siteUrl: import.meta.env.VITE_SITE_URL ?? 'https://codeshore.dev',
+  gaMeasurementId: import.meta.env.VITE_GA_MEASUREMENT_ID ?? '',
 };
