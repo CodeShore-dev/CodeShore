@@ -6,6 +6,8 @@ availableSecrets:
     env: VITE_SUPABASE_ANON_KEY
   - versionName: projects/$PROJECT_ID/secrets/vite-admin-emails/versions/latest
     env: VITE_ADMIN_EMAILS
+  - versionName: projects/$PROJECT_ID/secrets/vite-ga-measurement-id/versions/latest
+    env: VITE_GA_MEASUREMENT_ID
 
 steps:
   - name: 'gcr.io/cloud-builders/docker'
@@ -14,13 +16,14 @@ steps:
     args:
       - '-c'
       - |
-        printf "VITE_SUPABASE_URL=%s\nVITE_SUPABASE_ANON_KEY=%s\nVITE_ADMIN_EMAILS=%s\n" \
-          "$$VITE_SUPABASE_URL" "$$VITE_SUPABASE_ANON_KEY" "$$VITE_ADMIN_EMAILS" \
+        printf "VITE_SUPABASE_URL=%s\nVITE_SUPABASE_ANON_KEY=%s\nVITE_ADMIN_EMAILS=%s\nVITE_GA_MEASUREMENT_ID=%s\n" \
+          "$$VITE_SUPABASE_URL" "$$VITE_SUPABASE_ANON_KEY" "$$VITE_ADMIN_EMAILS" "$$VITE_GA_MEASUREMENT_ID" \
           > apps/frontend/.env
     secretEnv:
       - VITE_SUPABASE_URL
       - VITE_SUPABASE_ANON_KEY
       - VITE_ADMIN_EMAILS
+      - VITE_GA_MEASUREMENT_ID
 
   - name: 'gcr.io/cloud-builders/git'
     id: FetchTags
