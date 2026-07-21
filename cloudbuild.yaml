@@ -39,8 +39,8 @@ steps:
       - '-c'
       - |
         VER=$(git describe --tags --always)
-        echo "$VER" > /workspace/_ver.txt
-        echo "APP_VER=$VER"
+        echo "$$VER" > /workspace/_ver.txt
+        echo "APP_VER=$$VER"
     waitFor: ['FetchTags']
 
   - name: 'gcr.io/cloud-builders/docker'
@@ -59,13 +59,13 @@ steps:
       - |
         VER=$(cat /workspace/_ver.txt)
         docker build \
-          --build-arg VER="$VER" \
+          --build-arg VER="$$VER" \
           --cache-from ${_CACHE_IMAGE}-builder \
           --target builder \
           -t ${_CACHE_IMAGE}-builder \
           -f Dockerfile.cloudrun . \
         && docker build \
-          --build-arg VER="$VER" \
+          --build-arg VER="$$VER" \
           --cache-from ${_CACHE_IMAGE} \
           -t $_IMAGE \
           -f Dockerfile.cloudrun . \
