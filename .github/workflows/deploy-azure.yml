@@ -57,6 +57,7 @@ jobs:
           VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_ADMIN_EMAILS=${{ secrets.VITE_ADMIN_EMAILS }}
+          VITE_GA_MEASUREMENT_ID=${{ secrets.VITE_GA_MEASUREMENT_ID }}
           EOF
 
       - name: Set up Docker Buildx
