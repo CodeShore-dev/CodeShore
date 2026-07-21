@@ -1,6 +1,6 @@
 // 不手動切換 backend，改由健康狀態自動挑選。
 // 依 PRIORITY 由前往後嘗試，採用第一個「存活」的 origin。
-const PRIORITY = ['aws', 'azure', 'gcp'];
+const PRIORITY = ['gcp', 'azure', 'aws'];
 
 const BACKENDS = {
   gcp:   'codeshore-539494821071.asia-east1.run.app',
