@@ -35,6 +35,15 @@ export function Analytics() {
     window.gtag = function gtag(...args: unknown[]) {
       window.dataLayer.push(args);
     };
+    // No cookie-consent banner exists on this site, so grant storage consent
+    // by default — otherwise gtag.js defaults analytics_storage to "denied"
+    // and silently drops every hit (no cookie, no network request, no error).
+    window.gtag('consent', 'default', {
+      analytics_storage: 'granted',
+      ad_storage: 'denied',
+      ad_user_data: 'denied',
+      ad_personalization: 'denied',
+    });
     window.gtag('js', new Date());
     // send_page_view disabled here; the location effect below reports every
     // page_view (including the first) so there is exactly one per route.
