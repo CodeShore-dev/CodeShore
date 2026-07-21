@@ -17,7 +17,7 @@ COPY nx.json tsconfig.base.json env.d.ts ./
 COPY libs/ ./libs
 COPY apps/ ./apps
 
-RUN pnpm nx run-many --target=build --projects=frontend,backend --parallel=2
+RUN pnpm nx run-many --target=build --projects=frontend,backend --parallel=2 --skip-nx-cache
 
 # -------- Prune Stage --------
 FROM builder AS pruner
