@@ -19,6 +19,7 @@ steps:
         printf "VITE_SUPABASE_URL=%s\nVITE_SUPABASE_ANON_KEY=%s\nVITE_ADMIN_EMAILS=%s\nVITE_GA_MEASUREMENT_ID=%s\n" \
           "$$VITE_SUPABASE_URL" "$$VITE_SUPABASE_ANON_KEY" "$$VITE_ADMIN_EMAILS" "$$VITE_GA_MEASUREMENT_ID" \
           > apps/frontend/.env
+        echo "DEBUG: GA_LEN=${#VITE_GA_MEASUREMENT_ID} FILE_LINES=$(wc -l < apps/frontend/.env) FILE_HAS_KEY=$(grep -c VITE_GA_MEASUREMENT_ID apps/frontend/.env)"
     secretEnv:
       - VITE_SUPABASE_URL
       - VITE_SUPABASE_ANON_KEY
