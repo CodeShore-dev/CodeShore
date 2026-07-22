@@ -72,9 +72,11 @@ function createMockSourceRegistry(
   return {
     fetchPendingSources: vi.fn().mockResolvedValue([]),
     fetchBaseSources: vi.fn().mockResolvedValue([]),
+    seedPendingPage1: vi.fn().mockResolvedValue(undefined),
     registerPendingPages: vi.fn().mockResolvedValue(undefined),
     markSourceStatus: vi.fn().mockResolvedValue(undefined),
     clearAll: vi.fn().mockResolvedValue(undefined),
+    fetchMaxKnownPageIndex: vi.fn().mockResolvedValue(new Map()),
     ...overrides,
   };
 }

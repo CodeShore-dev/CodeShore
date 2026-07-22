@@ -393,8 +393,12 @@ export function createCrawlRouter<
           log.info(`Enqueued ${requestsToEnqueue.length} detail pages`);
         }
 
-        // 連續 N 頁都沒有新項目就放棄這個 job source,換下一個。
-        if (requestsToEnqueue.length === 0) {
+        // 連續 N 頁都沒有新項目就放棄這個 job source,換下一個——但在尚未走過
+        // `knownPageFloors` 記錄的已知深度之前不套用這個判斷,避免 fresh 模式
+        // 重新驗證「上次已經抓過、這次自然沒有新職缺」的前段分頁時被誤判為
+        // 已經抓到底,連帶跳過上次尚未真正抓過、可能仍有新職缺的更深分頁。
+        const knownFloor = config.knownPageFloors?.get(sourceKey) ?? 0;
+        if (requestsToEnqueue.length === 0 && currentPage > knownFloor) {
           const emptyStreak =
             (consecutiveEmptyPagesBySource.get(sourceKey) ?? 0) + 1;
           consecutiveEmptyPagesBySource.set(sourceKey, emptyStreak);
@@ -410,6 +414,12 @@ export function createCrawlRouter<
                 `for this job source.`,
             );
           }
+        } else if (requestsToEnqueue.length === 0) {
+          log.info(
+            `${sourceProgress}: no new jobs on page ${currentPage}, but still ` +
+              `within previously-known depth (<= ${knownFloor}) — continuing ` +
+              `without counting toward the empty-page skip.`,
+          );
         } else {
           consecutiveEmptyPagesBySource.set(sourceKey, 0);
         }

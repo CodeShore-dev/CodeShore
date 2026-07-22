@@ -17,6 +17,7 @@ import {
 export const createHandler = (
   allGroupKeywords: string[],
   totalSourceCount?: number,
+  knownPageFloors?: Map<string, number>,
 ) =>
   createSyncRouter<
     JobsAPIResponse,
@@ -26,6 +27,7 @@ export const createHandler = (
     ExistingJob
   >({
     totalSourceCount,
+    knownPageFloors,
     matchListResponse: (url: string) =>
       url.includes('/jobs/search/api/jobs'),
     parsePagination: (response: JobsAPIResponse) => ({

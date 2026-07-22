@@ -218,6 +218,14 @@ async function main() {
         requestHandlerTimeoutSecs: 120,
       });
 
+      // 必須在 resolveSourcesToProcess 清空追蹤表之前先取得,否則 fresh 模式
+      // 重新從第 1 頁爬時,無從得知「上次已經抓到第幾頁」,連續空頁的放棄判斷
+      // 就可能在真正走到那個深度之前就誤觸發(見 crawl-router.ts 的
+      // `knownPageFloors` 說明)。resume 模式不會清空任何東西,不需要這個下限。
+      const knownPageFloors = isFresh
+        ? await sourceRegistry.fetchMaxKnownPageIndex()
+        : undefined;
+
       const sourceLocations = await resolveSourcesToProcess(
         sourceRegistry,
         isFresh ? 'fresh' : 'resume',
@@ -263,7 +271,11 @@ async function main() {
         const {
           router: requestHandler104,
           flushPending: flushPending104,
-        } = createHandler104(keywords, totalSourceCount104);
+        } = createHandler104(
+          keywords,
+          totalSourceCount104,
+          knownPageFloors,
+        );
         Configuration.getGlobalConfig().set(
           'purgeOnStart',
           true,
@@ -289,7 +301,11 @@ async function main() {
         const {
           router: requestHandlerCake,
           flushPending: flushPendingCake,
-        } = createHandlerCake(keywords, totalSourceCountCake);
+        } = createHandlerCake(
+          keywords,
+          totalSourceCountCake,
+          knownPageFloors,
+        );
         Configuration.getGlobalConfig().set(
           'purgeOnStart',
           true,

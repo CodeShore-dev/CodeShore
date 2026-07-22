@@ -107,6 +107,14 @@ export async function deleteWhereIn(
   return builder.delete().in(field, values);
 }
 
+export const chunk = <T>(source: T[], size: number): T[][] => {
+  const chunks: T[][] = [];
+  for (let i = 0; i < source.length; i += size) {
+    chunks.push(source.slice(i, i + size));
+  }
+  return chunks;
+};
+
 export const distinct = <T>(
   source: T[],
   predicate: (x: T, y: T) => boolean,

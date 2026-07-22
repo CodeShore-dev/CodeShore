@@ -242,6 +242,59 @@ describe('persistence', () => {
     });
   });
 
+  describe('sourceRegistry.fetchMaxKnownPageIndex', () => {
+    it('reduces job_source_url rows to the max page_index per url, regardless of status', async () => {
+      jobSourceUrlFetchAllMock.mockResolvedValueOnce({
+        result: [
+          { url: 'https://example.test/a', page_index: 3, status: 'completed' },
+          { url: 'https://example.test/a', page_index: 7, status: 'pending' },
+          { url: 'https://example.test/a', page_index: 5, status: 'completed' },
+          { url: 'https://example.test/b', page_index: 2, status: 'failed' },
+        ],
+        count: 4,
+        searchParams: '',
+      });
+
+      const { sourceRegistry } = await import('./persistence');
+
+      const floors = await sourceRegistry.fetchMaxKnownPageIndex();
+
+      expect(jobSourceUrlFetchAllMock).toHaveBeenCalledWith({
+        select: 'url, page_index',
+      });
+      expect(floors.get('https://example.test/a')).toBe(7);
+      expect(floors.get('https://example.test/b')).toBe(2);
+    });
+
+    it('returns an empty map when no rows are tracked yet', async () => {
+      jobSourceUrlFetchAllMock.mockResolvedValueOnce({
+        result: [],
+        count: 0,
+        searchParams: '',
+      });
+
+      const { sourceRegistry } = await import('./persistence');
+
+      const floors = await sourceRegistry.fetchMaxKnownPageIndex();
+
+      expect(floors.size).toBe(0);
+    });
+  });
+
+  describe('sourceRegistry.seedPendingPage1', () => {
+    it('delegates to createJobSourceURLs seeding only page_index=1 as pending', async () => {
+      const { sourceRegistry } = await import('./persistence');
+
+      await sourceRegistry.seedPendingPage1('https://example.test/jobs');
+
+      expect(createJobSourceURLsMock).toHaveBeenCalledWith(
+        'https://example.test/jobs',
+        1,
+        1,
+      );
+    });
+  });
+
   describe('sourceRegistry.registerPendingPages', () => {
     it('delegates to createJobSourceURLs with url and totalPages', async () => {
       const { sourceRegistry } = await import('./persistence');

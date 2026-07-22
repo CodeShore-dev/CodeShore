@@ -9,9 +9,11 @@ function createMockRegistry(
   return {
     fetchPendingSources: vi.fn().mockResolvedValue([]),
     fetchBaseSources: vi.fn().mockResolvedValue([]),
+    seedPendingPage1: vi.fn().mockResolvedValue(undefined),
     registerPendingPages: vi.fn().mockResolvedValue(undefined),
     markSourceStatus: vi.fn().mockResolvedValue(undefined),
     clearAll: vi.fn().mockResolvedValue(undefined),
+    fetchMaxKnownPageIndex: vi.fn().mockResolvedValue(new Map()),
     ...overrides,
   };
 }
@@ -94,6 +96,17 @@ describe('resolveSourcesToProcess', () => {
     // already wipes any pre-existing pending state, so the result is driven
     // solely by fetchBaseSources.
     expect(registry.fetchPendingSources).not.toHaveBeenCalled();
+    // Every base source's page 1 must be pre-registered as pending before
+    // crawling starts — otherwise an interruption before page 1 finishes
+    // would leave that source with no row at all, invisible to a later
+    // resume-mode `fetchPendingSources` query.
+    expect(registry.seedPendingPage1).toHaveBeenCalledTimes(2);
+    expect(registry.seedPendingPage1).toHaveBeenCalledWith(
+      'https://example.com/a',
+    );
+    expect(registry.seedPendingPage1).toHaveBeenCalledWith(
+      'https://example.com/b',
+    );
   });
 
   it('fresh mode with zero base sources returns an empty array after clearing', async () => {

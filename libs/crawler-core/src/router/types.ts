@@ -101,6 +101,17 @@ export interface CrawlRouterConfig<
    * 不提供時 log 僅顯示序號。
    */
   totalSourceCount?: number;
+  /**
+   * 以 job source 的 base URL(不含 page 參數,見 `getSourceKey`)為鍵,記錄
+   * 該來源在這次執行「重新從第 1 頁爬」之前就已經追蹤到的最大分頁編號。
+   *
+   * 只要目前頁碼未超過這個下限,即使該頁沒有新職缺,也不計入
+   * `maxConsecutiveEmptyListPages` 的連續空頁計數、也不會觸發放棄該來源——
+   * 避免 fresh 模式重新驗證「上次已經抓過、這次自然沒有新職缺」的前段分頁時,
+   * 被誤判為「已經抓到底」而提前放棄,連帶跳過上次尚未真正抓過、可能仍有新
+   * 職缺的更深分頁。不提供時等同下限為 0(從第 1 頁起就套用一般判斷)。
+   */
+  knownPageFloors?: Map<string, number>;
 }
 
 /**

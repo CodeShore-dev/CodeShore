@@ -10,6 +10,7 @@ import { parseKeywordsOut } from '@codeshore/shared-utils';
 import { SupabaseTable } from '@codeshore/data-types';
 import { JobService } from './api/job.service';
 import { JobKeywordService } from '..';
+import { ServiceLogger } from '@codeshore/service-logger';
 
 /**
  * Model resolution mirrors `apps/backend/src/features/ai-suggestion/service.ts`'s
@@ -70,9 +71,10 @@ export async function resetJobKeywordsV1(
 export async function resetJobKeywords_Keywords_JobTech(
   tech?: string,
   keyword?: string,
+  { logger }: { logger?: ServiceLogger } = {},
 ) {
   await resetJobKeywordsV1(tech, keyword);
   await resetKeywords();
-  await new MvTechService().refresh();
-  await new JobTechService().resetByJobKeywords();
+  await new MvTechService(logger).refresh();
+  await new JobTechService(logger).resetByJobKeywords();
 }

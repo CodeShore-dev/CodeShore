@@ -67,6 +67,7 @@ export class Service {
     return resetJobKeywords_Keywords_JobTech(
       tech,
       keyword,
+      { logger: this.logger },
     );
   }
 

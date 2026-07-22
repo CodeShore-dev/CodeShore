@@ -160,6 +160,17 @@ export const sourceRegistry: SourceRegistry = {
   },
 
   /**
+   * fresh 模式:在真正開始爬取前,先把第 1 頁登記為 pending。第 1 頁原本只有
+   * 在自己完成或失敗後才會寫進 `job_source_url`(見 `markSourceStatus`),若
+   * 爬蟲在那之前中斷,resume 模式的 `fetchPendingSources` 會完全查不到這個
+   * 來源。這裡用 `createJobSourceURLs(url, 1, 1)` 只登記 page_index=1 這一列
+   * 為 pending,填補這個缺口。
+   */
+  seedPendingPage1(url: string): Promise<void> {
+    return createJobSourceURLs(url, 1, 1).then(() => undefined);
+  },
+
+  /**
    * 某來源第一頁完成後,若總頁數大於一,登記其餘分頁為待處理。
    * 對應原 `handler.ts`/`persistence.ts` 的 `onListPageResolved` 呼叫
    * `createJobSourceURLs` 的分支。
@@ -186,5 +197,21 @@ export const sourceRegistry: SourceRegistry = {
    */
   clearAll(): Promise<void> {
     return new JobSourceURLService().clearAll().then(() => undefined);
+  },
+
+  /**
+   * fresh 模式重建前,先取得每個來源目前已追蹤到的最大分頁編號(不論狀態),
+   * 供 `resolveSourcesToProcess` 用於「連續 N 頁無新職缺就放棄」判斷的下限。
+   */
+  async fetchMaxKnownPageIndex(): Promise<Map<string, number>> {
+    const { result } = await new JobSourceURLService().fetchAll({
+      select: 'url, page_index',
+    });
+    const floors = new Map<string, number>();
+    for (const row of result as { url: string; page_index: number }[]) {
+      const current = floors.get(row.url) ?? 0;
+      if (row.page_index > current) floors.set(row.url, row.page_index);
+    }
+    return floors;
   },
 };

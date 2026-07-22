@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { CrawlRouterConfig } from './types';
 import { createCrawlRouter } from './crawl-router';
+import { getSourceKey } from '../url';
 
 // `crawl-router.ts` uses Crawlee's `RequestQueue.open()` + `queue.addRequests(...)`
 // to enqueue detail-page requests for items that need a detail crawl (task 3.3,
@@ -1138,6 +1139,124 @@ describe('createCrawlRouter — rate limiting (HTTP 429)', () => {
 
     expect(buildPersistItem).toHaveBeenCalledTimes(1);
     expect(onListPageResolved).not.toHaveBeenCalled();
+  });
+});
+
+describe('createCrawlRouter — job source skip after consecutive empty pages', () => {
+  beforeEach(() => {
+    vi.useRealTimers();
+    openMock.mockClear();
+    addRequestsMock.mockClear();
+  });
+
+  const sourceKey = getSourceKey(LIST_API_URL);
+
+  function pageUrl(page: number): string {
+    return `https://example.test/api/list?page=${page}`;
+  }
+
+  it('skips the remaining pages of a job source once it hits 5 consecutive pages with no new jobs', async () => {
+    const onListPageResolved = vi.fn(async () => undefined);
+    const { router } = createCrawlRouter(
+      createBaseConfig({ onListPageResolved }),
+    );
+
+    // Pages 1-5 all come back with zero new items (everything already exists)
+    // — the 5th one should trip the skip.
+    for (let page = 1; page <= 5; page++) {
+      const mock = createMockPage();
+      await runListPageHandler(router, mock, pageUrl(page), {
+        page,
+        totalPages: 999,
+        totalEntries: 0,
+        items: [],
+      });
+    }
+
+    // Page 6 must now be short-circuited: no list-response listener even
+    // attached (proves it never reached `interceptListResponse`), and the
+    // page is immediately reported as completed so it doesn't dangle.
+    onListPageResolved.mockClear();
+    const mock6 = createMockPage();
+    await router(createHandlerContext(mock6.page, pageUrl(6)) as never);
+
+    expect(mock6.listenerCount()).toBe(0);
+    expect(onListPageResolved).toHaveBeenCalledWith({
+      url: pageUrl(6),
+      page: 6,
+      totalPages: 6,
+      status: 'completed',
+    });
+  });
+
+  it('does not skip while re-walking pages within knownPageFloors, even if every one of them has zero new jobs — only counts empty pages past the floor', async () => {
+    const onListPageResolved = vi.fn(async () => undefined);
+    const { router } = createCrawlRouter(
+      createBaseConfig({
+        onListPageResolved,
+        knownPageFloors: new Map([[sourceKey, 5]]),
+      }),
+    );
+
+    // Pages 1-5 are within the known floor (already fully crawled in a prior
+    // run) — even though every one looks empty this time, none of them may
+    // count toward the abandon streak.
+    for (let page = 1; page <= 5; page++) {
+      const mock = createMockPage();
+      await runListPageHandler(router, mock, pageUrl(page), {
+        page,
+        totalPages: 999,
+        totalEntries: 0,
+        items: [],
+      });
+    }
+
+    // Page 6 is past the floor — it must still be processed normally (not
+    // short-circuited), proving the source was not abandoned during 1-5.
+    // A short-circuited "skip" report always carries `totalPages` equal to
+    // the page number itself (it never learned the real pagination info),
+    // whereas a genuinely processed page reports the real `totalPages` (999)
+    // parsed from the mocked list response — a precise way to tell the two
+    // apart without relying on listener bookkeeping that both paths clean up
+    // identically by the time the handler promise resolves.
+    onListPageResolved.mockClear();
+    const mock6 = createMockPage();
+    await runListPageHandler(router, mock6, pageUrl(6), {
+      page: 6,
+      totalPages: 999,
+      totalEntries: 0,
+      items: [],
+    });
+    expect(onListPageResolved).toHaveBeenCalledWith({
+      url: pageUrl(6),
+      page: 6,
+      totalPages: 999,
+      status: 'completed',
+    });
+
+    // Pages 7-10 are also empty and past the floor: 6,7,8,9,10 is 5
+    // consecutive empty pages past the floor, so page 10 should trip the skip.
+    for (let page = 7; page <= 10; page++) {
+      const mock = createMockPage();
+      await runListPageHandler(router, mock, pageUrl(page), {
+        page,
+        totalPages: 999,
+        totalEntries: 0,
+        items: [],
+      });
+    }
+
+    onListPageResolved.mockClear();
+    const mock11 = createMockPage();
+    await router(createHandlerContext(mock11.page, pageUrl(11)) as never);
+
+    expect(mock11.listenerCount()).toBe(0);
+    expect(onListPageResolved).toHaveBeenCalledWith({
+      url: pageUrl(11),
+      page: 11,
+      totalPages: 11,
+      status: 'completed',
+    });
   });
 });
 

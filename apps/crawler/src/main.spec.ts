@@ -189,9 +189,18 @@ vi.mock('@codeshore/sync-core', () => ({
 // `./persistence` constructs real Supabase-backed services at module scope;
 // stub `sourceRegistry` to a plain object identity so we can assert it's the
 // exact reference forwarded into `resolveSourcesToProcess`.
-const { fakeSourceRegistry } = vi.hoisted(() => ({
-  fakeSourceRegistry: { marker: 'fake-source-registry' },
-}));
+const { fakeSourceRegistry, fetchMaxKnownPageIndexMock } = vi.hoisted(() => {
+  const fetchMaxKnownPageIndexMockInner = vi
+    .fn()
+    .mockResolvedValue(new Map<string, number>());
+  return {
+    fakeSourceRegistry: {
+      marker: 'fake-source-registry',
+      fetchMaxKnownPageIndex: fetchMaxKnownPageIndexMockInner,
+    },
+    fetchMaxKnownPageIndexMock: fetchMaxKnownPageIndexMockInner,
+  };
+});
 vi.mock('./persistence', () => ({
   sourceRegistry: fakeSourceRegistry,
 }));
@@ -302,7 +311,11 @@ describe('main() dispatch wiring (post sync-core migration)', () => {
     await runMainWithArgv(['crawl']);
 
     const handler104 = await import('./104/handler');
-    expect(handler104.createHandler).toHaveBeenCalledWith(['Node.js'], 1);
+    expect(handler104.createHandler).toHaveBeenCalledWith(
+      ['Node.js'],
+      1,
+      undefined,
+    );
     expect(flushPending104Mock).toHaveBeenCalledTimes(1);
   });
 
@@ -314,8 +327,38 @@ describe('main() dispatch wiring (post sync-core migration)', () => {
     await runMainWithArgv(['crawl']);
 
     const handlerCake = await import('./cake/handler');
-    expect(handlerCake.createHandler).toHaveBeenCalledWith(['Node.js'], 1);
+    expect(handlerCake.createHandler).toHaveBeenCalledWith(
+      ['Node.js'],
+      1,
+      undefined,
+    );
     expect(flushPendingCakeMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('crawl=fresh mode fetches known page floors from the real sourceRegistry before resolveSourcesToProcess clears tracked state, and forwards the result into the 104 handler', async () => {
+    const knownFloors = new Map<string, number>([
+      ['https://www.104.com.tw/jobs/search/1', 7],
+    ]);
+    fetchMaxKnownPageIndexMock.mockResolvedValueOnce(knownFloors);
+    resolveSourcesToProcessMock.mockResolvedValueOnce([
+      { url: 'https://www.104.com.tw/jobs/search/1', pageIndex: 1 },
+    ]);
+
+    await runMainWithArgv(['crawl=fresh']);
+
+    expect(fetchMaxKnownPageIndexMock).toHaveBeenCalledTimes(1);
+    const handler104 = await import('./104/handler');
+    expect(handler104.createHandler).toHaveBeenCalledWith(
+      ['Node.js'],
+      1,
+      knownFloors,
+    );
+  });
+
+  it('crawl mode (resume) never calls fetchMaxKnownPageIndex — resume never clears tracked state, so there is nothing to protect against', async () => {
+    await runMainWithArgv(['crawl']);
+
+    expect(fetchMaxKnownPageIndexMock).not.toHaveBeenCalled();
   });
 
   it('re-crawl mode (no where override) constructs the Job staleness config with keywords and undefined where, then runs the engine with the stealth launch context/hook', async () => {
