@@ -91,6 +91,16 @@ export interface CrawlRouterConfig<
     warning: (msg: string) => void;
     error: (msg: string) => void;
   };
+  /**
+   * 同一個 job source 連續幾頁都沒有新項目(`needToCreate` 皆為 false)時,
+   * 即放棄該 job source 剩餘分頁、跳到下一個 job source。預設 5。
+   */
+  maxConsecutiveEmptyListPages?: number;
+  /**
+   * 本次執行總共有幾個 job source,僅用於 log 顯示「第幾個 / 共幾個」,
+   * 不提供時 log 僅顯示序號。
+   */
+  totalSourceCount?: number;
 }
 
 /**

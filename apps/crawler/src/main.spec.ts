@@ -161,6 +161,11 @@ vi.mock('@codeshore/crawler-core', () => ({
   createStealthLaunchContext: vi.fn(() => ({ launchContext: 'fake' })),
   createStealthPreNavigationHook: vi.fn(() => ({ hook: 'fake' })),
   setPageIndex: (url: string, pageIndex: number) => `${url}?page=${pageIndex}`,
+  getSourceKey: (url: string) => {
+    const urlObj = new URL(url);
+    urlObj.searchParams.delete('page');
+    return urlObj.toString();
+  },
 }));
 
 // This is the seam under test: prove `main.ts`'s `crawl`/`re-crawl` modes
@@ -297,7 +302,7 @@ describe('main() dispatch wiring (post sync-core migration)', () => {
     await runMainWithArgv(['crawl']);
 
     const handler104 = await import('./104/handler');
-    expect(handler104.createHandler).toHaveBeenCalledWith(['Node.js']);
+    expect(handler104.createHandler).toHaveBeenCalledWith(['Node.js'], 1);
     expect(flushPending104Mock).toHaveBeenCalledTimes(1);
   });
 
@@ -309,7 +314,7 @@ describe('main() dispatch wiring (post sync-core migration)', () => {
     await runMainWithArgv(['crawl']);
 
     const handlerCake = await import('./cake/handler');
-    expect(handlerCake.createHandler).toHaveBeenCalledWith(['Node.js']);
+    expect(handlerCake.createHandler).toHaveBeenCalledWith(['Node.js'], 1);
     expect(flushPendingCakeMock).toHaveBeenCalledTimes(1);
   });
 

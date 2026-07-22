@@ -5,7 +5,11 @@ import { createBatchAccumulator } from '../progress/batch-accumulator';
 import { withErrorIsolation } from '../progress/error-isolation';
 import { createRollingAverageTracker } from '../progress/rolling-average';
 import { formatDuration } from '../time';
-import { generateNextUrlToEnqueue } from '../url';
+import {
+  generateNextUrlToEnqueue,
+  getPageIndex,
+  getSourceKey,
+} from '../url';
 import type {
   CrawlItemBase,
   CrawlRouterConfig,
@@ -15,6 +19,7 @@ import type {
 
 const DEFAULT_LIST_RESPONSE_TIMEOUT_MS = 30000;
 const DEFAULT_MAX_LIST_RETRIES = 10;
+const DEFAULT_MAX_CONSECUTIVE_EMPTY_LIST_PAGES = 5;
 
 const defaultLogger = {
   info: (msg: string) => console.log(msg),
@@ -23,9 +28,23 @@ const defaultLogger = {
 };
 
 /**
+ * 標記「清單 API 回應是 HTTP 429(被限流)」的專用例外:與逾時等其他攔截失敗
+ * 原因區分開來,讓 `interceptListResponse` 立刻放棄重試(重試只會換來更多
+ * 429),並讓呼叫端(`createCrawlRouter`)可以特別處理——停止整個爬蟲,而不是
+ * 走一般的「這頁失敗」回報路徑。
+ */
+class RateLimitedError extends Error {
+  constructor(url: string) {
+    super(`Rate limited (HTTP 429) on ${url}`);
+    this.name = 'RateLimitedError';
+  }
+}
+
+/**
  * 攔截清單頁的 API 回應,並在逾時未攔截到符合條件的回應時,依 `maxListRetries`
  * 重新載入頁面重試。符合條件的判斷結合呼叫端注入的 `matchListResponse(url)`
  * 與引擎固定的 `method() !== 'OPTIONS'`、`status() === 200` 檢查(此兩項不對外開放客製化)。
+ * 若攔截到的回應是 HTTP 429,視為被限流,立即以 `RateLimitedError` 中止、不重試。
  *
  * 對應原 `apps/crawler/src/handler.ts` L147-208 的重試迴圈,保留其
  * `Promise.race` 逾時競爭與 `page.on`/`page.off` 監聽器清理紀律。
@@ -54,21 +73,23 @@ async function interceptListResponse<TListResponse>(
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     let responseHandler!: (res: HTTPResponse) => void;
 
-    const waitForListResponse = new Promise<TListResponse>(resolve => {
+    const waitForListResponse = new Promise<TListResponse>((resolve, reject) => {
       responseHandler = res => {
         const req = res.request();
         const url = res.url();
-        if (
-          options.matchListResponse(url) &&
-          req.method() !== 'OPTIONS' &&
-          res.status() === 200
-        ) {
-          res
-            .json()
-            .then(json => resolve(json as TListResponse))
-            .catch(error => {
-              log.error(`Failed to parse list response JSON: ${error}`);
-            });
+        if (options.matchListResponse(url) && req.method() !== 'OPTIONS') {
+          if (res.status() === 429) {
+            reject(new RateLimitedError(url));
+            return;
+          }
+          if (res.status() === 200) {
+            res
+              .json()
+              .then(json => resolve(json as TListResponse))
+              .catch(error => {
+                log.error(`Failed to parse list response JSON: ${error}`);
+              });
+          }
         }
       };
       page.on('response', responseHandler);
@@ -96,6 +117,8 @@ async function interceptListResponse<TListResponse>(
       return response;
     } catch (error) {
       page.off('response', responseHandler);
+      // 被限流時不重試:重試只會立刻換來另一個 429,徒增對目標站台的壓力。
+      if (error instanceof RateLimitedError) throw error;
       lastError = error;
       if (attempt === maxRetries) throw error;
     }
@@ -116,6 +139,10 @@ const DEFAULT_DETAIL_WAIT_SELECTOR_TIMEOUT_MS = 10000;
 // 這兩種情況,藉此保留原本 catch 區塊呼叫 `config.onListPageResolved` 回報
 // 失敗狀態的 follow-up 邏輯。
 const LIST_PAGE_SUCCESS = Symbol('list-page-success');
+
+// DETAIL 請求的 `userData` 內部用來回指其所屬清單頁 URL 的欄位名稱,供
+// `maybeCompleteListPage` 判斷該清單頁的 DETAIL 請求是否都已處理完畢。
+const LIST_PAGE_URL_USERDATA_KEY = '__listPageUrl';
 
 /**
  * 建立通用清單/詳情爬蟲路由引擎。
@@ -190,6 +217,49 @@ export function createCrawlRouter<
   let lastKnownListPage = 0;
   let lastKnownTotalListPages = 1;
 
+  // 「連續 N 頁都沒有新項目就跳過此 job source」的追蹤狀態,以 job source 的
+  // base URL(不含 page 參數)為鍵。`seenSourceKeys` 依「第一次遇到」的順序
+  // 記錄各 job source,用於 log 呈現「第幾個 / 共幾個 job source」。
+  const maxConsecutiveEmptyListPages =
+    config.maxConsecutiveEmptyListPages ??
+    DEFAULT_MAX_CONSECUTIVE_EMPTY_LIST_PAGES;
+  const consecutiveEmptyPagesBySource = new Map<string, number>();
+  const skippedSources = new Set<string>();
+  const seenSourceKeys: string[] = [];
+
+  const describeSourceProgress = (sourceKey: string): string => {
+    let index = seenSourceKeys.indexOf(sourceKey);
+    if (index === -1) {
+      seenSourceKeys.push(sourceKey);
+      index = seenSourceKeys.length - 1;
+    }
+    const ordinal = index + 1;
+    return config.totalSourceCount
+      ? `job source ${ordinal}/${config.totalSourceCount}`
+      : `job source ${ordinal}`;
+  };
+
+  // 清單頁「標記完成」的時機延後到「該頁所有 DETAIL 請求都已處理完畢」之後,
+  // 而非清單頁一解析完就馬上標記——否則若爬蟲在清單頁標記完成後、對應 DETAIL
+  // 頁尚未爬完前中斷,該頁不會再被續爬撿回,漏爬的職缺詳情就永久遺失了。
+  // 以清單頁 URL 為鍵,記錄還剩幾個 DETAIL 請求待處理。
+  const pendingListPageCompletions = new Map<
+    string,
+    { page: number; totalPages: number; remaining: number }
+  >();
+
+  const maybeCompleteListPage = async (listPageUrl: string): Promise<void> => {
+    const pending = pendingListPageCompletions.get(listPageUrl);
+    if (!pending || pending.remaining > 0) return;
+    pendingListPageCompletions.delete(listPageUrl);
+    await config.onListPageResolved({
+      url: listPageUrl,
+      page: pending.page,
+      totalPages: pending.totalPages,
+      status: 'completed',
+    });
+  };
+
   const estimateFinishTime = (): string => {
     const avgList = listPageTracker.getAverage();
     const avgDetail = detailPageTracker.getAverage();
@@ -208,17 +278,61 @@ export function createCrawlRouter<
     return formatDuration(etaMs);
   };
 
-  puppeteerRouter.addDefaultHandler(async ({ request, page, enqueueLinks }) => {
-    log.info(`Processing: ${request.url}`);
+  puppeteerRouter.addDefaultHandler(async ({ request, page, enqueueLinks, response, crawler }) => {
+    const sourceKey = getSourceKey(request.url);
+    const sourceProgress = describeSourceProgress(sourceKey);
+
+    // 被限流(HTTP 429):不管是外層頁面本身還是後續攔截到的清單 API 回應,
+    // 都直接停掉整個爬蟲、不重試、不動這頁在 DB 的狀態——讓它保持原狀
+    // (通常是 pending),下次執行自然會續爬撿回來。
+    if (response?.status() === 429) {
+      log.error(
+        `Rate limited (HTTP 429) while loading ${request.url} (${sourceProgress}). ` +
+          `Stopping the crawl run to back off — this page stays resumable on the next run.`,
+      );
+      crawler.stop(`Rate limited (HTTP 429) on ${request.url}`);
+      return;
+    }
+
+    if (skippedSources.has(sourceKey)) {
+      log.info(
+        `Skipping ${request.url} — ${sourceProgress} already exhausted ` +
+          `(${maxConsecutiveEmptyListPages} consecutive pages with no new jobs), moving on.`,
+      );
+      const skippedPage = parseInt(getPageIndex(request.url) || '1');
+      await config.onListPageResolved({
+        url: request.url,
+        page: skippedPage,
+        totalPages: skippedPage,
+        status: 'completed',
+      });
+      return;
+    }
+
+    log.info(`Processing: ${request.url} (${sourceProgress})`);
     const pageStart = Date.now();
 
-    const listResponse = await interceptListResponse<TListResponse>(page, {
-      matchListResponse: config.matchListResponse,
-      listResponseTimeoutMs: config.listResponseTimeoutMs,
-      maxListRetries: config.maxListRetries,
-      waitForListPage: config.waitForListPage,
-      logger: config.logger,
-    });
+    let listResponse: TListResponse;
+    try {
+      listResponse = await interceptListResponse<TListResponse>(page, {
+        matchListResponse: config.matchListResponse,
+        listResponseTimeoutMs: config.listResponseTimeoutMs,
+        maxListRetries: config.maxListRetries,
+        waitForListPage: config.waitForListPage,
+        logger: config.logger,
+      });
+    } catch (error) {
+      if (error instanceof RateLimitedError) {
+        log.error(
+          `Rate limited (HTTP 429) while waiting for the list API response on ` +
+            `${request.url} (${sourceProgress}). Stopping the crawl run to back off — ` +
+            `this page stays resumable on the next run.`,
+        );
+        crawler.stop(`Rate limited (HTTP 429) on ${request.url}`);
+        return;
+      }
+      throw error;
+    }
 
     log.info(`Intercepted list response for: ${request.url}`);
 
@@ -264,20 +378,46 @@ export function createCrawlRouter<
           .map(item => ({
             url: item.url,
             label: 'DETAIL',
-            userData: item,
+            userData: { ...item, [LIST_PAGE_URL_USERDATA_KEY]: request.url },
           }));
 
         if (requestsToEnqueue.length > 0) {
+          pendingListPageCompletions.set(request.url, {
+            page: currentPage,
+            totalPages,
+            remaining: requestsToEnqueue.length,
+          });
           const queue = await RequestQueue.open();
           await queue.addRequests(requestsToEnqueue);
           totalDetailPages += requestsToEnqueue.length;
           log.info(`Enqueued ${requestsToEnqueue.length} detail pages`);
         }
 
+        // 連續 N 頁都沒有新項目就放棄這個 job source,換下一個。
+        if (requestsToEnqueue.length === 0) {
+          const emptyStreak =
+            (consecutiveEmptyPagesBySource.get(sourceKey) ?? 0) + 1;
+          consecutiveEmptyPagesBySource.set(sourceKey, emptyStreak);
+          log.info(
+            `${sourceProgress}: no new jobs on page ${currentPage} ` +
+              `(${emptyStreak}/${maxConsecutiveEmptyListPages} consecutive empty pages)`,
+          );
+          if (emptyStreak >= maxConsecutiveEmptyListPages) {
+            skippedSources.add(sourceKey);
+            log.warning(
+              `${sourceProgress}: reached ${maxConsecutiveEmptyListPages} ` +
+                `consecutive pages with no new jobs, skipping remaining pages ` +
+                `for this job source.`,
+            );
+          }
+        } else {
+          consecutiveEmptyPagesBySource.set(sourceKey, 0);
+        }
+
         // 必須排在上方 detail 佇列之後:RequestQueue 依插入順序(FIFO)派工,
         // 先把本頁的 DETAIL 請求排入,才能確保它們在「下一頁清單」之前被處理
         // (對應原 `handler.ts` detail `priority: 1` 高於下一頁 `priority: 0` 的意圖)。
-        if (currentPage < totalPages) {
+        if (currentPage < totalPages && !skippedSources.has(sourceKey)) {
           await enqueueLinks({
             urls: generateNextUrlToEnqueue(request.url),
             transformRequestFunction: req => ({
@@ -287,12 +427,17 @@ export function createCrawlRouter<
           });
         }
 
-        await config.onListPageResolved({
-          url: request.url,
-          page: currentPage,
-          totalPages,
-          status: 'completed',
-        });
+        // 只有這頁沒有新項目(沒有 DETAIL 請求要等)時才立刻標記完成;否則交由
+        // DETAIL handler 在所有本頁 DETAIL 請求都處理完後透過
+        // `maybeCompleteListPage` 標記,詳見上方宣告處的說明。
+        if (requestsToEnqueue.length === 0) {
+          await config.onListPageResolved({
+            url: request.url,
+            page: currentPage,
+            totalPages,
+            status: 'completed',
+          });
+        }
 
         lastKnownListPage = currentPage;
         lastKnownTotalListPages = totalPages;
@@ -306,6 +451,10 @@ export function createCrawlRouter<
     );
 
     if (listPageResult !== LIST_PAGE_SUCCESS) {
+      // 清單頁本身處理失敗:清掉可能已註冊的待完成紀錄,避免之後 DETAIL 請求
+      // 陸續處理完時又透過 `maybeCompleteListPage` 重複回報一次 completed,
+      // 與這裡的 failed 狀態互相打架。
+      pendingListPageCompletions.delete(request.url);
       await config.onListPageResolved({
         url: request.url,
         page: currentPage,
@@ -317,7 +466,18 @@ export function createCrawlRouter<
 
   puppeteerRouter.addHandler(
     'DETAIL',
-    async ({ request, page }) => {
+    async ({ request, page, response, crawler }) => {
+      // 被限流(HTTP 429):停掉整個爬蟲,且刻意不遞減所屬清單頁的待完成計數
+      // ——讓那一頁維持未完成狀態,連同這筆漏掉的職缺一起留給下次續爬。
+      if (response?.status() === 429) {
+        log.error(
+          `Rate limited (HTTP 429) while loading detail page ${request.loadedUrl || request.url}. ` +
+            `Stopping the crawl run to back off — this job stays resumable on the next run.`,
+        );
+        crawler.stop(`Rate limited (HTTP 429) on ${request.url}`);
+        return;
+      }
+
       log.info(`Processing detail page: ${request.loadedUrl || request.url}`);
       const detailStart = Date.now();
 
@@ -349,6 +509,20 @@ export function createCrawlRouter<
           );
         },
       );
+
+      // 無論這個 DETAIL 請求成功或失敗(`withErrorIsolation` 已吸收例外),都要
+      // 算作「這個清單頁的其中一個 DETAIL 請求已處理完畢」,讓所屬清單頁能在
+      // 全部 DETAIL 請求跑完後,透過 `maybeCompleteListPage` 標記為 completed。
+      const listPageUrl = (
+        request.userData as { [LIST_PAGE_URL_USERDATA_KEY]?: string }
+      )[LIST_PAGE_URL_USERDATA_KEY];
+      if (listPageUrl) {
+        const pending = pendingListPageCompletions.get(listPageUrl);
+        if (pending) {
+          pending.remaining -= 1;
+          await maybeCompleteListPage(listPageUrl);
+        }
+      }
     },
   );
 

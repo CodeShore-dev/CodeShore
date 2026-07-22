@@ -5,6 +5,7 @@ import * as path from 'path';
 import {
   createStealthLaunchContext,
   createStealthPreNavigationHook,
+  getSourceKey,
   setPageIndex,
 } from '@codeshore/crawler-core';
 import {
@@ -251,13 +252,18 @@ async function main() {
       );
 
       if (jobSourceURLs104.length > 0) {
+        const totalSourceCount104 = new Set(
+          jobSourceURLs104.map(x =>
+            getSourceKey(x.url_with_page_index),
+          ),
+        ).size;
         console.log(
-          `>>> Starting 104 crawler from URL(${jobSourceURLs104.length} URL(s))...`,
+          `>>> Starting 104 crawler from URL(${jobSourceURLs104.length} URL(s), ${totalSourceCount104} job source(s))...`,
         );
         const {
           router: requestHandler104,
           flushPending: flushPending104,
-        } = createHandler104(keywords);
+        } = createHandler104(keywords, totalSourceCount104);
         Configuration.getGlobalConfig().set(
           'purgeOnStart',
           true,
@@ -272,13 +278,18 @@ async function main() {
       }
 
       if (jobSourceURLsCake.length > 0) {
+        const totalSourceCountCake = new Set(
+          jobSourceURLsCake.map(x =>
+            getSourceKey(x.url_with_page_index),
+          ),
+        ).size;
         console.log(
-          `>>> Starting Cake crawler from URL(${jobSourceURLsCake.length} URL(s))...`,
+          `>>> Starting Cake crawler from URL(${jobSourceURLsCake.length} URL(s), ${totalSourceCountCake} job source(s))...`,
         );
         const {
           router: requestHandlerCake,
           flushPending: flushPendingCake,
-        } = createHandlerCake(keywords);
+        } = createHandlerCake(keywords, totalSourceCountCake);
         Configuration.getGlobalConfig().set(
           'purgeOnStart',
           true,

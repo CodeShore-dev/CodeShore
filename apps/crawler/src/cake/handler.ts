@@ -13,7 +13,10 @@ import {
   waitFordDetailPageSelector,
 } from './utils';
 
-export const createHandler = (allGroupKeywords: string[]) =>
+export const createHandler = (
+  allGroupKeywords: string[],
+  totalSourceCount?: number,
+) =>
   createSyncRouter<
     JobsAPIResponse,
     JobOnAPI & { id: string },
@@ -21,6 +24,7 @@ export const createHandler = (allGroupKeywords: string[]) =>
     PersistItem,
     ExistingJob
   >({
+    totalSourceCount,
     matchListResponse: (url: string) =>
       url.includes('/api/client/v1/jobs/search'),
     parsePagination: (response: JobsAPIResponse) => ({

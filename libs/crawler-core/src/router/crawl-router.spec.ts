@@ -157,10 +157,19 @@ function createMockPage() {
  * dispatching to the registered handler, so the mock `log` must satisfy that
  * too even though `crawl-router.ts` itself never calls `.debug`.
  */
-function createHandlerContext(page: Page, requestUrl: string) {
+function createHandlerContext(
+  page: Page,
+  requestUrl: string,
+  overrides: {
+    response?: HTTPResponse;
+    crawler?: { stop: (reason?: string) => void };
+  } = {},
+) {
   return {
     request: { url: requestUrl, loadedUrl: requestUrl, userData: {} },
     page,
+    response: overrides.response,
+    crawler: overrides.crawler ?? { stop: vi.fn() },
     log: {
       debug: vi.fn(),
       info: vi.fn(),
@@ -199,10 +208,20 @@ function createMockDetailPage(options: {
  * Builds the minimal Crawlee DETAIL-handler context: a `request` carrying the
  * enqueued item as `userData` (mirrors task 3.3's `requestsToEnqueue` shape).
  */
-function createDetailHandlerContext(page: Page, requestUrl: string, userData: unknown) {
+function createDetailHandlerContext(
+  page: Page,
+  requestUrl: string,
+  userData: unknown,
+  overrides: {
+    response?: HTTPResponse;
+    crawler?: { stop: (reason?: string) => void };
+  } = {},
+) {
   return {
     request: { url: requestUrl, loadedUrl: requestUrl, userData, label: 'DETAIL' },
     page,
+    response: overrides.response,
+    crawler: overrides.crawler ?? { stop: vi.fn() },
     log: {
       debug: vi.fn(),
       info: vi.fn(),
@@ -629,6 +648,76 @@ describe('createCrawlRouter — pagination, extraction, existing lookup, enqueue
     });
   });
 
+  it('defers reporting "completed" until every DETAIL request the page enqueued has been processed, so an interruption before that point leaves the page resumable', async () => {
+    // Regression test: previously `onListPageResolved` fired with status
+    // "completed" the instant the list page finished parsing/enqueueing —
+    // before any of its DETAIL requests had actually been crawled. If the
+    // process was killed in that window, the caller (persistence layer)
+    // would have already durably marked the page as done, so it would never
+    // be revisited on resume — permanently losing whatever jobs were still
+    // sitting in the DETAIL queue. The page must stay "not yet resolved"
+    // until its own DETAIL requests are all accounted for (success or
+    // failure), so an interruption in that window leaves it resumable.
+    const onListPageResolved = vi.fn(async () => undefined);
+    const resolveExisting = vi.fn(async () => new Map<string, ExistingMeta>());
+    const { router } = createCrawlRouter(
+      createBaseConfig({ onListPageResolved, resolveExisting }),
+    );
+    const mock = createMockPage();
+
+    await runListPageHandler(router, mock, LIST_API_URL, {
+      page: 1,
+      totalPages: 1,
+      totalEntries: 2,
+      items: [{ id: 'a' }, { id: 'b' }],
+    });
+
+    // Not yet resolved: both DETAIL requests are still outstanding.
+    expect(onListPageResolved).not.toHaveBeenCalled();
+
+    const [enqueued] = addRequestsMock.mock.calls[0] ?? [[]];
+    const enqueuedRequests = enqueued as Array<{ userData: { id: string } }>;
+
+    const aDetail = createMockDetailPage({
+      detail: { description: 'detail-a' },
+      callOrder: [],
+    });
+    await router(
+      createDetailHandlerContext(
+        aDetail.page,
+        'https://example.test/a',
+        enqueuedRequests.find(r => r.userData.id === 'a')!.userData,
+      ) as never,
+    );
+
+    // Still not resolved: 'b' hasn't been processed yet — simulates the
+    // process being killed right here, before the page is durably marked
+    // completed, so it remains eligible for resume.
+    expect(onListPageResolved).not.toHaveBeenCalled();
+
+    const bDetail = createMockDetailPage({
+      detail: { description: 'detail-b' },
+      callOrder: [],
+    });
+    await router(
+      createDetailHandlerContext(
+        bDetail.page,
+        'https://example.test/b',
+        enqueuedRequests.find(r => r.userData.id === 'b')!.userData,
+      ) as never,
+    );
+
+    // Only now, with every DETAIL request for this page accounted for, is the
+    // page reported as completed.
+    expect(onListPageResolved).toHaveBeenCalledTimes(1);
+    expect(onListPageResolved).toHaveBeenCalledWith({
+      url: LIST_API_URL,
+      page: 1,
+      totalPages: 1,
+      status: 'completed',
+    });
+  });
+
   it('reports onListPageResolved with status "failed" and does not throw out of the handler when parsePagination throws', async () => {
     const onListPageResolved = vi.fn(async () => undefined);
     const parsePagination = vi.fn(() => {
@@ -923,6 +1012,132 @@ describe('createCrawlRouter — detail page handling & batch persistence (3.4)',
     await flushPending();
 
     expect(onBatchReady).not.toHaveBeenCalled();
+  });
+});
+
+describe('createCrawlRouter — rate limiting (HTTP 429)', () => {
+  beforeEach(() => {
+    vi.useRealTimers();
+    openMock.mockClear();
+    addRequestsMock.mockClear();
+  });
+
+  it('stops the crawler and does not report onListPageResolved when the list page navigation itself returns 429', async () => {
+    const onListPageResolved = vi.fn(async () => undefined);
+    const { router } = createCrawlRouter(
+      createBaseConfig({ onListPageResolved }),
+    );
+    const mock = createMockPage();
+    const stop = vi.fn();
+    const ctx = createHandlerContext(mock.page, LIST_API_URL, {
+      response: createMockResponse({ url: LIST_API_URL, status: 429 }),
+      crawler: { stop },
+    });
+
+    await expect(router(ctx as never)).resolves.toBeUndefined();
+
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(stop).toHaveBeenCalledWith(expect.stringContaining('429'));
+    expect(onListPageResolved).not.toHaveBeenCalled();
+    // The list-response interception listener must never even be attached —
+    // the 429 short-circuits before `interceptListResponse` is called.
+    expect(mock.listenerCount()).toBe(0);
+  });
+
+  it('stops the crawler without retrying when the intercepted list API response itself is 429', async () => {
+    const onListPageResolved = vi.fn(async () => undefined);
+    const { router } = createCrawlRouter(
+      createBaseConfig({ onListPageResolved }),
+    );
+    const mock = createMockPage();
+    const stop = vi.fn();
+    const ctx = createHandlerContext(mock.page, LIST_API_URL, {
+      crawler: { stop },
+    });
+
+    const handlerPromise = router(ctx as never);
+    await Promise.resolve();
+    await Promise.resolve();
+    mock.emitResponse(
+      createMockResponse({ url: LIST_API_URL, status: 429 }),
+    );
+
+    await expect(handlerPromise).resolves.toBeUndefined();
+
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(stop).toHaveBeenCalledWith(expect.stringContaining('429'));
+    // Must not retry: reloading would just trigger another 429.
+    expect(mock.reload).not.toHaveBeenCalled();
+    expect(onListPageResolved).not.toHaveBeenCalled();
+  });
+
+  it('stops the crawler when a DETAIL page navigation returns 429, without persisting it and without letting its list page ever complete', async () => {
+    const resolveExisting = vi.fn(async () => new Map<string, ExistingMeta>());
+    const buildPersistItem = vi.fn(
+      (item: RawItem & { id: string }, detail: Detail) => ({
+        id: item.id,
+        description: detail.description,
+      }),
+    );
+    const onListPageResolved = vi.fn(async () => undefined);
+    const { router } = createCrawlRouter(
+      createBaseConfig({ resolveExisting, buildPersistItem, onListPageResolved }),
+    );
+
+    const listMock = createMockPage();
+    await runListPageHandler(router, listMock, LIST_API_URL, {
+      page: 1,
+      totalPages: 1,
+      totalEntries: 2,
+      items: [{ id: 'a' }, { id: 'b' }],
+    });
+    expect(onListPageResolved).not.toHaveBeenCalled();
+
+    const [enqueued] = addRequestsMock.mock.calls[0] ?? [[]];
+    const enqueuedRequests = enqueued as Array<{ userData: { id: string } }>;
+
+    // Detail 'a' gets rate limited — must stop the crawler, must not reach
+    // buildPersistItem, and must NOT count toward its list page's completion.
+    const stop = vi.fn();
+    const aDetail = createMockDetailPage({
+      detail: { description: 'irrelevant' },
+      callOrder: [],
+    });
+    await router(
+      createDetailHandlerContext(
+        aDetail.page,
+        'https://example.test/a',
+        enqueuedRequests.find(r => r.userData.id === 'a')!.userData,
+        {
+          response: createMockResponse({
+            url: 'https://example.test/a',
+            status: 429,
+          }),
+          crawler: { stop },
+        },
+      ) as never,
+    );
+
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(buildPersistItem).not.toHaveBeenCalled();
+
+    // Detail 'b' still processes normally (simulates it having already been
+    // in flight when the rate limiting hit) — but because 'a' never counted
+    // as processed, the list page must still never be reported as completed.
+    const bDetail = createMockDetailPage({
+      detail: { description: 'detail-b' },
+      callOrder: [],
+    });
+    await router(
+      createDetailHandlerContext(
+        bDetail.page,
+        'https://example.test/b',
+        enqueuedRequests.find(r => r.userData.id === 'b')!.userData,
+      ) as never,
+    );
+
+    expect(buildPersistItem).toHaveBeenCalledTimes(1);
+    expect(onListPageResolved).not.toHaveBeenCalled();
   });
 });
 
@@ -1269,14 +1484,18 @@ describe('createCrawlRouter — end-to-end integration across a full crawl run (
 
     expect(addRequestsMock).toHaveBeenCalledTimes(1);
     const [firstEnqueued] = addRequestsMock.mock.calls[0] ?? [[]];
-    expect(
-      (firstEnqueued as Array<{ userData: { id: string } }>).map(
-        r => r.userData.id,
-      ),
-    ).toEqual(['b']);
+    const firstEnqueuedRequests = firstEnqueued as Array<{
+      userData: { id: string };
+    }>;
+    expect(firstEnqueuedRequests.map(r => r.userData.id)).toEqual(['b']);
 
     // Step 2 + 3: detail page for 'b' processed. Threshold is 2, so this
-    // alone must NOT flush yet (only one item accumulated so far).
+    // alone must NOT flush yet (only one item accumulated so far). Reuses the
+    // actual userData object captured from `addRequestsMock` (rather than a
+    // hand-rolled `{ id: 'b' }`) so it carries whatever internal bookkeeping
+    // fields the engine attached when enqueueing it (e.g. the back-reference
+    // to its originating list page, used to defer that page's "completed"
+    // report until all its detail requests have been processed).
     const bDetail = createMockDetailPage({
       detail: { description: 'detail-b' },
       callOrder: [],
@@ -1285,7 +1504,7 @@ describe('createCrawlRouter — end-to-end integration across a full crawl run (
       createDetailHandlerContext(
         bDetail.page,
         'https://example.test/b',
-        { id: 'b' },
+        firstEnqueuedRequests.find(r => r.userData.id === 'b')!.userData,
       ) as never,
     );
     expect(onBatchReady).not.toHaveBeenCalled();
@@ -1308,11 +1527,13 @@ describe('createCrawlRouter — end-to-end integration across a full crawl run (
     expect(resolveExisting).toHaveBeenCalledTimes(1);
     expect(addRequestsMock).toHaveBeenCalledTimes(2);
     const [secondEnqueued] = addRequestsMock.mock.calls[1] ?? [[]];
-    expect(
-      (secondEnqueued as Array<{ userData: { id: string } }>).map(
-        r => r.userData.id,
-      ),
-    ).toEqual(['c', 'd']);
+    const secondEnqueuedRequests = secondEnqueued as Array<{
+      userData: { id: string };
+    }>;
+    expect(secondEnqueuedRequests.map(r => r.userData.id)).toEqual([
+      'c',
+      'd',
+    ]);
 
     // Step 5: detail page 'c' throws inside buildPersistItem. Must be
     // isolated (logged, no throw out of the handler, no batch flush).
@@ -1327,7 +1548,7 @@ describe('createCrawlRouter — end-to-end integration across a full crawl run (
         createDetailHandlerContext(
           cDetail.page,
           'https://example.test/c',
-          { id: 'c' },
+          secondEnqueuedRequests.find(r => r.userData.id === 'c')!.userData,
         ) as never,
       ),
     ).resolves.toBeUndefined();
@@ -1343,7 +1564,7 @@ describe('createCrawlRouter — end-to-end integration across a full crawl run (
       createDetailHandlerContext(
         dDetail.page,
         'https://example.test/d',
-        { id: 'd' },
+        secondEnqueuedRequests.find(r => r.userData.id === 'd')!.userData,
       ) as never,
     );
     expect(onBatchReady).toHaveBeenCalledTimes(1);
@@ -1358,13 +1579,19 @@ describe('createCrawlRouter — end-to-end integration across a full crawl run (
 
     // Final assertion: the FULL ordered sequence of side-effecting calls
     // across the entire run, proving correct interleaving across page
-    // boundaries within a single engine instance.
+    // boundaries within a single engine instance. Page 1's "completed" report
+    // fires only once its sole DETAIL request ('b') has been processed — not
+    // right when its list page is parsed — so it lands right after that
+    // detail request, ahead of page 2's own list-page processing. Likewise
+    // page 2's "completed" report is deferred until both of its DETAIL
+    // requests ('c', 'd') have gone through, landing after the batch flush
+    // triggered by 'd'.
     expect(callLog).toEqual([
       'resolveExisting',
       'onListPageResolved:1:completed',
-      'onListPageResolved:2:completed',
       'logger.error',
       'onBatchReady:b,d',
+      'onListPageResolved:2:completed',
     ]);
 
     expect(onListPageResolved).toHaveBeenNthCalledWith(1, {
