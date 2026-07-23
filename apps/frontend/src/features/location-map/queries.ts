@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import {
   fetchLocationTechStats,
-  LocationTechStatsQueryOptions,
+  LocationTechStatsQueryHookOptions,
 } from './service';
 
 // Reused as-is (not redeclared): `features/job/queries.ts`'s
@@ -33,12 +33,13 @@ export { useLocationGroupsQuery } from '../job/queries';
 // Query, instead of colliding on a single shared cache entry.
 export function useLocationTechStatsQuery(
   where: Record<string, unknown>,
-  options: LocationTechStatsQueryOptions = {},
+  options: LocationTechStatsQueryHookOptions = {},
 ) {
-  const { from = 0, to = -1, orders = 'job_count:desc' } = options;
+  const { from = 0, to = -1, orders = 'job_count:desc', enabled = true } = options;
   return useQuery({
     queryKey: ['job', 'locationTech', { where, from, to, orders }],
     queryFn: async () =>
       (await fetchLocationTechStats(where, { from, to, orders })).result,
+    enabled,
   });
 }

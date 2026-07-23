@@ -17,6 +17,14 @@ export interface LocationTechStatsQueryOptions {
   orders?: string;
 }
 
+// TanStack Query's `enabled` gate for `useLocationTechStatsQuery` -- kept
+// separate from `LocationTechStatsQueryOptions` since it is a query-hook
+// concern, not an HTTP param `fetchLocationTechStats` itself understands.
+export interface LocationTechStatsQueryHookOptions
+  extends LocationTechStatsQueryOptions {
+  enabled?: boolean;
+}
+
 // Mirrors `apps/backend/src/features/job/service.ts`'s
 // `getLocationTechStats(query: QueryDto)` -> `MvLocationTechService.fetchAll`,
 // which passes `where`/`orders`/`from`/`to` through as-is to `mv_location_tech`
