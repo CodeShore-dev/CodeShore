@@ -84,6 +84,11 @@ const PIPELINE: MvRefreshStep[] = [
     label: '地點分布',
     run: () => refreshView('mv_location_group'),
   },
+  {
+    id: 'mv_location_tech',
+    label: '地點技術彙總',
+    run: () => refreshView('mv_location_tech'),
+  },
 ];
 
 // 供 API 層驗證／下拉選單使用的合法步驟 id 清單（含 keyword_group_reset）。
