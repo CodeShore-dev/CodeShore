@@ -41,6 +41,38 @@ class RateLimitedError extends Error {
 }
 
 /**
+ * 標記「被 Cloudflare 擋下(直接 403 封鎖或 503 challenge 頁)」的專用例外:
+ * 與逾時等其他攔截失敗原因區分開來,讓 `interceptListResponse` 立刻放棄重試
+ * (重試只會在同一個已被標記的 session 上再次撞牆),並讓呼叫端可以比照
+ * `RateLimitedError` 的方式——停止整個爬蟲、讓該頁維持可續爬狀態。
+ */
+class CloudflareBlockedError extends Error {
+  constructor(url: string, status: number) {
+    super(`Blocked by Cloudflare (HTTP ${status}) on ${url}`);
+    this.name = 'CloudflareBlockedError';
+  }
+}
+
+/**
+ * 判斷一個 HTTP 回應是否為 Cloudflare 的攔截頁(直接封鎖或 challenge)。
+ * 403/503 本身在一般後端也可能發生(暫時性故障、權限問題等),單看狀態碼容易
+ * 誤判,因此額外要求 Cloudflare 特有的回應標頭(`server: cloudflare` 或
+ * `cf-mitigated`)其中之一出現,才視為 Cloudflare 攔截——避免把單純的後端
+ * 5xx/403 誤判成「被擋」而不必要地中止整個 crawl run。
+ */
+function isCloudflareBlockResponse(res: {
+  status(): number;
+  headers(): Record<string, string>;
+}): boolean {
+  const status = res.status();
+  if (status !== 403 && status !== 503) return false;
+  const headers = res.headers();
+  const server = (headers['server'] ?? headers['Server'] ?? '').toLowerCase();
+  const cfMitigated = headers['cf-mitigated'] ?? headers['Cf-Mitigated'];
+  return server === 'cloudflare' || Boolean(cfMitigated);
+}
+
+/**
  * 攔截清單頁的 API 回應,並在逾時未攔截到符合條件的回應時,依 `maxListRetries`
  * 重新載入頁面重試。符合條件的判斷結合呼叫端注入的 `matchListResponse(url)`
  * 與引擎固定的 `method() !== 'OPTIONS'`、`status() === 200` 檢查(此兩項不對外開放客製化)。
@@ -82,6 +114,10 @@ async function interceptListResponse<TListResponse>(
             reject(new RateLimitedError(url));
             return;
           }
+          if (isCloudflareBlockResponse(res)) {
+            reject(new CloudflareBlockedError(url, res.status()));
+            return;
+          }
           if (res.status() === 200) {
             res
               .json()
@@ -117,8 +153,10 @@ async function interceptListResponse<TListResponse>(
       return response;
     } catch (error) {
       page.off('response', responseHandler);
-      // 被限流時不重試:重試只會立刻換來另一個 429,徒增對目標站台的壓力。
+      // 被限流或被 Cloudflare 擋下時都不重試:重試只會立刻在同一個已被標記的
+      // session 上再次撞牆,徒增對目標站台的壓力。
       if (error instanceof RateLimitedError) throw error;
+      if (error instanceof CloudflareBlockedError) throw error;
       lastError = error;
       if (attempt === maxRetries) throw error;
     }
@@ -294,6 +332,19 @@ export function createCrawlRouter<
       return;
     }
 
+    // 被 Cloudflare 擋下(直接 403 封鎖或 503 challenge 頁):比照 429 的處理
+    // 方式,直接停掉整個爬蟲、不動這頁在 DB 的狀態,留給下次執行續爬——單一
+    // session 一旦被 Cloudflare 標記,同一輪繼續重試只會撞到更多攔截頁。
+    if (response && isCloudflareBlockResponse(response)) {
+      log.error(
+        `Blocked by Cloudflare (HTTP ${response.status()}) while loading ${request.url} ` +
+          `(${sourceProgress}). Stopping the crawl run to back off — this page stays ` +
+          `resumable on the next run.`,
+      );
+      crawler.stop(`Blocked by Cloudflare on ${request.url}`);
+      return;
+    }
+
     if (skippedSources.has(sourceKey)) {
       log.info(
         `Skipping ${request.url} — ${sourceProgress} already exhausted ` +
@@ -329,6 +380,15 @@ export function createCrawlRouter<
             `this page stays resumable on the next run.`,
         );
         crawler.stop(`Rate limited (HTTP 429) on ${request.url}`);
+        return;
+      }
+      if (error instanceof CloudflareBlockedError) {
+        log.error(
+          `${error.message} while waiting for the list API response on ` +
+            `${request.url} (${sourceProgress}). Stopping the crawl run to back off — ` +
+            `this page stays resumable on the next run.`,
+        );
+        crawler.stop(error.message);
         return;
       }
       throw error;
@@ -485,6 +545,18 @@ export function createCrawlRouter<
             `Stopping the crawl run to back off — this job stays resumable on the next run.`,
         );
         crawler.stop(`Rate limited (HTTP 429) on ${request.url}`);
+        return;
+      }
+
+      // 被 Cloudflare 擋下:同樣停掉整個爬蟲、不遞減所屬清單頁的待完成計數,
+      // 讓那一頁與這筆漏掉的職缺一起留給下次續爬。
+      if (response && isCloudflareBlockResponse(response)) {
+        log.error(
+          `Blocked by Cloudflare (HTTP ${response.status()}) while loading detail page ` +
+            `${request.loadedUrl || request.url}. Stopping the crawl run to back off — ` +
+            `this job stays resumable on the next run.`,
+        );
+        crawler.stop(`Blocked by Cloudflare on ${request.url}`);
         return;
       }
 

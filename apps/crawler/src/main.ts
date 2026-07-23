@@ -6,6 +6,7 @@ import {
   createStealthLaunchContext,
   createStealthPreNavigationHook,
   getSourceKey,
+  randomDelay,
   setPageIndex,
 } from '@codeshore/crawler-core';
 import {
@@ -134,6 +135,7 @@ async function main() {
     launchContext: createStealthLaunchContext({
       executablePath:
         process.env['PUPPETEER_EXECUTABLE_PATH'] || undefined,
+      headless: false
     }),
     preNavigationHook: createStealthPreNavigationHook(),
   };
@@ -212,6 +214,11 @@ async function main() {
         },
         preNavigationHooks: [
           stealthConfig.preNavigationHook as any,
+          // 每次導航前隨機停頓 1.5~4 秒,模擬人類瀏覽節奏、拉開同一 IP 的請求
+          // 間隔,降低被 Cloudflare 判定為機器人流量而擋下的機率。
+          async () => {
+            await randomDelay();
+          },
         ],
         requestHandler,
         maxConcurrency: 1,

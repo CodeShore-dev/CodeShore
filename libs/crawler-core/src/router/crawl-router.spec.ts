@@ -109,13 +109,15 @@ function createMockResponse(options: {
   method?: string;
   status?: number;
   json?: unknown;
+  headers?: Record<string, string>;
 }): HTTPResponse {
-  const { url, method = 'GET', status = 200, json = {} } = options;
+  const { url, method = 'GET', status = 200, json = {}, headers = {} } = options;
   return {
     request: () => ({ method: () => method }),
     url: () => url,
     status: () => status,
     json: async () => json,
+    headers: () => headers,
   } as unknown as HTTPResponse;
 }
 
@@ -1138,6 +1140,157 @@ describe('createCrawlRouter — rate limiting (HTTP 429)', () => {
     );
 
     expect(buildPersistItem).toHaveBeenCalledTimes(1);
+    expect(onListPageResolved).not.toHaveBeenCalled();
+  });
+});
+
+describe('createCrawlRouter — Cloudflare blocking (403/503 with Cloudflare markers)', () => {
+  beforeEach(() => {
+    vi.useRealTimers();
+    openMock.mockClear();
+    addRequestsMock.mockClear();
+  });
+
+  it('stops the crawler when the list page navigation itself is a Cloudflare 403 block', async () => {
+    const onListPageResolved = vi.fn(async () => undefined);
+    const { router } = createCrawlRouter(
+      createBaseConfig({ onListPageResolved }),
+    );
+    const mock = createMockPage();
+    const stop = vi.fn();
+    const ctx = createHandlerContext(mock.page, LIST_API_URL, {
+      response: createMockResponse({
+        url: LIST_API_URL,
+        status: 403,
+        headers: { server: 'cloudflare' },
+      }),
+      crawler: { stop },
+    });
+
+    await expect(router(ctx as never)).resolves.toBeUndefined();
+
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(stop).toHaveBeenCalledWith(expect.stringContaining('Cloudflare'));
+    expect(onListPageResolved).not.toHaveBeenCalled();
+    expect(mock.listenerCount()).toBe(0);
+  });
+
+  it('stops the crawler without retrying when the intercepted list API response is a Cloudflare 503 challenge', async () => {
+    const onListPageResolved = vi.fn(async () => undefined);
+    const { router } = createCrawlRouter(
+      createBaseConfig({ onListPageResolved }),
+    );
+    const mock = createMockPage();
+    const stop = vi.fn();
+    const ctx = createHandlerContext(mock.page, LIST_API_URL, {
+      crawler: { stop },
+    });
+
+    const handlerPromise = router(ctx as never);
+    await Promise.resolve();
+    await Promise.resolve();
+    mock.emitResponse(
+      createMockResponse({
+        url: LIST_API_URL,
+        status: 503,
+        headers: { 'cf-mitigated': 'challenge' },
+      }),
+    );
+
+    await expect(handlerPromise).resolves.toBeUndefined();
+
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(stop).toHaveBeenCalledWith(expect.stringContaining('Cloudflare'));
+    // Must not retry: reloading would just trigger another challenge.
+    expect(mock.reload).not.toHaveBeenCalled();
+    expect(onListPageResolved).not.toHaveBeenCalled();
+  });
+
+  it('does not treat a plain (non-Cloudflare) 503 as a Cloudflare block and retries as usual', async () => {
+    const onListPageResolved = vi.fn(async () => undefined);
+    const { router } = createCrawlRouter(
+      createBaseConfig({
+        onListPageResolved,
+        maxListRetries: 2,
+        listResponseTimeoutMs: 50,
+      }),
+    );
+    const mock = createMockPage();
+    const stop = vi.fn();
+    const ctx = createHandlerContext(mock.page, LIST_API_URL, {
+      crawler: { stop },
+    });
+
+    const handlerPromise = router(ctx as never);
+    await Promise.resolve();
+    await Promise.resolve();
+    mock.emitResponse(
+      createMockResponse({ url: LIST_API_URL, status: 503 }),
+    );
+
+    // No Cloudflare markers on this plain 503 — it must not resolve or
+    // reject the interception, so the attempt just times out and retries
+    // via the ordinary (non-Cloudflare) path, ultimately surfacing as the
+    // regular timeout error once retries are exhausted — not a short-circuit
+    // via `crawler.stop()`.
+    await expect(handlerPromise).rejects.toThrow(
+      'Timeout waiting for list API response',
+    );
+
+    expect(stop).not.toHaveBeenCalled();
+    expect(mock.reload).toHaveBeenCalledTimes(1);
+    expect(onListPageResolved).not.toHaveBeenCalled();
+  });
+
+  it('stops the crawler when a DETAIL page navigation is a Cloudflare block, without persisting it and without letting its list page ever complete', async () => {
+    const resolveExisting = vi.fn(async () => new Map<string, ExistingMeta>());
+    const buildPersistItem = vi.fn(
+      (item: RawItem & { id: string }, detail: Detail) => ({
+        id: item.id,
+        description: detail.description,
+      }),
+    );
+    const onListPageResolved = vi.fn(async () => undefined);
+    const { router } = createCrawlRouter(
+      createBaseConfig({ resolveExisting, buildPersistItem, onListPageResolved }),
+    );
+
+    const listMock = createMockPage();
+    await runListPageHandler(router, listMock, LIST_API_URL, {
+      page: 1,
+      totalPages: 1,
+      totalEntries: 1,
+      items: [{ id: 'a' }],
+    });
+    expect(onListPageResolved).not.toHaveBeenCalled();
+
+    const [enqueued] = addRequestsMock.mock.calls[0] ?? [[]];
+    const enqueuedRequests = enqueued as Array<{ userData: { id: string } }>;
+
+    const stop = vi.fn();
+    const aDetail = createMockDetailPage({
+      detail: { description: 'irrelevant' },
+      callOrder: [],
+    });
+    await router(
+      createDetailHandlerContext(
+        aDetail.page,
+        'https://example.test/a',
+        enqueuedRequests.find(r => r.userData.id === 'a')!.userData,
+        {
+          response: createMockResponse({
+            url: 'https://example.test/a',
+            status: 403,
+            headers: { server: 'cloudflare' },
+          }),
+          crawler: { stop },
+        },
+      ) as never,
+    );
+
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(stop).toHaveBeenCalledWith(expect.stringContaining('Cloudflare'));
+    expect(buildPersistItem).not.toHaveBeenCalled();
     expect(onListPageResolved).not.toHaveBeenCalled();
   });
 });
