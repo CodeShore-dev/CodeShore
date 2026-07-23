@@ -517,6 +517,13 @@ export type Database = {
             referencedRelation: "mv_location_group"
             referencedColumns: ["location"]
           },
+          {
+            foreignKeyName: "location_group_location_location_group_fkey"
+            columns: ["location_group"]
+            isOneToOne: false
+            referencedRelation: "mv_location_tech"
+            referencedColumns: ["location"]
+          },
         ]
       }
       tech: {
@@ -664,6 +671,22 @@ export type Database = {
           location: string | null
         }
         Relationships: []
+      }
+      mv_location_tech: {
+        Row: {
+          job_count: number | null
+          location: string | null
+          tech: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_join_tech_tech_fkey"
+            columns: ["tech"]
+            isOneToOne: false
+            referencedRelation: "tech"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       mv_salary_range_multiplier: {
         Row: {
@@ -898,6 +921,7 @@ export type Database = {
       refresh_mv_company_tech: { Args: never; Returns: undefined }
       refresh_mv_job: { Args: never; Returns: undefined }
       refresh_mv_location_group: { Args: never; Returns: undefined }
+      refresh_mv_location_tech: { Args: never; Returns: undefined }
       refresh_mv_salary_range_multiplier: { Args: never; Returns: undefined }
       refresh_mv_salary_type_median_ratio: { Args: never; Returns: undefined }
       refresh_mv_tech: { Args: never; Returns: undefined }
@@ -1032,9 +1056,3 @@ export type CompositeTypes<
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
     ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
-
-export const Constants = {
-  public: {
-    Enums: {},
-  },
-} as const

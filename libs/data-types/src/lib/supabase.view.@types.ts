@@ -31,4 +31,5 @@ export namespace SupabaseView {
   export type MvSalaryRangeMultiplier = SupabaseSalaryView.MvSalaryRangeMultiplier;
 
   export type MvLocationGroup = SupabaseLocationView.MvLocationGroup;
+  export type MvLocationTech = SupabaseLocationView.MvLocationTech;
 }
