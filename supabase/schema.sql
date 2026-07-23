@@ -89,7 +89,8 @@ CREATE TABLE public."job_preference" (
   "user_id" uuid NOT NULL
 );
 CREATE TABLE public."job_source" (
-  "url" text NOT NULL
+  "url" text NOT NULL,
+  "enabled" boolean DEFAULT true NOT NULL
 );
 CREATE TABLE public."job_source_url" (
   "url" text NOT NULL,

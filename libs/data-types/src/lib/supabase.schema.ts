@@ -379,12 +379,15 @@ export type Database = {
       }
       job_source: {
         Row: {
+          enabled: boolean
           url: string
         }
         Insert: {
+          enabled?: boolean
           url: string
         }
         Update: {
+          enabled?: boolean
           url?: string
         }
         Relationships: []

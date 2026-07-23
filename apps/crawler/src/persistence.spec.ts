@@ -220,7 +220,7 @@ describe('persistence', () => {
   });
 
   describe('sourceRegistry.fetchBaseSources', () => {
-    it('returns base source URLs from JobSourceService', async () => {
+    it('returns base source URLs from JobSourceService, filtered to enabled sources', async () => {
       jobSourceFetchAllMock.mockResolvedValueOnce({
         result: [
           { url: 'https://example.test/jobs-a' },
@@ -235,6 +235,9 @@ describe('persistence', () => {
       const urls = await sourceRegistry.fetchBaseSources();
 
       expect(JobSourceServiceMock).toHaveBeenCalled();
+      expect(jobSourceFetchAllMock).toHaveBeenCalledWith({
+        where: { enabled: { eq: true } },
+      });
       expect(urls).toEqual([
         'https://example.test/jobs-a',
         'https://example.test/jobs-b',

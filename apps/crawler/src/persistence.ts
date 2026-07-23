@@ -151,11 +151,14 @@ export const sourceRegistry: SourceRegistry = {
   },
 
   /**
-   * fresh 模式起始點:取得所有來源的基底 URL(不含分頁游標)。
-   * 對應原 `main.ts` L433-434 的 `JobSourceService().fetchAll()` 查詢。
+   * fresh 模式起始點:取得所有「已啟用」來源的基底 URL(不含分頁游標)。
+   * 對應原 `main.ts` L433-434 的 `JobSourceService().fetchAll()` 查詢,
+   * 新增 `enabled = true` 過濾,停用的來源不會被 crawl mode 抓取。
    */
   async fetchBaseSources(): Promise<string[]> {
-    const { result } = await new JobSourceService().fetchAll();
+    const { result } = await new JobSourceService().fetchAll({
+      where: { enabled: { eq: true } },
+    });
     return result.map(row => row.url);
   },
 
