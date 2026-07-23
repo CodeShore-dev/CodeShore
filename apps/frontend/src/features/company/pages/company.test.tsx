@@ -87,8 +87,13 @@ describe('CompanyListPage', () => {
   });
 
   it('renders exactly one company-name filter block and one technology filter block (req 1.1, 2.1)', async () => {
+    const user = userEvent.setup();
     renderWithProviders(<CompanyListPage />);
     await screen.findByText('Acme Corp');
+
+    // The technology filter block is collapsed by default (no active
+    // selection) -- expand it before asserting on its contents.
+    await user.click(screen.getByRole('button', { name: /技術篩選/ }));
 
     expect(screen.getAllByPlaceholderText('搜尋公司...')).toHaveLength(1);
     expect(screen.getAllByPlaceholderText('搜尋技術...')).toHaveLength(1);

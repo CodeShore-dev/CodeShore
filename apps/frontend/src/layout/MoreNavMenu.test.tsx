@@ -87,9 +87,9 @@ describe('MoreNavMenu', () => {
     expect(screen.getByRole('button')).toHaveClass('text-[#003d92]');
   });
 
-  it('renders an icon-only trigger for the mobile variant', () => {
+  it('renders an icon+label trigger for the mobile variant', () => {
     renderMenu(links, 'mobile');
     expect(screen.getByText('more_horiz')).toBeInTheDocument();
-    expect(screen.queryByText('更多')).not.toBeInTheDocument();
+    expect(screen.getByText('更多')).toBeInTheDocument();
   });
 });

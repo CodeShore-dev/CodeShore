@@ -50,40 +50,31 @@ describe('AdminViewToggle', () => {
     useAuthStore.setState({ user: adminUser, viewAsRegularUser: false });
     render(<AdminViewToggle />);
 
-    expect(screen.getByText('管理視角')).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: '切換為一般使用者視角' }),
-    ).toBeInTheDocument();
+    expect(screen.getByText('管理者')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '切換視角' })).toBeInTheDocument();
   });
 
   it('shows the regular-user mode label when viewAsRegularUser is already on', () => {
     useAuthStore.setState({ user: adminUser, viewAsRegularUser: true });
     render(<AdminViewToggle />);
 
-    expect(screen.getByText('一般使用者視角')).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: '切換為管理視角' }),
-    ).toBeInTheDocument();
+    expect(screen.getByText('一般')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '切換視角' })).toBeInTheDocument();
   });
 
-  it('updates the label and button after clicking the toggle', async () => {
+  it('updates the label after clicking the toggle', async () => {
     useAuthStore.setState({ user: adminUser, viewAsRegularUser: false });
     const user = userEvent.setup();
     render(<AdminViewToggle />);
 
-    await user.click(
-      screen.getByRole('button', { name: '切換為一般使用者視角' }),
-    );
+    await user.click(screen.getByRole('button', { name: '切換視角' }));
 
     expect(useAuthStore.getState().viewAsRegularUser).toBe(true);
-    expect(screen.getByText('一般使用者視角')).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: '切換為管理視角' }),
-    ).toBeInTheDocument();
+    expect(screen.getByText('一般')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: '切換為管理視角' }));
+    await user.click(screen.getByRole('button', { name: '切換視角' }));
 
     expect(useAuthStore.getState().viewAsRegularUser).toBe(false);
-    expect(screen.getByText('管理視角')).toBeInTheDocument();
+    expect(screen.getByText('管理者')).toBeInTheDocument();
   });
 });

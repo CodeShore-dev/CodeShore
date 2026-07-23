@@ -47,28 +47,26 @@ describe('AppNavBar', () => {
     useAuthStore.setState({ user: adminUser, viewAsRegularUser: false });
     renderNavBar();
 
-    expect(screen.getByText('管理視角')).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: '切換為一般使用者視角' }),
-    ).toBeInTheDocument();
+    expect(screen.getByText('管理者')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '切換視角' })).toBeInTheDocument();
   });
 
   it('does not show the admin view toggle for a non-admin user', () => {
     useAuthStore.setState({ user: normalUser, viewAsRegularUser: false });
     renderNavBar();
 
-    expect(screen.queryByText('管理視角')).not.toBeInTheDocument();
+    expect(screen.queryByText('管理者')).not.toBeInTheDocument();
     expect(
-      screen.queryByRole('button', { name: '切換為一般使用者視角' }),
+      screen.queryByRole('button', { name: '切換視角' }),
     ).not.toBeInTheDocument();
   });
 
   it('does not show the admin view toggle for a logged-out visitor', () => {
     renderNavBar();
 
-    expect(screen.queryByText('管理視角')).not.toBeInTheDocument();
+    expect(screen.queryByText('管理者')).not.toBeInTheDocument();
     expect(
-      screen.queryByRole('button', { name: '切換為一般使用者視角' }),
+      screen.queryByRole('button', { name: '切換視角' }),
     ).not.toBeInTheDocument();
   });
 });
@@ -114,6 +112,6 @@ describe('AppNavBar account area', () => {
     expect(
       screen.queryByRole('button', { name: normalUser.email }),
     ).not.toBeInTheDocument();
-    expect(screen.queryByText('管理視角')).not.toBeInTheDocument();
+    expect(screen.queryByText('管理者')).not.toBeInTheDocument();
   });
 });

@@ -46,15 +46,21 @@ describe('CompanyTechFilterPanel', () => {
   });
 
   it('renders the shared TechFilterPanel with icon, label, and job count', async () => {
+    const user = userEvent.setup();
     renderWithProviders(<CompanyTechFilterPanel />);
+
+    // Collapsed by default (no active selection) -- expand before querying.
+    await user.click(screen.getByRole('button', { name: /技術篩選/ }));
 
     expect(await screen.findByText('React')).toBeInTheDocument();
     expect(screen.getByText('10')).toBeInTheDocument();
   });
 
   it('resolves a parent id to its resolved catalog label', async () => {
+    const user = userEvent.setup();
     renderWithProviders(<CompanyTechFilterPanel />);
 
+    await user.click(screen.getByRole('button', { name: /技術篩選/ }));
     await screen.findByText('React');
 
     const parentChips = document.querySelectorAll(
@@ -68,6 +74,7 @@ describe('CompanyTechFilterPanel', () => {
     const user = userEvent.setup();
     renderWithProviders(<CompanyTechFilterPanel />);
 
+    await user.click(screen.getByRole('button', { name: /技術篩選/ }));
     await user.click(await screen.findByText('React'));
 
     expect(useCompanyTechFilterStore.getState().selectedTags).toEqual([
