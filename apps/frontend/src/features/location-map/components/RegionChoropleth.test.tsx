@@ -2,8 +2,11 @@ import { fireEvent, render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { getRegionColor } from '../utils/colorScale';
-import { normalizeCountyName } from '../utils/regionId';
-import { getCountiesFeatureCollection } from '../utils/taiwanAtlasData';
+import { normalizeCountyName, toRegionKey } from '../utils/regionId';
+import {
+  getCountiesFeatureCollection,
+  getTownsFeatureCollection,
+} from '../utils/taiwanAtlasData';
 import { RegionChoropleth, type RegionFeature } from './RegionChoropleth';
 
 /**
@@ -21,6 +24,27 @@ function buildCountyFeatures(): RegionFeature[] {
       geometry: feature.geometry,
     };
   });
+}
+
+/**
+ * 鄉鎮市區層 `RegionFeature[]` 建構（任務 6.3）——比照 design.md「呼叫端」
+ * 職責：由呼叫端（`LocationMapPage`／`useRegionValueMaps`）從 `towns-10t`
+ * 篩出「單一縣市」的子集傳入 `RegionChoropleth`；`id` 採用可與
+ * `location_group.id` 直接比對的字串鍵（`utils/regionId.toRegionKey`）。
+ */
+function buildTownFeatures(countyName: string): RegionFeature[] {
+  return getTownsFeatureCollection()
+    .features.filter(
+      feature => normalizeCountyName(feature.properties.COUNTYNAME) === countyName,
+    )
+    .map(feature => {
+      const id = toRegionKey(feature.properties.COUNTYNAME, feature.properties.TOWNNAME);
+      return {
+        id,
+        displayName: feature.properties.TOWNNAME,
+        geometry: feature.geometry,
+      };
+    });
 }
 
 describe('RegionChoropleth (county tier)', () => {
@@ -148,5 +172,213 @@ describe('RegionChoropleth (county tier)', () => {
     );
 
     expect(document.querySelectorAll('path')).toHaveLength(0);
+  });
+});
+
+/**
+ * 鄉鎮市區下鑽（任務 6.3，design.md「RegionChoropleth（Props Contract）」：
+ * 「縣市層與鄉鎮市區層共用此元件，差異僅在呼叫端傳入的 features…」）。
+ *
+ * 這裡驗證的是：`RegionChoropleth` 收到「單一縣市的 towns-10t 子集」時，
+ * 沿用同一條 `buildRegionPaths`（`fitSize` 對「傳入的 features」而非固定
+ * 的全台縣市範圍）渲染邏輯，因此下鑽渲染不需要元件內任何額外分支。
+ */
+describe('RegionChoropleth (township tier drill-down, task 6.3)', () => {
+  /**
+   * 從 d3-geo `geoPath` 產生的 SVG path `d` 字串粗略估算其座標範圍
+   * （bounding box）寬度。`buildRegionPaths` 只用 `M`/`L` 指令繪製多邊形
+   * （無曲線),因此座標一律以 x,y 交錯排列，可用正規表示式取出所有數字後
+   * 依序配對取得 x 座標序列，不需要完整解析 path 語法。
+   */
+  function estimateBBoxWidth(dAttrs: readonly string[]): number {
+    const xs: number[] = [];
+    for (const d of dAttrs) {
+      const numbers = (d.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number);
+      for (let i = 0; i < numbers.length; i += 2) {
+        xs.push(numbers[i]);
+      }
+    }
+    return Math.max(...xs) - Math.min(...xs);
+  }
+
+  it('renders all townships of the drilled-into county as SVG paths, including zero-job townships (Requirement 3.1, 3.3)', () => {
+    const features = buildTownFeatures('台北市');
+    // Sanity check against the real taiwan-atlas fixture: 台北市 has 12 districts.
+    expect(features.length).toBe(12);
+
+    const valueByRegionId = new Map<string, number>([[features[0].id, 50]]);
+
+    const { container } = render(
+      <RegionChoropleth
+        features={features}
+        valueByRegionId={valueByRegionId}
+        maxValue={50}
+        selectedRegionId={null}
+        onSelect={() => {}}
+      />,
+    );
+
+    const paths = container.querySelectorAll('path');
+    expect(paths).toHaveLength(12);
+
+    // Every township, including those absent from valueByRegionId (0 jobs), must
+    // still be rendered — never filtered out (same rule as the county tier).
+    const zeroJobTownship = features.find(f => f.id !== features[0].id);
+    expect(zeroJobTownship).toBeDefined();
+    const zeroPath = document.querySelector(`path[data-region-id="${zeroJobTownship!.id}"]`);
+    expect(zeroPath).not.toBeNull();
+    expect(zeroPath?.getAttribute('fill')).toBe(getRegionColor(0, 50));
+  });
+
+  it('calls onSelect with the location_group.id-compatible district id when a township path is clicked', () => {
+    const features = buildTownFeatures('台北市');
+    const onSelect = vi.fn();
+
+    render(
+      <RegionChoropleth
+        features={features}
+        valueByRegionId={new Map()}
+        maxValue={100}
+        selectedRegionId={null}
+        onSelect={onSelect}
+      />,
+    );
+
+    const target = features[0];
+    const path = document.querySelector(`path[data-region-id="${target.id}"]`);
+    expect(path).not.toBeNull();
+
+    fireEvent.click(path!);
+
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(onSelect).toHaveBeenCalledWith(target.id);
+  });
+
+  it("recomputes fitSize against just the drilled-into county's extent (not the whole-Taiwan extent), so its townships occupy far more of the viewBox than the county's single path does at the county tier", () => {
+    // 嘉義市 is geographically tiny relative to all of Taiwan (only 2 districts),
+    // so at the county tier — where fitSize spans all 22 counties — its path
+    // should occupy just a small sliver of the viewBox. If fitSize failed to
+    // recompute against the passed-in `features` when drilled in (e.g. some
+    // future change reused a fixed whole-Taiwan extent), 嘉義市's township
+    // paths would remain just as tiny — this comparison would catch that.
+    const countyFeatures = buildCountyFeatures();
+    const { container: countyContainer } = render(
+      <RegionChoropleth
+        features={countyFeatures}
+        valueByRegionId={new Map()}
+        maxValue={0}
+        selectedRegionId={null}
+        onSelect={() => {}}
+      />,
+    );
+    const countyPath = countyContainer.querySelector('path[data-region-id="嘉義市"]');
+    expect(countyPath).not.toBeNull();
+    const countyTierWidth = estimateBBoxWidth([countyPath!.getAttribute('d') ?? '']);
+
+    const townFeatures = buildTownFeatures('嘉義市');
+    expect(townFeatures.length).toBe(2);
+    const { container: townContainer } = render(
+      <RegionChoropleth
+        features={townFeatures}
+        valueByRegionId={new Map()}
+        maxValue={0}
+        selectedRegionId={null}
+        onSelect={() => {}}
+      />,
+    );
+    const townPaths = Array.from(townContainer.querySelectorAll('path')).map(
+      p => p.getAttribute('d') ?? '',
+    );
+    const townTierWidth = estimateBBoxWidth(townPaths);
+
+    expect(townTierWidth).toBeGreaterThan(countyTierWidth * 5);
+  });
+
+  it('produces valid (non-empty, non-NaN) path data for every township of a small/remote drilled-into county (regression guard on fitSize degenerating on tiny extents)', () => {
+    const features = buildTownFeatures('連江縣');
+    expect(features.length).toBe(4);
+
+    const { container } = render(
+      <RegionChoropleth
+        features={features}
+        valueByRegionId={new Map()}
+        maxValue={0}
+        selectedRegionId={null}
+        onSelect={() => {}}
+      />,
+    );
+
+    const paths = Array.from(container.querySelectorAll('path'));
+    expect(paths).toHaveLength(4);
+    for (const path of paths) {
+      const d = path.getAttribute('d');
+      expect(d).toBeTruthy();
+      expect(d).not.toContain('NaN');
+    }
+  });
+});
+
+/**
+ * 返回全台總覽（任務 6.3）。
+ *
+ * design.md「RegionChoropleth（Props Contract）」明確列出的完整 props 集合
+ * （`features`/`valueByRegionId`/`maxValue`/`selectedRegionId`/`onSelect`）
+ * 並未包含任何「返回總覽」專屬的 prop 或按鈕渲染責任；元件本身也不持有
+ * `selectedCounty`/`selectedDistrict` 狀態（那是 `locationMapStore` 的職責，
+ * 見「檔案結構規劃」`RegionChoropleth` 一列所述：「資料一律由呼叫端
+ * （`LocationMapPage`／`useRegionValueMaps`）算好傳入」；系統流程圖中也只有
+ * `Store->Map: 切換為該縣市 districts 特徵集`，並無元件內建的返回互動）。
+ * 因此「返回全台總覽」由呼叫端（`LocationMapPage`，任務 9.1 建置範圍）讀取
+ * store 後,重新傳入縣市層 `features` 來實現，而非本元件內建按鈕。
+ *
+ * 這裡驗證的是使該重新傳入生效的必要前提：元件純粹依 `features` prop
+ * 重新渲染，新的一組 `features` 會完整取代前一組（不殘留舊層級的 path），
+ * 因此呼叫端只需要在「返回」操作時重新傳入縣市層 features，即可正確還原
+ * 22 縣市總覽視圖。
+ */
+describe('RegionChoropleth (returning to the full-Taiwan overview, task 6.3)', () => {
+  it('fully restores the 22-county overview when the caller re-renders with county-tier features after a drill-down (no stale township paths remain)', () => {
+    const countyFeatures = buildCountyFeatures();
+    const townFeatures = buildTownFeatures('台北市');
+
+    const { container, rerender } = render(
+      <RegionChoropleth
+        features={countyFeatures}
+        valueByRegionId={new Map()}
+        maxValue={0}
+        selectedRegionId={null}
+        onSelect={() => {}}
+      />,
+    );
+    expect(container.querySelectorAll('path')).toHaveLength(22);
+
+    // Simulate drilling into 台北市: the caller swaps to the township-tier features.
+    rerender(
+      <RegionChoropleth
+        features={townFeatures}
+        valueByRegionId={new Map()}
+        maxValue={0}
+        selectedRegionId={null}
+        onSelect={() => {}}
+      />,
+    );
+    expect(container.querySelectorAll('path')).toHaveLength(townFeatures.length);
+    expect(document.querySelector('path[data-region-id="台北市"]')).toBeNull();
+
+    // Simulate "返回全台總覽": the caller swaps `features` back to the county tier.
+    rerender(
+      <RegionChoropleth
+        features={countyFeatures}
+        valueByRegionId={new Map()}
+        maxValue={0}
+        selectedRegionId={null}
+        onSelect={() => {}}
+      />,
+    );
+    expect(container.querySelectorAll('path')).toHaveLength(22);
+    expect(document.querySelector('path[data-region-id="台北市"]')).not.toBeNull();
+    for (const f of townFeatures) {
+      expect(document.querySelector(`path[data-region-id="${f.id}"]`)).toBeNull();
+    }
   });
 });
