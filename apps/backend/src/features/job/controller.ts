@@ -47,6 +47,17 @@ export class Controller {
     return this.service.getLocationGroups(query);
   }
 
+  @Get('location-tech')
+  @Public()
+  @ApiOperation({
+    summary: 'Query job location technology stats',
+    description:
+      'Returns the materialized-view result of open jobs grouped by location and technology (mv_location_tech). Uses the shared QueryDto for from/to pagination, orders sorting and where filtering. Public: does not depend on the caller. Example: /job/location-tech?where={"location":{"eq":"台北市中正區"}}&orders=job_count:desc',
+  })
+  async getLocationTechStats(@Query() query: QueryDto) {
+    return this.service.getLocationTechStats(query);
+  }
+
   @Get()
   @OptionalAuth()
   @ApiOperation({
