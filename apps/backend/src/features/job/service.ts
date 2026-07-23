@@ -5,6 +5,7 @@ import { Observable } from 'rxjs';
 import {
   JobPreferenceService,
   MvLocationGroupService,
+  MvLocationTechService,
   MvJobService,
   getJobPreferenceCount,
 } from '@codeshore/data-utils';
@@ -26,6 +27,8 @@ export class Service {
     @Inject(MvLocationGroupService)
     private readonly mvLocationGroupService: MvLocationGroupService,
     @Inject(MvJobService) private readonly mvJobService: MvJobService,
+    @Inject(MvLocationTechService)
+    private readonly mvLocationTechService: MvLocationTechService,
   ) {}
 
   async getMvJobs(query: QueryDto, userId: string | null) {
@@ -35,6 +38,10 @@ export class Service {
   @Cacheable({ key: MvLocationGroupService.name })
   async getLocationGroups(query: QueryDto) {
     return this.mvLocationGroupService.fetch(query);
+  }
+
+  async getLocationTechStats(query: QueryDto) {
+    return this.mvLocationTechService.fetchAll(query);
   }
 
   async getJobPreferencedCount(userId: string) {

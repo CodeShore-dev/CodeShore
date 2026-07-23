@@ -4,6 +4,7 @@ import {
   JobPreferenceService,
   MvJobService,
   MvLocationGroupService,
+  MvLocationTechService,
 } from '@codeshore/data-utils';
 
 import { provideWithLogger } from '../logger-provider';
@@ -18,6 +19,7 @@ import { Service } from './service';
     provideWithLogger(JobPreferenceService),
     provideWithLogger(MvLocationGroupService),
     provideWithLogger(MvJobService),
+    provideWithLogger(MvLocationTechService),
   ],
 })
 export class Module {}
