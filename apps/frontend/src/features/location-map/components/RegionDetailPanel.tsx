@@ -1,8 +1,24 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router';
 
 import { TechIcon } from '../../../components/TechIcon';
 import { useTechsQuery } from '../../keyword/queries';
-import { useLocationTechStatsQuery } from '../queries';
+import { useLocationGroupsQuery, useLocationTechStatsQuery } from '../queries';
+import { groupByCounty } from '../utils/regionId';
+
+/**
+ * 目前選定地區所屬的層級（task 8.2, design.md「跳轉回職缺頁」
+ * requirements.md 6.1/6.2）。「查看此地區職缺」的行為依層級而不同：
+ * - `'county'`：`regionId` 是正規化縣市名（design.md `RegionFeature.id` 於
+ *   縣市層級的定義），需透過 `groupByCounty` 展開為該縣市底下所有
+ *   `location_group` id 才能組出 `locations` 參數。
+ * - `'district'`：`regionId` 本身就是單一 `location_group.id`，可直接使用。
+ *
+ * design.md 的 `RegionDetailPanelProps`（task 8.1 引用段落）沒有涵蓋這個欄
+ * 位——task 8.1 當時範圍不包含跳轉邏輯。這裡是本任務（8.2）新增的最小必要
+ * 擴充：沒有它就無法讓同一個元件依層級套用不同的「查看此地區職缺」行為。
+ */
+export type RegionDetailPanelTier = 'county' | 'district';
 
 export interface RegionDetailPanelProps {
   /** `location_group.id` 相容字串（縣市或鄉鎮市區皆可，task 8.1）。 */
@@ -18,27 +34,36 @@ export interface RegionDetailPanelProps {
    * 替代來源。
    */
   totalJobCount: number;
+  /** 目前選定地區的層級，見上方 `RegionDetailPanelTier` 說明。 */
+  tier: RegionDetailPanelTier;
 }
 
 const TOP_N = 10;
 
 /**
- * 地區明細面板（task 8.1，design.md「RegionDetailPanel.tsx」／
- * requirements.md 5.1-5.3）。顯示選定地區的開放中職缺總數，以及依開放中
+ * 地區明細面板（task 8.1 建立顯示邏輯／design.md「RegionDetailPanel.tsx」／
+ * requirements.md 5.1-5.3；task 8.2 擴充跳轉回職缺頁邏輯／
+ * requirements.md 6.1-6.4, 7.4）。顯示選定地區的開放中職缺總數、依開放中
  * 職缺數排序的 Top 10 技術排行（列樣式參考 `TechRankingRow.tsx`：icon +
- * label + 職缺數）。
+ * label + 職缺數），並提供：
+ * - 「查看此地區職缺」操作：依 `tier` 組出 `locations` 參數並
+ *   `navigate('/jobs?' + new URLSearchParams({ locations }))`（比照
+ *   `CompanyListPage.tsx`/`TechRankingRow.tsx` 既有的 `navigate` 寫法）。
+ * - 技術排行列點擊：同時帶入 `locations`（同一套依 `tier` 決定的地區
+ *   id 清單）與 `tags`（該列的技術 id）。
  *
  * Requirement 5.3：職缺總數為 0 時，顯示無資料說明，且技術排行清單必須
- * 完全不渲染（不是渲染一個空清單）。
- *
- * 本任務不包含「查看此地區職缺」／技術點擊跳轉的 `navigate` 邏輯（design.md
- * 標記為後續任務 8.2 的範圍），故本元件目前不呼叫 `useNavigate`。
+ * 完全不渲染（不是渲染一個空清單）。「查看此地區職缺」操作不受此條件影響
+ * （Requirement 6.1/6.2 並未將其與職缺總數是否為 0 綁定）。
  */
 export function RegionDetailPanel({
   regionId,
   displayName,
   totalJobCount,
+  tier,
 }: RegionDetailPanelProps) {
+  const navigate = useNavigate();
+
   // 呼叫方式固定比照 design.md「MvLocationTechService（Service Contract）」
   // 呼叫端使用方式 -- 地區明細面板一列：`where = { location: { eq: regionId } }`，
   // `from: 0, to: 9`（Top 10），`orders: 'job_count:desc'`。
@@ -52,6 +77,43 @@ export function RegionDetailPanel({
   // (`useTechsQuery`，`../../keyword/queries`)。這與同一 feature 內
   // `ViewModeToggle.tsx` 解同一問題的方式一致，避免另建一套技術抓取機制。
   const { data: techs = [] } = useTechsQuery();
+
+  // 縣市層級「查看此地區職缺」需要該縣市底下所有 `location_group` id
+  // ——來源是既有 `/api/job/location` 全量結果（`useLocationGroupsQuery`，
+  // task 5.1 已重新匯出），套用 `utils/regionId.groupByCounty`（task 4.1）
+  // 依縣市分組後取出對應 bucket，而不是重新實作一次分組邏輯（design.md
+  // 「groupByCounty」註解明確要求 `RegionDetailPanel` 共用此函式）。
+  // 這個 hook 在鄉鎮市區層級也會呼叫（React hook 不能依 `tier` 條件式呼叫），
+  // 但 `useLocationGroupsQuery` 的 queryKey 與 `useRegionValueMaps`（task 6.2）
+  // 在同一頁面上呼叫的是同一份快取，鄉鎮市區層級渲染時不會產生額外的
+  // 網路請求。
+  const { data: allLocationGroups = [] } = useLocationGroupsQuery();
+
+  const locationIds = useMemo(() => {
+    if (tier === 'district') {
+      return [regionId];
+    }
+    const bucket = groupByCounty(allLocationGroups).get(regionId);
+    return (bucket ?? []).map(row => row.location);
+  }, [tier, regionId, allLocationGroups]);
+
+  const locationsParam = useMemo(() => locationIds.join(','), [locationIds]);
+
+  const goToJobs = useCallback(() => {
+    navigate(`/jobs?${new URLSearchParams({ locations: locationsParam })}`);
+  }, [navigate, locationsParam]);
+
+  const goToJobsWithTech = useCallback(
+    (techId: string) => {
+      navigate(
+        `/jobs?${new URLSearchParams({
+          locations: locationsParam,
+          tags: techId,
+        })}`,
+      );
+    },
+    [navigate, locationsParam],
+  );
 
   const techMetaByTech = useMemo(() => {
     const map = new Map<
@@ -80,6 +142,14 @@ export function RegionDetailPanel({
         </span>
       </p>
 
+      <button
+        type="button"
+        onClick={goToJobs}
+        className="mt-3 cursor-pointer rounded-lg bg-[#003d92] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#1654b9] active:scale-95"
+      >
+        查看此地區職缺
+      </button>
+
       {!hasJobs ? (
         <p className="mt-4 text-sm text-[#434653]">此地區目前沒有開放中職缺</p>
       ) : (
@@ -95,7 +165,8 @@ export function RegionDetailPanel({
               <li
                 key={techId || index}
                 data-tech={techId}
-                className="flex items-center gap-2 border-b border-[#eef3f8] py-2 last:border-0"
+                onClick={() => goToJobsWithTech(techId)}
+                className="flex cursor-pointer items-center gap-2 border-b border-[#eef3f8] py-2 transition-colors last:border-0 hover:bg-[#f4faff]"
               >
                 <span className="font-mono text-xs text-[#434653]">
                   #{index + 1}
