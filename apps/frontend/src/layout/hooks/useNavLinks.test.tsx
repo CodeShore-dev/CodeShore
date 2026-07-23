@@ -82,7 +82,7 @@ describe('useNavLinks', () => {
     expect(screen.getByText('公司')).toHaveAttribute('data-active', 'true');
   });
 
-  it('keeps navLinks to exactly the 4 primary links regardless of role', () => {
+  it('keeps navLinks to exactly the 5 primary links regardless of role', () => {
     function PrimaryHarness() {
       const { navLinks } = useNavLinks();
       return <>{navLinks.map(l => l.label).join(',')}</>;
@@ -92,7 +92,7 @@ describe('useNavLinks', () => {
         <PrimaryHarness />
       </MemoryRouter>,
     );
-    expect(screen.getByText('首頁,職缺,公司,技術')).toBeInTheDocument();
+    expect(screen.getByText('首頁,職缺,公司,技術,地圖')).toBeInTheDocument();
   });
 
   it('moreLinks is empty for non-admins and includes the admin links (incl. 關鍵字策展) for admins', () => {

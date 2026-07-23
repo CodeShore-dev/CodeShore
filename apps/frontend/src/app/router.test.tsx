@@ -34,6 +34,15 @@ describe('routeConfig (guest access, req 1.1-1.4)', () => {
     const chain = guardChainFor('/companies');
     expect(chain).not.toContain(ProtectedRoute);
   });
+
+  it('documents /location-map as public in PUBLIC_PATHS', () => {
+    expect(PUBLIC_PATHS).toContain('/location-map');
+  });
+
+  it('does not nest /location-map under ProtectedRoute', () => {
+    const chain = guardChainFor('/location-map');
+    expect(chain).not.toContain(ProtectedRoute);
+  });
 });
 
 describe('routeConfig (catch-all, req 4.3)', () => {

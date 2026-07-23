@@ -80,6 +80,11 @@ const NotFoundPage = lazy(() =>
     default: m.NotFoundPage,
   })),
 );
+const LocationMapPage = lazy(() =>
+  import('../features/location-map/pages/LocationMapPage').then(m => ({
+    default: m.LocationMapPage,
+  })),
+);
 
 // Routes that are reachable without authentication (parity with the old
 // vue-router PUBLIC_ROUTES). The ProtectedRoute / AdminRoute guards enforce the
@@ -93,6 +98,7 @@ export const PUBLIC_PATHS = [
   '/methodology',
   '/jobs',
   '/companies',
+  '/location-map',
   '/open-source',
   '/legal',
   '/contact',
@@ -138,6 +144,9 @@ export const routeConfig: RouteObject[] = [
       // itself isn't wrapped despite having login-gated sub-features.
       { path: '/jobs/watchlist', element: <JobFilterWatchlistPage /> },
       { path: '/companies', element: <CompanyListPage /> },
+      // Public (requirement 1.1): the location map must work for logged-out
+      // visitors too, so it is not nested under ProtectedRoute.
+      { path: '/location-map', element: <LocationMapPage /> },
 
       { path: '/open-source', element: <OpenSourcePage /> },
       { path: '/legal', element: <LegalNoticePage /> },

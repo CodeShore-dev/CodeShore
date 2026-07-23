@@ -26,6 +26,7 @@ const PRIMARY_LINKS: NavLink[] = [
   },
   { to: '/companies', label: '公司', icon: 'apartment', exact: false },
   { to: '/techs', label: '技術', icon: 'insights', exact: false },
+  { to: '/location-map', label: '地圖', icon: 'map', exact: false },
 ];
 
 // Editor/admin-only links: grouped under the "更多" dropdown (MoreNavMenu)
