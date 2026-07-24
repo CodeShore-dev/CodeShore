@@ -5,6 +5,7 @@ import { Observable } from 'rxjs';
 import {
   JobPreferenceService,
   MvLocationGroupService,
+  MvLocationSalaryService,
   MvLocationTechService,
   MvJobService,
   getJobPreferenceCount,
@@ -29,6 +30,8 @@ export class Service {
     @Inject(MvJobService) private readonly mvJobService: MvJobService,
     @Inject(MvLocationTechService)
     private readonly mvLocationTechService: MvLocationTechService,
+    @Inject(MvLocationSalaryService)
+    private readonly mvLocationSalaryService: MvLocationSalaryService,
   ) {}
 
   async getMvJobs(query: QueryDto, userId: string | null) {
@@ -42,6 +45,10 @@ export class Service {
 
   async getLocationTechStats(query: QueryDto) {
     return this.mvLocationTechService.fetchAll(query);
+  }
+
+  async getLocationSalaryStats(query: QueryDto) {
+    return this.mvLocationSalaryService.fetchAll(query);
   }
 
   async getJobPreferencedCount(userId: string) {
