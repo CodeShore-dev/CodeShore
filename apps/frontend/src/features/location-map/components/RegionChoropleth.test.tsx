@@ -161,7 +161,14 @@ describe('RegionChoropleth (county tier)', () => {
   });
 
   it('also renders the name and job count as always-visible SVG text, not only on hover', () => {
-    const features = buildCountyFeatures();
+    // Only two comparably-sized counties driving fitSize themselves (rather
+    // than all 22, where remote outlying islands shrink every mainland
+    // county's rendered size and make some fall under the label-overflow
+    // thresholds covered separately below) -- both occupy a large share of
+    // the viewBox, so both reliably clear the name+count threshold.
+    const features = buildCountyFeatures().filter(
+      f => f.id === '台北市' || f.id === '新北市',
+    );
     const valueByRegionId = new Map<string, number>([['台北市', 120]]);
 
     const { container } = render(
@@ -175,13 +182,11 @@ describe('RegionChoropleth (county tier)', () => {
     );
 
     // One <text> per region, always in the DOM (no hover/interaction needed).
-    expect(container.querySelectorAll('text')).toHaveLength(22);
+    expect(container.querySelectorAll('text')).toHaveLength(2);
 
     const texts = Array.from(container.querySelectorAll('text')).map(t => t.textContent);
     expect(texts).toContain('台北市120');
-
-    const zeroValueText = texts.find(t => t?.startsWith('新北市'));
-    expect(zeroValueText).toBe('新北市0');
+    expect(texts).toContain('新北市0');
   });
 
   it('does not throw and renders an empty svg when features is empty', () => {
@@ -196,6 +201,93 @@ describe('RegionChoropleth (county tier)', () => {
     );
 
     expect(document.querySelectorAll('path')).toHaveLength(0);
+  });
+});
+
+/**
+ * 標籤溢出處理：形狀在畫面上實際渲染出的像素尺寸差距懸殊時（例如全台縣市
+ * 或某縣市鄉鎮市區並列），固定字級的永遠可見標籤會讓小形狀的文字明顯溢出
+ * 邊界甚至互相重疊。改用「依 pathGenerator.bounds() 換算出的實際渲染尺寸」
+ * 分三層決定顯示內容：夠大顯示名稱+數字、中等只顯示數字、太小則完全不顯示
+ * （點擊與 hover title 兩者不受影響，只是不再永遠佔用畫面）。
+ *
+ * 使用簡單方形合成幾何（而非真實 taiwan-atlas 座標）讓三層的實際渲染像素
+ * 尺寸可預先精算、跨環境穩定重現，不依賴特定縣市在真實地圖上恰好多大。
+ */
+describe('RegionChoropleth (label overflow handling)', () => {
+  function squareFeature(id: string, x: number, size: number): RegionFeature {
+    return {
+      id,
+      displayName: id,
+      geometry: {
+        type: 'Polygon',
+        coordinates: [
+          [
+            [x, 0],
+            [x, size],
+            [x + size, size],
+            [x + size, 0],
+            [x, 0],
+          ],
+        ],
+      },
+    };
+  }
+
+  // 三個方形彼此不重疊、尺寸差距懸殊：合併後的 fitSize 換算比例會讓三者的
+  // 實際渲染尺寸分別落在「>=40px」「14-40px」「<14px」三個門檻區間內
+  // （已依 VIEWBOX 800x600 扣掉 FIT_SIZE_PADDING 後的實際換算比例精算，並
+  // 留有數倍安全邊界，可容許 Mercator 投影的些微非線性誤差）。
+  const BIG = squareFeature('大縣', 0, 10);
+  const MEDIUM = squareFeature('中鎮', 30, 2);
+  const TINY = squareFeature('小村', 60, 0.5);
+  const features = [BIG, MEDIUM, TINY];
+
+  it('shows the full name + count label for a region large enough on screen', () => {
+    const { container } = render(
+      <RegionChoropleth
+        features={features}
+        valueByRegionId={new Map([['大縣', 88]])}
+        maxValue={88}
+        selectedRegionId={null}
+        onSelect={() => {}}
+      />,
+    );
+
+    const group = container.querySelector('path[data-region-id="大縣"]')?.parentElement;
+    expect(group?.querySelector('text')?.textContent).toBe('大縣88');
+  });
+
+  it('shows only the job count (no name) for a region too small to fit a full name label', () => {
+    const { container } = render(
+      <RegionChoropleth
+        features={features}
+        valueByRegionId={new Map([['中鎮', 5]])}
+        maxValue={88}
+        selectedRegionId={null}
+        onSelect={() => {}}
+      />,
+    );
+
+    const group = container.querySelector('path[data-region-id="中鎮"]')?.parentElement;
+    expect(group?.querySelector('text')?.textContent).toBe('5');
+  });
+
+  it('hides the label entirely for a region small enough that any text would overflow its shape', () => {
+    const { container } = render(
+      <RegionChoropleth
+        features={features}
+        valueByRegionId={new Map([['小村', 3]])}
+        maxValue={88}
+        selectedRegionId={null}
+        onSelect={() => {}}
+      />,
+    );
+
+    const group = container.querySelector('path[data-region-id="小村"]')?.parentElement;
+    expect(group?.querySelector('text')).toBeNull();
+    // 沒有永遠可見標籤不代表資訊消失：點擊與 hover title 仍在。
+    expect(group?.querySelector('path')?.getAttribute('aria-label')).toContain('3 筆職缺');
   });
 });
 
