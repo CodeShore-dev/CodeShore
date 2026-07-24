@@ -80,3 +80,12 @@ export const CATEGORY_LABEL_MAP: Record<string, string> = {
   cloud: '雲端',
   others: '其他',
 };
+
+export const CATEGORY_PRIORITY: Record<string, number> = {
+  language: 0,
+  framework: 1,
+  database: 2,
+  library: 3,
+  service: 4,
+  tool: 5,
+};

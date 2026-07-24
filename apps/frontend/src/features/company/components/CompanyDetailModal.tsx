@@ -4,6 +4,7 @@ import { SupabaseView } from '@codeshore/data-types';
 
 import { Modal } from '../../../components/Modal';
 import { TechIcon } from '../../../components/TechIcon';
+import { CATEGORY_PRIORITY } from '../../../utils/constants';
 import { useCompanyTechStatsQuery } from '../queries';
 
 export interface CompanyDetailModalProps {
@@ -13,15 +14,6 @@ export interface CompanyDetailModalProps {
   onClose: () => void;
   onGoToJobs: (companyName: string) => void;
 }
-
-const CATEGORY_PRIORITY: Record<string, number> = {
-  language: 0,
-  framework: 1,
-  database: 2,
-  library: 3,
-  service: 4,
-  tool: 5,
-};
 
 // Company detail view (task 6.1): shared Modal shell wrapping the company's
 // full, untruncated technology list (reusing CompanyCard's groupedTechs
