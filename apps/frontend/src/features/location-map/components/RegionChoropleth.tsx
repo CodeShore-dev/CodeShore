@@ -117,10 +117,36 @@ export function RegionChoropleth({
       aria-label="地區職缺分布地圖"
       className="h-auto w-full"
     >
-      {paths.map(({ id, displayName, d, centroid, boundsWidth, boundsHeight }) => {
+      {/* 先畫完所有 path，標籤文字一律留到第二輪、在 SVG 文件順序中排在
+          全部 path 之後才畫——SVG 依文件順序疊圖，較晚出現的元素蓋在較早
+          的上面。若文字跟自己的 path 綁在同一個 <g> 裡逐一畫，鄰近、較晚
+          畫的其他縣市/鄉鎮 path 仍可能蓋住前一個形狀溢出到它範圍內的文字；
+          把文字整批移到最後一輪，就能確保標籤永遠在最上層、不被任何 path
+          蓋住/裁切。 */}
+      {paths.map(({ id, displayName, d, centroid }) => {
         const value = valueByRegionId.get(id) ?? 0;
         const fill = getRegionColor(value, maxValue);
         const isSelected = id === selectedRegionId;
+
+        return (
+          <path
+            key={id}
+            data-region-id={id}
+            d={d}
+            fill={fill}
+            stroke={isSelected ? '#003d92' : '#ffffff'}
+            strokeWidth={isSelected ? 2 : 0.5}
+            role="button"
+            aria-label={`${displayName}：${value} 筆職缺`}
+            className="cursor-pointer transition-[fill] hover:opacity-80"
+            onClick={() => onSelect(id)}
+          >
+            <title>{`${displayName}：${value} 筆職缺`}</title>
+          </path>
+        );
+      })}
+      {paths.map(({ id, displayName, centroid, boundsWidth, boundsHeight }) => {
+        const value = valueByRegionId.get(id) ?? 0;
         const [cx, cy] = centroid;
 
         // 形狀太小時標籤文字必然溢出，寧可不顯示（點擊、hover title 仍在，
@@ -131,48 +157,35 @@ export function RegionChoropleth({
         const showName = shortestSide >= MIN_SIZE_FOR_NAME_LABEL;
         const fontSize = showName ? 10 : 8;
 
+        if (!showLabel) return null;
+
         return (
-          <g key={id}>
-            <path
-              data-region-id={id}
-              d={d}
-              fill={fill}
-              stroke={isSelected ? '#003d92' : '#ffffff'}
-              strokeWidth={isSelected ? 2 : 0.5}
-              role="button"
-              aria-label={`${displayName}：${value} 筆職缺`}
-              className="cursor-pointer transition-[fill] hover:opacity-80"
-              onClick={() => onSelect(id)}
-            >
-              <title>{`${displayName}：${value} 筆職缺`}</title>
-            </path>
-            {/* 名稱／職缺數直接畫在 SVG 上（不只是 hover 才顯示的
-                <title>），白色描邊確保在淺色與深色著色上都看得清楚；
-                pointer-events-none 讓點擊仍穿透到底下的 path。形狀太小時
-                改為只顯示數字或完全隱藏，避免文字溢出形狀外。 */}
-            {showLabel && (
-              <text
-                x={cx}
-                y={cy}
-                textAnchor="middle"
-                className="pointer-events-none font-bold select-none"
-                fontSize={fontSize}
-                fill="#001f2a"
-                stroke="#ffffff"
-                strokeWidth={3}
-                paintOrder="stroke"
-              >
-                {showName && (
-                  <tspan x={cx} dy="-2">
-                    {displayName}
-                  </tspan>
-                )}
-                <tspan x={cx} dy={showName ? 12 : 0}>
-                  {value}
-                </tspan>
-              </text>
+          // 名稱／職缺數直接畫在 SVG 上（不只是 hover 才顯示的 <title>），
+          // 白色描邊確保在淺色與深色著色上都看得清楚；pointer-events-none
+          // 讓點擊仍穿透到底下的 path。形狀太小時改為只顯示數字或完全
+          // 隱藏，避免文字溢出形狀外。
+          <text
+            key={id}
+            data-region-id={id}
+            x={cx}
+            y={cy}
+            textAnchor="middle"
+            className="pointer-events-none font-bold select-none"
+            fontSize={fontSize}
+            fill="#001f2a"
+            stroke="#ffffff"
+            strokeWidth={3}
+            paintOrder="stroke"
+          >
+            {showName && (
+              <tspan x={cx} dy="-2">
+                {displayName}
+              </tspan>
             )}
-          </g>
+            <tspan x={cx} dy={showName ? 12 : 0}>
+              {value}
+            </tspan>
+          </text>
         );
       })}
     </svg>

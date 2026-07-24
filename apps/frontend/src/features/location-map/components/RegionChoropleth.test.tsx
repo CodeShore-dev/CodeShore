@@ -254,8 +254,8 @@ describe('RegionChoropleth (label overflow handling)', () => {
       />,
     );
 
-    const group = container.querySelector('path[data-region-id="大縣"]')?.parentElement;
-    expect(group?.querySelector('text')?.textContent).toBe('大縣88');
+    const text = container.querySelector('text[data-region-id="大縣"]');
+    expect(text?.textContent).toBe('大縣88');
   });
 
   it('shows only the job count (no name) for a region too small to fit a full name label', () => {
@@ -269,8 +269,8 @@ describe('RegionChoropleth (label overflow handling)', () => {
       />,
     );
 
-    const group = container.querySelector('path[data-region-id="中鎮"]')?.parentElement;
-    expect(group?.querySelector('text')?.textContent).toBe('5');
+    const text = container.querySelector('text[data-region-id="中鎮"]');
+    expect(text?.textContent).toBe('5');
   });
 
   it('hides the label entirely for a region small enough that any text would overflow its shape', () => {
@@ -284,10 +284,31 @@ describe('RegionChoropleth (label overflow handling)', () => {
       />,
     );
 
-    const group = container.querySelector('path[data-region-id="小村"]')?.parentElement;
-    expect(group?.querySelector('text')).toBeNull();
+    expect(container.querySelector('text[data-region-id="小村"]')).toBeNull();
     // 沒有永遠可見標籤不代表資訊消失：點擊與 hover title 仍在。
-    expect(group?.querySelector('path')?.getAttribute('aria-label')).toContain('3 筆職缺');
+    expect(
+      container.querySelector('path[data-region-id="小村"]')?.getAttribute('aria-label'),
+    ).toContain('3 筆職缺');
+  });
+
+  it("keeps every label after every path in document order, so a label is never painted underneath a neighboring region's shape", () => {
+    const { container } = render(
+      <RegionChoropleth
+        features={features}
+        valueByRegionId={new Map([['大縣', 88]])}
+        maxValue={88}
+        selectedRegionId={null}
+        onSelect={() => {}}
+      />,
+    );
+
+    // SVG 依文件順序疊圖：只要每個 <text> 都排在「全部」<path> 之後，
+    // 標籤就必然畫在所有形狀之上，不會被任一（尤其是較晚渲染、視覺上蓋在
+    // 上層的）鄰近形狀蓋住或裁切。
+    const nodes = Array.from(container.querySelectorAll('svg > *'));
+    const lastPathIndex = nodes.map(n => n.tagName).lastIndexOf('path');
+    const firstTextIndex = nodes.map(n => n.tagName).indexOf('text');
+    expect(firstTextIndex).toBeGreaterThan(lastPathIndex);
   });
 });
 
