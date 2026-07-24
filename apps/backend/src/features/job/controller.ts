@@ -58,6 +58,17 @@ export class Controller {
     return this.service.getLocationTechStats(query);
   }
 
+  @Get('location-salary')
+  @Public()
+  @ApiOperation({
+    summary: 'Query job location salary stats',
+    description:
+      'Returns the materialized-view result of open jobs grouped by location and salary type (mv_location_salary), including job_count and avg_salary per group. Uses the shared QueryDto for from/to pagination, orders sorting and where filtering. Public: does not depend on the caller. Example: /job/location-salary?where={"location":{"eq":"台北市信義區"}}',
+  })
+  async getLocationSalaryStats(@Query() query: QueryDto) {
+    return this.service.getLocationSalaryStats(query);
+  }
+
   @Get()
   @OptionalAuth()
   @ApiOperation({
