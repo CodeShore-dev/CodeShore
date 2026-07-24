@@ -89,6 +89,11 @@ const PIPELINE: MvRefreshStep[] = [
     label: '地點技術彙總',
     run: () => refreshView('mv_location_tech'),
   },
+  {
+    id: 'mv_location_salary',
+    label: '地點薪資彙總',
+    run: () => refreshView('mv_location_salary'),
+  },
 ];
 
 // 供 API 層驗證／下拉選單使用的合法步驟 id 清單（含 keyword_group_reset）。
