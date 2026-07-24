@@ -1,7 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 
 import {
+  fetchLocationSalaryStats,
   fetchLocationTechStats,
+  LocationSalaryStatsQueryHookOptions,
   LocationTechStatsQueryHookOptions,
 } from './service';
 
@@ -40,6 +42,30 @@ export function useLocationTechStatsQuery(
     queryKey: ['job', 'locationTech', { where, from, to, orders }],
     queryFn: async () =>
       (await fetchLocationTechStats(where, { from, to, orders })).result,
+    enabled,
+  });
+}
+
+// `useLocationSalaryStatsQuery(where)` mirrors `useLocationTechStatsQuery`
+// exactly, backing this feature's `mv_location_salary`-scoped reads
+// (design.md "API 端點（GET /api/job/location-salary）" 呼叫端使用方式):
+//   - district-level popup: where = { location: { eq: regionId } } (至多 2
+//     列：月薪／年薪各一)
+//   - county-level popup: from/to overridden to fetch the full result set,
+//     aggregated client-side via `groupByCounty` (same "全量抓取 +
+//     groupByCounty" strategy as `useRegionValueMaps.countyValues`)
+// `where` (and any pagination/order overrides) is included in the queryKey
+// so distinct filters are cached and refetched independently by TanStack
+// Query.
+export function useLocationSalaryStatsQuery(
+  where: Record<string, unknown>,
+  options: LocationSalaryStatsQueryHookOptions = {},
+) {
+  const { from = 0, to = -1, orders = 'job_count:desc', enabled = true } = options;
+  return useQuery({
+    queryKey: ['job', 'locationSalary', { where, from, to, orders }],
+    queryFn: async () =>
+      (await fetchLocationSalaryStats(where, { from, to, orders })).result,
     enabled,
   });
 }

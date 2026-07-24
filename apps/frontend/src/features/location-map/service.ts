@@ -52,3 +52,46 @@ export const fetchLocationTechStats = async (
   });
   return res.data;
 };
+
+// Optional pagination/ordering overrides for `fetchLocationSalaryStats`
+// (design.md "API 端點（GET /api/job/location-salary）"). Mirrors
+// `LocationTechStatsQueryOptions` exactly -- `where` is the one required
+// argument, everything else defaults to "fetch the full result set, highest
+// job_count first".
+export interface LocationSalaryStatsQueryOptions {
+  from?: number;
+  to?: number;
+  orders?: string;
+}
+
+// TanStack Query's `enabled` gate for `useLocationSalaryStatsQuery` -- kept
+// separate from `LocationSalaryStatsQueryOptions` for the same reason as
+// `LocationTechStatsQueryHookOptions` above.
+export interface LocationSalaryStatsQueryHookOptions
+  extends LocationSalaryStatsQueryOptions {
+  enabled?: boolean;
+}
+
+// Mirrors `apps/backend/src/features/job/service.ts`'s
+// `getLocationSalaryStats(query: QueryDto)` ->
+// `MvLocationSalaryService.fetchAll`, which passes `where`/`orders`/`from`/`to`
+// through as-is to `mv_location_salary` (design.md "API 端點（GET
+// /api/job/location-salary）"). Follows the exact same `httpClient`/
+// `ListResponse<T>` pattern as `fetchLocationTechStats` above.
+export const fetchLocationSalaryStats = async (
+  where: Record<string, unknown>,
+  options: LocationSalaryStatsQueryOptions = {},
+) => {
+  const { from = 0, to = -1, orders = 'job_count:desc' } = options;
+  const res = await httpClient.get<
+    ListResponse<SupabaseView.MvLocationSalary>
+  >('/api/job/location-salary', {
+    params: {
+      from,
+      to,
+      orders,
+      where: JSON.stringify(where),
+    },
+  });
+  return res.data;
+};

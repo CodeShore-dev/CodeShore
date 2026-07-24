@@ -3,19 +3,26 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { fetchLocationTechStats } = vi.hoisted(() => ({
+const { fetchLocationTechStats, fetchLocationSalaryStats } = vi.hoisted(() => ({
   fetchLocationTechStats: vi.fn(),
+  fetchLocationSalaryStats: vi.fn(),
 }));
 
 vi.mock('./service', () => ({
   fetchLocationTechStats,
+  fetchLocationSalaryStats,
 }));
 
-import { useLocationTechStatsQuery } from './queries';
+import { useLocationSalaryStatsQuery, useLocationTechStatsQuery } from './queries';
 
 const rows = [
   { location: '台北市大安區', tech: 'typescript', job_count: 10 },
   { location: '新北市板橋區', tech: 'typescript', job_count: 6 },
+];
+
+const salaryRows = [
+  { location: '台北市大安區', salary_type: 'month', job_count: 10, avg_salary: 60000 },
+  { location: '台北市大安區', salary_type: 'year', job_count: 4, avg_salary: 900000 },
 ];
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -141,5 +148,110 @@ describe('useLocationTechStatsQuery', () => {
         },
       ]),
     ).toEqual(rows);
+  });
+});
+
+describe('useLocationSalaryStatsQuery', () => {
+  it('fetches the salary stats for the given where filter and returns salary_type/job_count/avg_salary rows', async () => {
+    fetchLocationSalaryStats.mockResolvedValue({ result: salaryRows, count: 2 });
+
+    const { result } = renderHook(
+      () => useLocationSalaryStatsQuery({ location: { eq: '台北市大安區' } }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(fetchLocationSalaryStats).toHaveBeenCalledWith(
+      { location: { eq: '台北市大安區' } },
+      { from: 0, to: -1, orders: 'job_count:desc' },
+    );
+    expect(result.current.data).toEqual(salaryRows);
+    expect(result.current.data?.[0]).toMatchObject({
+      salary_type: 'month',
+      job_count: 10,
+      avg_salary: 60000,
+    });
+  });
+
+  it('exposes a loading state before the fetch resolves', () => {
+    fetchLocationSalaryStats.mockReturnValue(new Promise(() => {}));
+
+    const { result } = renderHook(
+      () => useLocationSalaryStatsQuery({ location: { eq: '台北市大安區' } }),
+      { wrapper },
+    );
+
+    expect(result.current.isLoading).toBe(true);
+    expect(result.current.data).toBeUndefined();
+  });
+
+  it('exposes an error state when the fetch rejects', async () => {
+    fetchLocationSalaryStats.mockRejectedValue(new Error('network down'));
+
+    const { result } = renderHook(
+      () => useLocationSalaryStatsQuery({ location: { eq: '台北市大安區' } }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+
+    expect(result.current.data).toBeUndefined();
+  });
+
+  it('passes through from/to/orders overrides', async () => {
+    fetchLocationSalaryStats.mockResolvedValue({ result: salaryRows, count: 2 });
+
+    const { result } = renderHook(
+      () =>
+        useLocationSalaryStatsQuery(
+          { location: { eq: '台北市大安區' } },
+          { from: 0, to: 9 },
+        ),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(fetchLocationSalaryStats).toHaveBeenCalledWith(
+      { location: { eq: '台北市大安區' } },
+      { from: 0, to: 9, orders: 'job_count:desc' },
+    );
+  });
+
+  it('caches distinct `where` filters independently under the queryKey', async () => {
+    fetchLocationSalaryStats.mockResolvedValue({ result: salaryRows, count: 2 });
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const clientWrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+
+    const first = renderHook(
+      () => useLocationSalaryStatsQuery({ location: { eq: '台北市大安區' } }),
+      { wrapper: clientWrapper },
+    );
+    await waitFor(() => expect(first.result.current.isSuccess).toBe(true));
+
+    const second = renderHook(
+      () => useLocationSalaryStatsQuery({ location: { eq: '新北市板橋區' } }),
+      { wrapper: clientWrapper },
+    );
+    await waitFor(() => expect(second.result.current.isSuccess).toBe(true));
+
+    expect(fetchLocationSalaryStats).toHaveBeenCalledTimes(2);
+    expect(
+      client.getQueryData([
+        'job',
+        'locationSalary',
+        {
+          where: { location: { eq: '台北市大安區' } },
+          from: 0,
+          to: -1,
+          orders: 'job_count:desc',
+        },
+      ]),
+    ).toEqual(salaryRows);
   });
 });
