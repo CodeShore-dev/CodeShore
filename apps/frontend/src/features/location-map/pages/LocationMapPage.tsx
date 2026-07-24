@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 
 import { PageSeo } from '../../../components/PageSeo';
 import { env } from '../../../config/env';
+import { LocationMapHeader } from '../components/LocationMapHeader';
 import { RegionChoropleth, type RegionFeature } from '../components/RegionChoropleth';
 import { RegionDetailPanel, type RegionDetailPanelTier } from '../components/RegionDetailPanel';
 import { RegionMapError } from '../components/RegionMapError';
@@ -30,16 +31,23 @@ import {
  * 入口（Requirement 7.3）。
  */
 
+// 外島距離本島遙遠，納入 fitSize 計算範圍會迫使本島顯得過小；排除後地圖
+// 只顯示/可點選本島＋鄰近離島。歸屬這三縣的職缺不受影響，仍計入 /jobs
+// 頁與明細面板的統計，只是無法從地圖介面到達。
+const EXCLUDED_OUTLYING_COUNTIES = new Set(['金門縣', '連江縣', '澎湖縣']);
+
 // 縣市層 `RegionFeature[]`——比照 `RegionChoropleth.test.tsx` 的
 // `buildCountyFeatures` 參考實作（唯一已驗證正確的 taiwan-atlas → RegionFeature
 // 正規化寫法），id 一律先經 `normalizeCountyName` 正規化，才能與
 // `useRegionValueMaps` 回傳的 Map 鍵（來自 `location_group.id`，慣例用「台」）
 // 對得上（task 6.2 review 標記的風險）。
 function buildCountyFeatures(): RegionFeature[] {
-  return getCountiesFeatureCollection().features.map(feature => {
-    const id = normalizeCountyName(feature.properties.COUNTYNAME);
-    return { id, displayName: id, geometry: feature.geometry };
-  });
+  return getCountiesFeatureCollection()
+    .features.map(feature => {
+      const id = normalizeCountyName(feature.properties.COUNTYNAME);
+      return { id, displayName: id, geometry: feature.geometry };
+    })
+    .filter(feature => !EXCLUDED_OUTLYING_COUNTIES.has(feature.id));
 }
 
 // 鄉鎮市區層 `RegionFeature[]`——同樣比照 `RegionChoropleth.test.tsx` 的
@@ -145,6 +153,8 @@ export function LocationMapPage() {
           ],
         }}
       />
+
+      <LocationMapHeader viewMode={viewMode} selectedTech={selectedTech} />
 
       {locationGroupsQuery.isLoading ? (
         <RegionMapSkeleton />

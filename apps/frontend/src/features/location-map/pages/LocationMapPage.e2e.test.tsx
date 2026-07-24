@@ -148,7 +148,8 @@ describe('LocationMapPage end-to-end drilldown -> tech -> jobs URL (task 11.1)',
     async () => {
       const user = userEvent.setup();
 
-      // Step 1: page loads showing the 22-county job-count map.
+      // Step 1: page loads showing the 19-county job-count map (金門縣/
+      // 連江縣/澎湖縣 excluded so the projection zooms into the main island).
       renderWithProviders(
         <>
           <LocationMapPage />
@@ -157,7 +158,7 @@ describe('LocationMapPage end-to-end drilldown -> tech -> jobs URL (task 11.1)',
         { route: '/location-map' },
       );
 
-      expect(document.querySelectorAll('path')).toHaveLength(22);
+      expect(document.querySelectorAll('path')).toHaveLength(19);
       expect(screen.getByRole('tab', { name: '職缺數' })).toHaveAttribute(
         'aria-selected',
         'true',

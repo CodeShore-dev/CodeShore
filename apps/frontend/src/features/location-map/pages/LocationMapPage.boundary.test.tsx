@@ -102,8 +102,9 @@ describe('LocationMapPage boundary/edge-case regression (task 11.2)', () => {
     // County tier: 高雄市 has no entry anywhere in the mocked dataset -- its
     // county total is 0 -- yet it must still be a rendered path, at the
     // lightest colour step (Requirement 2.2). Unlike the already-committed
-    // `LocationMapPage.test.tsx` test that only asserts a *count* of 22
-    // paths, this pins down one SPECIFIC zero-job county's id and fill, so
+    // `LocationMapPage.test.tsx` test that only asserts a *count* of 19
+    // paths (outlying islands excluded), this pins down one SPECIFIC
+    // zero-job county's id and fill, so
     // a regression that silently dropped (rather than merely miscoloured)
     // one particular unmatched region would be caught here too.
     const zeroCounty = document.querySelector('path[data-region-id="高雄市"]');
@@ -171,7 +172,7 @@ describe('LocationMapPage boundary/edge-case regression (task 11.2)', () => {
       expect(screen.getByText('請選擇一個技術')).toBeInTheDocument();
 
       const paths = Array.from(document.querySelectorAll('path'));
-      expect(paths).toHaveLength(22);
+      expect(paths).toHaveLength(19);
       for (const path of paths) {
         // Every path uniform at the neutral lightest shade -- if the stale
         // 999-row had leaked into `valueByRegionId`, 台北市 would render at
@@ -273,7 +274,7 @@ describe('LocationMapPage boundary/edge-case regression (task 11.2)', () => {
     expect(
       screen.queryByRole('heading', { name: '地圖載入失敗' }),
     ).not.toBeInTheDocument();
-    expect(document.querySelectorAll('path')).toHaveLength(22);
+    expect(document.querySelectorAll('path')).toHaveLength(19);
   });
 
   it('excludes a location_group id in a non-conforming format from every county total, never surfaces it as its own region, and does not crash (Requirement 7.2)', async () => {
@@ -303,9 +304,9 @@ describe('LocationMapPage boundary/edge-case regression (task 11.2)', () => {
 
     renderWithProviders(<LocationMapPage />, { route: '/location-map' });
 
-    // No phantom 23rd region: rendering the malformed row didn't inject an
+    // No phantom 20th region: rendering the malformed row didn't inject an
     // extra path, and doing so didn't throw.
-    expect(document.querySelectorAll('path')).toHaveLength(22);
+    expect(document.querySelectorAll('path')).toHaveLength(19);
     expect(
       document.querySelector(`path[data-region-id="${MALFORMED_LOCATION}"]`),
     ).toBeNull();

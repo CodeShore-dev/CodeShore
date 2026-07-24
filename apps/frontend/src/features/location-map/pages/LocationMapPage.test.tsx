@@ -61,10 +61,16 @@ beforeEach(() => {
 });
 
 describe('LocationMapPage (task 9.1)', () => {
-  it('renders the county-tier map (22 paths) and defaults to the 職缺數 view on first render (Requirement 1.2)', () => {
+  it('renders the county-tier map (19 mainland paths, outlying islands excluded) and defaults to the 職缺數 view on first render (Requirement 1.2)', () => {
     renderWithProviders(<LocationMapPage />, { route: '/location-map' });
 
-    expect(document.querySelectorAll('path')).toHaveLength(22);
+    // 19, not the full 22 -- 金門縣/連江縣/澎湖縣 are deliberately excluded so
+    // the projection zooms into the main island instead of shrinking to fit
+    // those distant outlying counties.
+    expect(document.querySelectorAll('path')).toHaveLength(19);
+    expect(document.querySelector('path[data-region-id="金門縣"]')).toBeNull();
+    expect(document.querySelector('path[data-region-id="連江縣"]')).toBeNull();
+    expect(document.querySelector('path[data-region-id="澎湖縣"]')).toBeNull();
     expect(screen.getByRole('tab', { name: '職缺數' })).toHaveAttribute(
       'aria-selected',
       'true',
@@ -139,7 +145,7 @@ describe('LocationMapPage (task 9.1)', () => {
     expect(screen.getByText('160')).toBeInTheDocument();
   });
 
-  it('returning to the overview restores the 22-county tier and clears the detail panel (task 6.3 deferred affordance)', async () => {
+  it('returning to the overview restores the 19-county tier and clears the detail panel (task 6.3 deferred affordance)', async () => {
     const user = userEvent.setup();
     renderWithProviders(<LocationMapPage />, { route: '/location-map' });
 
@@ -153,7 +159,7 @@ describe('LocationMapPage (task 9.1)', () => {
     expect(useLocationMapStore.getState().selectedCounty).toBeNull();
     expect(useLocationMapStore.getState().selectedDistrict).toBeNull();
     await waitFor(() => {
-      expect(document.querySelectorAll('path')).toHaveLength(22);
+      expect(document.querySelectorAll('path')).toHaveLength(19);
     });
     expect(screen.queryByRole('region', { name: '地區明細' })).not.toBeInTheDocument();
   });
@@ -169,9 +175,16 @@ describe('LocationMapPage (task 9.1)', () => {
     expect(screen.getByText('請選擇一個技術')).toBeInTheDocument();
 
     const paths = Array.from(document.querySelectorAll('path'));
-    expect(paths).toHaveLength(22);
+    expect(paths).toHaveLength(19);
     for (const path of paths) {
       expect(path.getAttribute('fill')).toBe(getRegionColor(0, 0));
     }
+  });
+
+  it('shows the page title and the current view subject next to it (job-count view)', () => {
+    renderWithProviders(<LocationMapPage />, { route: '/location-map' });
+
+    expect(screen.getByRole('heading', { name: '職缺地圖' })).toBeInTheDocument();
+    expect(screen.getByText('目前檢視：職缺數')).toBeInTheDocument();
   });
 });
