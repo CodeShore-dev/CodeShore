@@ -32,4 +32,5 @@ export namespace SupabaseView {
 
   export type MvLocationGroup = SupabaseLocationView.MvLocationGroup;
   export type MvLocationTech = SupabaseLocationView.MvLocationTech;
+  export type MvLocationSalary = SupabaseLocationView.MvLocationSalary;
 }

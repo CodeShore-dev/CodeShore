@@ -22,4 +22,11 @@ export namespace SupabaseLocationView {
    * job_tech
    */
   export type MvLocationTech = NonNull<Database['public']['Views']['mv_location_tech']['Row']>;
+
+  /**
+   * job
+   * location_group_location
+   * location_group
+   */
+  export type MvLocationSalary = NonNull<Database['public']['Views']['mv_location_salary']['Row']>;
 }

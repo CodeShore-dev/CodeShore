@@ -521,6 +521,13 @@ export type Database = {
             foreignKeyName: "location_group_location_location_group_fkey"
             columns: ["location_group"]
             isOneToOne: false
+            referencedRelation: "mv_location_salary"
+            referencedColumns: ["location"]
+          },
+          {
+            foreignKeyName: "location_group_location_location_group_fkey"
+            columns: ["location_group"]
+            isOneToOne: false
             referencedRelation: "mv_location_tech"
             referencedColumns: ["location"]
           },
@@ -669,6 +676,15 @@ export type Database = {
         Row: {
           count: number | null
           location: string | null
+        }
+        Relationships: []
+      }
+      mv_location_salary: {
+        Row: {
+          avg_salary: number | null
+          job_count: number | null
+          location: string | null
+          salary_type: string | null
         }
         Relationships: []
       }
@@ -921,6 +937,7 @@ export type Database = {
       refresh_mv_company_tech: { Args: never; Returns: undefined }
       refresh_mv_job: { Args: never; Returns: undefined }
       refresh_mv_location_group: { Args: never; Returns: undefined }
+      refresh_mv_location_salary: { Args: never; Returns: undefined }
       refresh_mv_location_tech: { Args: never; Returns: undefined }
       refresh_mv_salary_range_multiplier: { Args: never; Returns: undefined }
       refresh_mv_salary_type_median_ratio: { Args: never; Returns: undefined }
