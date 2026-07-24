@@ -160,6 +160,30 @@ describe('RegionChoropleth (county tier)', () => {
     expect(title?.textContent).toContain('120');
   });
 
+  it('also renders the name and job count as always-visible SVG text, not only on hover', () => {
+    const features = buildCountyFeatures();
+    const valueByRegionId = new Map<string, number>([['台北市', 120]]);
+
+    const { container } = render(
+      <RegionChoropleth
+        features={features}
+        valueByRegionId={valueByRegionId}
+        maxValue={120}
+        selectedRegionId={null}
+        onSelect={() => {}}
+      />,
+    );
+
+    // One <text> per region, always in the DOM (no hover/interaction needed).
+    expect(container.querySelectorAll('text')).toHaveLength(22);
+
+    const texts = Array.from(container.querySelectorAll('text')).map(t => t.textContent);
+    expect(texts).toContain('台北市120');
+
+    const zeroValueText = texts.find(t => t?.startsWith('新北市'));
+    expect(zeroValueText).toBe('新北市0');
+  });
+
   it('does not throw and renders an empty svg when features is empty', () => {
     render(
       <RegionChoropleth

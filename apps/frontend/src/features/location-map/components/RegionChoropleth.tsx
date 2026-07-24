@@ -31,6 +31,8 @@ interface RegionPath {
   id: string;
   displayName: string;
   d: string;
+  /** SVG 座標系下的形狀中心點，用來放置永遠可見的標籤文字（不依賴 hover）。 */
+  centroid: [number, number];
 }
 
 const VIEWBOX_WIDTH = 800;
@@ -80,6 +82,7 @@ function buildRegionPaths(features: RegionFeature[]): RegionPath[] {
       id: f.id,
       displayName: f.displayName,
       d: pathGenerator(feature) ?? '',
+      centroid: pathGenerator.centroid(feature),
     };
   });
 }
@@ -100,26 +103,49 @@ export function RegionChoropleth({
       aria-label="地區職缺分布地圖"
       className="h-auto w-full"
     >
-      {paths.map(({ id, displayName, d }) => {
+      {paths.map(({ id, displayName, d, centroid }) => {
         const value = valueByRegionId.get(id) ?? 0;
         const fill = getRegionColor(value, maxValue);
         const isSelected = id === selectedRegionId;
+        const [cx, cy] = centroid;
 
         return (
-          <path
-            key={id}
-            data-region-id={id}
-            d={d}
-            fill={fill}
-            stroke={isSelected ? '#003d92' : '#ffffff'}
-            strokeWidth={isSelected ? 2 : 0.5}
-            role="button"
-            aria-label={`${displayName}：${value} 筆職缺`}
-            className="cursor-pointer transition-[fill] hover:opacity-80"
-            onClick={() => onSelect(id)}
-          >
-            <title>{`${displayName}：${value} 筆職缺`}</title>
-          </path>
+          <g key={id}>
+            <path
+              data-region-id={id}
+              d={d}
+              fill={fill}
+              stroke={isSelected ? '#003d92' : '#ffffff'}
+              strokeWidth={isSelected ? 2 : 0.5}
+              role="button"
+              aria-label={`${displayName}：${value} 筆職缺`}
+              className="cursor-pointer transition-[fill] hover:opacity-80"
+              onClick={() => onSelect(id)}
+            >
+              <title>{`${displayName}：${value} 筆職缺`}</title>
+            </path>
+            {/* 名稱／職缺數一律直接畫在 SVG 上（不只是 hover 才顯示的
+                <title>），白色描邊確保在淺色與深色著色上都看得清楚；
+                pointer-events-none 讓點擊仍穿透到底下的 path。 */}
+            <text
+              x={cx}
+              y={cy}
+              textAnchor="middle"
+              className="pointer-events-none font-bold select-none"
+              fontSize={10}
+              fill="#001f2a"
+              stroke="#ffffff"
+              strokeWidth={3}
+              paintOrder="stroke"
+            >
+              <tspan x={cx} dy="-2">
+                {displayName}
+              </tspan>
+              <tspan x={cx} dy="12">
+                {value}
+              </tspan>
+            </text>
+          </g>
         );
       })}
     </svg>
