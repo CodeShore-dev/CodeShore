@@ -124,7 +124,10 @@ describe('RegionChoropleth (county tier)', () => {
     render(
       <RegionChoropleth
         features={features}
-        valueByRegionId={new Map()}
+        // Empty regions are non-interactive (see the dedicated describe
+        // block below), so this region needs a non-zero value to remain
+        // clickable.
+        valueByRegionId={new Map([['台北市', 1]])}
         maxValue={100}
         selectedRegionId={null}
         onSelect={onSelect}
@@ -160,7 +163,7 @@ describe('RegionChoropleth (county tier)', () => {
     expect(title?.textContent).toContain('120');
   });
 
-  it('also renders the name and job count as always-visible SVG text, not only on hover', () => {
+  it('also renders the name and job count as always-visible SVG text for a region with jobs, not only on hover', () => {
     // Only two comparably-sized counties driving fitSize themselves (rather
     // than all 22, where remote outlying islands shrink every mainland
     // county's rendered size and make some fall under the label-overflow
@@ -181,12 +184,11 @@ describe('RegionChoropleth (county tier)', () => {
       />,
     );
 
-    // One <text> per region, always in the DOM (no hover/interaction needed).
-    expect(container.querySelectorAll('text')).toHaveLength(2);
-
-    const texts = Array.from(container.querySelectorAll('text')).map(t => t.textContent);
-    expect(texts).toContain('台北市120');
-    expect(texts).toContain('新北市0');
+    // 新北市 has 0 jobs -- no label at all (see the dedicated empty-region
+    // describe block below), so only 台北市's <text> exists.
+    expect(container.querySelectorAll('text')).toHaveLength(1);
+    expect(container.querySelector('text')?.textContent).toBe('台北市120');
+    expect(container.querySelector('text[data-region-id="新北市"]')).toBeNull();
   });
 
   it('does not throw and renders an empty svg when features is empty', () => {
@@ -201,6 +203,112 @@ describe('RegionChoropleth (county tier)', () => {
     );
 
     expect(document.querySelectorAll('path')).toHaveLength(0);
+  });
+});
+
+/**
+ * 0 筆職缺地區反灰、不可點選（本次異動）：地圖仍需顯示這些地區的形狀
+ * （Requirement 2.2, 3.4 的「不得隱藏」不變），但不再提供點擊互動，畫面上
+ * 也不再畫出「地名+0」這種佔位標籤——反灰本身已足以傳達「這裡沒有職缺」。
+ */
+describe('RegionChoropleth (empty regions are grayed out and non-interactive)', () => {
+  it('does not call onSelect when a 0-job region is clicked', () => {
+    const features = buildCountyFeatures();
+    const onSelect = vi.fn();
+
+    render(
+      <RegionChoropleth
+        features={features}
+        valueByRegionId={new Map([['台北市', 120]])}
+        maxValue={120}
+        selectedRegionId={null}
+        onSelect={onSelect}
+      />,
+    );
+
+    const zeroValueCounty = features.find(f => f.id !== '台北市')!;
+    const path = document.querySelector(`path[data-region-id="${zeroValueCounty.id}"]`)!;
+    fireEvent.click(path);
+
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it('removes the button role and pointer-cursor styling from a 0-job region', () => {
+    const features = buildCountyFeatures();
+
+    render(
+      <RegionChoropleth
+        features={features}
+        valueByRegionId={new Map([['台北市', 120]])}
+        maxValue={120}
+        selectedRegionId={null}
+        onSelect={() => {}}
+      />,
+    );
+
+    const zeroValueCounty = features.find(f => f.id !== '台北市')!;
+    const path = document.querySelector(`path[data-region-id="${zeroValueCounty.id}"]`)!;
+
+    expect(path.getAttribute('role')).toBeNull();
+    expect(path.className.baseVal).not.toContain('cursor-pointer');
+  });
+
+  it('still keeps the button role, click handler, and pointer-cursor styling for a region with jobs', () => {
+    const features = buildCountyFeatures();
+    const onSelect = vi.fn();
+
+    render(
+      <RegionChoropleth
+        features={features}
+        valueByRegionId={new Map([['台北市', 120]])}
+        maxValue={120}
+        selectedRegionId={null}
+        onSelect={onSelect}
+      />,
+    );
+
+    const path = document.querySelector('path[data-region-id="台北市"]')!;
+    expect(path.getAttribute('role')).toBe('button');
+    expect(path.className.baseVal).toContain('cursor-pointer');
+
+    fireEvent.click(path);
+    expect(onSelect).toHaveBeenCalledWith('台北市');
+  });
+
+  it('does not render any SVG text label for a 0-job region, even when its shape is large enough to fit one', () => {
+    const features = buildCountyFeatures().filter(
+      f => f.id === '台北市' || f.id === '新北市',
+    );
+
+    const { container } = render(
+      <RegionChoropleth
+        features={features}
+        valueByRegionId={new Map([['台北市', 120]])}
+        maxValue={120}
+        selectedRegionId={null}
+        onSelect={() => {}}
+      />,
+    );
+
+    expect(container.querySelector('text[data-region-id="新北市"]')).toBeNull();
+  });
+
+  it('still exposes the region name via the native <title> tooltip on a 0-job region, so it stays identifiable on hover', () => {
+    const features = buildCountyFeatures();
+
+    render(
+      <RegionChoropleth
+        features={features}
+        valueByRegionId={new Map([['台北市', 120]])}
+        maxValue={120}
+        selectedRegionId={null}
+        onSelect={() => {}}
+      />,
+    );
+
+    const zeroValueCounty = features.find(f => f.id !== '台北市')!;
+    const path = document.querySelector(`path[data-region-id="${zeroValueCounty.id}"]`)!;
+    expect(path.querySelector('title')?.textContent).toBe(`${zeroValueCounty.displayName}：0 筆職缺`);
   });
 });
 
@@ -370,18 +478,20 @@ describe('RegionChoropleth (township tier drill-down, task 6.3)', () => {
   it('calls onSelect with the location_group.id-compatible district id when a township path is clicked', () => {
     const features = buildTownFeatures('台北市');
     const onSelect = vi.fn();
+    const target = features[0];
 
     render(
       <RegionChoropleth
         features={features}
-        valueByRegionId={new Map()}
+        // Empty regions are non-interactive (see the dedicated describe
+        // block below), so the clicked target needs a non-zero value.
+        valueByRegionId={new Map([[target.id, 1]])}
         maxValue={100}
         selectedRegionId={null}
         onSelect={onSelect}
       />,
     );
 
-    const target = features[0];
     const path = document.querySelector(`path[data-region-id="${target.id}"]`);
     expect(path).not.toBeNull();
 

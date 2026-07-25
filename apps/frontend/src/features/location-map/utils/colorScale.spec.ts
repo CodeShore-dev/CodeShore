@@ -1,17 +1,20 @@
 import { describe, expect, it } from 'vitest';
 
-import { getRegionColor, REGION_COLOR_STEPS } from './colorScale';
+import { EMPTY_REGION_COLOR, getRegionColor, REGION_COLOR_STEPS } from './colorScale';
 
 // Task 4.2 — pure choropleth color-scale helper (design.md「utils/colorScale.ts」,
 // requirements 2.1, 2.2, 3.3, 4.4). Fixtures cover the edge cases the
-// requirements call out explicitly: 0 → lightest step regardless of
-// maxValue, maxValue → darkest step, monotonic ordering for values in
-// between, and an empty dataset (`maxValue === 0`) not dividing by zero.
+// requirements call out explicitly: 0 → distinct empty-region gray
+// (independent of the blue REGION_COLOR_STEPS family, since 0-job regions
+// are now non-interactive) regardless of maxValue, maxValue → darkest
+// step, monotonic ordering for values in between, and an empty dataset
+// (`maxValue === 0`) not dividing by zero.
 describe('getRegionColor', () => {
-  it('maps value 0 to the lightest step regardless of maxValue', () => {
-    expect(getRegionColor(0, 100)).toBe(REGION_COLOR_STEPS[0]);
-    expect(getRegionColor(0, 1)).toBe(REGION_COLOR_STEPS[0]);
-    expect(getRegionColor(0, 999_999)).toBe(REGION_COLOR_STEPS[0]);
+  it('maps value 0 to the distinct empty-region gray, not the blue scale, regardless of maxValue', () => {
+    expect(getRegionColor(0, 100)).toBe(EMPTY_REGION_COLOR);
+    expect(getRegionColor(0, 1)).toBe(EMPTY_REGION_COLOR);
+    expect(getRegionColor(0, 999_999)).toBe(EMPTY_REGION_COLOR);
+    expect(REGION_COLOR_STEPS).not.toContain(EMPTY_REGION_COLOR);
   });
 
   it('maps a value equal to maxValue to the darkest step', () => {
@@ -23,15 +26,18 @@ describe('getRegionColor', () => {
     );
   });
 
-  it('never crashes and always returns the lightest step when maxValue is 0 (empty dataset)', () => {
-    expect(getRegionColor(0, 0)).toBe(REGION_COLOR_STEPS[0]);
-    expect(getRegionColor(5, 0)).toBe(REGION_COLOR_STEPS[0]);
-    expect(getRegionColor(-1, 0)).toBe(REGION_COLOR_STEPS[0]);
+  it('never crashes and always returns the empty-region gray when maxValue is 0 (empty dataset)', () => {
+    expect(getRegionColor(0, 0)).toBe(EMPTY_REGION_COLOR);
+    expect(getRegionColor(5, 0)).toBe(EMPTY_REGION_COLOR);
+    expect(getRegionColor(-1, 0)).toBe(EMPTY_REGION_COLOR);
   });
 
   it('maps intermediate values monotonically: a larger value never yields a lighter step than a smaller value', () => {
     const maxValue = 100;
-    const values = [0, 1, 10, 25, 40, 50, 60, 75, 90, 99, 100];
+    // 0 is deliberately excluded here -- it now maps to EMPTY_REGION_COLOR,
+    // outside the REGION_COLOR_STEPS blue family entirely, so it has no
+    // "index" on this scale to compare monotonically against.
+    const values = [1, 10, 25, 40, 50, 60, 75, 90, 99, 100];
 
     const indexes = values.map(value =>
       REGION_COLOR_STEPS.indexOf(getRegionColor(value, maxValue)),
@@ -55,7 +61,7 @@ describe('getRegionColor', () => {
   });
 
   it('clamps out-of-range values instead of throwing or exceeding the darkest step', () => {
-    expect(getRegionColor(-5, 100)).toBe(REGION_COLOR_STEPS[0]);
+    expect(getRegionColor(-5, 100)).toBe(EMPTY_REGION_COLOR);
     expect(getRegionColor(1000, 100)).toBe(
       REGION_COLOR_STEPS[REGION_COLOR_STEPS.length - 1],
     );

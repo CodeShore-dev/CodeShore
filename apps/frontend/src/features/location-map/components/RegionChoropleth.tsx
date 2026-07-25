@@ -125,9 +125,12 @@ export function RegionChoropleth({
           蓋住/裁切。 */}
       {paths.map(({ id, displayName, d, centroid }) => {
         const value = valueByRegionId.get(id) ?? 0;
+        const isEmpty = value <= 0;
         const fill = getRegionColor(value, maxValue);
         const isSelected = id === selectedRegionId;
 
+        // 0 筆職缺的地區反灰、不可點選：沒有職缺可看，點進去也只會落在
+        // 「查無資料」的地區摘要，不如直接讓地圖上就看得出「這裡沒有」。
         return (
           <path
             key={id}
@@ -136,10 +139,14 @@ export function RegionChoropleth({
             fill={fill}
             stroke={isSelected ? '#003d92' : '#ffffff'}
             strokeWidth={isSelected ? 2 : 0.5}
-            role="button"
+            role={isEmpty ? undefined : 'button'}
             aria-label={`${displayName}：${value} 筆職缺`}
-            className="cursor-pointer transition-[fill] hover:opacity-80"
-            onClick={() => onSelect(id)}
+            className={
+              isEmpty
+                ? 'transition-[fill]'
+                : 'cursor-pointer transition-[fill] hover:opacity-80'
+            }
+            onClick={isEmpty ? undefined : () => onSelect(id)}
           >
             <title>{`${displayName}：${value} 筆職缺`}</title>
           </path>
@@ -148,6 +155,10 @@ export function RegionChoropleth({
       {paths.map(({ id, displayName, centroid, boundsWidth, boundsHeight }) => {
         const value = valueByRegionId.get(id) ?? 0;
         const [cx, cy] = centroid;
+
+        // 0 筆職缺的地區已反灰、不可點選，畫面上不再需要「地名+0」佔位，
+        // 直接不畫任何標籤文字（hover 仍看得到 <title> 說明）。
+        if (value <= 0) return null;
 
         // 形狀太小時標籤文字必然溢出，寧可不顯示（點擊、hover title 仍在，
         // 資訊並未消失，只是不再永遠佔用畫面）；中等大小只顯示數字，因為

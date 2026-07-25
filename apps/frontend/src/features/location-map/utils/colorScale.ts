@@ -25,16 +25,26 @@ export const REGION_COLOR_STEPS: readonly string[] = [
 ];
 
 /**
+ * 0 筆職缺地區的反灰色票。刻意獨立於 `REGION_COLOR_STEPS` 藍色家族之外
+ * （不是「最淺一階藍」），讓「完全沒有職缺、不可點選」在視覺上明確區隔於
+ * 「職缺數偏低但仍可點選查看」的一般藍色階層，避免兩者被誤認為同一種
+ * 狀態。
+ */
+export const EMPTY_REGION_COLOR = '#e2e5ea';
+
+/**
  * 依 `maxValue`（當前資料集的最大值）將 `value` 對應到 `REGION_COLOR_STEPS`
  * 其中一階，回傳可直接用於 SVG `fill` 屬性的十六進位色碼字串（`RegionChoropleth`
  * 會將回傳值直接設為 `<path fill="...">`，因此刻意回傳實際色碼而非 Tailwind
  * class 名稱）。
  *
  * 邊界情況：
- * - `value <= 0`（含 0、負值、缺席資料正規化後的 0）：一律回傳最淺一階，
- *   不受 `maxValue` 影響（Requirement 2.2, 3.3, 4.4）。
- * - `maxValue <= 0`（空資料集，全部數值皆為 0）：一律回傳最淺一階，不做
- *   除以零的運算（不崩潰）。
+ * - `value <= 0`（含 0、負值、缺席資料正規化後的 0）：一律回傳
+ *   `EMPTY_REGION_COLOR` 反灰色票，不受 `maxValue` 影響——0 筆職缺的地區
+ *   改為不可點選的反灰狀態，與「職缺數偏低但仍可點選」的最淺藍色階層區隔
+ *   開來。
+ * - `maxValue <= 0`（空資料集，全部數值皆為 0）：一律回傳 `EMPTY_REGION_COLOR`，
+ *   不做除以零的運算（不崩潰）。
  * - `value >= maxValue`：回傳最深一階（Requirement 2.1 的「依職缺數量深淺
  *   著色」隱含最大值對應最深色）。
  * - 中間值：以 `value / maxValue` 的比例線性切分為 `REGION_COLOR_STEPS.length`
@@ -42,11 +52,10 @@ export const REGION_COLOR_STEPS: readonly string[] = [
  *   越深、不同值之間的階層判定沒有重疊也沒有空隙。
  */
 export function getRegionColor(value: number, maxValue: number): string {
-  const lightestStep = REGION_COLOR_STEPS[0];
   const darkestStep = REGION_COLOR_STEPS[REGION_COLOR_STEPS.length - 1];
 
   if (!(maxValue > 0) || !(value > 0)) {
-    return lightestStep;
+    return EMPTY_REGION_COLOR;
   }
 
   const clampedValue = Math.min(value, maxValue);
