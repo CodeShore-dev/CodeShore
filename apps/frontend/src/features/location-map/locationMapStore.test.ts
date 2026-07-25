@@ -60,7 +60,7 @@ describe('locationMapStore', () => {
     useLocationMapStore.getState().setOpenCountySummaryId('台北市');
     expect(useLocationMapStore.getState().openCountySummaryId).toBe('台北市');
 
-    // Drilling down (following the popup's "查看鄉鎮市區分布" action) must
+    // Drilling down (following the popup's "進入鄉鎮市區分布" action) must
     // close whatever county-summary popup was open -- design.md 系統流程:
     // `onDrillDown` -> `setSelectedCounty` 並清空 `openCountySummaryId`.
     useLocationMapStore.getState().setSelectedCounty('台北市');

@@ -87,13 +87,13 @@ describe('LocationMapPage boundary/edge-case regression (task 11.2, rewired 18.1
     expect(zeroCounty).not.toBeNull();
     expect(zeroCounty?.getAttribute('fill')).toBe(getRegionColor(0, 160));
 
-    // Drill into 台北市 via its popup's 查看鄉鎮市區分布 button (task 18.1:
+    // Drill into 台北市 via its popup's 進入鄉鎮市區分布 button (task 18.1:
     // clicking the county no longer drills down directly -- Requirement
     // 3.1/3.2). Max township value there is 120, from 信義區.
     await user.click(document.querySelector('path[data-region-id="台北市"]')!);
-    await user.click(screen.getByRole('button', { name: '查看鄉鎮市區分布' }));
+    await user.click(screen.getByRole('button', { name: '進入鄉鎮市區分布' }));
     await waitFor(() => {
-      expect(document.querySelectorAll('path')).toHaveLength(12);
+      expect(document.querySelectorAll('path[data-region-id]')).toHaveLength(12);
     });
 
     // 台北市中正區 has no entry in the job-count dataset -- must still
@@ -170,7 +170,7 @@ describe('LocationMapPage boundary/edge-case regression (task 11.2, rewired 18.1
     // Closing the popup must not touch which tier the map is showing --
     // still the 19-county overview, not reset to some other tier/selection.
     expect(useLocationMapStore.getState().selectedCounty).toBeNull();
-    expect(document.querySelectorAll('path')).toHaveLength(19);
+    expect(document.querySelectorAll('path[data-region-id]')).toHaveLength(19);
     expect(screen.queryByTestId('modal-backdrop')).not.toBeInTheDocument();
   });
 
@@ -189,9 +189,9 @@ describe('LocationMapPage boundary/edge-case regression (task 11.2, rewired 18.1
     renderWithProviders(<LocationMapPage />, { route: '/location-map' });
 
     await user.click(document.querySelector('path[data-region-id="台北市"]')!);
-    await user.click(screen.getByRole('button', { name: '查看鄉鎮市區分布' }));
+    await user.click(screen.getByRole('button', { name: '進入鄉鎮市區分布' }));
     await waitFor(() => {
-      expect(document.querySelectorAll('path')).toHaveLength(12);
+      expect(document.querySelectorAll('path[data-region-id]')).toHaveLength(12);
     });
 
     await user.click(document.querySelector('path[data-region-id="台北市信義區"]')!);
@@ -205,7 +205,7 @@ describe('LocationMapPage boundary/edge-case regression (task 11.2, rewired 18.1
     // -- closing a district popup must not bump the map back up to the
     // 19-county overview or clear `selectedCounty`.
     expect(useLocationMapStore.getState().selectedCounty).toBe('台北市');
-    expect(document.querySelectorAll('path')).toHaveLength(12);
+    expect(document.querySelectorAll('path[data-region-id]')).toHaveLength(12);
     expect(screen.queryByTestId('modal-backdrop')).not.toBeInTheDocument();
   });
 
@@ -224,7 +224,7 @@ describe('LocationMapPage boundary/edge-case regression (task 11.2, rewired 18.1
     });
 
     expect(screen.getByRole('heading', { name: '地圖載入失敗' })).toBeInTheDocument();
-    expect(document.querySelectorAll('path')).toHaveLength(0);
+    expect(document.querySelectorAll('path[data-region-id]')).toHaveLength(0);
 
     await user.click(screen.getByRole('button', { name: '重試' }));
     // This half already matches `LocationMapPage.test.tsx`'s "shows
@@ -250,7 +250,7 @@ describe('LocationMapPage boundary/edge-case regression (task 11.2, rewired 18.1
     expect(
       screen.queryByRole('heading', { name: '地圖載入失敗' }),
     ).not.toBeInTheDocument();
-    expect(document.querySelectorAll('path')).toHaveLength(19);
+    expect(document.querySelectorAll('path[data-region-id]')).toHaveLength(19);
   });
 
   it('excludes a location_group id in a non-conforming format from every county total, never surfaces it as its own region, and does not crash (Requirement 7.2)', async () => {
@@ -276,7 +276,7 @@ describe('LocationMapPage boundary/edge-case regression (task 11.2, rewired 18.1
 
     // No phantom 20th region: rendering the malformed row didn't inject an
     // extra path, and doing so didn't throw.
-    expect(document.querySelectorAll('path')).toHaveLength(19);
+    expect(document.querySelectorAll('path[data-region-id]')).toHaveLength(19);
     expect(
       document.querySelector(`path[data-region-id="${MALFORMED_LOCATION}"]`),
     ).toBeNull();

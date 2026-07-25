@@ -319,10 +319,11 @@ describe('RegionChoropleth (empty regions are grayed out and non-interactive)', 
  * 標籤溢出處理：形狀在畫面上實際渲染出的像素尺寸差距懸殊時（例如全台縣市
  * 或某縣市鄉鎮市區並列），固定字級的永遠可見標籤會讓小形狀的文字明顯溢出
  * 邊界甚至互相重疊。改用「依 pathGenerator.bounds() 換算出的實際渲染尺寸」
- * 分三層決定顯示內容：夠大顯示名稱+數字、中等只顯示數字、太小則完全不顯示
- * （點擊與 hover title 兩者不受影響，只是不再永遠佔用畫面）。
+ * 決定顯示位置：夠大時名稱+數字直接畫在形狀中心；放不下名稱的地區改把標籤
+ * 移到地圖左右兩側的海上（fitSize 保留 gutter），以一條牽引線連回形狀中心，
+ * 名稱不再因空間太小而消失。
  *
- * 使用簡單方形合成幾何（而非真實 taiwan-atlas 座標）讓三層的實際渲染像素
+ * 使用簡單方形合成幾何（而非真實 taiwan-atlas 座標）讓門檻的實際渲染像素
  * 尺寸可預先精算、跨環境穩定重現，不依賴特定縣市在真實地圖上恰好多大。
  */
 describe('RegionChoropleth (label overflow handling)', () => {
@@ -345,10 +346,10 @@ describe('RegionChoropleth (label overflow handling)', () => {
     };
   }
 
-  // 三個方形彼此不重疊、尺寸差距懸殊：合併後的 fitSize 換算比例會讓三者的
-  // 實際渲染尺寸分別落在「>=40px」「14-40px」「<14px」三個門檻區間內
-  // （已依 VIEWBOX 800x600 扣掉 FIT_SIZE_PADDING 後的實際換算比例精算，並
-  // 留有數倍安全邊界，可容許 Mercator 投影的些微非線性誤差）。
+  // 三個方形彼此不重疊、尺寸差距懸殊：合併後的 fitSize 換算比例會讓「大縣」
+  // 穩定超過名稱標籤門檻（>=40px），「中鎮」「小村」則穩定低於門檻（已依
+  // VIEWBOX 800x600 扣掉 FIT_SIZE_PADDING 與海上標籤 gutter 後的實際換算
+  // 比例精算，並留有數倍安全邊界，可容許 Mercator 投影的些微非線性誤差）。
   const BIG = squareFeature('大縣', 0, 10);
   const MEDIUM = squareFeature('中鎮', 30, 2);
   const TINY = squareFeature('小村', 60, 0.5);
@@ -367,9 +368,13 @@ describe('RegionChoropleth (label overflow handling)', () => {
 
     const text = container.querySelector('text[data-region-id="大縣"]');
     expect(text?.textContent).toBe('大縣88');
+    // 夠大的形狀不需要海上標籤，也就沒有牽引線。
+    expect(
+      container.querySelector('line[data-region-id="大縣"]'),
+    ).toBeNull();
   });
 
-  it('shows only the job count (no name) for a region too small to fit a full name label', () => {
+  it('moves the "name + count" label offshore with a leader line for a region too small to fit a name label', () => {
     const { container } = render(
       <RegionChoropleth
         features={features}
@@ -381,10 +386,15 @@ describe('RegionChoropleth (label overflow handling)', () => {
     );
 
     const text = container.querySelector('text[data-region-id="中鎮"]');
-    expect(text?.textContent).toBe('5');
+    expect(text?.getAttribute('data-testid')).toBe('offshore-label');
+    expect(text?.textContent).toBe('中鎮 5');
+    // 牽引線連回形狀中心。
+    expect(
+      container.querySelector('line[data-region-id="中鎮"]'),
+    ).not.toBeNull();
   });
 
-  it('hides the label entirely for a region small enough that any text would overflow its shape', () => {
+  it('moves the label offshore even for a region far below the old any-label threshold, keeping path click/hover intact', () => {
     const { container } = render(
       <RegionChoropleth
         features={features}
@@ -395,11 +405,53 @@ describe('RegionChoropleth (label overflow handling)', () => {
       />,
     );
 
-    expect(container.querySelector('text[data-region-id="小村"]')).toBeNull();
-    // 沒有永遠可見標籤不代表資訊消失：點擊與 hover title 仍在。
+    const text = container.querySelector('text[data-region-id="小村"]');
+    expect(text?.textContent).toBe('小村 3');
+    expect(
+      container.querySelector('line[data-region-id="小村"]'),
+    ).not.toBeNull();
+    // 海上標籤不取代形狀本身的互動：點擊與 hover title 仍在。
     expect(
       container.querySelector('path[data-region-id="小村"]')?.getAttribute('aria-label'),
     ).toContain('3 筆職缺');
+  });
+
+  it('clicking the offshore label of a region with jobs calls onSelect (tiny shapes are hard to hit directly)', () => {
+    const onSelect = vi.fn();
+    const { container } = render(
+      <RegionChoropleth
+        features={features}
+        valueByRegionId={new Map([['小村', 3]])}
+        maxValue={88}
+        selectedRegionId={null}
+        onSelect={onSelect}
+      />,
+    );
+
+    fireEvent.click(container.querySelector('text[data-region-id="小村"]')!);
+    expect(onSelect).toHaveBeenCalledWith('小村');
+  });
+
+  it('stacks offshore labels on the same side vertically so they never share the same baseline', () => {
+    // 中鎮/小村 的形狀中心都落在地圖右半 -> 同為右側海上標籤欄。兩者的
+    // 中心點 y 幾乎相同，若無堆疊處理必然重疊。
+    const { container } = render(
+      <RegionChoropleth
+        features={features}
+        valueByRegionId={new Map([['中鎮', 5], ['小村', 3]])}
+        maxValue={88}
+        selectedRegionId={null}
+        onSelect={() => {}}
+      />,
+    );
+
+    const mediumY = Number(
+      container.querySelector('text[data-region-id="中鎮"]')?.getAttribute('y'),
+    );
+    const tinyY = Number(
+      container.querySelector('text[data-region-id="小村"]')?.getAttribute('y'),
+    );
+    expect(Math.abs(mediumY - tinyY)).toBeGreaterThanOrEqual(14);
   });
 
   it('shows only the name (no "0") for a 0-job region big enough for the full name+count layout', () => {
@@ -421,22 +473,29 @@ describe('RegionChoropleth (label overflow handling)', () => {
     expect(text?.textContent).toBe('大縣');
   });
 
-  it('hides the label entirely for a 0-job region too small to fit even a name (medium or tiny fixture)', () => {
+  it('shows a name-only offshore label (no "0", not clickable) for a 0-job region too small to fit a name', () => {
+    const onSelect = vi.fn();
     const { container } = render(
       <RegionChoropleth
         features={features}
-        // 中鎮/小村 get no valueByRegionId entry -> 0 jobs, and neither is
-        // big enough on screen to fit even a bare name (only 大縣 clears the
-        // name-label size threshold).
+        // 中鎮/小村 get no valueByRegionId entry -> 0 jobs; both are too
+        // small for an in-shape name, so their names move offshore, mirroring
+        // the in-shape rule of "name only, never a 0".
         valueByRegionId={new Map()}
         maxValue={1}
         selectedRegionId={null}
-        onSelect={() => {}}
+        onSelect={onSelect}
       />,
     );
 
-    expect(container.querySelector('text[data-region-id="中鎮"]')).toBeNull();
-    expect(container.querySelector('text[data-region-id="小村"]')).toBeNull();
+    const mediumText = container.querySelector('text[data-region-id="中鎮"]');
+    const tinyText = container.querySelector('text[data-region-id="小村"]');
+    expect(mediumText?.textContent).toBe('中鎮');
+    expect(tinyText?.textContent).toBe('小村');
+
+    // 0 筆職缺的地區不可點選，海上標籤也一樣。
+    fireEvent.click(mediumText!);
+    expect(onSelect).not.toHaveBeenCalled();
   });
 
   it("keeps every label after every path in document order, so a label is never painted underneath a neighboring region's shape", () => {
@@ -457,6 +516,73 @@ describe('RegionChoropleth (label overflow handling)', () => {
     const lastPathIndex = nodes.map(n => n.tagName).lastIndexOf('path');
     const firstTextIndex = nodes.map(n => n.tagName).indexOf('text');
     expect(firstTextIndex).toBeGreaterThan(lastPathIndex);
+  });
+});
+
+/**
+ * 海上標籤欄貼齊地圖整體邊界框（而非釘在 viewBox 邊緣）：縣市層全台地圖為
+ * 「高度撐滿、左右大量留白」的直式版面，若標籤釘在 viewBox 左右邊緣，北部
+ * 小縣市（台北/基隆/新竹市）的牽引線會橫跨半個海面。改為貼著地圖邊界框外
+ * 一小段，牽引線只需跨過「形狀中心到海岸」的距離。
+ */
+describe('RegionChoropleth (offshore labels hug the map bounds)', () => {
+  function squareFeatureAt(
+    id: string,
+    x: number,
+    y: number,
+    size: number,
+  ): RegionFeature {
+    return {
+      id,
+      displayName: id,
+      geometry: {
+        type: 'Polygon',
+        coordinates: [
+          [
+            [x, y],
+            [x, y + size],
+            [x + size, y + size],
+            [x + size, y],
+            [x, y],
+          ],
+        ],
+      },
+    };
+  }
+
+  // 高瘦版面：三個大方形直向堆疊（經度僅跨 0-10 度、緯度跨 0-40 度），
+  // fitSize 後高度撐滿、地圖實際寬度遠小於 viewBox，左右留下大量「海面」
+  // ——正是全台縣市地圖的形狀特性。小島位於右緣，標籤應貼著地圖右邊界，
+  // 而不是拉到 viewBox 右緣。
+  const features = [
+    squareFeatureAt('北大縣', 0, 30, 10),
+    squareFeatureAt('中大縣', 0, 15, 10),
+    squareFeatureAt('南大縣', 0, 0, 10),
+    squareFeatureAt('小島', 9, 20, 0.5),
+  ];
+
+  it('places the offshore label just outside the map bounds so the leader line stays short', () => {
+    const { container } = render(
+      <RegionChoropleth
+        features={features}
+        valueByRegionId={new Map([['小島', 7]])}
+        maxValue={7}
+        selectedRegionId={null}
+        onSelect={() => {}}
+      />,
+    );
+
+    const label = container.querySelector('text[data-region-id="小島"]');
+    const leader = container.querySelector('line[data-region-id="小島"]');
+    expect(label).not.toBeNull();
+    expect(leader).not.toBeNull();
+
+    const labelX = Number(label!.getAttribute('x'));
+    const centroidX = Number(leader!.getAttribute('x2'));
+
+    // 標籤錨點離形狀中心不遠（貼著地圖邊界，而非 viewBox 邊緣的 ~700）。
+    expect(Math.abs(labelX - centroidX)).toBeLessThan(60);
+    expect(labelX).toBeLessThan(520);
   });
 });
 

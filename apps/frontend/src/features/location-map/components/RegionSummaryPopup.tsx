@@ -1,4 +1,5 @@
 import { Modal } from '../../../components/Modal';
+import { InfoHint } from '../../methodology/components/InfoHint';
 import { useRegionJobsNavigation } from '../hooks/useRegionJobsNavigation';
 import { useRegionSalaryStats } from '../hooks/useRegionSalaryStats';
 import { useRegionTechCategoryRanking } from '../hooks/useRegionTechCategoryRanking';
@@ -58,7 +59,7 @@ export interface RegionSummaryPopupProps {
  * 按鈕同樣渲染在 `hasJobs` 條件式之外），因此無論職缺總數是否為 0，該按鈕
  * 皆無條件渲染。
  *
- * 「查看鄉鎮市區分布」按鈕（僅 `tier === 'county'` 時渲染）同樣刻意不受
+ * 「進入鄉鎮市區分布」按鈕（僅 `tier === 'county'` 時渲染）同樣刻意不受
  * `hasJobs` 影響：Requirement 3.2 的下鑽操作與職缺數無關，0 筆職缺的縣市
  * 仍應可下鑽查看其鄉鎮市區分布（縣市底下的個別鄉鎮市區仍可能各自有職缺，
  * 只是加總後掛零；即便真的全部為零，使用者仍應能檢視地理下鑽層級本身）。
@@ -110,7 +111,7 @@ export function RegionSummaryPopup({
               onClick={onDrillDown}
               className="cursor-pointer rounded-lg border border-[#003d92] px-4 py-2 text-sm font-bold text-[#003d92] transition hover:bg-[#f4faff] active:scale-95"
             >
-              查看鄉鎮市區分布
+              進入鄉鎮市區分布
             </button>
           )}
 
@@ -129,6 +130,12 @@ export function RegionSummaryPopup({
           <p className="text-sm text-[#434653]">此地區目前沒有開放中職缺</p>
         ) : (
           <>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-bold tracking-wide text-[#434653]">
+                薪資概況
+              </span>
+              <InfoHint metric="locationMap.salary" />
+            </div>
             <RegionSalarySummary month={salaryStats.month} year={salaryStats.year} />
             <RegionTechCategoryList
               categoryGroups={categoryGroups}

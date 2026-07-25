@@ -10,7 +10,9 @@ export type MetricKey =
   | 'techs.combos'
   | 'company.list'
   | 'job.list'
-  | 'job.salary';
+  | 'job.salary'
+  | 'locationMap.salary'
+  | 'locationMap.techRanking';
 
 export type SectionAnchor =
   | 'data-crawler'

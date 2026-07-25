@@ -1,9 +1,18 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { geoMercator, geoPath } from 'd3-geo';
-import type { Feature, FeatureCollection, Geometry } from 'geojson';
 
 import { getRegionColor } from '../utils/colorScale';
+import {
+  buildOffshoreLabels,
+  buildRegionPaths,
+  isTooSmallForNameLabel,
+  mergeBounds,
+  OFFSHORE_GUTTER,
+  VIEWBOX_HEIGHT,
+  VIEWBOX_WIDTH,
+  type RegionFeature,
+} from '../utils/choroplethLayout';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { InlineLabel, OffshoreLabel } from './RegionMapLabels';
 
 /**
  * 展示型元件（task 6.1，design.md「RegionChoropleth（Props Contract）」）。
@@ -11,13 +20,9 @@ import { useIsMobile } from '../hooks/useIsMobile';
  * 縣市層與鄉鎮市區層共用同一元件：`features`/`valueByRegionId` 完全由呼叫端
  * （`LocationMapPage`／`useRegionValueMaps`）算好傳入，本元件不呼叫任何查詢
  * 或聚合邏輯，也不對 `features` 的內容（縣市或鄉鎮市區）做任何假設。
+ * 幾何投影與海上標籤佈局的純函式抽在 `utils/choroplethLayout.ts`。
  */
-export interface RegionFeature {
-  /** 縣市層：正規化縣市名；鄉鎮市區層：location_group.id 相容字串 */
-  id: string;
-  displayName: string;
-  geometry: Geometry;
-}
+export type { RegionFeature } from '../utils/choroplethLayout';
 
 export interface RegionChoroplethProps {
   features: RegionFeature[];
@@ -27,100 +32,22 @@ export interface RegionChoroplethProps {
   selectedRegionId: string | null;
   onSelect: (regionId: string) => void;
   /**
-   * 行動裝置版面下，初始畫面聚焦、並可讓使用者拖曳/滑動查看其餘地區的地區
-   * id 清單（例如北北基三縣市）。僅在寬度低於行動裝置斷點（`useIsMobile`）
-   * 時生效；未提供、清單為空，或桌機寬度下，維持原本「地圖縮放至容器寬度」
-   * 的既有行為，不會出現可捲動的放大版面。
+   * 行動裝置版面下（寬度低於 `useIsMobile` 斷點），地圖一律放大並允許
+   * 使用者拖曳/滑動移動視角；本清單指定初始畫面聚焦的地區 id（例如北北基
+   * 三縣市），未提供或清單內的 id 都不在目前 `features` 中（例如已下鑽到
+   * 某縣市）時，初始視角改為整張地圖的中心。桌機寬度下維持「地圖縮放至
+   * 容器寬度」的既有行為，不會出現可捲動的放大版面。
    */
   mobileInitialFocusIds?: readonly string[];
 }
-
-interface RegionPath {
-  id: string;
-  displayName: string;
-  d: string;
-  /** SVG 座標系下的形狀中心點，用來放置永遠可見的標籤文字（不依賴 hover）。 */
-  centroid: [number, number];
-  /** 形狀外接框左上角座標（SVG 座標系），用來計算多個地區合併後的邊界框。 */
-  boundsX0: number;
-  boundsY0: number;
-  /** 形狀外接框的寬高（SVG 座標系），用來判斷標籤文字是否會溢出形狀。 */
-  boundsWidth: number;
-  boundsHeight: number;
-}
-
-const VIEWBOX_WIDTH = 800;
-const VIEWBOX_HEIGHT = 600;
-const FIT_SIZE_PADDING = 16;
 
 // 行動裝置初始聚焦視角：把整張地圖放大到容器寬度的幾倍，讓 `mobileInitialFocusIds`
 // 指定的地區（例如北北基）在初次進入時已大致填滿螢幕，其餘地區則需使用者
 // 自行拖曳/滑動捲動容器才看得到——放大倍率越高，聚焦區域越大、可捲動範圍
 // 也越大，3 倍是在「北北基夠大看得清楚」與「捲動範圍不會大到難以找到其他
 // 縣市」之間取的折衷值。
-const MOBILE_ZOOM_FACTOR = 3;
+const MOBILE_ZOOM_FACTOR = 2;
 const MOBILE_MAP_MAX_HEIGHT = 480;
-
-// 標籤溢出處理：形狀太小時全部隱藏文字（連數字都會超出，硬塞只會更雜亂），
-// 中等大小只顯示數字（單一數字比「名稱+數字」窄很多，多數情況能塞進去），
-// 夠大才顯示名稱+數字兩行。門檻取自形狀外接框「較短邊」，避免細長形狀被
-// 誤判為夠大。
-const MIN_SIZE_FOR_ANY_LABEL = 14;
-const MIN_SIZE_FOR_NAME_LABEL = 40;
-
-/**
- * 純函式：將單一 `RegionFeature` 的幾何資料透過既定投影轉為 SVG path 字串。
- * 抽出成獨立函式（而非 inline 在 render 內），維持元件本身聚焦於渲染骨架。
- */
-function buildRegionPaths(features: RegionFeature[]): RegionPath[] {
-  if (features.length === 0) {
-    return [];
-  }
-
-  const collection: FeatureCollection<Geometry, Record<string, never>> = {
-    type: 'FeatureCollection',
-    features: features.map(f => ({
-      type: 'Feature',
-      properties: {},
-      geometry: f.geometry,
-    })),
-  };
-
-  const projection = geoMercator().fitSize(
-    [
-      VIEWBOX_WIDTH - FIT_SIZE_PADDING * 2,
-      VIEWBOX_HEIGHT - FIT_SIZE_PADDING * 2,
-    ],
-    collection,
-  );
-  projection.translate([
-    projection.translate()[0] + FIT_SIZE_PADDING,
-    projection.translate()[1] + FIT_SIZE_PADDING,
-  ]);
-
-  const pathGenerator = geoPath(projection);
-
-  return features.map(f => {
-    const feature: Feature<Geometry> = {
-      type: 'Feature',
-      properties: {},
-      geometry: f.geometry,
-    };
-
-    const [[x0, y0], [x1, y1]] = pathGenerator.bounds(feature);
-
-    return {
-      id: f.id,
-      displayName: f.displayName,
-      d: pathGenerator(feature) ?? '',
-      centroid: pathGenerator.centroid(feature),
-      boundsX0: x0,
-      boundsY0: y0,
-      boundsWidth: x1 - x0,
-      boundsHeight: y1 - y0,
-    };
-  });
-}
 
 export function RegionChoropleth({
   features,
@@ -130,41 +57,54 @@ export function RegionChoropleth({
   onSelect,
   mobileInitialFocusIds,
 }: RegionChoroplethProps) {
-  const paths = useMemo(() => buildRegionPaths(features), [features]);
+  // 兩段式建構：先以全寬投影，若沒有任何地區小到放不下名稱標籤，就維持原本
+  // 的滿版地圖；只要有，改以左右保留海上標籤 gutter 的投影重算（縮小後可能
+  // 讓更多地區跌破門檻，因此海上標籤名單一律以縮小後的最終幾何為準）。
+  const paths = useMemo(() => {
+    const fullWidth = buildRegionPaths(features, 0);
+    if (!fullWidth.some(isTooSmallForNameLabel)) {
+      return fullWidth;
+    }
+    return buildRegionPaths(features, OFFSHORE_GUTTER);
+  }, [features]);
+
+  const offshoreLabels = useMemo(() => buildOffshoreLabels(paths), [paths]);
+  const offshoreIds = useMemo(
+    () => new Set(offshoreLabels.map(l => l.id)),
+    [offshoreLabels],
+  );
   const isMobile = useIsMobile();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // 把 mobileInitialFocusIds 指定的地區（例如北北基）合併成一個邊界框，
-  // 取其中心點作為行動裝置版面下的初始捲動目標；找不到任何一個 id（例如
-  // 目前已下鑽到其他縣市、features 不含北北基）時視為不啟用。
-  const mobileFocusCenter = useMemo(() => {
-    if (!mobileInitialFocusIds || mobileInitialFocusIds.length === 0) return null;
-
-    const idSet = new Set(mobileInitialFocusIds);
+  // 行動裝置版面下的初始捲動目標：優先用 mobileInitialFocusIds 指定的地區
+  // （例如北北基）合併邊界框的中心點；找不到任何一個 id（例如已下鑽到某
+  // 縣市、features 不含北北基）時退回整張地圖的中心——下鑽後的鄉鎮市區層
+  // 同樣需要放大到適合閱讀/點擊的大小，再讓使用者拖曳移動視角。
+  const mobileScrollCenter = useMemo(() => {
+    const idSet = new Set(mobileInitialFocusIds ?? []);
     const focusPaths = paths.filter(p => idSet.has(p.id));
-    if (focusPaths.length === 0) return null;
+    const bounds = mergeBounds(focusPaths.length > 0 ? focusPaths : paths);
+    if (bounds === null) return null;
 
-    const minX = Math.min(...focusPaths.map(p => p.boundsX0));
-    const minY = Math.min(...focusPaths.map(p => p.boundsY0));
-    const maxX = Math.max(...focusPaths.map(p => p.boundsX0 + p.boundsWidth));
-    const maxY = Math.max(...focusPaths.map(p => p.boundsY0 + p.boundsHeight));
-
-    return { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
+    return {
+      x: (bounds.minX + bounds.maxX) / 2,
+      y: (bounds.minY + bounds.maxY) / 2,
+    };
   }, [paths, mobileInitialFocusIds]);
 
-  const useMobileZoom = isMobile && mobileFocusCenter !== null;
+  const useMobileZoom = isMobile && mobileScrollCenter !== null;
 
   // 掛載（或聚焦地區改變，例如下鑽/返回總覽切換了 features）時，把捲動容器
-  // 捲到聚焦地區的中心點，讓使用者一進畫面就先看到北北基，其餘地區則需自行
-  // 拖曳/滑動捲動容器查看。
+  // 捲到初始目標的中心點：縣市層先看到北北基、下鑽後置中該縣市的鄉鎮市區，
+  // 其餘地區則由使用者自行拖曳/滑動捲動容器查看。
   useEffect(() => {
-    if (!useMobileZoom || !mobileFocusCenter) return;
+    if (!useMobileZoom || !mobileScrollCenter) return;
     const el = scrollContainerRef.current;
     if (!el) return;
 
-    el.scrollLeft = mobileFocusCenter.x * MOBILE_ZOOM_FACTOR - el.clientWidth / 2;
-    el.scrollTop = mobileFocusCenter.y * MOBILE_ZOOM_FACTOR - el.clientHeight / 2;
-  }, [useMobileZoom, mobileFocusCenter]);
+    el.scrollLeft = mobileScrollCenter.x * MOBILE_ZOOM_FACTOR - el.clientWidth / 2;
+    el.scrollTop = mobileScrollCenter.y * MOBILE_ZOOM_FACTOR - el.clientHeight / 2;
+  }, [useMobileZoom, mobileScrollCenter]);
 
   const svg = (
     <svg
@@ -181,7 +121,7 @@ export function RegionChoropleth({
           畫的其他縣市/鄉鎮 path 仍可能蓋住前一個形狀溢出到它範圍內的文字；
           把文字整批移到最後一輪，就能確保標籤永遠在最上層、不被任何 path
           蓋住/裁切。 */}
-      {paths.map(({ id, displayName, d, centroid }) => {
+      {paths.map(({ id, displayName, d }) => {
         const value = valueByRegionId.get(id) ?? 0;
         const isEmpty = value <= 0;
         const fill = getRegionColor(value, maxValue);
@@ -210,77 +150,39 @@ export function RegionChoropleth({
           </path>
         );
       })}
-      {paths.map(({ id, displayName, centroid, boundsWidth, boundsHeight }) => {
-        const value = valueByRegionId.get(id) ?? 0;
-        const isEmpty = value <= 0;
-        const [cx, cy] = centroid;
-
-        const shortestSide = Math.min(boundsWidth, boundsHeight);
-        const showName = shortestSide >= MIN_SIZE_FOR_NAME_LABEL;
-
-        if (isEmpty) {
-          // 0 筆職缺的地區已反灰、不可點選：不顯示「0」這個數字（沒有數字
-          // 可看），但地區名稱仍保留，讓使用者在地圖上仍能辨識這是哪個
-          // 縣市/鄉鎮市區；形狀太小放不下名稱時才完全不畫（hover 仍看得到
-          // <title> 說明）。
-          if (!showName) return null;
-
-          return (
-            <text
-              key={id}
-              data-region-id={id}
-              x={cx}
-              y={cy}
-              textAnchor="middle"
-              className="pointer-events-none font-bold select-none"
-              fontSize={10}
-              fill="#001f2a"
-              stroke="#ffffff"
-              strokeWidth={3}
-              paintOrder="stroke"
-            >
-              {displayName}
-            </text>
-          );
-        }
-
-        // 形狀太小時標籤文字必然溢出，寧可不顯示（點擊、hover title 仍在，
-        // 資訊並未消失，只是不再永遠佔用畫面）；中等大小只顯示數字，因為
-        // 單一數字比「名稱+數字」窄很多，較不易溢出。
-        const showLabel = shortestSide >= MIN_SIZE_FOR_ANY_LABEL;
-        const fontSize = showName ? 10 : 8;
-
-        if (!showLabel) return null;
-
-        return (
-          // 名稱／職缺數直接畫在 SVG 上（不只是 hover 才顯示的 <title>），
-          // 白色描邊確保在淺色與深色著色上都看得清楚；pointer-events-none
-          // 讓點擊仍穿透到底下的 path。形狀太小時改為只顯示數字或完全
-          // 隱藏，避免文字溢出形狀外。
-          <text
-            key={id}
-            data-region-id={id}
-            x={cx}
-            y={cy}
-            textAnchor="middle"
-            className="pointer-events-none font-bold select-none"
-            fontSize={fontSize}
-            fill="#001f2a"
-            stroke="#ffffff"
-            strokeWidth={3}
-            paintOrder="stroke"
-          >
-            {showName && (
-              <tspan x={cx} dy="-2">
-                {displayName}
-              </tspan>
-            )}
-            <tspan x={cx} dy={showName ? 12 : 0}>
-              {value}
-            </tspan>
-          </text>
-        );
-      })}
+      {/* 牽引線畫在所有 path 之後、標籤文字之前：線壓在形狀上但不會蓋住
+          任何標籤文字。 */}
+      {offshoreLabels.map(({ id, lineStartX, labelY, centroid }) => (
+        <line
+          key={id}
+          data-testid="offshore-leader"
+          data-region-id={id}
+          x1={lineStartX}
+          y1={labelY - 3}
+          x2={centroid[0]}
+          y2={centroid[1]}
+          stroke="#9398a6"
+          strokeWidth={0.75}
+        />
+      ))}
+      {/* 形狀放不下名稱標籤的地區改畫海上標籤，形狀內不再畫任何文字。 */}
+      {paths.map(path =>
+        offshoreIds.has(path.id) ? null : (
+          <InlineLabel
+            key={path.id}
+            path={path}
+            value={valueByRegionId.get(path.id) ?? 0}
+          />
+        ),
+      )}
+      {offshoreLabels.map(placement => (
+        <OffshoreLabel
+          key={placement.id}
+          placement={placement}
+          value={valueByRegionId.get(placement.id) ?? 0}
+          onSelect={onSelect}
+        />
+      ))}
     </svg>
   );
 

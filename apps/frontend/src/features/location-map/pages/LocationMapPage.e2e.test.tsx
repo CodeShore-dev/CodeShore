@@ -239,7 +239,7 @@ describe('LocationMapPage end-to-end popup -> salary/tech ranking -> drilldown -
         { route: '/location-map' },
       );
 
-      expect(document.querySelectorAll('path')).toHaveLength(19);
+      expect(document.querySelectorAll('path[data-region-id]')).toHaveLength(19);
       expectNoViewSwitchTabs();
 
       // Step 2: click a county -> opens its summary popup, map stays at the
@@ -250,7 +250,7 @@ describe('LocationMapPage end-to-end popup -> salary/tech ranking -> drilldown -
 
       expect(useLocationMapStore.getState().openCountySummaryId).toBe(SELECTED_COUNTY);
       expect(useLocationMapStore.getState().selectedCounty).toBeNull();
-      expect(document.querySelectorAll('path')).toHaveLength(19);
+      expect(document.querySelectorAll('path[data-region-id]')).toHaveLength(19);
       expect(countyPath!.getAttribute('fill')).toBe(getRegionColor(160, 160));
 
       let modal = screen.getByTestId('modal-backdrop');
@@ -285,15 +285,15 @@ describe('LocationMapPage end-to-end popup -> salary/tech ranking -> drilldown -
 
       expectNoViewSwitchTabs();
 
-      // Step 3: click "查看鄉鎮市區分布" inside the popup -> NOW it actually
+      // Step 3: click "進入鄉鎮市區分布" inside the popup -> NOW it actually
       // drills down (Requirement 3.2), and the popup closes.
-      await user.click(within(modal).getByRole('button', { name: '查看鄉鎮市區分布' }));
+      await user.click(within(modal).getByRole('button', { name: '進入鄉鎮市區分布' }));
 
       expect(useLocationMapStore.getState().selectedCounty).toBe(SELECTED_COUNTY);
       expect(useLocationMapStore.getState().openCountySummaryId).toBeNull();
       await waitFor(() => {
         // 台北市 has 12 townships in the real taiwan-atlas fixture.
-        expect(document.querySelectorAll('path')).toHaveLength(12);
+        expect(document.querySelectorAll('path[data-region-id]')).toHaveLength(12);
       });
       expect(document.querySelector(`path[data-region-id="${SELECTED_COUNTY}"]`)).toBeNull();
       expect(screen.queryByTestId('modal-backdrop')).not.toBeInTheDocument();
@@ -322,7 +322,7 @@ describe('LocationMapPage end-to-end popup -> salary/tech ranking -> drilldown -
       expect(within(modal).getByText('120')).toBeInTheDocument();
       // Leaf tier -- no further drilldown affordance.
       expect(
-        within(modal).queryByRole('button', { name: '查看鄉鎮市區分布' }),
+        within(modal).queryByRole('button', { name: '進入鄉鎮市區分布' }),
       ).not.toBeInTheDocument();
 
       const townshipMonthBlock = within(modal).getByText('月薪').closest('div');

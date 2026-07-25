@@ -78,7 +78,7 @@ describe('LocationMapPage (task 9.1, rewired in task 18.1)', () => {
     // 19, not the full 22 -- 金門縣/連江縣/澎湖縣 are deliberately excluded so
     // the projection zooms into the main island instead of shrinking to fit
     // those distant outlying counties.
-    expect(document.querySelectorAll('path')).toHaveLength(19);
+    expect(document.querySelectorAll('path[data-region-id]')).toHaveLength(19);
     expect(document.querySelector('path[data-region-id="金門縣"]')).toBeNull();
     expect(document.querySelector('path[data-region-id="連江縣"]')).toBeNull();
     expect(document.querySelector('path[data-region-id="澎湖縣"]')).toBeNull();
@@ -107,7 +107,7 @@ describe('LocationMapPage (task 9.1, rewired in task 18.1)', () => {
     renderWithProviders(<LocationMapPage />, { route: '/location-map' });
 
     expect(screen.getByTestId('region-map-skeleton')).toBeInTheDocument();
-    expect(document.querySelectorAll('path')).toHaveLength(0);
+    expect(document.querySelectorAll('path[data-region-id]')).toHaveLength(0);
   });
 
   it('shows RegionMapError with a working retry on query error (Requirement 1.4)', async () => {
@@ -143,7 +143,7 @@ describe('LocationMapPage (task 9.1, rewired in task 18.1)', () => {
     expect(useLocationMapStore.getState().selectedCounty).toBeNull();
     // Still the 19-county tier -- clicking a county no longer drills down
     // immediately.
-    expect(document.querySelectorAll('path')).toHaveLength(19);
+    expect(document.querySelectorAll('path[data-region-id]')).toHaveLength(19);
 
     const modal = screen.getByTestId('modal-backdrop');
     expect(within(modal).getByRole('heading', { name: '台北市' })).toBeInTheDocument();
@@ -151,20 +151,20 @@ describe('LocationMapPage (task 9.1, rewired in task 18.1)', () => {
     expect(within(modal).getByText('160')).toBeInTheDocument();
   });
 
-  it('clicking 查看鄉鎮市區分布 inside the open popup switches to the township tier and closes the popup (Requirement 3.2)', async () => {
+  it('clicking 進入鄉鎮市區分布 inside the open popup switches to the township tier and closes the popup (Requirement 3.2)', async () => {
     const user = userEvent.setup();
     renderWithProviders(<LocationMapPage />, { route: '/location-map' });
 
     await user.click(document.querySelector('path[data-region-id="台北市"]')!);
     expect(useLocationMapStore.getState().openCountySummaryId).toBe('台北市');
 
-    await user.click(screen.getByRole('button', { name: '查看鄉鎮市區分布' }));
+    await user.click(screen.getByRole('button', { name: '進入鄉鎮市區分布' }));
 
     expect(useLocationMapStore.getState().selectedCounty).toBe('台北市');
     expect(useLocationMapStore.getState().openCountySummaryId).toBeNull();
     // 台北市 has 12 townships in the real taiwan-atlas fixture.
     await waitFor(() => {
-      expect(document.querySelectorAll('path')).toHaveLength(12);
+      expect(document.querySelectorAll('path[data-region-id]')).toHaveLength(12);
     });
     expect(document.querySelector('path[data-region-id="台北市"]')).toBeNull();
     // Drilling down must close the county popup -- nothing should linger.
@@ -176,9 +176,9 @@ describe('LocationMapPage (task 9.1, rewired in task 18.1)', () => {
     renderWithProviders(<LocationMapPage />, { route: '/location-map' });
 
     await user.click(document.querySelector('path[data-region-id="台北市"]')!);
-    await user.click(screen.getByRole('button', { name: '查看鄉鎮市區分布' }));
+    await user.click(screen.getByRole('button', { name: '進入鄉鎮市區分布' }));
     await waitFor(() => {
-      expect(document.querySelectorAll('path')).toHaveLength(12);
+      expect(document.querySelectorAll('path[data-region-id]')).toHaveLength(12);
     });
 
     const townshipPath = document.querySelector('path[data-region-id="台北市信義區"]');
@@ -196,7 +196,7 @@ describe('LocationMapPage (task 9.1, rewired in task 18.1)', () => {
     expect(within(modal).getByText('120')).toBeInTheDocument();
     // Township tier is a leaf -- no further drilldown affordance.
     expect(
-      within(modal).queryByRole('button', { name: '查看鄉鎮市區分布' }),
+      within(modal).queryByRole('button', { name: '進入鄉鎮市區分布' }),
     ).not.toBeInTheDocument();
   });
 
@@ -219,9 +219,9 @@ describe('LocationMapPage (task 9.1, rewired in task 18.1)', () => {
     renderWithProviders(<LocationMapPage />, { route: '/location-map' });
 
     await user.click(document.querySelector('path[data-region-id="台北市"]')!);
-    await user.click(screen.getByRole('button', { name: '查看鄉鎮市區分布' }));
+    await user.click(screen.getByRole('button', { name: '進入鄉鎮市區分布' }));
     await waitFor(() => {
-      expect(document.querySelectorAll('path')).toHaveLength(12);
+      expect(document.querySelectorAll('path[data-region-id]')).toHaveLength(12);
     });
     // Open the township's popup too, so returning to the overview has
     // something to actually clear.
@@ -234,15 +234,16 @@ describe('LocationMapPage (task 9.1, rewired in task 18.1)', () => {
     expect(useLocationMapStore.getState().selectedDistrict).toBeNull();
     expect(useLocationMapStore.getState().openCountySummaryId).toBeNull();
     await waitFor(() => {
-      expect(document.querySelectorAll('path')).toHaveLength(19);
+      expect(document.querySelectorAll('path[data-region-id]')).toHaveLength(19);
     });
     expect(screen.queryByTestId('modal-backdrop')).not.toBeInTheDocument();
   });
 
-  it('shows the page title and always labels the view as 職缺數 (no more technology view, Requirement 4.1)', () => {
+  it('shows the page title without the removed 「目前檢視」 badge (no more technology view, Requirement 4.1)', () => {
     renderWithProviders(<LocationMapPage />, { route: '/location-map' });
 
     expect(screen.getByRole('heading', { name: '職缺地圖' })).toBeInTheDocument();
-    expect(screen.getByText('目前檢視：職缺數')).toBeInTheDocument();
+    // 技術視角下線後地圖著色永遠依職缺數，「目前檢視」徽章已一併移除。
+    expect(screen.queryByText(/目前檢視/)).not.toBeInTheDocument();
   });
 });

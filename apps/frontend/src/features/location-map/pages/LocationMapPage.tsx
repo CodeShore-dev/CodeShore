@@ -31,7 +31,7 @@ import {
  *
  * task 18.1（Requirement 3.1, 3.2, 4.1, 4.2）：點選縣市不再直接下鑽，改開啟
  * 該縣市的 `RegionSummaryPopup`（`setOpenCountySummaryId`）；使用者在 popup
- * 內點擊「查看鄉鎮市區分布」才真正下鑽（`setSelectedCounty`，其副作用已在
+ * 內點擊「進入鄉鎮市區分布」才真正下鑽（`setSelectedCounty`，其副作用已在
  * `locationMapStore` 一併清空 `openCountySummaryId`）。地圖著色一律依職缺數
  * （不再有可切換的「技術」視角，技術面向改由 popup 內的
  * `RegionTechCategoryList` 呈現）。
@@ -165,7 +165,7 @@ export function LocationMapPage() {
         }}
       />
 
-      <LocationMapHeader viewMode="jobCount" selectedTech={null} />
+      <LocationMapHeader />
 
       {locationGroupsQuery.isLoading ? (
         <RegionMapSkeleton />

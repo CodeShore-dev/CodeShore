@@ -143,6 +143,7 @@ describe('RegionSummaryPopup', () => {
     renderPopup({ totalJobCount: 42 });
 
     expect(screen.getByText('42')).toBeInTheDocument();
+    expect(screen.getByText('薪資概況')).toBeInTheDocument();
     expect(screen.getByText('月薪')).toBeInTheDocument();
     expect(screen.getByText('年薪')).toBeInTheDocument();
     expect(screen.getByText('語言')).toBeInTheDocument();
@@ -150,7 +151,34 @@ describe('RegionSummaryPopup', () => {
     expect(screen.queryByText(/沒有開放中職缺/)).not.toBeInTheDocument();
   });
 
-  it('tier === county 時顯示「查看鄉鎮市區分布」按鈕，點擊後呼叫 onDrillDown（Requirement 3.2）', async () => {
+  it('薪資概況旁顯示說明計算方式的 info hint', () => {
+    renderPopup({ totalJobCount: 42 });
+
+    expect(
+      screen.getByRole('button', { name: '查看此區資料如何計算' }),
+    ).toBeInTheDocument();
+  });
+
+  it('技術排行的分類標題旁顯示說明計算方式的 info hint', () => {
+    renderPopup({ totalJobCount: 42 });
+
+    expect(
+      screen.getByRole('button', { name: '查看技術排行如何計算' }),
+    ).toBeInTheDocument();
+  });
+
+  it('totalJobCount 為 0 時不顯示薪資概況的 info hint（該區塊本身未掛載）', () => {
+    useRegionSalaryStats.mockReturnValue(ZERO_SALARY_STATS);
+    useRegionTechCategoryRanking.mockReturnValue([]);
+
+    renderPopup({ totalJobCount: 0 });
+
+    expect(
+      screen.queryByRole('button', { name: '查看此區資料如何計算' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('tier === county 時顯示「進入鄉鎮市區分布」按鈕，點擊後呼叫 onDrillDown（Requirement 3.2）', async () => {
     const onDrillDown = vi.fn();
     const user = userEvent.setup();
 
@@ -161,13 +189,13 @@ describe('RegionSummaryPopup', () => {
       onDrillDown,
     });
 
-    const button = screen.getByRole('button', { name: '查看鄉鎮市區分布' });
+    const button = screen.getByRole('button', { name: '進入鄉鎮市區分布' });
     await user.click(button);
 
     expect(onDrillDown).toHaveBeenCalledTimes(1);
   });
 
-  it('county 層級即使 totalJobCount 為 0，「查看鄉鎮市區分布」按鈕仍然顯示（下鑽不受職缺數影響）', () => {
+  it('county 層級即使 totalJobCount 為 0，「進入鄉鎮市區分布」按鈕仍然顯示（下鑽不受職缺數影響）', () => {
     useRegionSalaryStats.mockReturnValue(ZERO_SALARY_STATS);
     useRegionTechCategoryRanking.mockReturnValue([]);
 
@@ -180,16 +208,16 @@ describe('RegionSummaryPopup', () => {
     });
 
     expect(
-      screen.getByRole('button', { name: '查看鄉鎮市區分布' }),
+      screen.getByRole('button', { name: '進入鄉鎮市區分布' }),
     ).toBeInTheDocument();
     expect(screen.getByText(/沒有開放中職缺/)).toBeInTheDocument();
   });
 
-  it('tier === district 時不顯示「查看鄉鎮市區分布」按鈕', () => {
+  it('tier === district 時不顯示「進入鄉鎮市區分布」按鈕', () => {
     renderPopup({ tier: 'district' });
 
     expect(
-      screen.queryByRole('button', { name: '查看鄉鎮市區分布' }),
+      screen.queryByRole('button', { name: '進入鄉鎮市區分布' }),
     ).not.toBeInTheDocument();
   });
 
@@ -227,7 +255,7 @@ describe('RegionSummaryPopup', () => {
     expect(goToJobsWithTech).toHaveBeenCalledTimes(1);
   });
 
-  it('「查看此地區職缺」與「查看鄉鎮市區分布」按鈕排在薪資概況與技術排行之前（操作按鈕置頂）', () => {
+  it('「查看此地區職缺」與「進入鄉鎮市區分布」按鈕排在薪資概況與技術排行之前（操作按鈕置頂）', () => {
     renderPopup({
       tier: 'county',
       regionId: '台北市',
@@ -240,7 +268,7 @@ describe('RegionSummaryPopup', () => {
     // container 的子節點，因此順序比較要看 document.body 的文字內容。
     const text = document.body.textContent ?? '';
     const jobsButtonIndex = text.indexOf('查看此地區職缺');
-    const drillDownButtonIndex = text.indexOf('查看鄉鎮市區分布');
+    const drillDownButtonIndex = text.indexOf('進入鄉鎮市區分布');
     const salaryHeadingIndex = text.indexOf('月薪');
 
     expect(jobsButtonIndex).toBeGreaterThanOrEqual(0);

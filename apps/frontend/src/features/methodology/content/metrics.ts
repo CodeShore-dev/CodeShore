@@ -296,6 +296,65 @@ export const metricExplanations: Record<
     anchor: 'database',
     sqlObjects: ['mv_job'],
   },
+  'locationMap.salary': {
+    key: 'locationMap.salary',
+    title: '地區薪資是怎麼算出來的？',
+    intro: '月薪與年薪分開計算，皆取該地區的平均，兩者不互相換算或合併：',
+    items: [
+      {
+        name: '薪資代表',
+        detail:
+          '每筆職缺取薪資範圍的中間值作為薪資代表；薪資寫「以上」則用「薪資範圍倍率」推估。',
+      },
+      {
+        name: '鄉鎮市區層級',
+        detail: '把該地區所有同薪資型態（月薪或年薪）職缺的薪資代表取平均。',
+      },
+      {
+        name: '縣市層級',
+        detail:
+          '以縣市底下各鄉鎮市區的職缺數加權平均，而非直接對各鄉鎮市區平均值取平均，避免職缺數懸殊的小鄉鎮市區把縣市層級的數字拉偏。',
+      },
+    ],
+    note: '若薪資範圍是「以上」的職缺會先用薪資範圍倍率推估薪資後納入；某薪資型態在該地區沒有任何職缺時顯示「—」，不是 0。',
+    anchor: 'database',
+    sqlObjects: ['mv_location_salary', 'mv_salary_range_multiplier'],
+  },
+  'locationMap.techRanking': {
+    key: 'locationMap.techRanking',
+    title: '前幾名技術是怎麼選出來的？',
+    intro: '把該地區職缺用到的技術依分類分組，各分類取職缺數前 5 名：',
+    items: [
+      {
+        name: '職缺數',
+        detail:
+          '該技術出現在此地區多少個開放中職缺，同一個職缺只計一次。',
+      },
+      {
+        name: '分類',
+        detail:
+          '依技術目錄的分類（語言、框架、資料庫等）分組，各分類獨立排名。',
+      },
+      {
+        name: '排名',
+        detail:
+          '同分類內依職缺數由多到少排序，最多列出前 5 名。',
+      },
+      {
+        name: '縣市層級',
+        detail:
+          '縣市的職缺數為底下各鄉鎮市區同一技術的職缺數加總。',
+      },
+      {
+        name: '圓餅圖',
+        detail:
+          '圓餅圖顯示列出的前幾名技術彼此之間的職缺數占比（僅計入列出的技術，非該分類全部）。',
+      },
+    ],
+    note: '沒有任何職缺的分類不會顯示。',
+    anchor: 'database',
+    sqlObjects: ['mv_location_tech'],
+  },
   'job.salary': {
     key: 'job.salary',
     title: '這筆職缺的薪資是怎麼算出來的？',

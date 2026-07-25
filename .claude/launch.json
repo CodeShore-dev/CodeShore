@@ -4,9 +4,8 @@
     {
       "name": "frontend",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["nx", "serve", "frontend", "--port=$PORT"],
-      "port": 4200,
-      "autoPort": true
+      "runtimeArgs": ["nx", "serve", "frontend", "--port=4200"],
+      "port": 4200
     },
     {
       "name": "backend",
