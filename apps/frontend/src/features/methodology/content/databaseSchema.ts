@@ -423,6 +423,18 @@ export const databaseSchema: DatabaseSchema = {
           '每個地點群組底下各技術的有效（開放中）職缺數。來源：job、location_group_location、location_group、job_tech。供地區地圖頁面（/location-map）的技術視角著色與地區明細面板的技術排行。',
       },
     },
+    {
+      id: 'mv_location_salary',
+      label: 'mv_location_salary',
+      group: 'mv-location',
+      status: 'active',
+      interactive: true,
+      detail: {
+        role: '地點 × 薪資型態 薪資彙總',
+        usage:
+          '每個地點群組依薪資型態（月／年）分組的有效（開放中）職缺數與平均推估薪資（沿用 mv_job 的推估公式，對「面議／以上」職缺以薪資範圍倍率估算）。來源：job、location_group_location、location_group、mv_salary_range_multiplier。供地區地圖頁面（/location-map）地區摘要 popup 的薪資統計。',
+      },
+    },
 
     // ──────────── function ────────────
     {
@@ -598,6 +610,7 @@ export const databaseSchema: DatabaseSchema = {
         [
           'mv_location_group',
           'mv_location_tech',
+          'mv_location_salary',
           'mv_job',
           'mv_company',
           'mv_company_tech',
@@ -646,6 +659,11 @@ export const databaseSchema: DatabaseSchema = {
         { from: 'location_group_location', to: 'mv_location_tech' },
         { from: 'location_group', to: 'mv_location_tech' },
         { from: 'job_tech', to: 'mv_location_tech' },
+        // mv_location_salary
+        { from: 'job', to: 'mv_location_salary' },
+        { from: 'location_group_location', to: 'mv_location_salary' },
+        { from: 'location_group', to: 'mv_location_salary' },
+        { from: 'mv_salary_range_multiplier', to: 'mv_location_salary', label: '推估倍率' },
         // mv_salary_type_median_ratio
         { from: 'job', to: 'mv_salary_type_median_ratio' },
         { from: 'mv_salary_range_multiplier', to: 'mv_salary_type_median_ratio', label: '推估倍率' },
