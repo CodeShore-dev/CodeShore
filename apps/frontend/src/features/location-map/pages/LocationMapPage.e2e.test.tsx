@@ -6,26 +6,35 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderWithProviders } from '../../../test/renderWithProviders';
 import { getRegionColor } from '../utils/colorScale';
 
-// Task 11.1 -- end-to-end drilldown-to-jobs-URL flow (requirements.md 6.1-6.4,
-// 7.4; design.md "系統流程 > 使用者互動流程：下鑽 + 技術跳轉" sequence
-// diagram). design.md's own Testing Strategy row for this scenario reads:
-// "E2E（沿用既有 Playwright/整合測試慣例，若專案已有等效機制）" -- this repo
-// has no Playwright/e2e harness (confirmed during design), so this is the
-// equivalent integration test: it renders the ACTUAL, already-committed
-// `LocationMapPage` tree (real `RegionChoropleth`, `ViewModeToggle`,
-// `RegionDetailPanel`, real `taiwan-atlas` geometry, real `react-router`
-// navigation) and only mocks the same query-hook/HTTP boundary that
-// `LocationMapPage.test.tsx` already mocks (`../queries`'s
-// `useLocationGroupsQuery`/`useLocationTechStatsQuery` and
-// `../../keyword/queries`'s `useTechsQuery`) -- no child component is mocked.
-const { useLocationGroupsQuery, useLocationTechStatsQuery } = vi.hoisted(() => ({
-  useLocationGroupsQuery: vi.fn(),
-  useLocationTechStatsQuery: vi.fn(),
-}));
+// Task 11.1 -- end-to-end popup-driven drilldown-to-jobs-URL flow
+// (requirements.md 3.1, 3.2, 5.1-5.9, 6.1-6.4, 7.4; design.md "系統流程 >
+// 使用者互動流程：點選地區 -> popup -> 下鑽 / 跳轉" sequence diagram).
+// Rewired in task 18.1: clicking a county no longer drills down immediately
+// -- it opens `RegionSummaryPopup`, and only that popup's "查看鄉鎮市區分布"
+// button actually drills in. The "技術" view-switch step this file used to
+// exercise no longer exists (Requirement 4.1, 4.2) -- the technology angle
+// now surfaces via the popup's tech-category ranking instead.
+//
+// This repo has no Playwright/e2e harness (confirmed during design), so this
+// remains the equivalent integration test: it renders the ACTUAL,
+// already-committed `LocationMapPage` tree (real `RegionChoropleth`,
+// `RegionSummaryPopup` and its hooks, real `taiwan-atlas` geometry, real
+// `react-router` navigation) and only mocks the same query-hook/HTTP
+// boundary `LocationMapPage.test.tsx` already mocks (`../queries`'s
+// `useLocationGroupsQuery`/`useLocationTechStatsQuery`/
+// `useLocationSalaryStatsQuery` and `../../keyword/queries`'s
+// `useTechsQuery`) -- no child component is mocked.
+const { useLocationGroupsQuery, useLocationTechStatsQuery, useLocationSalaryStatsQuery } =
+  vi.hoisted(() => ({
+    useLocationGroupsQuery: vi.fn(),
+    useLocationTechStatsQuery: vi.fn(),
+    useLocationSalaryStatsQuery: vi.fn(),
+  }));
 
 vi.mock('../queries', () => ({
   useLocationGroupsQuery,
   useLocationTechStatsQuery,
+  useLocationSalaryStatsQuery,
 }));
 
 const { useTechsQuery } = vi.hoisted(() => ({ useTechsQuery: vi.fn() }));
@@ -39,25 +48,21 @@ import { LocationMapPage } from './LocationMapPage';
 
 // --- Single sources of truth for mock data -------------------------------
 //
-// Requirement 7.4 / task 11.1's "統計數字口徑一致" check: the map's
-// job-count view, the tech view's coloring, and RegionDetailPanel's Top-10
-// ranking must all read from the SAME arrays defined once below, so the
-// count asserted as "shown" on the map/panel and the ids asserted in the
-// final `navigate()` URL can never silently diverge from each other inside
-// this test's own setup.
+// Requirement 7.4 / "統計數字口徑一致" check: the map's job-count coloring
+// and the popup's tech-category ranking must both read from the SAME arrays
+// defined once below, so the count asserted as "shown" in the popup and the
+// id asserted in the final `navigate()` URL can never silently diverge from
+// each other inside this test's own setup.
 
-// 職缺數視角 + 縣市層級「查看此地區職缺」展開來源：`/api/job/location`
-// (`useLocationGroupsQuery`, task 5.1/8.2).
+// 職缺數視角來源：`/api/job/location` (`useLocationGroupsQuery`, task 5.1/8.2).
 const LOCATION_GROUPS = [
   { location: '台北市信義區', count: 120 },
   { location: '台北市大安區', count: 40 },
   { location: '新北市板橋區', count: 80 },
 ];
 
-// 技術視角來源：`/api/job/location-tech` (`useLocationTechStatsQuery`).
-// Used BOTH by the map (filtered by `tech`, task 7.2/`useRegionValueMaps`+
-// `LocationMapPage`'s own `techStatsQuery`) AND by `RegionDetailPanel`'s
-// Top-10 ranking (filtered by `location`, task 8.1) -- same rows, two views.
+// 技術分類排行來源：`/api/job/location-tech`
+// (`useLocationTechStatsQuery`/`useRegionTechCategoryRanking`, task 16.2).
 const TECH_STATS_ROWS = [
   { location: '台北市信義區', tech: 'react', job_count: 30 },
   { location: '台北市信義區', tech: 'vue', job_count: 10 },
@@ -65,8 +70,8 @@ const TECH_STATS_ROWS = [
 ];
 
 const TECHS = [
-  { tech: 'react', label: 'React', icon_slugs: null },
-  { tech: 'vue', label: 'Vue', icon_slugs: null },
+  { tech: 'react', label: 'React', icon_slugs: null, category: 'framework' },
+  { tech: 'vue', label: 'Vue', icon_slugs: null, category: 'framework' },
 ];
 
 const SELECTED_TECH = 'react';
@@ -87,36 +92,33 @@ function mockQueries() {
   });
 
   useLocationTechStatsQuery.mockImplementation(
-    (where: Record<string, { eq?: string } | undefined>) => {
-      const techEq = where.tech?.eq;
+    (where: Record<string, { eq?: string } | undefined> = {}) => {
       const locationEq = where.location?.eq;
 
-      let data: typeof TECH_STATS_ROWS = [];
-      if (techEq) {
-        // Map coloring: this technology's job_count across every location
-        // (`useRegionValueMaps`'s techCountyValues + `LocationMapPage`'s own
-        // per-township `townTechValues`, task 7.2).
-        data = TECH_STATS_ROWS.filter(row => row.tech === techEq);
-      } else if (locationEq) {
-        // RegionDetailPanel's Top-10 ranking for one region (task 8.1),
-        // server-side `orders: 'job_count:desc'` reproduced here.
-        data = TECH_STATS_ROWS.filter(row => row.location === locationEq).sort(
-          (a, b) => b.job_count - a.job_count,
-        );
-      }
+      // `useRegionTechCategoryRanking`'s district-tier call filters by
+      // `location.eq`; its county-tier call passes `{}` and aggregates the
+      // full result set itself via `groupByCounty` (task 16.2) -- so the
+      // "county" branch here must return every row, not just one location's.
+      const data = locationEq
+        ? TECH_STATS_ROWS.filter(row => row.location === locationEq)
+        : TECH_STATS_ROWS;
 
-      return { data, isLoading: false, isError: false, refetch: vi.fn() };
+      return { data, isLoading: false, isError: false };
     },
   );
+
+  useLocationSalaryStatsQuery.mockReturnValue({
+    data: [],
+    isLoading: false,
+    isError: false,
+  });
 
   useTechsQuery.mockReturnValue({ data: TECHS, isLoading: false });
 }
 
-// Same real-router pattern `RegionDetailPanel.test.tsx` already uses to
-// assert `navigate()` results (this codebase's existing convention -- no
-// spec mocks `react-router` directly): a sibling component reads
-// `useLocation()` so the final URL after `RegionDetailPanel`'s
-// `navigate('/jobs?' + ...)` call can be inspected.
+// Same real-router pattern this file already used to assert `navigate()`
+// results: a sibling component reads `useLocation()` so the final URL after
+// `RegionSummaryPopup`'s `navigate('/jobs?' + ...)` call can be inspected.
 function LocationProbe() {
   const location = useLocation();
   return (
@@ -140,11 +142,11 @@ beforeEach(() => {
   mockQueries();
 });
 
-describe('LocationMapPage end-to-end drilldown -> tech -> jobs URL (task 11.1)', () => {
+describe('LocationMapPage end-to-end popup -> drilldown -> tech ranking -> jobs URL (task 11.1, rewired 18.1)', () => {
   it(
-    'county click -> township drilldown -> tech view -> tech selection -> ' +
-      'township selection -> tech ranking row click navigates to /jobs with ' +
-      'both the exact locations and tags query params (Requirements 6.1-6.4, 7.4)',
+    'county click -> popup -> drilldown -> township click -> popup -> tech ranking row click ' +
+      'navigates to /jobs with both the exact location and tag query params, with no technology ' +
+      'view-switch path anywhere (Requirements 3.1, 3.2, 6.1-6.4, 7.4)',
     async () => {
       const user = userEvent.setup();
 
@@ -159,90 +161,72 @@ describe('LocationMapPage end-to-end drilldown -> tech -> jobs URL (task 11.1)',
       );
 
       expect(document.querySelectorAll('path')).toHaveLength(19);
-      expect(screen.getByRole('tab', { name: '職缺數' })).toHaveAttribute(
-        'aria-selected',
-        'true',
-      );
+      expect(screen.queryByRole('tab', { name: '職缺數' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('tab', { name: '技術' })).not.toBeInTheDocument();
 
-      // Step 2: click a county -> drills down to that county's townships
-      // (still job-count view). 台北市信義區(120) + 台北市大安區(40) = 160.
+      // Step 2: click a county -> opens its summary popup, map stays at the
+      // county tier (Requirement 3.1). 台北市信義區(120) + 台北市大安區(40) =
+      // 160.
       const countyPath = document.querySelector('path[data-region-id="台北市"]');
       expect(countyPath).not.toBeNull();
       await user.click(countyPath!);
 
+      expect(useLocationMapStore.getState().openCountySummaryId).toBe('台北市');
+      expect(useLocationMapStore.getState().selectedCounty).toBeNull();
+      expect(document.querySelectorAll('path')).toHaveLength(19);
+      expect(countyPath!.getAttribute('fill')).toBe(getRegionColor(160, 160));
+
+      let modal = screen.getByTestId('modal-backdrop');
+      expect(within(modal).getByRole('heading', { name: '台北市' })).toBeInTheDocument();
+      expect(within(modal).getByText('160')).toBeInTheDocument();
+
+      // Step 3: click "查看鄉鎮市區分布" inside the popup -> NOW it actually
+      // drills down (Requirement 3.2), and the popup closes.
+      await user.click(within(modal).getByRole('button', { name: '查看鄉鎮市區分布' }));
+
       expect(useLocationMapStore.getState().selectedCounty).toBe('台北市');
+      expect(useLocationMapStore.getState().openCountySummaryId).toBeNull();
       await waitFor(() => {
         // 台北市 has 12 townships in the real taiwan-atlas fixture.
         expect(document.querySelectorAll('path')).toHaveLength(12);
       });
       expect(document.querySelector('path[data-region-id="台北市"]')).toBeNull();
+      expect(screen.queryByTestId('modal-backdrop')).not.toBeInTheDocument();
 
       const townshipPath = document.querySelector(
         `path[data-region-id="${SELECTED_TOWNSHIP}"]`,
       );
       expect(townshipPath).not.toBeNull();
-
-      // Still job-count view: 信義區 colored by the same 120 shown later in
-      // the panel total -- same LOCATION_GROUPS source, no divergence.
+      // Job-count coloring at the township tier: 信義區 colored by the same
+      // 120 later shown in its own popup -- same LOCATION_GROUPS source, no
+      // divergence.
       expect(townshipPath!.getAttribute('fill')).toBe(getRegionColor(120, 120));
 
-      // Step 3: switch ViewModeToggle to "技術" (tech) view.
-      await user.click(screen.getByRole('tab', { name: '技術' }));
-      expect(useLocationMapStore.getState().viewMode).toBe('tech');
-      expect(screen.getByText('請選擇一個技術')).toBeInTheDocument();
-
-      // Step 4: select a specific technology from the list. At this point
-      // RegionDetailPanel (still county-tier, showing 台北市) has no
-      // `data-tech="react"` row of its own (no TECH_STATS_ROWS entry for the
-      // bare county id '台北市'), so this selector is unambiguous.
-      const techListEntry = document.querySelector(`[data-tech="${SELECTED_TECH}"]`);
-      expect(techListEntry).not.toBeNull();
-      await user.click(techListEntry!);
-
-      expect(useLocationMapStore.getState().selectedTech).toBe(SELECTED_TECH);
-      expect(screen.queryByText('請選擇一個技術')).not.toBeInTheDocument();
-
-      // Tech view now colors 信義區 by the SAME TECH_STATS_ROWS row that will
-      // later back the panel ranking row and the `tags` URL param.
-      await waitFor(() => {
-        const path = document.querySelector(
-          `path[data-region-id="${SELECTED_TOWNSHIP}"]`,
-        );
-        expect(path?.getAttribute('aria-label')).toContain(
-          `${EXPECTED_REACT_COUNT_AT_TOWNSHIP} 筆職缺`,
-        );
-        // Max across 台北市's townships under this tech is 30 (信義區) vs 5
-        // (大安區) -> darkest step.
-        expect(path?.getAttribute('fill')).toBe(
-          getRegionColor(EXPECTED_REACT_COUNT_AT_TOWNSHIP, EXPECTED_REACT_COUNT_AT_TOWNSHIP),
-        );
-      });
-
-      // Click the township region to select it (opens/updates
-      // RegionDetailPanel at the 'district' tier for 信義區, per design.md's
-      // sequence diagram: 點選某鄉鎮市區 -> setSelectedDistrict -> 顯示該地區
-      // 明細).
-      await user.click(
-        document.querySelector(`path[data-region-id="${SELECTED_TOWNSHIP}"]`)!,
-      );
+      // Step 4: click the township -> opens ITS OWN summary popup
+      // (Requirement 5.1), showing its tech-category ranking (Requirement
+      // 5.4) built from the SAME TECH_STATS_ROWS that will back the final
+      // `navigate()` URL.
+      await user.click(townshipPath!);
       expect(useLocationMapStore.getState().selectedDistrict).toBe(SELECTED_TOWNSHIP);
 
-      const panel = await screen.findByRole('region', { name: '地區明細' });
-      expect(panel).toHaveAttribute('data-region-id', SELECTED_TOWNSHIP);
-      // Total open-job count shown is always the job-count figure (120),
-      // regardless of the current tech view mode -- same LOCATION_GROUPS
-      // source as step 2's map coloring.
-      expect(within(panel).getByText('120')).toBeInTheDocument();
+      modal = screen.getByTestId('modal-backdrop');
+      expect(
+        within(modal).getByRole('heading', { name: SELECTED_TOWNSHIP }),
+      ).toBeInTheDocument();
+      expect(within(modal).getByText('120')).toBeInTheDocument();
+      // Leaf tier -- no further drilldown affordance.
+      expect(
+        within(modal).queryByRole('button', { name: '查看鄉鎮市區分布' }),
+      ).not.toBeInTheDocument();
 
-      // Step 5: click a technology row inside RegionDetailPanel's ranking.
-      // The ranking row shows the SAME job_count (30) that colored the map
-      // in the previous step -- both read TECH_STATS_ROWS, so "shown" can't
-      // have silently drifted from what's about to be asserted "in the URL".
-      const reactRow = within(panel).getByText('React').closest('li');
+      const reactRow = within(modal).getByText('React').closest('li');
       expect(reactRow).not.toBeNull();
-      expect(within(reactRow!).getByText(String(EXPECTED_REACT_COUNT_AT_TOWNSHIP))).toBeInTheDocument();
+      expect(
+        within(reactRow!).getByText(String(EXPECTED_REACT_COUNT_AT_TOWNSHIP)),
+      ).toBeInTheDocument();
 
-      await user.click(within(panel).getByText('React'));
+      // Step 5: click that technology row inside the popup's ranking.
+      await user.click(within(modal).getByText('React'));
 
       // Step 6: final navigate() URL must contain both `locations` (the
       // selected township's location_group.id) and `tags` (the clicked

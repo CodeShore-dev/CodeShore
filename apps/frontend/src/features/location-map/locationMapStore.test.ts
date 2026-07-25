@@ -7,12 +7,11 @@ beforeEach(() => {
 });
 
 describe('locationMapStore', () => {
-  it('has the expected default state (縣市層級 + 職缺數視角)', () => {
+  it('has the expected default state (縣市層級 + 無開啟中的地區摘要 popup)', () => {
     expect(useLocationMapStore.getState()).toMatchObject({
       selectedCounty: null,
       selectedDistrict: null,
-      viewMode: 'jobCount',
-      selectedTech: null,
+      openCountySummaryId: null,
     });
   });
 
@@ -49,35 +48,48 @@ describe('locationMapStore', () => {
     });
   });
 
-  it('setViewMode switches between jobCount and tech', () => {
-    useLocationMapStore.getState().setViewMode('tech');
-    expect(useLocationMapStore.getState().viewMode).toBe('tech');
+  it('setOpenCountySummaryId updates which county summary popup is open', () => {
+    useLocationMapStore.getState().setOpenCountySummaryId('台北市');
+    expect(useLocationMapStore.getState().openCountySummaryId).toBe('台北市');
 
-    useLocationMapStore.getState().setViewMode('jobCount');
-    expect(useLocationMapStore.getState().viewMode).toBe('jobCount');
+    useLocationMapStore.getState().setOpenCountySummaryId(null);
+    expect(useLocationMapStore.getState().openCountySummaryId).toBeNull();
   });
 
-  it('setSelectedTech updates the selected tech', () => {
-    useLocationMapStore.getState().setSelectedTech('react');
-    expect(useLocationMapStore.getState().selectedTech).toBe('react');
+  it('setSelectedCounty clears openCountySummaryId when drilling into a county (task 18.1)', () => {
+    useLocationMapStore.getState().setOpenCountySummaryId('台北市');
+    expect(useLocationMapStore.getState().openCountySummaryId).toBe('台北市');
 
-    useLocationMapStore.getState().setSelectedTech(null);
-    expect(useLocationMapStore.getState().selectedTech).toBeNull();
+    // Drilling down (following the popup's "查看鄉鎮市區分布" action) must
+    // close whatever county-summary popup was open -- design.md 系統流程:
+    // `onDrillDown` -> `setSelectedCounty` 並清空 `openCountySummaryId`.
+    useLocationMapStore.getState().setSelectedCounty('台北市');
+    expect(useLocationMapStore.getState().selectedCounty).toBe('台北市');
+    expect(useLocationMapStore.getState().openCountySummaryId).toBeNull();
+  });
+
+  it('setSelectedCounty(null) also clears openCountySummaryId (返回全台總覽 closes any lingering popup)', () => {
+    useLocationMapStore.getState().setSelectedCounty('台北市');
+    useLocationMapStore.getState().setSelectedDistrict('信義區');
+    useLocationMapStore.getState().setOpenCountySummaryId('新北市');
+
+    useLocationMapStore.getState().setSelectedCounty(null);
+    expect(useLocationMapStore.getState().selectedCounty).toBeNull();
+    expect(useLocationMapStore.getState().selectedDistrict).toBeNull();
+    expect(useLocationMapStore.getState().openCountySummaryId).toBeNull();
   });
 
   it('reset() restores all fields to their default values', () => {
     useLocationMapStore.getState().setSelectedCounty('台北市');
     useLocationMapStore.getState().setSelectedDistrict('信義區');
-    useLocationMapStore.getState().setViewMode('tech');
-    useLocationMapStore.getState().setSelectedTech('react');
+    useLocationMapStore.getState().setOpenCountySummaryId('新北市');
 
     useLocationMapStore.getState().reset();
 
     expect(useLocationMapStore.getState()).toMatchObject({
       selectedCounty: null,
       selectedDistrict: null,
-      viewMode: 'jobCount',
-      selectedTech: null,
+      openCountySummaryId: null,
     });
   });
 });

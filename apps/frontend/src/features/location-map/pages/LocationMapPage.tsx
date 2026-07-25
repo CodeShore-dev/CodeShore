@@ -4,13 +4,12 @@ import { PageSeo } from '../../../components/PageSeo';
 import { env } from '../../../config/env';
 import { LocationMapHeader } from '../components/LocationMapHeader';
 import { RegionChoropleth, type RegionFeature } from '../components/RegionChoropleth';
-import { RegionDetailPanel, type RegionDetailPanelTier } from '../components/RegionDetailPanel';
 import { RegionMapError } from '../components/RegionMapError';
 import { RegionMapSkeleton } from '../components/RegionMapSkeleton';
-import { ViewModeToggle } from '../components/ViewModeToggle';
+import { RegionSummaryPopup, type RegionSummaryTier } from '../components/RegionSummaryPopup';
 import { useRegionValueMaps } from '../hooks/useRegionValueMaps';
 import { useLocationMapStore } from '../locationMapStore';
-import { useLocationGroupsQuery, useLocationTechStatsQuery } from '../queries';
+import { useLocationGroupsQuery } from '../queries';
 import { normalizeCountyName, toRegionKey } from '../utils/regionId';
 import {
   getCountiesFeatureCollection,
@@ -19,21 +18,28 @@ import {
 
 /**
  * `LocationMapPage`（task 9.1，design.md「LocationMapPage.tsx」／requirements.md
- * 1.1-1.4, 2.1-2.3, 3.1-3.3, 7.3）——組裝所有已完成的子元件與資料流的唯一
- * 位置。這裡是本 feature 內唯一同時讀取 `taiwan-atlas`（幾何）與
- * `useRegionValueMaps`/`useLocationGroupsQuery`/`useLocationTechStatsQuery`
- * （統計數值）並將兩者合併為 `RegionChoropleth` 所需 `RegionFeature[]` +
- * `valueByRegionId` 的地方（design.md「資料合併模型」的 `RegionKeyMatch` 對
- * 縣市層在 `useRegionValueMaps` 完成，鄉鎮市區層與「哪一份數值該顯示」的
- * 揀選則是本頁面的職責）。
+ * 1.1-1.4, 2.1-2.3, 3.1-3.4, 7.3；task 18.1 移除技術視角、改接
+ * `RegionSummaryPopup`）——組裝所有已完成的子元件與資料流的唯一位置。這裡是
+ * 本 feature 內唯一同時讀取 `taiwan-atlas`（幾何）與
+ * `useRegionValueMaps`/`useLocationGroupsQuery`（統計數值）並將兩者合併為
+ * `RegionChoropleth` 所需 `RegionFeature[]` + `valueByRegionId` 的地方
+ * （design.md「資料合併模型」的 `RegionKeyMatch` 對縣市層在
+ * `useRegionValueMaps` 完成，鄉鎮市區層的逐地區數值則是本頁面的職責）。
  *
  * 只提供檢視/下鑽/跳轉：無任何新增、編輯、刪除地區分組或技術分類的操作
  * 入口（Requirement 7.3）。
+ *
+ * task 18.1（Requirement 3.1, 3.2, 4.1, 4.2）：點選縣市不再直接下鑽，改開啟
+ * 該縣市的 `RegionSummaryPopup`（`setOpenCountySummaryId`）；使用者在 popup
+ * 內點擊「查看鄉鎮市區分布」才真正下鑽（`setSelectedCounty`，其副作用已在
+ * `locationMapStore` 一併清空 `openCountySummaryId`）。地圖著色一律依職缺數
+ * （不再有可切換的「技術」視角，技術面向改由 popup 內的
+ * `RegionTechCategoryList` 呈現）。
  */
 
 // 外島距離本島遙遠，納入 fitSize 計算範圍會迫使本島顯得過小；排除後地圖
 // 只顯示/可點選本島＋鄰近離島。歸屬這三縣的職缺不受影響，仍計入 /jobs
-// 頁與明細面板的統計，只是無法從地圖介面到達。
+// 頁與地區摘要 popup 的統計，只是無法從地圖介面到達。
 const EXCLUDED_OUTLYING_COUNTIES = new Set(['金門縣', '連江縣', '澎湖縣']);
 
 // 縣市層 `RegionFeature[]`——比照 `RegionChoropleth.test.tsx` 的
@@ -64,26 +70,22 @@ function buildTownFeatures(county: string): RegionFeature[] {
 }
 
 export function LocationMapPage() {
-  const viewMode = useLocationMapStore(s => s.viewMode);
   const selectedCounty = useLocationMapStore(s => s.selectedCounty);
   const selectedDistrict = useLocationMapStore(s => s.selectedDistrict);
-  const selectedTech = useLocationMapStore(s => s.selectedTech);
+  const openCountySummaryId = useLocationMapStore(s => s.openCountySummaryId);
   const setSelectedCounty = useLocationMapStore(s => s.setSelectedCounty);
   const setSelectedDistrict = useLocationMapStore(s => s.setSelectedDistrict);
+  const setOpenCountySummaryId = useLocationMapStore(s => s.setOpenCountySummaryId);
 
-  // 縣市層職缺數／技術數視角的加總值（唯一資料合併層，task 6.2/7.2）。
-  const { countyValues, techCountyValues } = useRegionValueMaps();
+  // 縣市層職缺數視角的加總值（唯一資料合併層，task 6.2；task 18.1 移除了
+  // 技術視角的 `techCountyValues`，這裡只剩職缺數這一份）。
+  const { countyValues } = useRegionValueMaps();
 
   // 縣市層之外，本頁另需「單一 location_group（鄉鎮市區）」粒度的原始數值
   // ——`useRegionValueMaps` 只算縣市層加總（見該檔案註解），鄉鎮市區下鑽的
   // 逐地區數值由本頁直接讀取同一份（已快取、不產生額外請求）查詢結果組出。
   const locationGroupsQuery = useLocationGroupsQuery();
   const locationGroups = locationGroupsQuery.data ?? [];
-
-  const techStatsQuery = useLocationTechStatsQuery(
-    { tech: { eq: selectedTech } },
-    { from: 0, to: -1, enabled: Boolean(selectedTech) },
-  );
 
   const isDrilledIn = selectedCounty !== null;
 
@@ -98,46 +100,49 @@ export function LocationMapPage() {
     () => new Map(locationGroups.map(row => [row.location, row.count])),
     [locationGroups],
   );
-  const townTechValues = useMemo(() => {
-    if (!selectedTech) return new Map<string, number>();
-    return new Map((techStatsQuery.data ?? []).map(row => [row.location, row.job_count]));
-  }, [techStatsQuery.data, selectedTech]);
 
-  // Requirement 4.3：技術視角尚未選定技術時，地圖維持中性（空 Map ->
-  // 每個地區都落在 getRegionColor(0, 0) 的最淺一階，視覺上一致無差異）。
-  const valueByRegionId = useMemo(() => {
-    if (viewMode === 'tech') {
-      if (!selectedTech) return new Map<string, number>();
-      return isDrilledIn ? townTechValues : techCountyValues;
-    }
-    return isDrilledIn ? townJobCountValues : countyValues;
-  }, [
-    viewMode,
-    selectedTech,
-    isDrilledIn,
-    townTechValues,
-    techCountyValues,
-    townJobCountValues,
-    countyValues,
-  ]);
+  // 地圖著色一律依職缺數（Requirement 4.1：不再提供可切換的「技術」視角）。
+  const valueByRegionId = useMemo(
+    () => (isDrilledIn ? townJobCountValues : countyValues),
+    [isDrilledIn, townJobCountValues, countyValues],
+  );
 
   const maxValue = useMemo(
     () => Math.max(0, ...features.map(f => valueByRegionId.get(f.id) ?? 0)),
     [features, valueByRegionId],
   );
 
-  const handleSelectRegion = isDrilledIn ? setSelectedDistrict : setSelectedCounty;
-  // 「返回全台總覽」（task 6.3 review 標記為延後到本任務處理）：
-  // `setSelectedCounty(null)` 依 store 既有行為一併清空 `selectedDistrict`。
+  // 縣市層點選改為開啟地區摘要 popup（Requirement 3.1），不再直接下鑽；
+  // 鄉鎮市區層點選行為不變，仍直接更新 `selectedDistrict`。
+  const handleSelectRegion = isDrilledIn ? setSelectedDistrict : setOpenCountySummaryId;
+  // 「返回全台總覽」：`setSelectedCounty(null)` 依 store 既有行為一併清空
+  // `selectedDistrict` 與 `openCountySummaryId`（task 18.1），確保回到總覽後
+  // 不會殘留任何開啟中的 popup。
   const handleReturnToOverview = () => setSelectedCounty(null);
 
-  const panelRegionId = selectedDistrict ?? selectedCounty;
-  const panelTier: RegionDetailPanelTier = selectedDistrict ? 'district' : 'county';
-  // 職缺總數一律取自職缺數資料（不受目前 viewMode 影響），比照
-  // `RegionDetailPanel` 自身文件註解的要求。
+  // 目前應顯示的地區摘要（縣市層讀 `openCountySummaryId`，鄉鎮市區層讀
+  // `selectedDistrict`）——design.md「系統流程」點選地區 -> popup -> 下鑽 /
+  // 跳轉。`regionId` 為 `null` 時 `RegionSummaryPopup` 的 `Modal` 即關閉。
+  const activeSummaryTier: RegionSummaryTier = isDrilledIn ? 'district' : 'county';
+  const activeSummaryRegionId = isDrilledIn ? selectedDistrict : openCountySummaryId;
+
+  // 職缺總數一律取自職缺數資料（不受著色視角影響），比照既有
+  // `RegionDetailPanel`/task 9.1 的既有慣例。
   const panelTotalJobCount = selectedDistrict
     ? (townJobCountValues.get(selectedDistrict) ?? 0)
-    : (countyValues.get(selectedCounty ?? '') ?? 0);
+    : (countyValues.get(openCountySummaryId ?? '') ?? 0);
+
+  const handleCloseSummary = () => {
+    if (activeSummaryTier === 'district') {
+      setSelectedDistrict(null);
+    } else {
+      setOpenCountySummaryId(null);
+    }
+  };
+
+  // 僅縣市層提供下鑽操作（Requirement 3.2）：`setSelectedCounty` 的副作用已
+  // 一併清空 `openCountySummaryId`，這裡不需重複清空。
+  const handleDrillDown = () => setSelectedCounty(openCountySummaryId);
 
   return (
     <div className="w-full">
@@ -154,7 +159,7 @@ export function LocationMapPage() {
         }}
       />
 
-      <LocationMapHeader viewMode={viewMode} selectedTech={selectedTech} />
+      <LocationMapHeader viewMode="jobCount" selectedTech={null} />
 
       {locationGroupsQuery.isLoading ? (
         <RegionMapSkeleton />
@@ -162,8 +167,6 @@ export function LocationMapPage() {
         <RegionMapError onRetry={() => locationGroupsQuery.refetch()} />
       ) : (
         <div className="flex flex-col gap-4">
-          <ViewModeToggle />
-
           {isDrilledIn && (
             <button
               type="button"
@@ -180,19 +183,19 @@ export function LocationMapPage() {
               features={features}
               valueByRegionId={valueByRegionId}
               maxValue={maxValue}
-              selectedRegionId={isDrilledIn ? selectedDistrict : null}
+              selectedRegionId={isDrilledIn ? selectedDistrict : openCountySummaryId}
               onSelect={handleSelectRegion}
             />
           </div>
 
-          {panelRegionId && (
-            <RegionDetailPanel
-              regionId={panelRegionId}
-              displayName={panelRegionId}
-              totalJobCount={panelTotalJobCount}
-              tier={panelTier}
-            />
-          )}
+          <RegionSummaryPopup
+            regionId={activeSummaryRegionId}
+            displayName={activeSummaryRegionId ?? ''}
+            tier={activeSummaryTier}
+            totalJobCount={panelTotalJobCount}
+            onClose={handleCloseSummary}
+            onDrillDown={activeSummaryTier === 'county' ? handleDrillDown : undefined}
+          />
         </div>
       )}
     </div>

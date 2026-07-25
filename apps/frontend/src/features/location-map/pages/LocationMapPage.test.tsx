@@ -1,30 +1,37 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { renderWithProviders } from '../../../test/renderWithProviders';
 import { getRegionColor } from '../utils/colorScale';
 
-const { useLocationGroupsQuery, useLocationTechStatsQuery } = vi.hoisted(() => ({
-  useLocationGroupsQuery: vi.fn(),
-  useLocationTechStatsQuery: vi.fn(),
-}));
+const { useLocationGroupsQuery, useLocationTechStatsQuery, useLocationSalaryStatsQuery } =
+  vi.hoisted(() => ({
+    useLocationGroupsQuery: vi.fn(),
+    useLocationTechStatsQuery: vi.fn(),
+    useLocationSalaryStatsQuery: vi.fn(),
+  }));
 
 // `LocationMapPage` is the only place these already-committed pieces get
-// wired together (task 9.1). Both `useRegionValueMaps` (task 6.2/7.2) and
-// this page itself call `../queries`'s re-exported hooks, so mocking that one
-// boundary covers every caller consistently -- matching how
-// `useRegionValueMaps.spec.tsx`/`RegionDetailPanel.test.tsx` already mock it.
+// wired together (task 9.1, rewired in task 18.1 to render
+// `RegionSummaryPopup` instead of `ViewModeToggle`/`RegionDetailPanel`). Both
+// `useRegionValueMaps` and this page itself call `../queries`'s re-exported
+// `useLocationGroupsQuery`; `RegionSummaryPopup`'s own hooks
+// (`useRegionSalaryStats`/`useRegionTechCategoryRanking`/
+// `useRegionJobsNavigation`, not mocked here -- the real, already-committed
+// implementations run) additionally call `useLocationTechStatsQuery` and
+// `useLocationSalaryStatsQuery`, so this boundary now mocks all three.
 vi.mock('../queries', () => ({
   useLocationGroupsQuery,
   useLocationTechStatsQuery,
+  useLocationSalaryStatsQuery,
 }));
 
 const { useTechsQuery } = vi.hoisted(() => ({ useTechsQuery: vi.fn() }));
 
-// `ViewModeToggle`/`RegionDetailPanel` both reuse the shared technology
-// catalog via `useTechsQuery` (`../../keyword/queries`) -- mocked at the same
-// boundary those components' own specs already use.
+// `useRegionTechCategoryRanking` reuses the shared technology catalog via
+// `useTechsQuery` (`../../keyword/queries`) -- mocked at the same boundary
+// that component's own spec already uses.
 vi.mock('../../keyword/queries', () => ({
   useTechsQuery,
 }));
@@ -49,7 +56,11 @@ function mockDefaultData() {
     data: [],
     isLoading: false,
     isError: false,
-    refetch: vi.fn(),
+  });
+  useLocationSalaryStatsQuery.mockReturnValue({
+    data: [],
+    isLoading: false,
+    isError: false,
   });
   useTechsQuery.mockReturnValue({ data: [], isLoading: false });
 }
@@ -60,8 +71,8 @@ beforeEach(() => {
   mockDefaultData();
 });
 
-describe('LocationMapPage (task 9.1)', () => {
-  it('renders the county-tier map (19 mainland paths, outlying islands excluded) and defaults to the 職缺數 view on first render (Requirement 1.2)', () => {
+describe('LocationMapPage (task 9.1, rewired in task 18.1)', () => {
+  it('renders the county-tier map (19 mainland paths, outlying islands excluded) with no popup open initially (Requirement 1.2, 3.1)', () => {
     renderWithProviders(<LocationMapPage />, { route: '/location-map' });
 
     // 19, not the full 22 -- 金門縣/連江縣/澎湖縣 are deliberately excluded so
@@ -71,12 +82,9 @@ describe('LocationMapPage (task 9.1)', () => {
     expect(document.querySelector('path[data-region-id="金門縣"]')).toBeNull();
     expect(document.querySelector('path[data-region-id="連江縣"]')).toBeNull();
     expect(document.querySelector('path[data-region-id="澎湖縣"]')).toBeNull();
-    expect(screen.getByRole('tab', { name: '職缺數' })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    );
     expect(useLocationMapStore.getState().selectedCounty).toBeNull();
-    expect(screen.queryByRole('region', { name: '地區明細' })).not.toBeInTheDocument();
+    expect(useLocationMapStore.getState().openCountySummaryId).toBeNull();
+    expect(screen.queryByTestId('modal-backdrop')).not.toBeInTheDocument();
   });
 
   it('colors 台北市 using the aggregated job-count total for that county', () => {
@@ -123,7 +131,7 @@ describe('LocationMapPage (task 9.1)', () => {
     expect(refetch).toHaveBeenCalledTimes(1);
   });
 
-  it('drilling into a county switches to the township tier and shows RegionDetailPanel for that county (Requirement 3.1, 5.1)', async () => {
+  it('clicking a county opens its summary popup without drilling down, and the map stays at the county tier (Requirement 3.1)', async () => {
     const user = userEvent.setup();
     renderWithProviders(<LocationMapPage />, { route: '/location-map' });
 
@@ -131,57 +139,107 @@ describe('LocationMapPage (task 9.1)', () => {
     expect(countyPath).not.toBeNull();
     await user.click(countyPath!);
 
+    expect(useLocationMapStore.getState().openCountySummaryId).toBe('台北市');
+    expect(useLocationMapStore.getState().selectedCounty).toBeNull();
+    // Still the 19-county tier -- clicking a county no longer drills down
+    // immediately.
+    expect(document.querySelectorAll('path')).toHaveLength(19);
+
+    const modal = screen.getByTestId('modal-backdrop');
+    expect(within(modal).getByRole('heading', { name: '台北市' })).toBeInTheDocument();
+    // Total job count shown is the whole county's aggregate.
+    expect(within(modal).getByText('160')).toBeInTheDocument();
+  });
+
+  it('clicking 查看鄉鎮市區分布 inside the open popup switches to the township tier and closes the popup (Requirement 3.2)', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<LocationMapPage />, { route: '/location-map' });
+
+    await user.click(document.querySelector('path[data-region-id="台北市"]')!);
+    expect(useLocationMapStore.getState().openCountySummaryId).toBe('台北市');
+
+    await user.click(screen.getByRole('button', { name: '查看鄉鎮市區分布' }));
+
     expect(useLocationMapStore.getState().selectedCounty).toBe('台北市');
+    expect(useLocationMapStore.getState().openCountySummaryId).toBeNull();
     // 台北市 has 12 townships in the real taiwan-atlas fixture.
     await waitFor(() => {
       expect(document.querySelectorAll('path')).toHaveLength(12);
     });
     expect(document.querySelector('path[data-region-id="台北市"]')).toBeNull();
-
-    const panel = screen.getByRole('region', { name: '地區明細' });
-    expect(panel).toHaveAttribute('data-region-id', '台北市');
-    // Total job count shown is the whole county's aggregate, not a single
-    // township's — comes from job-count data regardless of view mode.
-    expect(screen.getByText('160')).toBeInTheDocument();
+    // Drilling down must close the county popup -- nothing should linger.
+    expect(screen.queryByTestId('modal-backdrop')).not.toBeInTheDocument();
   });
 
-  it('returning to the overview restores the 19-county tier and clears the detail panel (task 6.3 deferred affordance)', async () => {
+  it('clicking a township directly opens its own summary popup', async () => {
     const user = userEvent.setup();
     renderWithProviders(<LocationMapPage />, { route: '/location-map' });
 
     await user.click(document.querySelector('path[data-region-id="台北市"]')!);
+    await user.click(screen.getByRole('button', { name: '查看鄉鎮市區分布' }));
     await waitFor(() => {
       expect(document.querySelectorAll('path')).toHaveLength(12);
     });
+
+    const townshipPath = document.querySelector('path[data-region-id="台北市信義區"]');
+    expect(townshipPath).not.toBeNull();
+    await user.click(townshipPath!);
+
+    expect(useLocationMapStore.getState().selectedDistrict).toBe('台北市信義區');
+
+    const modal = screen.getByTestId('modal-backdrop');
+    expect(
+      within(modal).getByRole('heading', { name: '台北市信義區' }),
+    ).toBeInTheDocument();
+    // Total job count shown for a township is its own count (120), not the
+    // whole county's.
+    expect(within(modal).getByText('120')).toBeInTheDocument();
+    // Township tier is a leaf -- no further drilldown affordance.
+    expect(
+      within(modal).queryByRole('button', { name: '查看鄉鎮市區分布' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('no longer renders any 技術/職缺數 view-switching tab UI anywhere on the page (Requirement 4.1)', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<LocationMapPage />, { route: '/location-map' });
+
+    expect(screen.queryByRole('tab', { name: '職缺數' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: '技術' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
+
+    // Still true once a popup is open.
+    await user.click(document.querySelector('path[data-region-id="台北市"]')!);
+    expect(screen.queryByRole('tab', { name: '職缺數' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: '技術' })).not.toBeInTheDocument();
+  });
+
+  it('returning to the overview restores the 19-county tier and closes any lingering popup (task 6.3 deferred affordance)', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<LocationMapPage />, { route: '/location-map' });
+
+    await user.click(document.querySelector('path[data-region-id="台北市"]')!);
+    await user.click(screen.getByRole('button', { name: '查看鄉鎮市區分布' }));
+    await waitFor(() => {
+      expect(document.querySelectorAll('path')).toHaveLength(12);
+    });
+    // Open the township's popup too, so returning to the overview has
+    // something to actually clear.
+    await user.click(document.querySelector('path[data-region-id="台北市信義區"]')!);
+    expect(screen.getByTestId('modal-backdrop')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /返回全台總覽/ }));
 
     expect(useLocationMapStore.getState().selectedCounty).toBeNull();
     expect(useLocationMapStore.getState().selectedDistrict).toBeNull();
+    expect(useLocationMapStore.getState().openCountySummaryId).toBeNull();
     await waitFor(() => {
       expect(document.querySelectorAll('path')).toHaveLength(19);
     });
-    expect(screen.queryByRole('region', { name: '地區明細' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('modal-backdrop')).not.toBeInTheDocument();
   });
 
-  it('switching to the 技術 view without a selected tech shows the neutral prompt and colors every county the same lightest shade (Requirement 4.3)', async () => {
-    const user = userEvent.setup();
-    renderWithProviders(<LocationMapPage />, { route: '/location-map' });
-
-    await user.click(screen.getByRole('tab', { name: '技術' }));
-
-    expect(useLocationMapStore.getState().viewMode).toBe('tech');
-    expect(useLocationMapStore.getState().selectedTech).toBeNull();
-    expect(screen.getByText('請選擇一個技術')).toBeInTheDocument();
-
-    const paths = Array.from(document.querySelectorAll('path'));
-    expect(paths).toHaveLength(19);
-    for (const path of paths) {
-      expect(path.getAttribute('fill')).toBe(getRegionColor(0, 0));
-    }
-  });
-
-  it('shows the page title and the current view subject next to it (job-count view)', () => {
+  it('shows the page title and always labels the view as 職缺數 (no more technology view, Requirement 4.1)', () => {
     renderWithProviders(<LocationMapPage />, { route: '/location-map' });
 
     expect(screen.getByRole('heading', { name: '職缺地圖' })).toBeInTheDocument();
