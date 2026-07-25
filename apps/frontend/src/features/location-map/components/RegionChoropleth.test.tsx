@@ -184,11 +184,11 @@ describe('RegionChoropleth (county tier)', () => {
       />,
     );
 
-    // 新北市 has 0 jobs -- no label at all (see the dedicated empty-region
-    // describe block below), so only 台北市's <text> exists.
-    expect(container.querySelectorAll('text')).toHaveLength(1);
-    expect(container.querySelector('text')?.textContent).toBe('台北市120');
-    expect(container.querySelector('text[data-region-id="新北市"]')).toBeNull();
+    // 台北市 has jobs -> full "name + count" label. 新北市 has 0 jobs -> name
+    // only, no count (see the dedicated empty-region describe block below).
+    const texts = Array.from(container.querySelectorAll('text')).map(t => t.textContent);
+    expect(texts).toContain('台北市120');
+    expect(texts).toContain('新北市');
   });
 
   it('does not throw and renders an empty svg when features is empty', () => {
@@ -275,7 +275,7 @@ describe('RegionChoropleth (empty regions are grayed out and non-interactive)', 
     expect(onSelect).toHaveBeenCalledWith('台北市');
   });
 
-  it('does not render any SVG text label for a 0-job region, even when its shape is large enough to fit one', () => {
+  it('still renders the region name (with no count number) for a 0-job region large enough to fit a label', () => {
     const features = buildCountyFeatures().filter(
       f => f.id === '台北市' || f.id === '新北市',
     );
@@ -290,7 +290,10 @@ describe('RegionChoropleth (empty regions are grayed out and non-interactive)', 
       />,
     );
 
-    expect(container.querySelector('text[data-region-id="新北市"]')).toBeNull();
+    const text = container.querySelector('text[data-region-id="新北市"]');
+    expect(text).not.toBeNull();
+    // Name only -- no "0" appended anywhere in the label.
+    expect(text?.textContent).toBe('新北市');
   });
 
   it('still exposes the region name via the native <title> tooltip on a 0-job region, so it stays identifiable on hover', () => {
@@ -397,6 +400,43 @@ describe('RegionChoropleth (label overflow handling)', () => {
     expect(
       container.querySelector('path[data-region-id="小村"]')?.getAttribute('aria-label'),
     ).toContain('3 筆職缺');
+  });
+
+  it('shows only the name (no "0") for a 0-job region big enough for the full name+count layout', () => {
+    const { container } = render(
+      <RegionChoropleth
+        features={features}
+        // 大縣 itself gets no valueByRegionId entry -> 0 jobs. It's the BIG
+        // fixture (well above the name-label size threshold), so with jobs
+        // it would show "大縣88" (see the earlier test); with 0 jobs there
+        // is no count to show, so it steps down to name-only.
+        valueByRegionId={new Map()}
+        maxValue={1}
+        selectedRegionId={null}
+        onSelect={() => {}}
+      />,
+    );
+
+    const text = container.querySelector('text[data-region-id="大縣"]');
+    expect(text?.textContent).toBe('大縣');
+  });
+
+  it('hides the label entirely for a 0-job region too small to fit even a name (medium or tiny fixture)', () => {
+    const { container } = render(
+      <RegionChoropleth
+        features={features}
+        // 中鎮/小村 get no valueByRegionId entry -> 0 jobs, and neither is
+        // big enough on screen to fit even a bare name (only 大縣 clears the
+        // name-label size threshold).
+        valueByRegionId={new Map()}
+        maxValue={1}
+        selectedRegionId={null}
+        onSelect={() => {}}
+      />,
+    );
+
+    expect(container.querySelector('text[data-region-id="中鎮"]')).toBeNull();
+    expect(container.querySelector('text[data-region-id="小村"]')).toBeNull();
   });
 
   it("keeps every label after every path in document order, so a label is never painted underneath a neighboring region's shape", () => {

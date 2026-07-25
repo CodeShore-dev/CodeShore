@@ -28,6 +28,24 @@ class NoopIntersectionObserver implements IntersectionObserver {
 }
 window.IntersectionObserver = NoopIntersectionObserver as unknown as typeof IntersectionObserver;
 
+// jsdom does not implement window.matchMedia (used by responsive hooks like
+// location-map's useIsMobile). Default to "not matching" (desktop) so
+// existing tests keep their current behavior; tests that need mobile
+// behavior override this with their own mock.
+window.matchMedia =
+  window.matchMedia ||
+  ((query: string) =>
+    ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      dispatchEvent: () => false,
+    }) as unknown as MediaQueryList);
+
 afterEach(() => {
   cleanup();
 });

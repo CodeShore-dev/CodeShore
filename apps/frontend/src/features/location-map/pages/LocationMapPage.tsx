@@ -42,6 +42,12 @@ import {
 // 頁與地區摘要 popup 的統計，只是無法從地圖介面到達。
 const EXCLUDED_OUTLYING_COUNTIES = new Set(['金門縣', '連江縣', '澎湖縣']);
 
+// 行動裝置初始聚焦地區：北北基（台北市／新北市／基隆市）是職缺密度最高的
+// 區域，讓行動裝置版面一進畫面就先放大聚焦在這裡，其餘縣市則靠使用者自行
+// 拖曳/滑動地圖捲動查看（僅在縣市總覽層級套用，下鑽到單一縣市的鄉鎮市區
+// 層級不需要）。
+const MOBILE_INITIAL_FOCUS_COUNTIES = ['台北市', '新北市', '基隆市'];
+
 // 縣市層 `RegionFeature[]`——比照 `RegionChoropleth.test.tsx` 的
 // `buildCountyFeatures` 參考實作（唯一已驗證正確的 taiwan-atlas → RegionFeature
 // 正規化寫法），id 一律先經 `normalizeCountyName` 正規化，才能與
@@ -185,6 +191,7 @@ export function LocationMapPage() {
               maxValue={maxValue}
               selectedRegionId={isDrilledIn ? selectedDistrict : openCountySummaryId}
               onSelect={handleSelectRegion}
+              mobileInitialFocusIds={isDrilledIn ? undefined : MOBILE_INITIAL_FOCUS_COUNTIES}
             />
           </div>
 
@@ -195,6 +202,8 @@ export function LocationMapPage() {
             totalJobCount={panelTotalJobCount}
             onClose={handleCloseSummary}
             onDrillDown={activeSummaryTier === 'county' ? handleDrillDown : undefined}
+            parentCountyName={activeSummaryTier === 'district' ? (selectedCounty ?? undefined) : undefined}
+            onReturnToCounty={activeSummaryTier === 'district' ? handleReturnToOverview : undefined}
           />
         </div>
       )}

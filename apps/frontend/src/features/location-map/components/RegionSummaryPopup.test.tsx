@@ -226,4 +226,66 @@ describe('RegionSummaryPopup', () => {
     expect(goToJobsWithTech).toHaveBeenCalledWith('python');
     expect(goToJobsWithTech).toHaveBeenCalledTimes(1);
   });
+
+  it('「查看此地區職缺」與「查看鄉鎮市區分布」按鈕排在薪資概況與技術排行之前（操作按鈕置頂）', () => {
+    renderPopup({
+      tier: 'county',
+      regionId: '台北市',
+      displayName: '台北市',
+      totalJobCount: 42,
+      onDrillDown: vi.fn(),
+    });
+
+    // Modal 透過 createPortal 掛載到 document.body，不是 render() 回傳的
+    // container 的子節點，因此順序比較要看 document.body 的文字內容。
+    const text = document.body.textContent ?? '';
+    const jobsButtonIndex = text.indexOf('查看此地區職缺');
+    const drillDownButtonIndex = text.indexOf('查看鄉鎮市區分布');
+    const salaryHeadingIndex = text.indexOf('月薪');
+
+    expect(jobsButtonIndex).toBeGreaterThanOrEqual(0);
+    expect(drillDownButtonIndex).toBeGreaterThanOrEqual(0);
+    expect(salaryHeadingIndex).toBeGreaterThan(jobsButtonIndex);
+    expect(salaryHeadingIndex).toBeGreaterThan(drillDownButtonIndex);
+  });
+
+  it('鄉鎮市區層級提供 parentCountyName/onReturnToCounty 時顯示「回到 XXX 分布」按鈕，點擊觸發 onReturnToCounty', async () => {
+    const onReturnToCounty = vi.fn();
+    const user = userEvent.setup();
+
+    renderPopup({
+      tier: 'district',
+      regionId: '台北市信義區',
+      displayName: '台北市信義區',
+      parentCountyName: '台北市',
+      onReturnToCounty,
+    });
+
+    const button = screen.getByRole('button', { name: '回到台北市分布' });
+    await user.click(button);
+
+    expect(onReturnToCounty).toHaveBeenCalledTimes(1);
+  });
+
+  it('縣市層級即使提供 parentCountyName/onReturnToCounty 也不顯示「回到 XXX 分布」按鈕（該按鈕僅限鄉鎮市區層）', () => {
+    renderPopup({
+      tier: 'county',
+      regionId: '台北市',
+      displayName: '台北市',
+      parentCountyName: '台北市',
+      onReturnToCounty: vi.fn(),
+    });
+
+    expect(
+      screen.queryByRole('button', { name: /^回到.*分布$/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('鄉鎮市區層級未提供 parentCountyName 或 onReturnToCounty 時不顯示「回到 XXX 分布」按鈕', () => {
+    renderPopup({ tier: 'district' });
+
+    expect(
+      screen.queryByRole('button', { name: /^回到.*分布$/ }),
+    ).not.toBeInTheDocument();
+  });
 });

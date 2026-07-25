@@ -26,6 +26,13 @@ export interface RegionSummaryPopupProps {
   onClose: () => void;
   /** 僅縣市層提供；鄉鎮市區層為葉節點，不下鑽（Requirement 3.2）。 */
   onDrillDown?: () => void;
+  /**
+   * 僅鄉鎮市區層提供：目前下鑽所在的縣市名稱，用於組出「回到 XXX 分布」
+   * 按鈕文字。與 `onReturnToCounty` 需成對提供才會顯示該按鈕。
+   */
+  parentCountyName?: string;
+  /** 僅鄉鎮市區層提供：點擊「回到 XXX 分布」時觸發，返回該縣市的總覽層級。 */
+  onReturnToCounty?: () => void;
 }
 
 /**
@@ -63,6 +70,8 @@ export function RegionSummaryPopup({
   totalJobCount,
   onClose,
   onDrillDown,
+  parentCountyName,
+  onReturnToCounty,
 }: RegionSummaryPopupProps) {
   const salaryStats = useRegionSalaryStats(regionId, tier);
   const categoryGroups = useRegionTechCategoryRanking(regionId, tier);
@@ -72,6 +81,7 @@ export function RegionSummaryPopup({
   );
 
   const hasJobs = totalJobCount > 0;
+  const canReturnToCounty = tier === 'district' && !!parentCountyName && !!onReturnToCounty;
 
   return (
     <Modal open={!!regionId} title={displayName} onClose={onClose}>
@@ -83,6 +93,38 @@ export function RegionSummaryPopup({
           </span>
         </p>
 
+        {/* 操作按鈕群組放在最上方，讓使用者不必先滑過薪資/技術排行才找得到
+            跳轉與下鑽/返回操作。 */}
+        <div className="flex flex-col gap-2">
+          <button
+            type="button"
+            onClick={goToJobs}
+            className="cursor-pointer rounded-lg bg-[#003d92] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#1654b9] active:scale-95"
+          >
+            查看此地區職缺
+          </button>
+
+          {tier === 'county' && onDrillDown && (
+            <button
+              type="button"
+              onClick={onDrillDown}
+              className="cursor-pointer rounded-lg border border-[#003d92] px-4 py-2 text-sm font-bold text-[#003d92] transition hover:bg-[#f4faff] active:scale-95"
+            >
+              查看鄉鎮市區分布
+            </button>
+          )}
+
+          {canReturnToCounty && (
+            <button
+              type="button"
+              onClick={onReturnToCounty}
+              className="cursor-pointer rounded-lg border border-[#003d92] px-4 py-2 text-sm font-bold text-[#003d92] transition hover:bg-[#f4faff] active:scale-95"
+            >
+              回到{parentCountyName}分布
+            </button>
+          )}
+        </div>
+
         {!hasJobs ? (
           <p className="text-sm text-[#434653]">此地區目前沒有開放中職缺</p>
         ) : (
@@ -93,24 +135,6 @@ export function RegionSummaryPopup({
               onSelectTech={goToJobsWithTech}
             />
           </>
-        )}
-
-        <button
-          type="button"
-          onClick={goToJobs}
-          className="cursor-pointer rounded-lg bg-[#003d92] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#1654b9] active:scale-95"
-        >
-          查看此地區職缺
-        </button>
-
-        {tier === 'county' && onDrillDown && (
-          <button
-            type="button"
-            onClick={onDrillDown}
-            className="cursor-pointer rounded-lg border border-[#003d92] px-4 py-2 text-sm font-bold text-[#003d92] transition hover:bg-[#f4faff] active:scale-95"
-          >
-            查看鄉鎮市區分布
-          </button>
         )}
       </div>
     </Modal>

@@ -1,8 +1,9 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { geoMercator, geoPath } from 'd3-geo';
 import type { Feature, FeatureCollection, Geometry } from 'geojson';
 
 import { getRegionColor } from '../utils/colorScale';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 /**
  * 展示型元件（task 6.1，design.md「RegionChoropleth（Props Contract）」）。
@@ -25,6 +26,13 @@ export interface RegionChoroplethProps {
   maxValue: number;
   selectedRegionId: string | null;
   onSelect: (regionId: string) => void;
+  /**
+   * 行動裝置版面下，初始畫面聚焦、並可讓使用者拖曳/滑動查看其餘地區的地區
+   * id 清單（例如北北基三縣市）。僅在寬度低於行動裝置斷點（`useIsMobile`）
+   * 時生效；未提供、清單為空，或桌機寬度下，維持原本「地圖縮放至容器寬度」
+   * 的既有行為，不會出現可捲動的放大版面。
+   */
+  mobileInitialFocusIds?: readonly string[];
 }
 
 interface RegionPath {
@@ -33,6 +41,9 @@ interface RegionPath {
   d: string;
   /** SVG 座標系下的形狀中心點，用來放置永遠可見的標籤文字（不依賴 hover）。 */
   centroid: [number, number];
+  /** 形狀外接框左上角座標（SVG 座標系），用來計算多個地區合併後的邊界框。 */
+  boundsX0: number;
+  boundsY0: number;
   /** 形狀外接框的寬高（SVG 座標系），用來判斷標籤文字是否會溢出形狀。 */
   boundsWidth: number;
   boundsHeight: number;
@@ -41,6 +52,14 @@ interface RegionPath {
 const VIEWBOX_WIDTH = 800;
 const VIEWBOX_HEIGHT = 600;
 const FIT_SIZE_PADDING = 16;
+
+// 行動裝置初始聚焦視角：把整張地圖放大到容器寬度的幾倍，讓 `mobileInitialFocusIds`
+// 指定的地區（例如北北基）在初次進入時已大致填滿螢幕，其餘地區則需使用者
+// 自行拖曳/滑動捲動容器才看得到——放大倍率越高，聚焦區域越大、可捲動範圍
+// 也越大，3 倍是在「北北基夠大看得清楚」與「捲動範圍不會大到難以找到其他
+// 縣市」之間取的折衷值。
+const MOBILE_ZOOM_FACTOR = 3;
+const MOBILE_MAP_MAX_HEIGHT = 480;
 
 // 標籤溢出處理：形狀太小時全部隱藏文字（連數字都會超出，硬塞只會更雜亂），
 // 中等大小只顯示數字（單一數字比「名稱+數字」窄很多，多數情況能塞進去），
@@ -95,6 +114,8 @@ function buildRegionPaths(features: RegionFeature[]): RegionPath[] {
       displayName: f.displayName,
       d: pathGenerator(feature) ?? '',
       centroid: pathGenerator.centroid(feature),
+      boundsX0: x0,
+      boundsY0: y0,
       boundsWidth: x1 - x0,
       boundsHeight: y1 - y0,
     };
@@ -107,15 +128,52 @@ export function RegionChoropleth({
   maxValue,
   selectedRegionId,
   onSelect,
+  mobileInitialFocusIds,
 }: RegionChoroplethProps) {
   const paths = useMemo(() => buildRegionPaths(features), [features]);
+  const isMobile = useIsMobile();
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  return (
+  // 把 mobileInitialFocusIds 指定的地區（例如北北基）合併成一個邊界框，
+  // 取其中心點作為行動裝置版面下的初始捲動目標；找不到任何一個 id（例如
+  // 目前已下鑽到其他縣市、features 不含北北基）時視為不啟用。
+  const mobileFocusCenter = useMemo(() => {
+    if (!mobileInitialFocusIds || mobileInitialFocusIds.length === 0) return null;
+
+    const idSet = new Set(mobileInitialFocusIds);
+    const focusPaths = paths.filter(p => idSet.has(p.id));
+    if (focusPaths.length === 0) return null;
+
+    const minX = Math.min(...focusPaths.map(p => p.boundsX0));
+    const minY = Math.min(...focusPaths.map(p => p.boundsY0));
+    const maxX = Math.max(...focusPaths.map(p => p.boundsX0 + p.boundsWidth));
+    const maxY = Math.max(...focusPaths.map(p => p.boundsY0 + p.boundsHeight));
+
+    return { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
+  }, [paths, mobileInitialFocusIds]);
+
+  const useMobileZoom = isMobile && mobileFocusCenter !== null;
+
+  // 掛載（或聚焦地區改變，例如下鑽/返回總覽切換了 features）時，把捲動容器
+  // 捲到聚焦地區的中心點，讓使用者一進畫面就先看到北北基，其餘地區則需自行
+  // 拖曳/滑動捲動容器查看。
+  useEffect(() => {
+    if (!useMobileZoom || !mobileFocusCenter) return;
+    const el = scrollContainerRef.current;
+    if (!el) return;
+
+    el.scrollLeft = mobileFocusCenter.x * MOBILE_ZOOM_FACTOR - el.clientWidth / 2;
+    el.scrollTop = mobileFocusCenter.y * MOBILE_ZOOM_FACTOR - el.clientHeight / 2;
+  }, [useMobileZoom, mobileFocusCenter]);
+
+  const svg = (
     <svg
       viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`}
       role="img"
       aria-label="地區職缺分布地圖"
-      className="h-auto w-full"
+      width={useMobileZoom ? VIEWBOX_WIDTH * MOBILE_ZOOM_FACTOR : undefined}
+      height={useMobileZoom ? VIEWBOX_HEIGHT * MOBILE_ZOOM_FACTOR : undefined}
+      className={useMobileZoom ? undefined : 'h-auto w-full'}
     >
       {/* 先畫完所有 path，標籤文字一律留到第二輪、在 SVG 文件順序中排在
           全部 path 之後才畫——SVG 依文件順序疊圖，較晚出現的元素蓋在較早
@@ -154,18 +212,42 @@ export function RegionChoropleth({
       })}
       {paths.map(({ id, displayName, centroid, boundsWidth, boundsHeight }) => {
         const value = valueByRegionId.get(id) ?? 0;
+        const isEmpty = value <= 0;
         const [cx, cy] = centroid;
 
-        // 0 筆職缺的地區已反灰、不可點選，畫面上不再需要「地名+0」佔位，
-        // 直接不畫任何標籤文字（hover 仍看得到 <title> 說明）。
-        if (value <= 0) return null;
+        const shortestSide = Math.min(boundsWidth, boundsHeight);
+        const showName = shortestSide >= MIN_SIZE_FOR_NAME_LABEL;
+
+        if (isEmpty) {
+          // 0 筆職缺的地區已反灰、不可點選：不顯示「0」這個數字（沒有數字
+          // 可看），但地區名稱仍保留，讓使用者在地圖上仍能辨識這是哪個
+          // 縣市/鄉鎮市區；形狀太小放不下名稱時才完全不畫（hover 仍看得到
+          // <title> 說明）。
+          if (!showName) return null;
+
+          return (
+            <text
+              key={id}
+              data-region-id={id}
+              x={cx}
+              y={cy}
+              textAnchor="middle"
+              className="pointer-events-none font-bold select-none"
+              fontSize={10}
+              fill="#001f2a"
+              stroke="#ffffff"
+              strokeWidth={3}
+              paintOrder="stroke"
+            >
+              {displayName}
+            </text>
+          );
+        }
 
         // 形狀太小時標籤文字必然溢出，寧可不顯示（點擊、hover title 仍在，
         // 資訊並未消失，只是不再永遠佔用畫面）；中等大小只顯示數字，因為
         // 單一數字比「名稱+數字」窄很多，較不易溢出。
-        const shortestSide = Math.min(boundsWidth, boundsHeight);
         const showLabel = shortestSide >= MIN_SIZE_FOR_ANY_LABEL;
-        const showName = shortestSide >= MIN_SIZE_FOR_NAME_LABEL;
         const fontSize = showName ? 10 : 8;
 
         if (!showLabel) return null;
@@ -200,5 +282,20 @@ export function RegionChoropleth({
         );
       })}
     </svg>
+  );
+
+  if (!useMobileZoom) {
+    return svg;
+  }
+
+  return (
+    <div
+      ref={scrollContainerRef}
+      data-testid="region-map-mobile-scroll"
+      className="max-w-full overflow-auto overscroll-contain"
+      style={{ maxHeight: MOBILE_MAP_MAX_HEIGHT }}
+    >
+      {svg}
+    </div>
   );
 }
