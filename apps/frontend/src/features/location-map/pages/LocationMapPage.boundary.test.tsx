@@ -141,6 +141,74 @@ describe('LocationMapPage boundary/edge-case regression (task 11.2, rewired 18.1
     ).not.toBeInTheDocument();
   });
 
+  it('closing the county-tier popup via its own 關閉 button clears openCountySummaryId and leaves the county tier untouched (Requirement 5.9)', async () => {
+    const user = userEvent.setup();
+    useLocationGroupsQuery.mockReturnValue({
+      data: [
+        { location: '台北市信義區', count: 120 },
+        { location: '新北市板橋區', count: 80 },
+      ],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    renderWithProviders(<LocationMapPage />, { route: '/location-map' });
+
+    await user.click(document.querySelector('path[data-region-id="台北市"]')!);
+    expect(useLocationMapStore.getState().openCountySummaryId).toBe('台北市');
+    expect(screen.getByTestId('modal-backdrop')).toBeInTheDocument();
+
+    // This is `LocationMapPage`'s own `handleCloseSummary` wiring (real store,
+    // real Modal), NOT `RegionSummaryPopup.test.tsx`'s unit-level check that
+    // clicking 關閉 merely invokes a mocked `onClose` prop -- that test can't
+    // tell whether the page wires it to the right store field or whether
+    // closing accidentally also resets the map tier.
+    await user.click(screen.getByRole('button', { name: '關閉' }));
+
+    expect(useLocationMapStore.getState().openCountySummaryId).toBeNull();
+    // Closing the popup must not touch which tier the map is showing --
+    // still the 19-county overview, not reset to some other tier/selection.
+    expect(useLocationMapStore.getState().selectedCounty).toBeNull();
+    expect(document.querySelectorAll('path')).toHaveLength(19);
+    expect(screen.queryByTestId('modal-backdrop')).not.toBeInTheDocument();
+  });
+
+  it('closing the district-tier popup via its own 關閉 button clears selectedDistrict but leaves the map drilled into the same county (Requirement 5.9)', async () => {
+    const user = userEvent.setup();
+    useLocationGroupsQuery.mockReturnValue({
+      data: [
+        { location: '台北市信義區', count: 120 },
+        { location: '台北市大安區', count: 40 },
+      ],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    renderWithProviders(<LocationMapPage />, { route: '/location-map' });
+
+    await user.click(document.querySelector('path[data-region-id="台北市"]')!);
+    await user.click(screen.getByRole('button', { name: '查看鄉鎮市區分布' }));
+    await waitFor(() => {
+      expect(document.querySelectorAll('path')).toHaveLength(12);
+    });
+
+    await user.click(document.querySelector('path[data-region-id="台北市信義區"]')!);
+    expect(useLocationMapStore.getState().selectedDistrict).toBe('台北市信義區');
+    expect(screen.getByTestId('modal-backdrop')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '關閉' }));
+
+    expect(useLocationMapStore.getState().selectedDistrict).toBeNull();
+    // The map must stay drilled into 台北市 at the township tier (12 paths)
+    // -- closing a district popup must not bump the map back up to the
+    // 19-county overview or clear `selectedCounty`.
+    expect(useLocationMapStore.getState().selectedCounty).toBe('台北市');
+    expect(document.querySelectorAll('path')).toHaveLength(12);
+    expect(screen.queryByTestId('modal-backdrop')).not.toBeInTheDocument();
+  });
+
   it('shows RegionMapError on load failure, retry triggers refetch, and the map renders normally again once the query recovers (Requirement 1.3, 1.4)', async () => {
     const user = userEvent.setup();
     const refetch = vi.fn();
