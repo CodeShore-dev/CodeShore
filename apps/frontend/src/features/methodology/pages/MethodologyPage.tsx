@@ -51,14 +51,14 @@ export function MethodologyPage() {
   const renderBlock = (block: MethodologyBlock, index: number) => {
     if (block.kind === 'paragraph') {
       return (
-        <p key={index} className="mb-4 text-sm leading-relaxed text-[#1f2330]">
+        <p key={index} className="mb-4 text-sm leading-relaxed break-words text-[#1f2330]">
           {block.text}
         </p>
       );
     }
     if (block.kind === 'list') {
       return (
-        <ul key={index} className="mb-4 list-disc space-y-2 pl-5 text-sm leading-relaxed text-[#1f2330]">
+        <ul key={index} className="mb-4 list-disc space-y-2 pl-5 text-sm leading-relaxed break-words text-[#1f2330]">
           {block.items.map((item, i) => (
             <li key={i}>{item}</li>
           ))}
