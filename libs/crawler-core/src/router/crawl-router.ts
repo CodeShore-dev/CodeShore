@@ -11,6 +11,7 @@ import {
   getSourceKey,
 } from '../url';
 import type {
+  CapturedListPage,
   CrawlItemBase,
   CrawlRouterConfig,
   CrawlRouterResult,
@@ -211,7 +212,7 @@ export function createCrawlRouter<
     TPersistItem,
     TExistingMeta
   >,
-): CrawlRouterResult {
+): CrawlRouterResult<TRawItem> {
   const log = config.logger ?? defaultLogger;
   const puppeteerRouter = createPuppeteerRouter();
 
@@ -430,6 +431,48 @@ export function createCrawlRouter<
     // 在所有本頁 DETAIL 請求都處理完後透過 `maybeCompleteListPage` 標記,
     // 詳見上方宣告處的說明。
     return { hasNoDetailRequestsToEnqueue: requestsToEnqueue.length === 0 };
+  };
+
+  /**
+   * 消化一頁已由外部(交接檔案)取得的清單頁項目,跳過即時瀏覽器攔截,直接
+   * 重用 `ingestListPageItems` 執行既有的既有/新增判斷、`transformItem`、
+   * DETAIL enqueue、清單頁完成狀態追蹤——與 `addDefaultHandler` 共用同一組
+   * closure 狀態,對即時攔截路徑與交接檔案路徑一視同仁(對應需求 4.1、4.4)。
+   *
+   * 型別上刻意使用 `createCrawlRouter` 自身固定的 `TRawItem`(而非 design.md
+   * 草擬的、每次呼叫各自獨立的泛型方法簽章),因為 `ingestListPageItems`
+   * 內部會把傳入項目原樣交給 `config.transformItem`/後續的
+   * `config.buildPersistItem`,兩者都是綁定在這個引擎實例固定 `TRawItem` 形狀
+   * 上的 callback。若改用每次呼叫各自獨立的泛型,由於該泛型與這裡的固定
+   * `TRawItem` 彼此無型別關聯,唯一能讓兩者接上的方式是不安全的型別斷言
+   * ——因此改用固定泛型是更誠實、可驗證型別安全的寫法(設計文件描述的是行為
+   * 契約,不是逐字的泛型機制)。
+   *
+   * 沒有「下一頁清單」的 `enqueueLinks` 步驟可供排序(交接檔案沒有下一頁的
+   * 概念),因此直接依 `hasNoDetailRequestsToEnqueue` 立即呼叫一次
+   * `config.onListPageResolved({status:'completed', ...})`,不複製
+   * `addDefaultHandler` 的排序邏輯。
+   */
+  const ingestCapturedListPage = async (
+    page: CapturedListPage<TRawItem>,
+  ): Promise<void> => {
+    batchSize = page.batchSize ?? page.items.length;
+
+    const { hasNoDetailRequestsToEnqueue } = await ingestListPageItems(
+      page.url,
+      page.currentPage,
+      page.totalPages,
+      page.items,
+    );
+
+    if (hasNoDetailRequestsToEnqueue) {
+      await config.onListPageResolved({
+        url: page.url,
+        page: page.currentPage,
+        totalPages: page.totalPages,
+        status: 'completed',
+      });
+    }
   };
 
   puppeteerRouter.addDefaultHandler(async ({ request, page, enqueueLinks, response, crawler }) => {
@@ -676,5 +719,5 @@ export function createCrawlRouter<
   // reconciliation, not a runtime behavior change.
   const router = puppeteerRouter as unknown as CrawlRouterResult['router'];
 
-  return { router, flushPending };
+  return { router, flushPending, ingestCapturedListPage };
 }

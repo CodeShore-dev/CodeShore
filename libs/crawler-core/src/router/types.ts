@@ -115,10 +115,52 @@ export interface CrawlRouterConfig<
 }
 
 /**
+ * 一頁已由外部(如 computer use 輔助擷取的交接檔案)取得、尚未經過即時瀏覽器
+ * 攔截的清單頁資料,供 `CrawlRouterResult.ingestCapturedListPage` 消化。
+ */
+export interface CapturedListPage<TRawItem extends CrawlItemBase> {
+  /** 對應原始列表頁 URL(含分頁參數),供既有分頁進度追蹤機制辨識。 */
+  url: string;
+  currentPage: number;
+  totalPages: number;
+  totalEntries: number;
+  /** 已正規化為本引擎既有 TRawItem 形狀的項目(完整或降級擷取皆須符合此形狀)。 */
+  items: TRawItem[];
+  /** 本次批次持久化的批次大小;未提供時預設為 items.length(一次性 flush)。 */
+  batchSize?: number;
+}
+
+/**
  * `createCrawlRouter` 的回傳結果:可交給 Crawlee 使用的路由處理器,
  * 以及可在爬蟲收尾時呼叫、將尚未達批次大小的殘留項目強制送出的 `flushPending`。
+ *
+ * `TRawItem` 預設為 `CrawlItemBase`,讓既有未明確標註型別引數的呼叫端
+ * (如 `libs/sync-core` 的 `createSyncRouter` 回傳型別標註)在不修改的情況下
+ * 依然可以編譯通過;`createCrawlRouter` 本身會以其自身固定的 `TRawItem`
+ * 泛型引數具體實例化這個型別,讓 `ingestCapturedListPage` 在該呼叫端得到
+ * 精確的項目型別。
  */
-export interface CrawlRouterResult {
+export interface CrawlRouterResult<
+  TRawItem extends CrawlItemBase = CrawlItemBase,
+> {
   router: RouterHandler;
   flushPending: () => Promise<void>;
+  /**
+   * 消化一頁已擷取的清單頁項目,跳過即時瀏覽器攔截,直接執行既有的
+   * 既有/新增判斷、`transformItem`、DETAIL enqueue、清單頁完成狀態追蹤——
+   * 與即時攔截路徑共用同一組記憶化狀態與完成計數器。
+   *
+   * 刻意宣告為屬性型別為函式(而非方法簡寫語法):方法簡寫語法在參數位置會
+   * 退化為雙變數(bivariant)相容性檢查,讓不同 `TRawItem` 具體化的
+   * `CrawlRouterResult<T>` 彼此可以互相賦值而不報錯——形同繞過了這個泛型
+   * 引數存在的意義,讓例如 104 形狀的 `CapturedListPage` 能不安全地通過一個
+   * 實際綁定 Cake 形狀 `TRawItem` 的呼叫端型別檢查。函式型別屬性在
+   * `strictFunctionTypes` 下維持逆變(contravariant)檢查,才能讓
+   * `TRawItem` 泛型引數真正發揮型別區分作用。唯一的既有呼叫端
+   * `libs/sync-core` 的 `createSyncRouter` 因此需要把回傳型別標註同步改為
+   * `CrawlRouterResult<TRawItem>`(而非留白退回預設的 `CrawlItemBase`),
+   * 才能讓具體的 `TRawItem` 型別一路傳遞下去,而不是在推回程式碼庫時觸發
+   * 逆變檢查失敗。
+   */
+  ingestCapturedListPage: (page: CapturedListPage<TRawItem>) => Promise<void>;
 }

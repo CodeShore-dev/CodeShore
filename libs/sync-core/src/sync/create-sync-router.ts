@@ -42,7 +42,7 @@ export function createSyncRouter<
     repository: SyncRepository<TEntity, TExistingMeta>;
     sourceRegistry: SourceRegistry;
   },
-): CrawlRouterResult {
+): CrawlRouterResult<TRawItem> {
   const { repository, sourceRegistry, ...crawlRouterConfig } = config;
 
   const onListPageResolved = async (

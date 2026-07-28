@@ -1,7 +1,7 @@
 import type { HTTPResponse, Page } from 'puppeteer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { CrawlRouterConfig } from './types';
+import type { CrawlRouterConfig, RequireDetailCrawl } from './types';
 import { createCrawlRouter } from './crawl-router';
 import { getSourceKey } from '../url';
 
@@ -1878,5 +1878,228 @@ describe('createCrawlRouter — end-to-end integration across a full crawl run (
       totalPages: 2,
       status: 'completed',
     });
+  });
+});
+
+// This spec drives task 2.1's `ingestCapturedListPage` entry point: consuming
+// a page of already-captured (e.g. handoff-file / computer-use-assisted) list
+// items without going through `interceptListResponse` at all, while reusing
+// the exact same existing/new determination, `transformItem`, DETAIL enqueue,
+// and list-page completion state machine as the live `addDefaultHandler` path
+// (task 1.1's extracted `ingestListPageItems`). Requirements 4.1, 4.2, 4.4.
+describe('createCrawlRouter — ingestCapturedListPage (2.1)', () => {
+  beforeEach(() => {
+    vi.useRealTimers();
+    openMock.mockClear();
+    addRequestsMock.mockClear();
+  });
+
+  const CAPTURED_URL = 'https://example.test/api/list?page=1&captured=true';
+
+  it('marks the page completed immediately when items is empty, without enqueueing any DETAIL requests', async () => {
+    const onListPageResolved = vi.fn(async () => undefined);
+    const { ingestCapturedListPage } = createCrawlRouter(
+      createBaseConfig({ onListPageResolved }),
+    );
+
+    await ingestCapturedListPage({
+      url: CAPTURED_URL,
+      currentPage: 4,
+      totalPages: 10,
+      totalEntries: 0,
+      items: [],
+    });
+
+    expect(addRequestsMock).not.toHaveBeenCalled();
+    expect(onListPageResolved).toHaveBeenCalledTimes(1);
+    expect(onListPageResolved).toHaveBeenCalledWith({
+      url: CAPTURED_URL,
+      page: 4,
+      totalPages: 10,
+      status: 'completed',
+    });
+  });
+
+  it('enqueues DETAIL requests for all-new captured items and defers onListPageResolved until every one of those DETAIL requests has been processed', async () => {
+    const onListPageResolved = vi.fn(async () => undefined);
+    const resolveExisting = vi.fn(
+      async () => new Map<string, ExistingMeta>(),
+    );
+    const { router, ingestCapturedListPage } = createCrawlRouter(
+      createBaseConfig({ onListPageResolved, resolveExisting }),
+    );
+
+    await ingestCapturedListPage({
+      url: CAPTURED_URL,
+      currentPage: 1,
+      totalPages: 1,
+      totalEntries: 2,
+      items: [{ id: 'a' }, { id: 'b' }],
+    });
+
+    expect(openMock).toHaveBeenCalledTimes(1);
+    expect(addRequestsMock).toHaveBeenCalledTimes(1);
+    const [enqueued] = addRequestsMock.mock.calls[0] ?? [[]];
+    const enqueuedRequests = enqueued as Array<{
+      url: string;
+      label: string;
+      userData: { id: string };
+    }>;
+    expect(enqueuedRequests).toHaveLength(2);
+    expect(enqueuedRequests.every(r => r.label === 'DETAIL')).toBe(true);
+
+    // Not yet resolved: both DETAIL requests derived from the captured page
+    // are still outstanding — matches the live-path deferral semantics.
+    expect(onListPageResolved).not.toHaveBeenCalled();
+
+    for (const req of enqueuedRequests) {
+      const { page } = createMockDetailPage({
+        detail: { description: 'x' },
+        callOrder: [],
+      });
+      await router(
+        createDetailHandlerContext(
+          page,
+          `https://example.test/${req.userData.id}`,
+          req.userData,
+        ) as never,
+      );
+    }
+
+    expect(onListPageResolved).toHaveBeenCalledTimes(1);
+    expect(onListPageResolved).toHaveBeenCalledWith({
+      url: CAPTURED_URL,
+      page: 1,
+      totalPages: 1,
+      status: 'completed',
+    });
+  });
+
+  it('produces the same existing/new determination as the live list-handler path for an equivalent mock resolveExisting map and raw items (parity, requirement 4.1)', async () => {
+    const rawItems: RawItem[] = [{ id: 'existing-1' }, { id: 'new-1' }];
+    const makeExistingMeta = () =>
+      new Map<string, ExistingMeta>([
+        ['existing-1', { updatedAt: '2024-01-01' }],
+      ]);
+
+    // Live (real-time interception) path.
+    const { router: liveRouter } = createCrawlRouter(
+      createBaseConfig({ resolveExisting: async () => makeExistingMeta() }),
+    );
+    const liveMock = createMockPage();
+    await runListPageHandler(liveRouter, liveMock, LIST_API_URL, {
+      page: 1,
+      totalPages: 1,
+      totalEntries: rawItems.length,
+      items: rawItems,
+    });
+    const [liveEnqueued] = addRequestsMock.mock.calls[0] ?? [[]];
+    const liveIds = (
+      liveEnqueued as Array<{ userData: { id: string } }>
+    )
+      .map(r => r.userData.id)
+      .sort();
+
+    addRequestsMock.mockClear();
+    openMock.mockClear();
+
+    // Captured (handoff) path — same shape of resolveExisting data and the
+    // same raw items, driven through ingestCapturedListPage instead.
+    const { ingestCapturedListPage } = createCrawlRouter(
+      createBaseConfig({ resolveExisting: async () => makeExistingMeta() }),
+    );
+    await ingestCapturedListPage({
+      url: CAPTURED_URL,
+      currentPage: 1,
+      totalPages: 1,
+      totalEntries: rawItems.length,
+      items: rawItems,
+    });
+    const [capturedEnqueued] = addRequestsMock.mock.calls[0] ?? [[]];
+    const capturedIds = (
+      capturedEnqueued as Array<{ userData: { id: string } }>
+    )
+      .map(r => r.userData.id)
+      .sort();
+
+    expect(capturedIds).toEqual(liveIds);
+    expect(capturedIds).toEqual(['new-1']);
+  });
+
+  it('applies config.transformItem to captured items exactly as it does for the live path', async () => {
+    const transformItem = vi.fn(
+      (job: RawItem & RequireDetailCrawl<ExistingMeta>) => ({
+        ...job,
+        url: `https://example.test/detail/${job.id}`,
+        title: `Title ${job.id}`,
+      }),
+    );
+    const resolveExisting = vi.fn(
+      async () => new Map<string, ExistingMeta>(),
+    );
+    const { ingestCapturedListPage } = createCrawlRouter(
+      createBaseConfig({ transformItem, resolveExisting }),
+    );
+
+    await ingestCapturedListPage({
+      url: CAPTURED_URL,
+      currentPage: 1,
+      totalPages: 1,
+      totalEntries: 1,
+      items: [{ id: 'new-item' }],
+    });
+
+    expect(transformItem).toHaveBeenCalledTimes(1);
+    expect(transformItem).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'new-item', needToCreate: true }),
+    );
+
+    const [enqueued] = addRequestsMock.mock.calls[0] ?? [[]];
+    const enqueuedRequests = enqueued as Array<{
+      url: string;
+      userData: { id: string; url: string; title: string };
+    }>;
+    expect(enqueuedRequests[0]?.url).toBe(
+      'https://example.test/detail/new-item',
+    );
+    expect(enqueuedRequests[0]?.userData.title).toBe('Title new-item');
+  });
+
+  it('derives batchSize from page.batchSize when provided (rather than always defaulting to items.length), so a small explicit batchSize triggers onBatchReady sooner', async () => {
+    const onBatchReady = vi.fn(async () => undefined);
+    const resolveExisting = vi.fn(
+      async () => new Map<string, ExistingMeta>(),
+    );
+    const { router, ingestCapturedListPage } = createCrawlRouter(
+      createBaseConfig({ onBatchReady, resolveExisting }),
+    );
+
+    await ingestCapturedListPage({
+      url: CAPTURED_URL,
+      currentPage: 1,
+      totalPages: 1,
+      totalEntries: 2,
+      items: [{ id: 'a' }, { id: 'b' }],
+      batchSize: 1,
+    });
+
+    const [enqueued] = addRequestsMock.mock.calls[0] ?? [[]];
+    const enqueuedRequests = enqueued as Array<{ userData: { id: string } }>;
+
+    const { page } = createMockDetailPage({
+      detail: { description: 'x' },
+      callOrder: [],
+    });
+    await router(
+      createDetailHandlerContext(
+        page,
+        'https://example.test/a',
+        enqueuedRequests.find(r => r.userData.id === 'a')!.userData,
+      ) as never,
+    );
+
+    // With batchSize explicitly set to 1, the very first processed DETAIL
+    // request must already trigger a flush rather than waiting for both.
+    expect(onBatchReady).toHaveBeenCalledTimes(1);
   });
 });

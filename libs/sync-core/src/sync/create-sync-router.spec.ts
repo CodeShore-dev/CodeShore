@@ -84,6 +84,7 @@ function createMockSourceRegistry(
 const FAKE_CRAWL_ROUTER_RESULT: CrawlRouterResult = {
   router: {} as CrawlRouterResult['router'],
   flushPending: vi.fn().mockResolvedValue(undefined),
+  ingestCapturedListPage: vi.fn().mockResolvedValue(undefined),
 };
 
 describe('createSyncRouter', () => {

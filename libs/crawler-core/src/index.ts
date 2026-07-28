@@ -32,6 +32,7 @@ export type {
   ListPageResolvedEvent,
   CrawlRouterConfig,
   CrawlRouterResult,
+  CapturedListPage,
 } from './router/types';
 
 export { createCrawlRouter } from './router/crawl-router';
