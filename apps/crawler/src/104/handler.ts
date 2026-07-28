@@ -14,6 +14,18 @@ import {
   waitFordDetailPageSelector,
 } from './utils';
 
+export const parsePagination = (response: JobsAPIResponse) => ({
+  currentPage: response.metadata.pagination.currentPage,
+  totalPages: response.metadata.pagination.lastPage,
+  totalEntries: response.metadata.pagination.total,
+});
+
+export const extractItems = (response: JobsAPIResponse) =>
+  response.data.map(x => ({
+    ...x,
+    id: getIdFromUrl(x.link.job),
+  }));
+
 export const createHandler = (
   allGroupKeywords: string[],
   totalSourceCount?: number,
@@ -30,16 +42,8 @@ export const createHandler = (
     knownPageFloors,
     matchListResponse: (url: string) =>
       url.includes('/jobs/search/api/jobs'),
-    parsePagination: (response: JobsAPIResponse) => ({
-      currentPage: response.metadata.pagination.currentPage,
-      totalPages: response.metadata.pagination.lastPage,
-      totalEntries: response.metadata.pagination.total,
-    }),
-    extractItems: (response: JobsAPIResponse) =>
-      response.data.map(x => ({
-        ...x,
-        id: getIdFromUrl(x.link.job),
-      })),
+    parsePagination,
+    extractItems,
     transformItem: job => ({
       ...job,
       url: job.link.job,

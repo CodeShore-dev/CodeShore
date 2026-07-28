@@ -491,4 +491,69 @@ describe('104/handler.ts createHandler (post sync-core migration)', () => {
 
     expect(result).toBeUndefined();
   });
+
+  // Task 2.3: `parsePagination`/`extractItems` were extracted from inline
+  // arrows inside the `createSyncRouter` config object into standalone named
+  // exports, so a later task (handoff-file ingestion) can import and call
+  // them directly without going through `createHandler`/`createSyncRouter`.
+  // These tests prove the functions are genuinely importable from outside
+  // `handler.ts` and behave correctly standalone, using realistic 104 API
+  // response fixtures (not just indirectly, via the `passedConfig` proxy
+  // used above).
+  describe('standalone exported parsePagination/extractItems', () => {
+    it('parsePagination computes pagination fields directly from a 104 API response, importable outside createHandler', async () => {
+      const { parsePagination: standaloneParsePagination } = await import(
+        './handler'
+      );
+      const response = buildJobsAPIResponseFixture({
+        currentPage: 4,
+        lastPage: 7,
+        total: 103,
+      });
+
+      expect(standaloneParsePagination(response)).toEqual({
+        currentPage: 4,
+        totalPages: 7,
+        totalEntries: 103,
+      });
+    });
+
+    it('extractItems tags each raw 104 item with its id derived from the job link, importable outside createHandler', async () => {
+      const { extractItems: standaloneExtractItems } = await import(
+        './handler'
+      );
+      const response = buildJobsAPIResponseFixture({
+        data: [
+          buildJobOnAPIFixture({
+            jobNo: 'job-001',
+            link: {
+              job: 'https://www.104.com.tw/job/job-001',
+              cust: 'https://www.104.com.tw/company/cust-001',
+              applyAnalyze: '',
+            },
+          }),
+          buildJobOnAPIFixture({
+            jobNo: 'job-002',
+            link: {
+              job: 'https://www.104.com.tw/job/job-002',
+              cust: 'https://www.104.com.tw/company/cust-001',
+              applyAnalyze: '',
+            },
+          }),
+        ],
+      });
+
+      const items = standaloneExtractItems(response);
+
+      expect(items).toHaveLength(2);
+      expect(items[0]).toMatchObject({
+        id: 'job-001',
+        jobNo: 'job-001',
+      });
+      expect(items[1]).toMatchObject({
+        id: 'job-002',
+        jobNo: 'job-002',
+      });
+    });
+  });
 });

@@ -13,6 +13,18 @@ import {
   waitFordDetailPageSelector,
 } from './utils';
 
+export const parsePagination = (response: JobsAPIResponse) => ({
+  currentPage: response.current_page,
+  totalPages: response.total_pages,
+  totalEntries: response.total_entries,
+});
+
+export const extractItems = (response: JobsAPIResponse) =>
+  response.data.map(x => ({
+    ...x,
+    id: x.path,
+  }));
+
 export const createHandler = (
   allGroupKeywords: string[],
   totalSourceCount?: number,
@@ -29,16 +41,8 @@ export const createHandler = (
     knownPageFloors,
     matchListResponse: (url: string) =>
       url.includes('/api/client/v1/jobs/search'),
-    parsePagination: (response: JobsAPIResponse) => ({
-      currentPage: response.current_page,
-      totalPages: response.total_pages,
-      totalEntries: response.total_entries,
-    }),
-    extractItems: (response: JobsAPIResponse) =>
-      response.data.map(x => ({
-        ...x,
-        id: x.path,
-      })),
+    parsePagination,
+    extractItems,
     transformItem: job => ({
       ...job,
       url: `https://www.cake.me/companies/${job.page.path}/jobs/${job.path}`,

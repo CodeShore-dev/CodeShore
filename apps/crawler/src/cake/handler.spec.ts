@@ -447,4 +447,55 @@ describe('cake/handler.ts createHandler (post sync-core migration)', () => {
 
     expect(result).toBeUndefined();
   });
+
+  // Task 2.3: `parsePagination`/`extractItems` were extracted from inline
+  // arrows inside the `createSyncRouter` config object into standalone named
+  // exports, so a later task (handoff-file ingestion) can import and call
+  // them directly without going through `createHandler`/`createSyncRouter`.
+  // These tests prove the functions are genuinely importable from outside
+  // `handler.ts` and behave correctly standalone, using realistic Cake API
+  // response fixtures (not just indirectly, via the `passedConfig` proxy
+  // used above).
+  describe('standalone exported parsePagination/extractItems', () => {
+    it('parsePagination computes pagination fields directly from a Cake API response, importable outside createHandler', async () => {
+      const { parsePagination: standaloneParsePagination } = await import(
+        './handler'
+      );
+      const response = buildJobsAPIResponseFixture({
+        currentPage: 4,
+        totalPages: 7,
+        totalEntries: 103,
+      });
+
+      expect(standaloneParsePagination(response)).toEqual({
+        currentPage: 4,
+        totalPages: 7,
+        totalEntries: 103,
+      });
+    });
+
+    it('extractItems tags each raw Cake item with its id from path, importable outside createHandler', async () => {
+      const { extractItems: standaloneExtractItems } = await import(
+        './handler'
+      );
+      const response = buildJobsAPIResponseFixture({
+        data: [
+          buildJobOnAPIFixture({ path: 'senior-backend-engineer' }),
+          buildJobOnAPIFixture({ path: 'frontend-engineer' }),
+        ],
+      });
+
+      const items = standaloneExtractItems(response);
+
+      expect(items).toHaveLength(2);
+      expect(items[0]).toMatchObject({
+        id: 'senior-backend-engineer',
+        path: 'senior-backend-engineer',
+      });
+      expect(items[1]).toMatchObject({
+        id: 'frontend-engineer',
+        path: 'frontend-engineer',
+      });
+    });
+  });
 });
