@@ -316,6 +316,122 @@ export function createCrawlRouter<
     return formatDuration(etaMs);
   };
 
+  /**
+   * 「清單頁回應到手之後」的共用處理邏輯:既有/新增判斷(`resolveExistingMemoized`
+   * + `existingItem`/`needToCreate`)、`config.transformItem`、DETAIL 請求
+   * enqueue(含 `LIST_PAGE_URL_USERDATA_KEY` 回指欄位)、`pendingListPageCompletions`
+   * 完成追蹤登記、以及連續空頁跳過來源的追蹤。
+   *
+   * 綁定在 `createCrawlRouter` 同一個 closure 內,供現行 `addDefaultHandler`
+   * (傳入即時攔截到的 `TListResponse` 經 `config.parsePagination`/
+   * `config.extractItems` 轉換後的結果)與未來新增的 `ingestCapturedListPage`
+   * (直接傳入呼叫端提供的 items/分頁資訊)共同呼叫——兩者共用同一組
+   * `resolveExistingMemoized`/`pendingListPageCompletions`/`consecutiveEmptyPagesBySource`/
+   * `skippedSources` 狀態,行為一視同仁。
+   *
+   * 刻意不涵蓋「下一頁」`enqueueLinks` 邏輯:該邏輯僅適用於即時攔截路徑
+   * (交接檔案沒有「下一頁」需要 enqueue 的概念),維持只存在於
+   * `addDefaultHandler` 內、於此函式回傳後才呼叫。同樣不涵蓋
+   * `batchSize`/`parsePagination`/`extractItems`/`lastKnownListPage` 等
+   * ETA 追蹤與即時清單回應解析相關邏輯,這些留在呼叫端各自處理。
+   *
+   * 刻意不在此函式內呼叫零 DETAIL 請求時的立即 `config.onListPageResolved`
+   * completed 回報:原始 `addDefaultHandler` 的順序是「DETAIL enqueue → 空頁
+   * 追蹤 → 下一頁 enqueueLinks → 零請求時立即回報 completed」,若把這個回報
+   * 提前搬進本函式(在 enqueueLinks 之前執行),一旦呼叫端的 `enqueueLinks`
+   * 之後拋出例外,外層 `withErrorIsolation` 的失敗路徑會再補發一次
+   * `status: 'failed'`——對同一頁重複/衝突回報 completed 與 failed。因此本函式
+   * 只透過回傳值告知呼叫端「這頁是否為零 DETAIL 請求(需要在呼叫端合適的時機
+   * 補呼叫 `onListPageResolved` completed)」,由呼叫端決定何時實際呼叫——
+   * `addDefaultHandler` 在 `enqueueLinks` 之後呼叫,維持與原始程式碼一致的順序;
+   * 未來的 `ingestCapturedListPage`(無「下一頁」需要 enqueue)則可以在收到
+   * 此回傳值後直接呼叫,不需要排在任何 enqueueLinks 之後。
+   */
+  const ingestListPageItems = async (
+    sourceUrl: string,
+    currentPage: number,
+    totalPages: number,
+    rawItems: TRawItem[],
+  ): Promise<{ hasNoDetailRequestsToEnqueue: boolean }> => {
+    const sourceKey = getSourceKey(sourceUrl);
+    const sourceProgress = describeSourceProgress(sourceKey);
+
+    const existingMeta = await resolveExistingMemoized();
+
+    const items = rawItems.map(item => {
+      const existingItem = existingMeta.get(item.id);
+      const needToCreate = !existingItem;
+      const withDetailCrawlFields = {
+        title: '',
+        url: '',
+        ...item,
+        existingItem,
+        needToCreate,
+      } as TRawItem & RequireDetailCrawl<TExistingMeta>;
+      return config.transformItem
+        ? config.transformItem(withDetailCrawlFields)
+        : withDetailCrawlFields;
+    });
+
+    const requestsToEnqueue = items
+      .filter(item => item.needToCreate)
+      .map(item => ({
+        url: item.url,
+        label: 'DETAIL',
+        userData: { ...item, [LIST_PAGE_URL_USERDATA_KEY]: sourceUrl },
+      }));
+
+    if (requestsToEnqueue.length > 0) {
+      pendingListPageCompletions.set(sourceUrl, {
+        page: currentPage,
+        totalPages,
+        remaining: requestsToEnqueue.length,
+      });
+      const queue = await RequestQueue.open();
+      await queue.addRequests(requestsToEnqueue);
+      totalDetailPages += requestsToEnqueue.length;
+      log.info(`Enqueued ${requestsToEnqueue.length} detail pages`);
+    }
+
+    // 連續 N 頁都沒有新項目就放棄這個 job source,換下一個——但在尚未走過
+    // `knownPageFloors` 記錄的已知深度之前不套用這個判斷,避免 fresh 模式
+    // 重新驗證「上次已經抓過、這次自然沒有新職缺」的前段分頁時被誤判為
+    // 已經抓到底,連帶跳過上次尚未真正抓過、可能仍有新職缺的更深分頁。
+    const knownFloor = config.knownPageFloors?.get(sourceKey) ?? 0;
+    if (requestsToEnqueue.length === 0 && currentPage > knownFloor) {
+      const emptyStreak =
+        (consecutiveEmptyPagesBySource.get(sourceKey) ?? 0) + 1;
+      consecutiveEmptyPagesBySource.set(sourceKey, emptyStreak);
+      log.info(
+        `${sourceProgress}: no new jobs on page ${currentPage} ` +
+          `(${emptyStreak}/${maxConsecutiveEmptyListPages} consecutive empty pages)`,
+      );
+      if (emptyStreak >= maxConsecutiveEmptyListPages) {
+        skippedSources.add(sourceKey);
+        log.warning(
+          `${sourceProgress}: reached ${maxConsecutiveEmptyListPages} ` +
+            `consecutive pages with no new jobs, skipping remaining pages ` +
+            `for this job source.`,
+        );
+      }
+    } else if (requestsToEnqueue.length === 0) {
+      log.info(
+        `${sourceProgress}: no new jobs on page ${currentPage}, but still ` +
+          `within previously-known depth (<= ${knownFloor}) — continuing ` +
+          `without counting toward the empty-page skip.`,
+      );
+    } else {
+      consecutiveEmptyPagesBySource.set(sourceKey, 0);
+    }
+
+    // 這頁是否沒有新項目(沒有 DETAIL 請求要等)——若是,呼叫端須在適當時機
+    // (`addDefaultHandler` 排在 `enqueueLinks` 之後)自行呼叫
+    // `config.onListPageResolved({status:'completed'})`;否則交由 DETAIL handler
+    // 在所有本頁 DETAIL 請求都處理完後透過 `maybeCompleteListPage` 標記,
+    // 詳見上方宣告處的說明。
+    return { hasNoDetailRequestsToEnqueue: requestsToEnqueue.length === 0 };
+  };
+
   puppeteerRouter.addDefaultHandler(async ({ request, page, enqueueLinks, response, crawler }) => {
     const sourceKey = getSourceKey(request.url);
     const sourceProgress = describeSourceProgress(sourceKey);
@@ -416,73 +532,13 @@ export function createCrawlRouter<
         );
 
         const rawItems = config.extractItems(listResponse);
-        const existingMeta = await resolveExistingMemoized();
 
-        const items = rawItems.map(item => {
-          const existingItem = existingMeta.get(item.id);
-          const needToCreate = !existingItem;
-          const withDetailCrawlFields = {
-            title: '',
-            url: '',
-            ...item,
-            existingItem,
-            needToCreate,
-          } as TRawItem & RequireDetailCrawl<TExistingMeta>;
-          return config.transformItem
-            ? config.transformItem(withDetailCrawlFields)
-            : withDetailCrawlFields;
-        });
-
-        const requestsToEnqueue = items
-          .filter(item => item.needToCreate)
-          .map(item => ({
-            url: item.url,
-            label: 'DETAIL',
-            userData: { ...item, [LIST_PAGE_URL_USERDATA_KEY]: request.url },
-          }));
-
-        if (requestsToEnqueue.length > 0) {
-          pendingListPageCompletions.set(request.url, {
-            page: currentPage,
-            totalPages,
-            remaining: requestsToEnqueue.length,
-          });
-          const queue = await RequestQueue.open();
-          await queue.addRequests(requestsToEnqueue);
-          totalDetailPages += requestsToEnqueue.length;
-          log.info(`Enqueued ${requestsToEnqueue.length} detail pages`);
-        }
-
-        // 連續 N 頁都沒有新項目就放棄這個 job source,換下一個——但在尚未走過
-        // `knownPageFloors` 記錄的已知深度之前不套用這個判斷,避免 fresh 模式
-        // 重新驗證「上次已經抓過、這次自然沒有新職缺」的前段分頁時被誤判為
-        // 已經抓到底,連帶跳過上次尚未真正抓過、可能仍有新職缺的更深分頁。
-        const knownFloor = config.knownPageFloors?.get(sourceKey) ?? 0;
-        if (requestsToEnqueue.length === 0 && currentPage > knownFloor) {
-          const emptyStreak =
-            (consecutiveEmptyPagesBySource.get(sourceKey) ?? 0) + 1;
-          consecutiveEmptyPagesBySource.set(sourceKey, emptyStreak);
-          log.info(
-            `${sourceProgress}: no new jobs on page ${currentPage} ` +
-              `(${emptyStreak}/${maxConsecutiveEmptyListPages} consecutive empty pages)`,
-          );
-          if (emptyStreak >= maxConsecutiveEmptyListPages) {
-            skippedSources.add(sourceKey);
-            log.warning(
-              `${sourceProgress}: reached ${maxConsecutiveEmptyListPages} ` +
-                `consecutive pages with no new jobs, skipping remaining pages ` +
-                `for this job source.`,
-            );
-          }
-        } else if (requestsToEnqueue.length === 0) {
-          log.info(
-            `${sourceProgress}: no new jobs on page ${currentPage}, but still ` +
-              `within previously-known depth (<= ${knownFloor}) — continuing ` +
-              `without counting toward the empty-page skip.`,
-          );
-        } else {
-          consecutiveEmptyPagesBySource.set(sourceKey, 0);
-        }
+        const { hasNoDetailRequestsToEnqueue } = await ingestListPageItems(
+          request.url,
+          currentPage,
+          totalPages,
+          rawItems,
+        );
 
         // 必須排在上方 detail 佇列之後:RequestQueue 依插入順序(FIFO)派工,
         // 先把本頁的 DETAIL 請求排入,才能確保它們在「下一頁清單」之前被處理
@@ -499,8 +555,11 @@ export function createCrawlRouter<
 
         // 只有這頁沒有新項目(沒有 DETAIL 請求要等)時才立刻標記完成;否則交由
         // DETAIL handler 在所有本頁 DETAIL 請求都處理完後透過
-        // `maybeCompleteListPage` 標記,詳見上方宣告處的說明。
-        if (requestsToEnqueue.length === 0) {
+        // `maybeCompleteListPage` 標記,詳見 `ingestListPageItems` 宣告處的說明。
+        // 刻意排在上方 `enqueueLinks` 之後,維持與重構前一致的呼叫順序——避免
+        // `enqueueLinks` 拋出例外時,外層 `withErrorIsolation` 失敗路徑又補發一次
+        // `status: 'failed'`,對同一頁重複/衝突回報 completed 與 failed。
+        if (hasNoDetailRequestsToEnqueue) {
           await config.onListPageResolved({
             url: request.url,
             page: currentPage,
