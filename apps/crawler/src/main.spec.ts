@@ -71,6 +71,18 @@ describe('resolveCliArgs (pure mode-dispatch logic)', () => {
     const result = resolveCliArgs(['re-crawl', 'job-salary', 'crawl']);
     expect(result.mode).toBe('re-crawl');
   });
+
+  it('resolves to "crawl-from-file" and preserves the raw arg when given "crawl-from-file=<path>"', () => {
+    const result = resolveCliArgs(['crawl-from-file=/tmp/x.json']);
+    expect(result.mode).toBe('crawl-from-file');
+    expect(result.crawlFromFileArg).toBe('crawl-from-file=/tmp/x.json');
+  });
+
+  it('resolves to "crawl-from-file" and preserves the bare raw arg when given "crawl-from-file" with no path', () => {
+    const result = resolveCliArgs(['crawl-from-file']);
+    expect(result.mode).toBe('crawl-from-file');
+    expect(result.crawlFromFileArg).toBe('crawl-from-file');
+  });
 });
 
 describe('parseWhereExpr / splitTopLevel (re-crawl=<whereExpr> parsing, unchanged by this task)', () => {
@@ -251,6 +263,21 @@ vi.mock('crawlee', () => ({
 }));
 
 vi.mock('dotenv', () => ({ config: vi.fn() }));
+
+// `./handoff/ingest-handoff-file` is task 3.1's already-implemented
+// orchestrator; mock it so this task's CLI wiring tests assert *how* it's
+// called (path + shared `keywords`) without exercising its real file I/O,
+// crawler construction, or Supabase-backed `sourceRegistry` calls.
+const { ingestHandoffFileMock } = vi.hoisted(() => ({
+  ingestHandoffFileMock: vi.fn(async () => ({
+    processedPages: 0,
+    skippedAlreadyCompletedPages: 0,
+    rejectedItemIssues: [] as { pageIndex: number; itemIndex?: number; reason: string }[],
+  })),
+}));
+vi.mock('./handoff/ingest-handoff-file', () => ({
+  ingestHandoffFile: ingestHandoffFileMock,
+}));
 
 describe('main() dispatch wiring (post sync-core migration)', () => {
   const originalArgv = process.argv;
@@ -452,5 +479,41 @@ describe('main() dispatch wiring (post sync-core migration)', () => {
     await runMainWithArgv(['re-crawl']);
 
     expect(resolveSourcesToProcessMock).not.toHaveBeenCalled();
+  });
+
+  it('crawl-from-file=<path> mode calls ingestHandoffFile with the path and the same keywords array used by other modes, without touching any other mode\'s logic (mode-exclusive dispatch)', async () => {
+    await runMainWithArgv(['crawl-from-file=/tmp/handoff.json']);
+
+    expect(ingestHandoffFileMock).toHaveBeenCalledWith(
+      '/tmp/handoff.json',
+      ['Node.js'],
+    );
+    expect(resolveSourcesToProcessMock).not.toHaveBeenCalled();
+    expect(createStalenessSyncEngineMock).not.toHaveBeenCalled();
+    expect(jobServiceFetchAllMock).not.toHaveBeenCalled();
+    expect(generateJobKeywordsFromLinesMock).not.toHaveBeenCalled();
+  });
+
+  it('crawl-from-file mode (no path given) rejects with a clear, descriptive error before calling ingestHandoffFile, and main() reports it via the top-level catch handler', async () => {
+    const exitSpy = vi
+      .spyOn(process, 'exit')
+      .mockImplementation(() => undefined as never);
+    const errorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+
+    await runMainWithArgv(['crawl-from-file']);
+
+    expect(ingestHandoffFileMock).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      'Crawler failed:',
+      expect.objectContaining({
+        message: expect.stringContaining('crawl-from-file'),
+      }),
+    );
+    expect(exitSpy).toHaveBeenCalledWith(1);
+
+    exitSpy.mockRestore();
+    errorSpy.mockRestore();
   });
 });

@@ -30,6 +30,7 @@ import { createHandler as createHandler104 } from './104/handler';
 import { isTheHost as is104Host } from './104/utils';
 import { createHandler as createHandlerCake } from './cake/handler';
 import { isTheHost as isCakeHost } from './cake/utils';
+import { ingestHandoffFile } from './handoff/ingest-handoff-file';
 import { sourceRegistry } from './persistence';
 import { createJobStalenessSyncConfig } from './staleness-sync';
 
@@ -95,12 +96,14 @@ export type Mode =
   | 're-crawl'
   | 'job-salary'
   | 'job-keyword'
-  | 'crawl';
+  | 'crawl'
+  | 'crawl-from-file';
 
 export interface ResolvedCliArgs {
   mode: Mode;
   reCrawlJobsArg: string | undefined;
   crawlArg: string | undefined;
+  crawlFromFileArg: string | undefined;
 }
 
 /**
@@ -120,14 +123,19 @@ export function resolveCliArgs(args: string[]): ResolvedCliArgs {
   const crawlArg = args.find(
     x => x === 'crawl' || x.startsWith('crawl='),
   );
+  const crawlFromFileArg = args.find(
+    x =>
+      x === 'crawl-from-file' || x.startsWith('crawl-from-file='),
+  );
 
   let mode: Mode;
   if (reCrawlJobsArg) mode = 're-crawl';
   else if (resetMinMaxSalaryArg) mode = 'job-salary';
   else if (resetJobKeywordArg) mode = 'job-keyword';
+  else if (crawlFromFileArg) mode = 'crawl-from-file';
   else mode = 'crawl';
 
-  return { mode, reCrawlJobsArg, crawlArg };
+  return { mode, reCrawlJobsArg, crawlArg, crawlFromFileArg };
 }
 
 async function main() {
@@ -140,9 +148,8 @@ async function main() {
     preNavigationHook: createStealthPreNavigationHook(),
   };
 
-  const { mode, reCrawlJobsArg, crawlArg } = resolveCliArgs(
-    process.argv.slice(2),
-  );
+  const { mode, reCrawlJobsArg, crawlArg, crawlFromFileArg } =
+    resolveCliArgs(process.argv.slice(2));
 
   const { result: techs } =
     await new MvTechService().fetchAll({
@@ -325,6 +332,30 @@ async function main() {
         );
         await flushPendingCake();
       }
+      break;
+    }
+
+    case 'crawl-from-file': {
+      if (!crawlFromFileArg!.includes('=')) {
+        throw new Error(
+          'crawl-from-file mode requires an explicit file path: ' +
+            'use crawl-from-file=<path> (Requirement 1.1 — the operator ' +
+            'must explicitly specify what to ingest, there is no default).',
+        );
+      }
+      const filePath = crawlFromFileArg!.slice(
+        crawlFromFileArg!.indexOf('=') + 1,
+      );
+
+      console.log(`>>> Ingesting handoff file: ${filePath}`);
+      const summary = await ingestHandoffFile(filePath, keywords);
+      console.log(
+        `>>> Handoff ingestion complete: processed ${summary.processedPages} page(s), ` +
+          `skipped ${summary.skippedAlreadyCompletedPages} already-completed page(s)` +
+          (summary.rejectedItemIssues.length > 0
+            ? `, ${summary.rejectedItemIssues.length} rejected item issue(s)`
+            : ''),
+      );
       break;
     }
   }
