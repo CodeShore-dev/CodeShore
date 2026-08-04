@@ -30,6 +30,20 @@ describe('deriveTabs', () => {
     expect(last.label).toBe('其他');
     expect(last.count).toBe(7);
   });
+
+  it('folds the known "others" category into the catch-all bucket instead of its own tab', () => {
+    const tabs = deriveTabs([
+      { category: knownKey, count: 5 },
+      { category: 'others', count: 2 },
+      { category: '__unknown__', count: 3 },
+    ] as unknown as SupabaseView.MvTechCategory[]);
+
+    expect(tabs.filter(t => t.label === '其他')).toHaveLength(1);
+    expect(tabs.find(t => t.value === 'others')).toBeUndefined();
+    const last = tabs[tabs.length - 1];
+    expect(last.value).toBe('');
+    expect(last.count).toBe(5);
+  });
 });
 
 describe('buildKeywordAdminWhere', () => {

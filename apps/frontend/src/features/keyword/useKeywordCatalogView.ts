@@ -3,7 +3,7 @@ import type { StoreApi, UseBoundStore } from 'zustand';
 
 import type { SupabaseView } from '@codeshore/data-types';
 
-import { CATEGORY_LABEL_MAP, TAG_LABEL_MAP } from '../../utils/constants';
+import { TAG_LABEL_MAP } from '../../utils/constants';
 import type { KeywordFilterState } from './keywordFilterStore';
 import {
   type KeywordTab,
@@ -108,15 +108,17 @@ export function useKeywordCatalogView(
 
   const categoriesWithSelections = useMemo(() => {
     const result = new Set<string>();
-    const allCategories = Object.keys(CATEGORY_LABEL_MAP);
+    const knownTabValues = tabs.filter(t => t.value !== '').map(t => t.value);
     for (const tag of [...selectedTags, ...excludedTags]) {
       const group = techs.find(g => g.tech === tag);
       if (group?.category) {
-        result.add(allCategories.includes(group.category) ? group.category : '');
+        result.add(
+          knownTabValues.includes(group.category) ? group.category : '',
+        );
       }
     }
     return result;
-  }, [selectedTags, excludedTags, techs]);
+  }, [selectedTags, excludedTags, techs, tabs]);
 
   const filteredTechView = useMemo(() => {
     if (selectedTab === SEARCH_TAB_VALUE) return searchedView;

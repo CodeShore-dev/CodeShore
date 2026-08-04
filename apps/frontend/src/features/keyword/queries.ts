@@ -74,14 +74,19 @@ export interface KeywordTab {
 
 // Derives the category tab list (ported from useKeywordStore): known
 // categories in CATEGORY_LABEL_MAP order, then a trailing "其他" bucket
-// aggregating everything else. Pure for testability.
+// aggregating everything else. The `others` entry in CATEGORY_LABEL_MAP is a
+// real assignable category (used by curation forms), not a tab of its own —
+// it's excluded here so it folds into the catch-all bucket instead of
+// producing a second, redundant "其他" tab. Pure for testability.
 export function deriveTabs(
   categories: SupabaseView.MvTechCategory[],
 ): KeywordTab[] {
   const countMap = Object.fromEntries(
     categories.map(({ category, count }) => [category, count]),
   );
-  const mapKeys = Object.keys(CATEGORY_LABEL_MAP);
+  const mapKeys = Object.keys(CATEGORY_LABEL_MAP).filter(
+    key => key !== 'others',
+  );
   const knownTabs: KeywordTab[] = mapKeys
     .filter(key => key in countMap)
     .map(key => ({
