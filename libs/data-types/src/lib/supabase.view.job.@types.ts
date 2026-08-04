@@ -22,6 +22,7 @@ export namespace SupabaseJobView {
     {
       updated_at: Date;
       created_at: Date;
+      crawled_at: Date;
       keyword_groups: KeywordGroup[];
       /**
        * Only present when rows come from get_jobs_by_preference

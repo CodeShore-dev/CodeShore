@@ -67,13 +67,15 @@ export function createJobStalenessSyncConfig(
       const todayDayjs = dayjs();
       const yesterday = todayDayjs.subtract(1, 'day').toDate();
       yesterday.setHours(0, 0, 0, 0);
-      const resolvedWhere = where ?? {
+      const resolvedWhere = {
+        ...where,
         crawled_at: { lt: yesterday.toISOString() },
       };
-      const { result: jobs } = await new MvJobService().fetchAll({
+      const { result: jobs, searchParams } = await new MvJobService().fetchAll({
         where: resolvedWhere,
         orders: [{ column: 'min_salary', ascending: false }],
       });
+      console.log(searchParams, `Fetched ${jobs.length} stale jobs for re-crawl.`);
       return jobs;
     },
 

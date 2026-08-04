@@ -379,14 +379,17 @@ export type Database = {
       }
       job_source: {
         Row: {
+          description: string | null
           enabled: boolean
           url: string
         }
         Insert: {
+          description?: string | null
           enabled?: boolean
           url: string
         }
         Update: {
+          description?: string | null
           enabled?: boolean
           url?: string
         }
@@ -654,6 +657,7 @@ export type Database = {
           company_link: string | null
           company_name: string | null
           company_type: string | null
+          crawled_at: string | null
           created_at: string | null
           description: string | null
           description_ch_en_ratio: number | null
@@ -857,6 +861,7 @@ export type Database = {
           company_link: string
           company_name: string
           company_type: string
+          crawled_at: string
           created_at: string
           description: string
           description_ch_en_ratio: number
@@ -910,6 +915,7 @@ export type Database = {
           company_link: string | null
           company_name: string | null
           company_type: string | null
+          crawled_at: string | null
           created_at: string | null
           description: string | null
           description_ch_en_ratio: number | null
