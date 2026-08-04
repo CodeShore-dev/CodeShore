@@ -20,6 +20,36 @@ describe('describeFilterSnapshot', () => {
     expect(describeFilterSnapshot(base, new Map())).toBe('所有職缺');
   });
 
+  it('describes only the keyword search condition when only searchText is set', () => {
+    const snapshot: JobFilterSnapshot = {
+      ...base,
+      searchText: 'Airflow',
+    };
+
+    expect(describeFilterSnapshot(snapshot, new Map())).toBe('關鍵字:Airflow');
+  });
+
+  it('trims searchText and ignores it when only whitespace', () => {
+    const snapshot: JobFilterSnapshot = {
+      ...base,
+      searchText: '  golang  ',
+    };
+
+    expect(describeFilterSnapshot(snapshot, new Map())).toBe('關鍵字:golang');
+    expect(describeFilterSnapshot({ ...base, searchText: '   ' }, new Map())).toBe('所有職缺');
+  });
+
+  it('combines keyword search with a tech condition', () => {
+    const snapshot: JobFilterSnapshot = {
+      ...base,
+      searchText: 'embedded',
+      selectedTags: ['c-cpp'],
+    };
+    const techLabelsById = new Map([['c-cpp', 'C/C++']]);
+
+    expect(describeFilterSnapshot(snapshot, techLabelsById)).toBe('關鍵字:embedded・技術:C/C++');
+  });
+
   it('describes only the tech condition when only tech tags are set, falling back to the raw id when unmapped', () => {
     const snapshot: JobFilterSnapshot = {
       ...base,
@@ -129,7 +159,7 @@ describe('isFilterSnapshotEmpty', () => {
     expect(isFilterSnapshotEmpty(base)).toBe(true);
   });
 
-  it('returns false when searchText is set, even though the label omits it', () => {
+  it('returns false when searchText is set', () => {
     expect(isFilterSnapshotEmpty({ ...base, searchText: 'golang' })).toBe(false);
   });
 
