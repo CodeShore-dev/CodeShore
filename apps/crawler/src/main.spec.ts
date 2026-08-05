@@ -78,6 +78,25 @@ describe('resolveCliArgs (pure mode-dispatch logic)', () => {
     expect(result.crawlFromFileArg).toBe('crawl-from-file=/tmp/x.json');
   });
 
+  it('resolves to "re-crawl-from-file" and preserves the raw arg when given "re-crawl-from-file=<path>"', () => {
+    const result = resolveCliArgs(['re-crawl-from-file=/tmp/ids.csv']);
+    expect(result.mode).toBe('re-crawl-from-file');
+    expect(result.reCrawlFromFileArg).toBe(
+      're-crawl-from-file=/tmp/ids.csv',
+    );
+  });
+
+  it('resolves to "re-crawl-from-file" and preserves the bare raw arg when given "re-crawl-from-file" with no path', () => {
+    const result = resolveCliArgs(['re-crawl-from-file']);
+    expect(result.mode).toBe('re-crawl-from-file');
+    expect(result.reCrawlFromFileArg).toBe('re-crawl-from-file');
+  });
+
+  it('does not confuse "re-crawl-from-file=<path>" with bare "re-crawl" mode', () => {
+    const result = resolveCliArgs(['re-crawl-from-file=/tmp/ids.csv']);
+    expect(result.reCrawlJobsArg).toBeUndefined();
+  });
+
   it('resolves to "crawl-from-file" and preserves the bare raw arg when given "crawl-from-file" with no path', () => {
     const result = resolveCliArgs(['crawl-from-file']);
     expect(result.mode).toBe('crawl-from-file');
@@ -232,6 +251,24 @@ const { fakeStalenessConfig, createJobStalenessSyncConfigMock } = vi.hoisted(
 vi.mock('./staleness-sync', () => ({
   createJobStalenessSyncConfig: createJobStalenessSyncConfigMock,
 }));
+
+// `./re-crawl-from-file` reads real files via `fs`; stub it so the
+// `re-crawl-from-file` mode's CLI wiring can be asserted (path passed
+// through, resulting job ids forwarded into `createJobStalenessSyncConfig`
+// via `buildJobIdWhere`) without touching the filesystem. `buildJobIdWhere`
+// is the real implementation (pure, no I/O) so the exact `where` shape
+// forwarded to `createJobStalenessSyncConfig` is verified end-to-end.
+const { readJobIdsFromCsvFileMock } = vi.hoisted(() => ({
+  readJobIdsFromCsvFileMock: vi.fn(async () => [] as string[]),
+}));
+vi.mock('./re-crawl-from-file', async importOriginal => {
+  const actual =
+    await importOriginal<typeof import('./re-crawl-from-file')>();
+  return {
+    ...actual,
+    readJobIdsFromCsvFile: readJobIdsFromCsvFileMock,
+  };
+});
 
 // `./104/handler` and `./cake/handler` are DOM-extraction call paths this
 // task must NOT touch. Stub them minimally so `crawl` mode dispatch can be
@@ -411,6 +448,78 @@ describe('main() dispatch wiring (post sync-core migration)', () => {
       ['Node.js'],
       { updated_at: { lt: '2026-01-01' } },
     );
+  });
+
+  it('re-crawl-from-file=<path> mode reads job ids from the CSV and forwards an id-in where clause to createJobStalenessSyncConfig, then runs the engine', async () => {
+    readJobIdsFromCsvFileMock.mockResolvedValueOnce(['job-1', 'job-2']);
+
+    await runMainWithArgv(['re-crawl-from-file=/tmp/ids.csv']);
+
+    expect(readJobIdsFromCsvFileMock).toHaveBeenCalledWith(
+      '/tmp/ids.csv',
+    );
+    expect(createJobStalenessSyncConfigMock).toHaveBeenCalledWith(
+      ['Node.js'],
+      { id: { in: '(job-1,job-2)' } },
+    );
+    expect(createStalenessSyncEngineMock).toHaveBeenCalledWith(
+      fakeStalenessConfig,
+    );
+    expect(stalenessRunMock).toHaveBeenCalledWith(
+      { launchContext: 'fake' },
+      { hook: 'fake' },
+    );
+    expect(resolveSourcesToProcessMock).not.toHaveBeenCalled();
+  });
+
+  it('re-crawl-from-file mode (no path given) rejects with a clear, descriptive error before reading any file, and main() reports it via the top-level catch handler', async () => {
+    const exitSpy = vi
+      .spyOn(process, 'exit')
+      .mockImplementation(() => undefined as never);
+    const errorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+
+    await runMainWithArgv(['re-crawl-from-file']);
+
+    expect(readJobIdsFromCsvFileMock).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      'Crawler failed:',
+      expect.objectContaining({
+        message: expect.stringContaining('re-crawl-from-file'),
+      }),
+    );
+    expect(exitSpy).toHaveBeenCalledWith(1);
+
+    exitSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
+  it('re-crawl-from-file mode propagates a descriptive error when the CSV has no job ids, without touching sync-core', async () => {
+    const exitSpy = vi
+      .spyOn(process, 'exit')
+      .mockImplementation(() => undefined as never);
+    const errorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    readJobIdsFromCsvFileMock.mockRejectedValueOnce(
+      new Error('Job id CSV file contains no job ids: /tmp/empty.csv'),
+    );
+
+    await runMainWithArgv(['re-crawl-from-file=/tmp/empty.csv']);
+
+    expect(createJobStalenessSyncConfigMock).not.toHaveBeenCalled();
+    expect(createStalenessSyncEngineMock).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      'Crawler failed:',
+      expect.objectContaining({
+        message: 'Job id CSV file contains no job ids: /tmp/empty.csv',
+      }),
+    );
+    expect(exitSpy).toHaveBeenCalledWith(1);
+
+    exitSpy.mockRestore();
+    errorSpy.mockRestore();
   });
 
   it('job-salary mode is untouched: still queries JobService and calls updateMultiple, without touching sync-core at all', async () => {

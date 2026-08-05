@@ -32,6 +32,10 @@ import { createHandler as createHandlerCake } from './cake/handler';
 import { isTheHost as isCakeHost } from './cake/utils';
 import { ingestHandoffFile } from './handoff/ingest-handoff-file';
 import { sourceRegistry } from './persistence';
+import {
+  buildJobIdWhere,
+  readJobIdsFromCsvFile,
+} from './re-crawl-from-file';
 import { createJobStalenessSyncConfig } from './staleness-sync';
 
 // `__dirname` 不可靠:esbuild production build 會把 main.js 攤平到
@@ -94,6 +98,7 @@ interface StealthCrawlConfig {
 
 export type Mode =
   | 're-crawl'
+  | 're-crawl-from-file'
   | 'job-salary'
   | 'job-keyword'
   | 'crawl'
@@ -102,6 +107,7 @@ export type Mode =
 export interface ResolvedCliArgs {
   mode: Mode;
   reCrawlJobsArg: string | undefined;
+  reCrawlFromFileArg: string | undefined;
   crawlArg: string | undefined;
   crawlFromFileArg: string | undefined;
 }
@@ -113,6 +119,11 @@ export interface ResolvedCliArgs {
 export function resolveCliArgs(args: string[]): ResolvedCliArgs {
   const reCrawlJobsArg = args.find(
     x => x === 're-crawl' || x.startsWith('re-crawl='),
+  );
+  const reCrawlFromFileArg = args.find(
+    x =>
+      x === 're-crawl-from-file' ||
+      x.startsWith('re-crawl-from-file='),
   );
   const resetMinMaxSalaryArg = args.find(x =>
     x.startsWith('job-salary'),
@@ -130,12 +141,19 @@ export function resolveCliArgs(args: string[]): ResolvedCliArgs {
 
   let mode: Mode;
   if (reCrawlJobsArg) mode = 're-crawl';
+  else if (reCrawlFromFileArg) mode = 're-crawl-from-file';
   else if (resetMinMaxSalaryArg) mode = 'job-salary';
   else if (resetJobKeywordArg) mode = 'job-keyword';
   else if (crawlFromFileArg) mode = 'crawl-from-file';
   else mode = 'crawl';
 
-  return { mode, reCrawlJobsArg, crawlArg, crawlFromFileArg };
+  return {
+    mode,
+    reCrawlJobsArg,
+    reCrawlFromFileArg,
+    crawlArg,
+    crawlFromFileArg,
+  };
 }
 
 async function main() {
@@ -148,8 +166,13 @@ async function main() {
     preNavigationHook: createStealthPreNavigationHook(),
   };
 
-  const { mode, reCrawlJobsArg, crawlArg, crawlFromFileArg } =
-    resolveCliArgs(process.argv.slice(2));
+  const {
+    mode,
+    reCrawlJobsArg,
+    reCrawlFromFileArg,
+    crawlArg,
+    crawlFromFileArg,
+  } = resolveCliArgs(process.argv.slice(2));
 
   const { result: techs } =
     await new MvTechService().fetchAll({
@@ -167,6 +190,33 @@ async function main() {
       const stalenessConfig = createJobStalenessSyncConfig(
         keywords,
         whereExpr ? parseWhereExpr(whereExpr) : undefined,
+      );
+      await createStalenessSyncEngine(stalenessConfig).run(
+        stealthConfig.launchContext,
+        stealthConfig.preNavigationHook,
+      );
+      break;
+    }
+
+    case 're-crawl-from-file': {
+      if (!reCrawlFromFileArg!.includes('=')) {
+        throw new Error(
+          're-crawl-from-file mode requires an explicit file path: ' +
+            'use re-crawl-from-file=<path> (a CSV file with one job id ' +
+            'per line, optionally with an "id" header row).',
+        );
+      }
+      const filePath = reCrawlFromFileArg!.slice(
+        reCrawlFromFileArg!.indexOf('=') + 1,
+      );
+
+      console.log(`>>> Reading job ids from CSV: ${filePath}`);
+      const jobIds = await readJobIdsFromCsvFile(filePath);
+      console.log(`>>> Re-crawling ${jobIds.length} job(s) from CSV.`);
+
+      const stalenessConfig = createJobStalenessSyncConfig(
+        keywords,
+        buildJobIdWhere(jobIds),
       );
       await createStalenessSyncEngine(stalenessConfig).run(
         stealthConfig.launchContext,
