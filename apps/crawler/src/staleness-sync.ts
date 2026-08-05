@@ -1,7 +1,7 @@
 import dayjs from 'dayjs';
 
 import type { SupabaseTable } from '@codeshore/data-types';
-import { JobKeywordService, JobService, MvJobService } from '@codeshore/data-utils';
+import { JobKeywordService, JobService } from '@codeshore/data-utils';
 import { parseKeywordsOut, parseSalary } from '@codeshore/shared-utils';
 import type { StalenessSyncConfig } from '@codeshore/sync-core';
 
@@ -67,11 +67,10 @@ export function createJobStalenessSyncConfig(
       const todayDayjs = dayjs();
       const yesterday = todayDayjs.subtract(1, 'day').toDate();
       yesterday.setHours(0, 0, 0, 0);
-      const resolvedWhere = {
-        ...where,
+      const resolvedWhere = where ?? {
         crawled_at: { lt: yesterday.toISOString() },
       };
-      const { result: jobs, searchParams } = await new MvJobService().fetchAll({
+      const { result: jobs, searchParams } = await new JobService().fetchAll({
         where: resolvedWhere,
         orders: [{ column: 'min_salary', ascending: false }],
       });
