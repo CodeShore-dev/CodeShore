@@ -490,3 +490,104 @@ describe('CacheService backend-aware list/invalidate/invalidateAll (Task 2.3)', 
     expect(logger.warn).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * Task 4.1: whole-lifecycle integration-style validation that mixed-backend
+ * cache management operations (create, list, selectively invalidate, clear
+ * all) behave correctly together and never let an operation on one backend
+ * disturb entries on the other (Req 1.3, 6.1-6.4).
+ *
+ * Unlike the per-method unit tests above (which each isolate a single
+ * `getOrSet`/`invalidate`/`invalidateAll` call), this walks the full
+ * realistic scenario through one `CacheService` instance backed by two
+ * independent, real `FakeCache` instances (Map-backed, not call-recording
+ * stubs) so that a bug like "invalidating one key accidentally deletes a
+ * different key from the same underlying store" would actually surface.
+ */
+describe('CacheService mixed-backend integration (Task 4.1)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('walks create -> list -> selective invalidate (per backend) -> invalidateAll, confirming full per-backend isolation at every step', async () => {
+    const { service, memoryCache, redisCache } = makeService();
+
+    // --- create: two entries per backend ---
+    await service.getOrSet('memory-key-1', () => Promise.resolve('memory-value-1'), {
+      backend: 'memory',
+    });
+    await service.getOrSet('redis-key-1', () => Promise.resolve('redis-value-1'), {
+      backend: 'redis',
+    });
+    await service.getOrSet('memory-key-2', () => Promise.resolve('memory-value-2'), {
+      backend: 'memory',
+    });
+    await service.getOrSet('redis-key-2', () => Promise.resolve('redis-value-2'), {
+      backend: 'redis',
+    });
+
+    // --- list: all 4 entries present, correctly tagged ---
+    const afterCreate = new Map(service.list().map(e => [e.key, e]));
+    expect(afterCreate.size).toBe(4);
+    expect(afterCreate.get('memory-key-1')?.backend).toBe('memory');
+    expect(afterCreate.get('memory-key-2')?.backend).toBe('memory');
+    expect(afterCreate.get('redis-key-1')?.backend).toBe('redis');
+    expect(afterCreate.get('redis-key-2')?.backend).toBe('redis');
+
+    // --- invalidate a single redis key: only that key/backend affected ---
+    await service.invalidate('redis-key-1');
+
+    const afterRedisInvalidate = new Map(service.list().map(e => [e.key, e]));
+    expect(afterRedisInvalidate.has('redis-key-1')).toBe(false);
+    expect(afterRedisInvalidate.has('redis-key-2')).toBe(true);
+    expect(afterRedisInvalidate.has('memory-key-1')).toBe(true);
+    expect(afterRedisInvalidate.has('memory-key-2')).toBe(true);
+    // Real underlying store checked directly, not just meta-driven list().
+    await expect(redisCache.get('redis-key-1')).resolves.toBeUndefined();
+    await expect(redisCache.get('redis-key-2')).resolves.toBe('redis-value-2');
+    // The memory store is completely untouched by a redis-only invalidate.
+    await expect(memoryCache.get('memory-key-1')).resolves.toBe('memory-value-1');
+    await expect(memoryCache.get('memory-key-2')).resolves.toBe('memory-value-2');
+
+    // --- invalidate a single memory key: symmetric check ---
+    await service.invalidate('memory-key-1');
+
+    const afterMemoryInvalidate = new Map(service.list().map(e => [e.key, e]));
+    expect(afterMemoryInvalidate.has('memory-key-1')).toBe(false);
+    expect(afterMemoryInvalidate.has('memory-key-2')).toBe(true);
+    expect(afterMemoryInvalidate.has('redis-key-2')).toBe(true);
+    await expect(memoryCache.get('memory-key-1')).resolves.toBeUndefined();
+    await expect(memoryCache.get('memory-key-2')).resolves.toBe('memory-value-2');
+    // The redis store is completely untouched by a memory-only invalidate.
+    await expect(redisCache.get('redis-key-2')).resolves.toBe('redis-value-2');
+
+    // --- invalidateAll: both backends fully cleared, in list() and in the
+    // real underlying stores (not just meta looking empty). ---
+    const removed = await service.invalidateAll();
+
+    expect(removed.sort()).toEqual(['memory-key-2', 'redis-key-2'].sort());
+    expect(service.list()).toEqual([]);
+    await expect(memoryCache.get('memory-key-2')).resolves.toBeUndefined();
+    await expect(redisCache.get('redis-key-2')).resolves.toBeUndefined();
+
+    // --- a getOrSet on a previously-invalidated key is a genuine fresh MISS,
+    // not a stale value or cross-backend leftover. ---
+    const freshRedisFn = vi.fn().mockResolvedValue('fresh-redis-value');
+    const freshRedisResult = await service.getOrSet('redis-key-1', freshRedisFn, {
+      backend: 'redis',
+    });
+    expect(freshRedisResult).toBe('fresh-redis-value');
+    expect(freshRedisFn).toHaveBeenCalledTimes(1);
+
+    const freshMemoryFn = vi.fn().mockResolvedValue('fresh-memory-value');
+    const freshMemoryResult = await service.getOrSet('memory-key-1', freshMemoryFn, {
+      backend: 'memory',
+    });
+    expect(freshMemoryResult).toBe('fresh-memory-value');
+    expect(freshMemoryFn).toHaveBeenCalledTimes(1);
+  });
+});
