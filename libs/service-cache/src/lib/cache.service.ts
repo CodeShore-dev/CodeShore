@@ -3,6 +3,8 @@ import { Inject, Injectable, OnModuleInit, Optional } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Cache } from 'cache-manager';
 
+import { ServiceLogger } from '@codeshore/service-logger';
+
 import { cacheALS } from './cache-context';
 import { REDIS_CACHE } from './redis-cache.provider';
 
@@ -47,6 +49,7 @@ export class CacheService implements OnModuleInit {
     @Optional()
     @Inject(REDIS_CACHE)
     private readonly redisCache: Cache | undefined,
+    @Inject(ServiceLogger) private readonly logger: ServiceLogger,
   ) {}
 
   onModuleInit() {
@@ -72,29 +75,65 @@ export class CacheService implements OnModuleInit {
     const backend = opts?.backend ?? 'memory';
     const cache = this.resolveCache(backend);
     if (!cache) {
-      // A `redis` selection with no available Redis backend is out of scope
-      // for this task -- graceful degradation (skip the cache, run `fn()`
-      // directly, log a warning) is task 2.2's responsibility. Failing fast
-      // here is a deliberately minimal placeholder, not the final behavior.
-      throw new Error(
-        `CacheService: no available cache instance for backend "${backend}"`,
-      );
+      // Only reachable for `backend === 'redis'` when Redis is unconfigured
+      // or failed to initialize (`resolveCache` always returns a `Cache` for
+      // 'memory'). Per Req 4.2/5.1/5.2: skip the cache entirely, run the
+      // caller's original logic, and don't treat this as an error.
+      return fn();
     }
-    const cached = await cache.get<T>(key);
+
+    let cached: T | null | undefined;
+    try {
+      cached = await cache.get<T>(key);
+    } catch (error) {
+      if (backend === 'redis') {
+        // Req 5.1/5.2: a runtime Redis failure degrades to running the
+        // caller's original logic -- never surfaced as a request failure.
+        this.logger.warn('Redis cache backend read failed; skipping cache.', {
+          key,
+          error: error instanceof Error ? error.message : error,
+        });
+        return fn();
+      }
+      // 'memory' never had error handling before this feature and must
+      // not gain any now -- propagate exactly as before.
+      throw error;
+    }
+
     if (cached !== null && cached !== undefined) {
       const store = cacheALS.getStore();
       if (store) store.cacheStatus = 'HIT';
       return cached;
     }
+
     const store = cacheALS.getStore();
     if (store) store.cacheStatus = 'MISS';
+    // `fn()` is intentionally called outside any try/catch guarding the
+    // cache operations: the caller's own logic failing is a completely
+    // different failure mode and must always propagate unchanged, never be
+    // swallowed or reinterpreted as a cache degradation.
     const result = await fn();
-    await cache.set(key, result, opts?.ttl);
-    this.meta.set(key, {
-      createdAt: Date.now(),
-      ttl: opts?.ttl,
-      size: byteSize(result),
-    });
+
+    try {
+      await cache.set(key, result, opts?.ttl);
+      this.meta.set(key, {
+        createdAt: Date.now(),
+        ttl: opts?.ttl,
+        size: byteSize(result),
+      });
+    } catch (error) {
+      if (backend === 'redis') {
+        // Req 5.1/5.2: the write failed, but the caller still gets their
+        // correct, already-computed result.
+        this.logger.warn('Redis cache backend write failed; skipping cache.', {
+          key,
+          error: error instanceof Error ? error.message : error,
+        });
+        return result;
+      }
+      throw error;
+    }
+
     return result;
   }
 

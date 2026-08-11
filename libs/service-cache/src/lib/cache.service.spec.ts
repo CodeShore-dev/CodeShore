@@ -48,11 +48,27 @@ class FakeCache {
   }
 }
 
+/** Minimal `ServiceLogger`-shaped fake, only `warn` is exercised here. */
+function makeLogger() {
+  return {
+    trace: vi.fn(),
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  };
+}
+
 function makeService() {
   const memoryCache = new FakeCache();
   const redisCache = new FakeCache();
-  const service = new CacheService(memoryCache as never, redisCache as never);
-  return { service, memoryCache, redisCache };
+  const logger = makeLogger();
+  const service = new CacheService(
+    memoryCache as never,
+    redisCache as never,
+    logger as never,
+  );
+  return { service, memoryCache, redisCache, logger };
 }
 
 describe('CacheService.getOrSet backend routing', () => {
@@ -166,4 +182,168 @@ describe('CacheService.getOrSet backend routing', () => {
       expect(fn).toHaveBeenCalledTimes(1);
     },
   );
+});
+
+/**
+ * Task 2.2: graceful degradation when the Redis backend is unavailable
+ * (missing configuration) or a runtime operation on it fails.
+ *
+ * Per design.md's getOrSet flow:
+ * - `resolveCache('redis')` returning `undefined` -> run `fn()` directly,
+ *   return its result, no meta write, not an error.
+ * - `cache.get` throwing with `backend === 'redis'` -> log a warning, run
+ *   `fn()` directly, return its result.
+ * - `cache.set` throwing with `backend === 'redis'` -> log a warning,
+ *   swallow the error, still return the already-computed result.
+ * - None of the above applies to `backend === 'memory'`: exceptions there
+ *   must propagate exactly as they did before this task.
+ * - The caller's own `fn()` throwing is a completely different failure mode
+ *   and must never be swallowed/reinterpreted as a cache degradation, for
+ *   either backend.
+ */
+describe('CacheService.getOrSet graceful degradation (redis unavailable)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('backend "redis" with no Redis cache configured (redisCache undefined) still returns fn()\'s result without throwing', async () => {
+    const memoryCache = new FakeCache();
+    const logger = makeLogger();
+    const service = new CacheService(memoryCache as never, undefined, logger as never);
+    const fn = vi.fn().mockResolvedValue('computed-value');
+
+    const result = await service.getOrSet('k1', fn, { backend: 'redis' });
+
+    expect(result).toBe('computed-value');
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it('backend "redis" whose cache.get rejects still returns fn()\'s result without throwing, and logs a warning', async () => {
+    const memoryCache = new FakeCache();
+    const logger = makeLogger();
+    const redisCache = {
+      get: vi.fn().mockRejectedValue(new Error('redis connection lost')),
+      set: vi.fn().mockResolvedValue(undefined),
+    };
+    const service = new CacheService(
+      memoryCache as never,
+      redisCache as never,
+      logger as never,
+    );
+    const fn = vi.fn().mockResolvedValue('computed-value');
+
+    const result = await service.getOrSet('k1', fn, { backend: 'redis' });
+
+    expect(result).toBe('computed-value');
+    expect(fn).toHaveBeenCalledTimes(1);
+    expect(logger.warn).toHaveBeenCalled();
+  });
+
+  it('backend "redis" whose cache.set rejects (get resolves as a miss) still returns the freshly-computed result without throwing, and logs a warning', async () => {
+    const memoryCache = new FakeCache();
+    const logger = makeLogger();
+    const redisCache = {
+      get: vi.fn().mockResolvedValue(undefined),
+      set: vi.fn().mockRejectedValue(new Error('redis write failed')),
+    };
+    const service = new CacheService(
+      memoryCache as never,
+      redisCache as never,
+      logger as never,
+    );
+    const fn = vi.fn().mockResolvedValue('fresh-value');
+
+    const result = await service.getOrSet('k1', fn, { backend: 'redis' });
+
+    expect(result).toBe('fresh-value');
+    expect(fn).toHaveBeenCalledTimes(1);
+    expect(redisCache.set).toHaveBeenCalledTimes(1);
+    expect(logger.warn).toHaveBeenCalled();
+  });
+
+  it('the caller\'s own fn() throwing propagates unchanged, even for backend "redis" with a fully working Redis cache (not treated as a cache degradation)', async () => {
+    const { service } = makeService();
+    const callerError = new Error('caller business logic failed');
+    const fn = vi.fn().mockRejectedValue(callerError);
+
+    await expect(
+      service.getOrSet('k1', fn, { backend: 'redis' }),
+    ).rejects.toThrow(callerError);
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it('a failing redis backend does not affect a parallel memory-backed operation in the same run', async () => {
+    const memoryCache = new FakeCache();
+    const logger = makeLogger();
+    const redisCache = {
+      get: vi.fn().mockRejectedValue(new Error('redis down')),
+      set: vi.fn().mockRejectedValue(new Error('redis down')),
+    };
+    const service = new CacheService(
+      memoryCache as never,
+      redisCache as never,
+      logger as never,
+    );
+    const redisFn = vi.fn().mockResolvedValue('redis-value');
+    const memoryFn = vi.fn().mockResolvedValue('memory-value');
+
+    const [redisResult, memoryResult] = await Promise.all([
+      service.getOrSet('shared-key', redisFn, { backend: 'redis' }),
+      service.getOrSet('shared-key', memoryFn, { backend: 'memory' }),
+    ]);
+
+    expect(redisResult).toBe('redis-value');
+    expect(memoryResult).toBe('memory-value');
+    // The memory-backed write actually landed in the memory store, proving
+    // the redis degradation path never touched it.
+    await expect(memoryCache.get('shared-key')).resolves.toBe('memory-value');
+  });
+
+  it('backend "memory" gains zero new error-handling behavior: a cache.get failure still propagates unchanged (regression, pre-existing behavior)', async () => {
+    const memoryCache = {
+      get: vi.fn().mockRejectedValue(new Error('unexpected memory store failure')),
+      set: vi.fn().mockResolvedValue(undefined),
+    };
+    const redisCache = new FakeCache();
+    const logger = makeLogger();
+    const service = new CacheService(
+      memoryCache as never,
+      redisCache as never,
+      logger as never,
+    );
+    const fn = vi.fn().mockResolvedValue('should-not-be-reached');
+
+    await expect(
+      service.getOrSet('k1', fn, { backend: 'memory' }),
+    ).rejects.toThrow('unexpected memory store failure');
+    // fn must not have been called: the exception is not degraded into a
+    // "run the original logic" path for the memory backend.
+    expect(fn).not.toHaveBeenCalled();
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it('backend "memory" gains zero new error-handling behavior: a cache.set failure still propagates unchanged (regression, pre-existing behavior)', async () => {
+    const memoryCache = {
+      get: vi.fn().mockResolvedValue(undefined),
+      set: vi.fn().mockRejectedValue(new Error('unexpected memory store write failure')),
+    };
+    const redisCache = new FakeCache();
+    const logger = makeLogger();
+    const service = new CacheService(
+      memoryCache as never,
+      redisCache as never,
+      logger as never,
+    );
+    const fn = vi.fn().mockResolvedValue('computed-value');
+
+    await expect(
+      service.getOrSet('k1', fn, { backend: 'memory' }),
+    ).rejects.toThrow('unexpected memory store write failure');
+    expect(fn).toHaveBeenCalledTimes(1);
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
 });
