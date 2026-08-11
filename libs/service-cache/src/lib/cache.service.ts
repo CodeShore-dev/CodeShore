@@ -20,6 +20,7 @@ interface CacheEntryMeta {
   createdAt: number; // epoch ms
   ttl?: number; // ms; undefined = no expiry
   size: number; // approximate serialized size in bytes
+  backend: CacheBackend; // which backend this entry was written to
 }
 
 export interface CacheEntryInfo {
@@ -31,6 +32,7 @@ export interface CacheEntryInfo {
   remainingSeconds: number | null; // time until expiry, null = no expiry
   size: number; // approximate size in bytes
   sizeHuman: string; // human readable size, e.g. "1.2 KB"
+  backend: CacheBackend; // which backend this entry is stored on
 }
 
 @Injectable()
@@ -120,6 +122,7 @@ export class CacheService implements OnModuleInit {
         createdAt: Date.now(),
         ttl: opts?.ttl,
         size: byteSize(result),
+        backend,
       });
     } catch (error) {
       if (backend === 'redis') {
@@ -139,16 +142,40 @@ export class CacheService implements OnModuleInit {
 
   async invalidate(keys: string | string[]): Promise<string[]> {
     const list = Array.isArray(keys) ? keys : [keys];
-    await Promise.all(list.map(k => this.memoryCache.del(k)));
+    await Promise.all(
+      list.map(async k => {
+        const backend = this.meta.get(k)?.backend ?? 'memory';
+        const cache = this.resolveCache(backend);
+        if (!cache) {
+          // Only reachable for `backend === 'redis'` when Redis is
+          // unconfigured or unavailable -- there's nothing to delete, treat
+          // the key as already gone (Req 6.2).
+          return;
+        }
+        try {
+          await cache.del(k);
+        } catch (error) {
+          if (backend === 'redis') {
+            // Req 5.1/5.2-style degradation: don't let one key's Redis
+            // failure abort clearing the rest of the batch.
+            this.logger.warn('Redis cache backend delete failed; skipping.', {
+              key: k,
+              error: error instanceof Error ? error.message : error,
+            });
+            return;
+          }
+          // 'memory' never had error handling before this feature and must
+          // not gain any now -- propagate exactly as before.
+          throw error;
+        }
+      }),
+    );
     list.forEach(k => this.meta.delete(k));
     return list;
   }
 
   async invalidateAll(): Promise<string[]> {
-    const keys = [...this.meta.keys()];
-    await Promise.all(keys.map(k => this.memoryCache.del(k)));
-    this.meta.clear();
-    return keys;
+    return this.invalidate([...this.meta.keys()]);
   }
 
   /**
@@ -174,6 +201,7 @@ export class CacheService implements OnModuleInit {
           expiresAtMs != null ? Math.round((expiresAtMs - now) / 1000) : null,
         size: m.size,
         sizeHuman: humanSize(m.size),
+        backend: m.backend,
       });
     }
     return result;

@@ -347,3 +347,146 @@ describe('CacheService.getOrSet graceful degradation (redis unavailable)', () =>
     expect(logger.warn).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * Task 2.3: per-entry backend bookkeeping, and invalidation that routes to
+ * whichever backend actually holds the entry.
+ *
+ * Per design.md's `CacheService(擴充)` section:
+ * - `getOrSet`'s meta write records the resolved `backend` (Req 6.1).
+ * - `list()` surfaces that `backend` on every returned `CacheEntryInfo`
+ *   (Req 6.1).
+ * - `invalidate(keys)` looks up each key's backend from `meta` (default
+ *   'memory') and calls `.del()` on the matching `Cache` instance; a
+ *   `backend === 'redis'` failure is logged and skipped (doesn't abort the
+ *   rest of the batch), a `backend === 'memory'` failure propagates exactly
+ *   as it always has (no try/catch ever existed for the memory path) (Req
+ *   6.2).
+ * - `invalidateAll()` delegates to `invalidate([...meta.keys()])` rather
+ *   than duplicating the loop, and so covers both backends for free (Req
+ *   6.3).
+ */
+describe('CacheService backend-aware list/invalidate/invalidateAll (Task 2.3)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('list() reports the correct backend for an entry stored on each backend', async () => {
+    const { service } = makeService();
+
+    await service.getOrSet('mem-key', () => Promise.resolve('memory-value'), {
+      backend: 'memory',
+    });
+    await service.getOrSet('redis-key', () => Promise.resolve('redis-value'), {
+      backend: 'redis',
+    });
+
+    const entries = service.list();
+    const byKey = new Map(entries.map(e => [e.key, e]));
+
+    expect(byKey.get('mem-key')?.backend).toBe('memory');
+    expect(byKey.get('redis-key')?.backend).toBe('redis');
+  });
+
+  it('invalidate(key) for a key stored via the redis backend calls .del() on the redis mock, not the memory mock, and removes it from list()', async () => {
+    const { service, memoryCache, redisCache } = makeService();
+    await service.getOrSet('redis-key', () => Promise.resolve('redis-value'), {
+      backend: 'redis',
+    });
+    const memoryDelSpy = vi.spyOn(memoryCache, 'del');
+    const redisDelSpy = vi.spyOn(redisCache, 'del');
+
+    await service.invalidate('redis-key');
+
+    expect(redisDelSpy).toHaveBeenCalledWith('redis-key');
+    expect(memoryDelSpy).not.toHaveBeenCalled();
+    expect(service.list().find(e => e.key === 'redis-key')).toBeUndefined();
+  });
+
+  it('invalidate(key) for a key stored via the memory backend calls .del() on the memory mock, not the redis mock', async () => {
+    const { service, memoryCache, redisCache } = makeService();
+    await service.getOrSet('mem-key', () => Promise.resolve('memory-value'), {
+      backend: 'memory',
+    });
+    const memoryDelSpy = vi.spyOn(memoryCache, 'del');
+    const redisDelSpy = vi.spyOn(redisCache, 'del');
+
+    await service.invalidate('mem-key');
+
+    expect(memoryDelSpy).toHaveBeenCalledWith('mem-key');
+    expect(redisDelSpy).not.toHaveBeenCalled();
+    expect(service.list().find(e => e.key === 'mem-key')).toBeUndefined();
+  });
+
+  it('invalidateAll() removes entries from both backends', async () => {
+    const { service, memoryCache, redisCache } = makeService();
+    await service.getOrSet('mem-key', () => Promise.resolve('memory-value'), {
+      backend: 'memory',
+    });
+    await service.getOrSet('redis-key', () => Promise.resolve('redis-value'), {
+      backend: 'redis',
+    });
+    const memoryDelSpy = vi.spyOn(memoryCache, 'del');
+    const redisDelSpy = vi.spyOn(redisCache, 'del');
+
+    const removed = await service.invalidateAll();
+
+    expect(removed.sort()).toEqual(['mem-key', 'redis-key'].sort());
+    expect(memoryDelSpy).toHaveBeenCalledWith('mem-key');
+    expect(redisDelSpy).toHaveBeenCalledWith('redis-key');
+    expect(service.list()).toEqual([]);
+  });
+
+  it('invalidate() on a key whose backend is redis but redis is currently unavailable (.del() throws) does not throw and still removes the key from list()', async () => {
+    const memoryCache = new FakeCache();
+    const redisCache = {
+      get: vi.fn().mockResolvedValue(undefined),
+      set: vi.fn().mockResolvedValue(undefined),
+      del: vi.fn().mockRejectedValue(new Error('redis connection lost')),
+    };
+    const logger = makeLogger();
+    const service = new CacheService(
+      memoryCache as never,
+      redisCache as never,
+      logger as never,
+    );
+    await service.getOrSet('redis-key', () => Promise.resolve('redis-value'), {
+      backend: 'redis',
+    });
+
+    await expect(service.invalidate('redis-key')).resolves.toEqual(['redis-key']);
+
+    expect(logger.warn).toHaveBeenCalled();
+    expect(service.list().find(e => e.key === 'redis-key')).toBeUndefined();
+  });
+
+  it('invalidate()/invalidateAll() for memory-only entries is unchanged: a memory .del() failure still propagates (no swallowed errors)', async () => {
+    const memoryCache = {
+      get: vi.fn().mockResolvedValue(undefined),
+      set: vi.fn().mockResolvedValue(undefined),
+      del: vi.fn().mockRejectedValue(new Error('unexpected memory delete failure')),
+    };
+    const redisCache = new FakeCache();
+    const logger = makeLogger();
+    const service = new CacheService(
+      memoryCache as never,
+      redisCache as never,
+      logger as never,
+    );
+    await service.getOrSet('mem-key', () => Promise.resolve('memory-value'), {
+      backend: 'memory',
+    });
+
+    await expect(service.invalidate('mem-key')).rejects.toThrow(
+      'unexpected memory delete failure',
+    );
+    await expect(service.invalidateAll()).rejects.toThrow(
+      'unexpected memory delete failure',
+    );
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+});
