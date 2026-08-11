@@ -48,6 +48,10 @@ class EnvironmentVariables {
   CORS_ORIGINS?: string;
 
   @IsOptional()
+  @IsString()
+  REDIS_URL?: string;
+
+  @IsOptional()
   @IsIn(['development', 'production', 'test'])
   NODE_ENV?: string;
 }
