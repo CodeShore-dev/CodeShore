@@ -1,12 +1,17 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, OnModuleInit, Optional } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Cache } from 'cache-manager';
 
 import { cacheALS } from './cache-context';
+import { REDIS_CACHE } from './redis-cache.provider';
+
+/** Which underlying store a cache entry is read from / written to. */
+export type CacheBackend = 'memory' | 'redis';
 
 export interface CacheGetOrSetOptions {
   ttl?: number; // seconds; undefined = no expiry
+  backend?: CacheBackend; // default 'memory'
 }
 
 interface CacheEntryMeta {
@@ -37,10 +42,26 @@ export class CacheService implements OnModuleInit {
     return CacheService._instance;
   }
 
-  constructor(@Inject(CACHE_MANAGER) private readonly cache: Cache) {}
+  constructor(
+    @Inject(CACHE_MANAGER) private readonly memoryCache: Cache,
+    @Optional()
+    @Inject(REDIS_CACHE)
+    private readonly redisCache: Cache | undefined,
+  ) {}
 
   onModuleInit() {
     CacheService._instance = this;
+  }
+
+  /**
+   * Resolves which `Cache` instance a given backend selection maps to.
+   * `'memory'` always resolves to the always-available memory cache;
+   * `'redis'` resolves to the injected `REDIS_CACHE` instance, which may be
+   * `undefined` when Redis is unconfigured or failed to initialize (handled
+   * by task 2.2's degradation logic, not here).
+   */
+  private resolveCache(backend: CacheBackend): Cache | undefined {
+    return backend === 'redis' ? this.redisCache : this.memoryCache;
   }
 
   async getOrSet<T>(
@@ -48,7 +69,18 @@ export class CacheService implements OnModuleInit {
     fn: () => Promise<T>,
     opts?: CacheGetOrSetOptions,
   ): Promise<T> {
-    const cached = await this.cache.get<T>(key);
+    const backend = opts?.backend ?? 'memory';
+    const cache = this.resolveCache(backend);
+    if (!cache) {
+      // A `redis` selection with no available Redis backend is out of scope
+      // for this task -- graceful degradation (skip the cache, run `fn()`
+      // directly, log a warning) is task 2.2's responsibility. Failing fast
+      // here is a deliberately minimal placeholder, not the final behavior.
+      throw new Error(
+        `CacheService: no available cache instance for backend "${backend}"`,
+      );
+    }
+    const cached = await cache.get<T>(key);
     if (cached !== null && cached !== undefined) {
       const store = cacheALS.getStore();
       if (store) store.cacheStatus = 'HIT';
@@ -57,7 +89,7 @@ export class CacheService implements OnModuleInit {
     const store = cacheALS.getStore();
     if (store) store.cacheStatus = 'MISS';
     const result = await fn();
-    await this.cache.set(key, result, opts?.ttl);
+    await cache.set(key, result, opts?.ttl);
     this.meta.set(key, {
       createdAt: Date.now(),
       ttl: opts?.ttl,
@@ -68,14 +100,14 @@ export class CacheService implements OnModuleInit {
 
   async invalidate(keys: string | string[]): Promise<string[]> {
     const list = Array.isArray(keys) ? keys : [keys];
-    await Promise.all(list.map(k => this.cache.del(k)));
+    await Promise.all(list.map(k => this.memoryCache.del(k)));
     list.forEach(k => this.meta.delete(k));
     return list;
   }
 
   async invalidateAll(): Promise<string[]> {
     const keys = [...this.meta.keys()];
-    await Promise.all(keys.map(k => this.cache.del(k)));
+    await Promise.all(keys.map(k => this.memoryCache.del(k)));
     this.meta.clear();
     return keys;
   }
