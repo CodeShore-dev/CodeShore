@@ -44,6 +44,16 @@ describe('resolveCliArgs (pure mode-dispatch logic)', () => {
     );
   });
 
+  it('resolves to "export-liked-jobs" when args include the bare "export-liked-jobs" flag', () => {
+    const result = resolveCliArgs([
+      'export-liked-jobs',
+      'user=user-1',
+      'out=/tmp/liked.csv',
+    ]);
+    expect(result.mode).toBe('export-liked-jobs');
+    expect(result.exportLikedJobsArg).toBe('export-liked-jobs');
+  });
+
   it('resolves to "job-salary" when args include a "job-salary" flag', () => {
     const result = resolveCliArgs(['job-salary']);
     expect(result.mode).toBe('job-salary');
@@ -269,6 +279,23 @@ vi.mock('./re-crawl-from-file', async importOriginal => {
     readJobIdsFromCsvFile: readJobIdsFromCsvFileMock,
   };
 });
+
+// `./export-liked-jobs` builds a real `JobPreferenceService` (Supabase) and
+// writes real files; stub it so the `export-liked-jobs` mode's CLI wiring
+// (userId/preference/outputPath forwarding) can be asserted without touching
+// Supabase or the filesystem.
+const { fetchJobIdsByUserPreferenceMock, writeJobIdsCsvMock } = vi.hoisted(
+  () => ({
+    fetchJobIdsByUserPreferenceMock: vi.fn(
+      async () => [] as string[],
+    ),
+    writeJobIdsCsvMock: vi.fn(async () => undefined),
+  }),
+);
+vi.mock('./export-liked-jobs', () => ({
+  fetchJobIdsByUserPreference: fetchJobIdsByUserPreferenceMock,
+  writeJobIdsCsv: writeJobIdsCsvMock,
+}));
 
 // `./104/handler` and `./cake/handler` are DOM-extraction call paths this
 // task must NOT touch. Stub them minimally so `crawl` mode dispatch can be
@@ -514,6 +541,96 @@ describe('main() dispatch wiring (post sync-core migration)', () => {
       'Crawler failed:',
       expect.objectContaining({
         message: 'Job id CSV file contains no job ids: /tmp/empty.csv',
+      }),
+    );
+    expect(exitSpy).toHaveBeenCalledWith(1);
+
+    exitSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
+  it('export-liked-jobs mode fetches liked job ids for the given user and writes them to the given path, defaulting preference to "like"', async () => {
+    fetchJobIdsByUserPreferenceMock.mockResolvedValueOnce([
+      'job-1',
+      'job-2',
+    ]);
+
+    await runMainWithArgv([
+      'export-liked-jobs',
+      'user=user-1',
+      'out=/tmp/liked.csv',
+    ]);
+
+    expect(fetchJobIdsByUserPreferenceMock).toHaveBeenCalledWith(
+      'user-1',
+      'like',
+    );
+    expect(writeJobIdsCsvMock).toHaveBeenCalledWith(
+      ['job-1', 'job-2'],
+      '/tmp/liked.csv',
+    );
+    expect(createStalenessSyncEngineMock).not.toHaveBeenCalled();
+    expect(resolveSourcesToProcessMock).not.toHaveBeenCalled();
+  });
+
+  it('export-liked-jobs mode forwards an explicit "dislike" preference', async () => {
+    await runMainWithArgv([
+      'export-liked-jobs',
+      'user=user-1',
+      'out=/tmp/disliked.csv',
+      'preference=dislike',
+    ]);
+
+    expect(fetchJobIdsByUserPreferenceMock).toHaveBeenCalledWith(
+      'user-1',
+      'dislike',
+    );
+  });
+
+  it('export-liked-jobs mode rejects with a clear error when user= or out= is missing, without fetching or writing anything', async () => {
+    const exitSpy = vi
+      .spyOn(process, 'exit')
+      .mockImplementation(() => undefined as never);
+    const errorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+
+    await runMainWithArgv(['export-liked-jobs', 'user=user-1']);
+
+    expect(fetchJobIdsByUserPreferenceMock).not.toHaveBeenCalled();
+    expect(writeJobIdsCsvMock).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      'Crawler failed:',
+      expect.objectContaining({
+        message: expect.stringContaining('export-liked-jobs'),
+      }),
+    );
+    expect(exitSpy).toHaveBeenCalledWith(1);
+
+    exitSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
+  it('export-liked-jobs mode rejects an invalid preference value before fetching anything', async () => {
+    const exitSpy = vi
+      .spyOn(process, 'exit')
+      .mockImplementation(() => undefined as never);
+    const errorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+
+    await runMainWithArgv([
+      'export-liked-jobs',
+      'user=user-1',
+      'out=/tmp/liked.csv',
+      'preference=maybe',
+    ]);
+
+    expect(fetchJobIdsByUserPreferenceMock).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      'Crawler failed:',
+      expect.objectContaining({
+        message: expect.stringContaining('invalid preference'),
       }),
     );
     expect(exitSpy).toHaveBeenCalledWith(1);

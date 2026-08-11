@@ -29,7 +29,15 @@ import {
 import { createHandler as createHandler104 } from './104/handler';
 import { isTheHost as is104Host } from './104/utils';
 import { createHandler as createHandlerCake } from './cake/handler';
-import { isTheHost as isCakeHost } from './cake/utils';
+import {
+  createHomepageWarmupHook as createCakeHomepageWarmupHook,
+  isTheHost as isCakeHost,
+} from './cake/utils';
+import {
+  Preference,
+  fetchJobIdsByUserPreference,
+  writeJobIdsCsv,
+} from './export-liked-jobs';
 import { ingestHandoffFile } from './handoff/ingest-handoff-file';
 import { sourceRegistry } from './persistence';
 import {
@@ -99,6 +107,7 @@ interface StealthCrawlConfig {
 export type Mode =
   | 're-crawl'
   | 're-crawl-from-file'
+  | 'export-liked-jobs'
   | 'job-salary'
   | 'job-keyword'
   | 'crawl'
@@ -108,6 +117,7 @@ export interface ResolvedCliArgs {
   mode: Mode;
   reCrawlJobsArg: string | undefined;
   reCrawlFromFileArg: string | undefined;
+  exportLikedJobsArg: string | undefined;
   crawlArg: string | undefined;
   crawlFromFileArg: string | undefined;
 }
@@ -124,6 +134,9 @@ export function resolveCliArgs(args: string[]): ResolvedCliArgs {
     x =>
       x === 're-crawl-from-file' ||
       x.startsWith('re-crawl-from-file='),
+  );
+  const exportLikedJobsArg = args.find(
+    x => x === 'export-liked-jobs',
   );
   const resetMinMaxSalaryArg = args.find(x =>
     x.startsWith('job-salary'),
@@ -142,6 +155,7 @@ export function resolveCliArgs(args: string[]): ResolvedCliArgs {
   let mode: Mode;
   if (reCrawlJobsArg) mode = 're-crawl';
   else if (reCrawlFromFileArg) mode = 're-crawl-from-file';
+  else if (exportLikedJobsArg) mode = 'export-liked-jobs';
   else if (resetMinMaxSalaryArg) mode = 'job-salary';
   else if (resetJobKeywordArg) mode = 'job-keyword';
   else if (crawlFromFileArg) mode = 'crawl-from-file';
@@ -151,6 +165,7 @@ export function resolveCliArgs(args: string[]): ResolvedCliArgs {
     mode,
     reCrawlJobsArg,
     reCrawlFromFileArg,
+    exportLikedJobsArg,
     crawlArg,
     crawlFromFileArg,
   };
@@ -166,13 +181,14 @@ async function main() {
     preNavigationHook: createStealthPreNavigationHook(),
   };
 
+  const cliArgs = process.argv.slice(2);
   const {
     mode,
     reCrawlJobsArg,
     reCrawlFromFileArg,
     crawlArg,
     crawlFromFileArg,
-  } = resolveCliArgs(process.argv.slice(2));
+  } = resolveCliArgs(cliArgs);
 
   const { result: techs } =
     await new MvTechService().fetchAll({
@@ -225,6 +241,48 @@ async function main() {
       break;
     }
 
+    case 'export-liked-jobs': {
+      const userId = cliArgs
+        .find(x => x.startsWith('user='))
+        ?.slice('user='.length);
+      const outputPath = cliArgs
+        .find(x => x.startsWith('out='))
+        ?.slice('out='.length);
+      const preference = (cliArgs
+        .find(x => x.startsWith('preference='))
+        ?.slice('preference='.length) ?? 'like') as Preference;
+
+      if (!userId || !outputPath) {
+        throw new Error(
+          'export-liked-jobs mode requires user=<userId> and out=<path>: ' +
+            'use export-liked-jobs user=<userId> out=<path> ' +
+            '[preference=like|dislike] (defaults to "like").',
+        );
+      }
+      if (preference !== 'like' && preference !== 'dislike') {
+        throw new Error(
+          `export-liked-jobs mode received an invalid preference "${preference}" ` +
+            '(expected "like" or "dislike").',
+        );
+      }
+
+      console.log(
+        `>>> Fetching "${preference}" job ids for user ${userId}...`,
+      );
+      const jobIds = await fetchJobIdsByUserPreference(
+        userId,
+        preference,
+      );
+      console.log(
+        `>>> Found ${jobIds.length} job(s). Writing to ${outputPath}...`,
+      );
+      await writeJobIdsCsv(jobIds, outputPath);
+      console.log(
+        `>>> Done. Re-crawl them with: re-crawl-from-file=${outputPath}`,
+      );
+      break;
+    }
+
     case 'job-salary': {
       const { result } = await new JobService().fetchAll({
         select: 'id,salary,salary_manual',
@@ -264,13 +322,17 @@ async function main() {
         console.log('>>> Resume mode');
       }
 
-      const makeCrawlerOptions = (requestHandler: any) => ({
+      const makeCrawlerOptions = (
+        requestHandler: any,
+        extraPreNavigationHooks: any[] = [],
+      ) => ({
         launchContext: stealthConfig.launchContext as any,
         browserPoolOptions: {
           useFingerprints: false,
         },
         preNavigationHooks: [
           stealthConfig.preNavigationHook as any,
+          ...extraPreNavigationHooks,
           // 每次導航前隨機停頓 1.5~4 秒,模擬人類瀏覽節奏、拉開同一 IP 的請求
           // 間隔,降低被 Cloudflare 判定為機器人流量而擋下的機率。
           async () => {
@@ -375,7 +437,9 @@ async function main() {
           true,
         );
         const crawler = new PuppeteerCrawler(
-          makeCrawlerOptions(requestHandlerCake),
+          makeCrawlerOptions(requestHandlerCake, [
+            createCakeHomepageWarmupHook(),
+          ]),
         );
         await crawler.run(
           jobSourceURLsCake.map(x => x.url_with_page_index),
