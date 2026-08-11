@@ -23,12 +23,7 @@
           {
             "ignoredFiles": [
               "{projectRoot}/eslint.config.{js,cjs,mjs,ts,cts,mts}"
-            ],
-            // keyv / @keyv/redis are declared here ahead of their actual
-            // consumption: they're added by task 1.1 as prep work, but only
-            // get imported once the Redis cache provider lands in task 1.2.
-            // Remove this ignore once that provider imports them directly.
-            "ignoredDependencies": ["keyv", "@keyv/redis"]
+            ]
           }
         ]
       }
