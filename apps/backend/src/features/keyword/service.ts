@@ -53,7 +53,7 @@ export class Service {
     return this.mvTechService.fetchAll(query);
   }
 
-  @Cacheable({ key: MvTechCategoryService.name })
+  @Cacheable({ key: MvTechCategoryService.name, backend: 'redis' })
   async getTechCategories(query: QueryDto) {
     return this.mvTechCategoryService.fetchAll(
       query,

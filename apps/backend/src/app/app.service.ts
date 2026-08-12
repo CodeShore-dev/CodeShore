@@ -47,24 +47,24 @@ export class AppService {
     private readonly mvTechComboStatsService: MvTechComboStatsService,
   ) {}
 
-  @Cacheable({ key: getJobCount.name, ttl: 300 })
+  @Cacheable({ key: getJobCount.name, ttl: 300, backend: 'redis' })
   async getJobCount(): Promise<SupabaseFunction.JobCount> {
     return (await getJobCount()).data;
   }
 
-  @Cacheable({ key: getJobHostStatistics.name, ttl: 300 })
+  @Cacheable({ key: getJobHostStatistics.name, ttl: 300, backend: 'redis' })
   async getJobHostStatistics(): Promise<
     SupabaseFunction.JobHostStatistic[]
   > {
     return getJobHostStatistics();
   }
 
-  @Cacheable({ key: MvSalaryTypeMedianRatioService.name })
+  @Cacheable({ key: MvSalaryTypeMedianRatioService.name, backend: 'redis' })
   async getMvSalaryTypeMedianRatio() {
     return this.mvSalaryTypeMedianRatioService.fetchAll();
   }
 
-  @Cacheable({ key: MvSalaryRangeMultiplierService.name })
+  @Cacheable({ key: MvSalaryRangeMultiplierService.name, backend: 'redis' })
   async getMvSalaryRangeMultiplier() {
     return this.mvSalaryRangeMultiplierService.fetchAll();
   }
@@ -103,6 +103,7 @@ export class AppService {
         `${MvTechRankingService.name}:${JSON.stringify(query.where)}`,
         () =>
           this.mvTechRankingService.fetchAll(query),
+        { backend: 'redis' },
       );
     }
     return this.mvTechRankingService.fetchAll(
@@ -117,6 +118,7 @@ export class AppService {
       return this.cacheService.getOrSet(
         `${MvTechComboStatsService.name}:${JSON.stringify(query.where)}`,
         () => this.mvTechComboStatsService.fetchAll(query),
+        { backend: 'redis' },
       );
     }
     return this.mvTechComboStatsService.fetch(query);
