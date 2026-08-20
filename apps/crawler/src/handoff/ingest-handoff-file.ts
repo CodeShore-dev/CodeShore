@@ -177,7 +177,7 @@ async function runIngestionCrawler<TRawItem extends CrawlItemBase>(
 ): Promise<void> {
   const launchContext = createStealthLaunchContext({
     executablePath: process.env['PUPPETEER_EXECUTABLE_PATH'] || undefined,
-    headless: false,
+    headless: true,
   });
   const preNavigationHook = createStealthPreNavigationHook();
 
