@@ -18,7 +18,7 @@ import { createHandler as createHandler104 } from './104/handler';
 import { isTheHost as is104Host } from './104/utils';
 import { createHandler as createHandlerCake } from './cake/handler';
 import { createHomepageWarmupHook as createCakeHomepageWarmupHook, isTheHost as isCakeHost } from './cake/utils';
-import { Preference, fetchJobIdsByUserPreference, writeJobIdsCsv } from './export-liked-jobs';
+import { Preference, fetchJobIdsByUserPreference, writeJobIdsCsv } from './export-preferenced-jobs';
 import { ingestHandoffFile } from './handoff/ingest-handoff-file';
 import { sourceRegistry } from './persistence';
 import { buildJobIdWhere, readJobIdsFromCsvFile } from './re-crawl-from-file';
@@ -77,7 +77,7 @@ interface StealthCrawlConfig {
 export type Mode =
   | 're-crawl'
   | 're-crawl-from-file'
-  | 'export-liked-jobs'
+  | 'export-preferenced-jobs'
   | 'job-salary'
   | 'job-keyword'
   | 'crawl'
@@ -99,7 +99,7 @@ export interface ResolvedCliArgs {
 export function resolveCliArgs(args: string[]): ResolvedCliArgs {
   const reCrawlJobsArg = args.find(x => x === 're-crawl' || x.startsWith('re-crawl='));
   const reCrawlFromFileArg = args.find(x => x === 're-crawl-from-file' || x.startsWith('re-crawl-from-file='));
-  const exportLikedJobsArg = args.find(x => x === 'export-liked-jobs');
+  const exportLikedJobsArg = args.find(x => x === 'export-preferenced-jobs');
   const resetMinMaxSalaryArg = args.find(x => x.startsWith('job-salary'));
   const resetJobKeywordArg = args.find(x => x.startsWith('job-keyword'));
   const crawlArg = args.find(x => x === 'crawl' || x.startsWith('crawl='));
@@ -108,7 +108,7 @@ export function resolveCliArgs(args: string[]): ResolvedCliArgs {
   let mode: Mode;
   if (reCrawlJobsArg) mode = 're-crawl';
   else if (reCrawlFromFileArg) mode = 're-crawl-from-file';
-  else if (exportLikedJobsArg) mode = 'export-liked-jobs';
+  else if (exportLikedJobsArg) mode = 'export-preferenced-jobs';
   else if (resetMinMaxSalaryArg) mode = 'job-salary';
   else if (resetJobKeywordArg) mode = 'job-keyword';
   else if (crawlFromFileArg) mode = 'crawl-from-file';
@@ -174,22 +174,22 @@ async function main() {
       break;
     }
 
-    case 'export-liked-jobs': {
+    case 'export-preferenced-jobs': {
       const userId = cliArgs.find(x => x.startsWith('user='))?.slice('user='.length);
-      const outputPath = cliArgs.find(x => x.startsWith('out='))?.slice('out='.length) ?? './liked-jobs.csv';
       const preference = (cliArgs.find(x => x.startsWith('preference='))?.slice('preference='.length) ??
         'like') as Preference;
+      const outputPath = cliArgs.find(x => x.startsWith('out='))?.slice('out='.length) ?? `./${preference}d-jobs.csv`;
 
       if (!userId || !outputPath) {
         throw new Error(
-          'export-liked-jobs mode requires user=<userId> and out=<path>: ' +
-            'use export-liked-jobs user=<userId> out=<path> ' +
+          'export-preferenced-jobs mode requires user=<userId> and out=<path>: ' +
+            'use export-preferenced-jobs user=<userId> out=<path> ' +
             '[preference=like|dislike] (defaults to "like").',
         );
       }
       if (preference !== 'like' && preference !== 'dislike') {
         throw new Error(
-          `export-liked-jobs mode received an invalid preference "${preference}" ` + '(expected "like" or "dislike").',
+          `export-preferenced-jobs mode received an invalid preference "${preference}" ` + '(expected "like" or "dislike").',
         );
       }
 

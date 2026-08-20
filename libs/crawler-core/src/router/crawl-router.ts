@@ -20,7 +20,7 @@ import type {
 
 const DEFAULT_LIST_RESPONSE_TIMEOUT_MS = 30000;
 const DEFAULT_MAX_LIST_RETRIES = 10;
-const DEFAULT_MAX_CONSECUTIVE_EMPTY_LIST_PAGES = 5;
+const DEFAULT_MAX_CONSECUTIVE_EMPTY_LIST_PAGES = 10;
 
 const defaultLogger = {
   info: (msg: string) => console.log(msg),

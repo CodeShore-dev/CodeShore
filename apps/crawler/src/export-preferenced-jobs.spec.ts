@@ -26,7 +26,7 @@ import {
   fetchJobIdsByUserPreference,
   toJobIdCsv,
   writeJobIdsCsv,
-} from './export-liked-jobs';
+} from './export-preferenced-jobs';
 
 describe('fetchJobIdsByUserPreference', () => {
   it('queries job_preference filtered by user_id and preference, defaulting to "like"', async () => {
