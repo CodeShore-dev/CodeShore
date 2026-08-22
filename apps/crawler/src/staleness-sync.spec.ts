@@ -1,3 +1,4 @@
+import dayjs from 'dayjs';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { SupabaseTable } from '@codeshore/data-types';
@@ -18,26 +19,37 @@ import type { SupabaseTable } from '@codeshore/data-types';
 // empirically below (see the timing note in the Status Report) rather than
 // assumed; a `beforeAll` pre-warm with a generous timeout is used regardless
 // as a defensive measure, matching the established pattern in this codebase.
-const { upsertMock, fetchAllMock } = vi.hoisted(() => {
-  const upsertMockInner = vi.fn(async () => undefined);
-  const fetchAllMockInner = vi.fn(async () => ({
+const { jobUpsertMock, jobKeywordUpsertMock, mvFetchAllMock, findWhereInMock } = vi.hoisted(() => {
+  const jobUpsertMockInner = vi.fn(async () => ({ error: null as { message: string } | null }));
+  const jobKeywordUpsertMockInner = vi.fn(async () => ({ error: null as { message: string } | null }));
+  const mvFetchAllMockInner = vi.fn(async () => ({
+    result: [] as { id: string }[],
+    count: 0,
+    searchParams: '',
+  }));
+  const findWhereInMockInner = vi.fn(async () => ({
     result: [] as SupabaseTable.Job[],
     count: 0,
     searchParams: '',
   }));
   return {
-    upsertMock: upsertMockInner,
-    fetchAllMock: fetchAllMockInner,
+    jobUpsertMock: jobUpsertMockInner,
+    jobKeywordUpsertMock: jobKeywordUpsertMockInner,
+    mvFetchAllMock: mvFetchAllMockInner,
+    findWhereInMock: findWhereInMockInner,
   };
 });
 
 vi.mock('@codeshore/data-utils', () => ({
   JobService: vi.fn(() => ({
-    upsert: upsertMock,
-    fetchAll: fetchAllMock,
+    upsert: jobUpsertMock,
+    findWhereIn: findWhereInMock,
   })),
   JobKeywordService: vi.fn(() => ({
-    upsert: upsertMock,
+    upsert: jobKeywordUpsertMock,
+  })),
+  MvJobService: vi.fn(() => ({
+    fetchAll: mvFetchAllMock,
   })),
 }));
 
@@ -73,11 +85,18 @@ describe('staleness-sync.ts createJobStalenessSyncConfig', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    fetchAllMock.mockResolvedValue({
+    mvFetchAllMock.mockResolvedValue({
+      result: [] as { id: string }[],
+      count: 0,
+      searchParams: '',
+    });
+    findWhereInMock.mockResolvedValue({
       result: [] as SupabaseTable.Job[],
       count: 0,
       searchParams: '',
     });
+    jobUpsertMock.mockResolvedValue({ error: null });
+    jobKeywordUpsertMock.mockResolvedValue({ error: null });
   });
 
   describe('resolveHost', () => {
@@ -395,22 +414,13 @@ describe('staleness-sync.ts createJobStalenessSyncConfig', () => {
 
       await config.onBatchReady([updateResult.entity, unchangedResult.entity]);
 
-      expect(upsertMock).toHaveBeenCalledWith([
+      expect(jobUpsertMock).toHaveBeenCalledWith([
         updateResult.entity,
         unchangedResult.entity,
       ]);
       // JobKeywordService.upsert should only be called with the changed job.
-      const calls = upsertMock.mock.calls as unknown as unknown[][];
-      const keywordUpsertCalls = calls.filter(call => {
-        const arg = call[0];
-        return (
-          Array.isArray(arg) &&
-          arg.length > 0 &&
-          (arg[0] as { keywords?: unknown }).keywords !== undefined
-        );
-      });
-      expect(keywordUpsertCalls).toHaveLength(1);
-      expect(keywordUpsertCalls[0][0]).toEqual([
+      expect(jobKeywordUpsertMock).toHaveBeenCalledTimes(1);
+      expect(jobKeywordUpsertMock).toHaveBeenCalledWith([
         expect.objectContaining({ id: 'job-changed' }),
       ]);
     });
@@ -423,17 +433,8 @@ describe('staleness-sync.ts createJobStalenessSyncConfig', () => {
 
       await config.onBatchReady([closeResult.entity]);
 
-      const calls = upsertMock.mock.calls as unknown as unknown[][];
-      const keywordUpsertCalls = calls.filter(call => {
-        const arg = call[0];
-        return (
-          Array.isArray(arg) &&
-          arg.length > 0 &&
-          (arg[0] as { keywords?: unknown }).keywords !== undefined
-        );
-      });
-      expect(keywordUpsertCalls).toHaveLength(0);
-      expect(upsertMock).toHaveBeenCalledWith([closeResult.entity]);
+      expect(jobKeywordUpsertMock).not.toHaveBeenCalled();
+      expect(jobUpsertMock).toHaveBeenCalledWith([closeResult.entity]);
     });
 
     it('does nothing when entities array is empty', async () => {
@@ -442,61 +443,101 @@ describe('staleness-sync.ts createJobStalenessSyncConfig', () => {
 
       await config.onBatchReady([]);
 
-      expect(upsertMock).not.toHaveBeenCalled();
+      expect(jobUpsertMock).not.toHaveBeenCalled();
+    });
+
+    it('throws when JobService.upsert returns an error, instead of silently swallowing it', async () => {
+      const { createJobStalenessSyncConfig } = await import('./staleness-sync');
+      const config = createJobStalenessSyncConfig([]);
+      const job = buildJob({ id: 'job-fail' });
+      const result = config.diffAndBuildUpdate(job, undefined);
+      jobUpsertMock.mockResolvedValueOnce({
+        error: { message: `Could not find the 'avg_salary' column of 'job' in the schema cache` },
+      });
+
+      await expect(config.onBatchReady([result.entity])).rejects.toThrow(
+        /Could not find the 'avg_salary' column/,
+      );
     });
   });
 
   describe('fetchStaleEntities', () => {
-    it('queries JobService with the default "crawled_at before yesterday midnight" condition when no where override is given', async () => {
+    it('queries MvJobService (filter/order by avg_salary) with the default "crawled_at before yesterday" condition, selecting only id', async () => {
       const { createJobStalenessSyncConfig } = await import('./staleness-sync');
       const config = createJobStalenessSyncConfig([]);
 
       await config.fetchStaleEntities();
 
-      expect(fetchAllMock).toHaveBeenCalledTimes(1);
-      const calls = fetchAllMock.mock.calls as unknown as unknown[][];
+      expect(mvFetchAllMock).toHaveBeenCalledTimes(1);
+      const calls = mvFetchAllMock.mock.calls as unknown as unknown[][];
       const callArg = calls[0][0] as {
         where: { crawled_at: { lt: string } };
         orders: { column: string; ascending: boolean }[];
+        select: string;
       };
       expect(callArg.orders).toEqual([
-        { column: 'min_salary', ascending: false },
+        { column: 'avg_salary', ascending: false },
       ]);
-      // Matches reCrawlJobs's original cutoff calculation exactly (main.ts
-      // L100-105): `dayjs().subtract(1, 'day').toDate()` with
-      // `setHours(0, 0, 0, 0)` applied in LOCAL time, then serialized via
-      // `.toISOString()` (UTC). Depending on the runner's timezone offset,
-      // the resulting ISO string's time-of-day component is not necessarily
-      // "00:00:00.000Z" — it's local midnight expressed in UTC. Assert this
-      // ISO string equals what the identical calculation produces directly,
-      // rather than assuming a fixed UTC offset.
-      // Per Requirement 4.1, admin re-crawl selection tracks crawl activity
-      // (`crawled_at`), not content-change activity (`updated_at`).
-      const expectedYesterday = new Date();
-      expectedYesterday.setDate(expectedYesterday.getDate() - 1);
-      expectedYesterday.setHours(0, 0, 0, 0);
-      expect(callArg.where.crawled_at.lt).toBe(
-        expectedYesterday.toISOString(),
-      );
+      expect(callArg.select).toBe('id');
+      // Matches the current cutoff calculation: `dayjs().subtract(1, 'day').toDate()`,
+      // serialized via `.toISOString()` (UTC), with no local-midnight
+      // truncation. Per Requirement 4.1, admin re-crawl selection tracks
+      // crawl activity (`crawled_at`), not content-change activity
+      // (`updated_at`).
+      const expectedYesterdayMs = dayjs().subtract(1, 'day').valueOf();
+      const actualMs = new Date(callArg.where.crawled_at.lt).getTime();
+      expect(Math.abs(actualMs - expectedYesterdayMs)).toBeLessThan(5000);
     });
 
-    it('uses the caller-provided where override instead of the default cutoff when given', async () => {
+    it('merges the caller-provided where override with the default crawled_at cutoff', async () => {
       const { createJobStalenessSyncConfig } = await import('./staleness-sync');
       const customWhere = { id: { in: '(job-1,job-2)' } };
       const config = createJobStalenessSyncConfig([], customWhere);
 
       await config.fetchStaleEntities();
 
-      expect(fetchAllMock).toHaveBeenCalledWith({
-        where: customWhere,
-        orders: [{ column: 'min_salary', ascending: false }],
-      });
+      const calls = mvFetchAllMock.mock.calls as unknown as unknown[][];
+      const callArg = calls[0][0] as {
+        where: { id: { in: string }; crawled_at: { lt: string } };
+      };
+      expect(callArg.where.id).toEqual(customWhere.id);
+      expect(callArg.where.crawled_at.lt).toEqual(expect.any(String));
     });
 
-    it('returns the jobs from the query result', async () => {
-      const job = buildJob();
-      fetchAllMock.mockResolvedValueOnce({
-        result: [job],
+    it('fetches the raw job rows via JobService.findWhereIn by the ids returned from mv_job, not the mv row itself (avoids location_group-coalesced location leaking in)', async () => {
+      mvFetchAllMock.mockResolvedValueOnce({
+        result: [{ id: 'job-a' }, { id: 'job-b' }],
+        count: 2,
+        searchParams: '',
+      });
+      const rawJobA = buildJob({ id: 'job-a', location: '台北市信義區' });
+      const rawJobB = buildJob({ id: 'job-b', location: '新北市板橋區' });
+      // Deliberately returned out of mv order to verify re-ordering below.
+      findWhereInMock.mockResolvedValueOnce({
+        result: [rawJobB, rawJobA],
+        count: 2,
+        searchParams: '',
+      });
+      const { createJobStalenessSyncConfig } = await import('./staleness-sync');
+      const config = createJobStalenessSyncConfig([]);
+
+      const result = await config.fetchStaleEntities();
+
+      expect(findWhereInMock).toHaveBeenCalledWith('id', ['job-a', 'job-b']);
+      // Order follows mv_job's avg_salary-desc order (job-a, job-b), not
+      // whatever order findWhereIn happened to return.
+      expect(result).toEqual([rawJobA, rawJobB]);
+    });
+
+    it('drops stale ids that findWhereIn did not return a row for', async () => {
+      mvFetchAllMock.mockResolvedValueOnce({
+        result: [{ id: 'job-a' }, { id: 'job-missing' }],
+        count: 2,
+        searchParams: '',
+      });
+      const rawJobA = buildJob({ id: 'job-a' });
+      findWhereInMock.mockResolvedValueOnce({
+        result: [rawJobA],
         count: 1,
         searchParams: '',
       });
@@ -505,7 +546,7 @@ describe('staleness-sync.ts createJobStalenessSyncConfig', () => {
 
       const result = await config.fetchStaleEntities();
 
-      expect(result).toEqual([job]);
+      expect(result).toEqual([rawJobA]);
     });
   });
 
