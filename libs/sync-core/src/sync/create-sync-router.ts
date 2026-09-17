@@ -42,13 +42,14 @@ export function createSyncRouter<
     repository: SyncRepository<TEntity, TExistingMeta>;
     sourceRegistry: SourceRegistry;
   },
-): CrawlRouterResult {
+): CrawlRouterResult<TRawItem> {
   const { repository, sourceRegistry, ...crawlRouterConfig } = config;
 
   const onListPageResolved = async (
     event: ListPageResolvedEvent,
   ): Promise<void> => {
     if (
+      !event.skipPendingPageRegistration &&
       event.status === 'completed' &&
       event.page === 1 &&
       event.totalPages > 1

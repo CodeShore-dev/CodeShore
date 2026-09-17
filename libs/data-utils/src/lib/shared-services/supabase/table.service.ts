@@ -11,6 +11,12 @@ import { chunk, deleteAll, deleteWhereIn } from './utils';
 // fast regardless of total record count.
 const INSERT_BATCH_SIZE = 500;
 
+// Postgrest serializes `.in(field, values)` straight into the request's
+// query string (`field=in.(v1,v2,...)`); once `values` gets into the
+// thousands this can exceed proxy/server URL-length limits, so `findWhereIn`
+// chunks the same way `_insertInBatches` chunks large inserts.
+const IN_FILTER_BATCH_SIZE = 200;
+
 export class TableService<T extends Record<string, any>, R extends Partial<T> = T> extends BaseService<T> {
   constructor(client: SupabaseClient, tableName: string, logger?: ServiceLogger, options?: Options) {
     super(client, tableName, logger, options);
@@ -39,9 +45,15 @@ export class TableService<T extends Record<string, any>, R extends Partial<T> = 
     if (values.length === 0) {
       return { result: [] as T[], count: 0, searchParams: '' };
     }
-    const { data, count, error } = await this.table.select('*', { count: 'exact' }).in(field, values);
-    if (error) throw new Error(error.message);
-    return { result: (data ?? []) as T[], count: count ?? 0, searchParams: '' };
+    const results: T[] = [];
+    let totalCount = 0;
+    for (const batch of chunk(values, IN_FILTER_BATCH_SIZE)) {
+      const { data, count, error } = await this.table.select('*', { count: 'exact' }).in(field, batch);
+      if (error) throw new Error(error.message);
+      results.push(...((data ?? []) as T[]));
+      totalCount += count ?? 0;
+    }
+    return { result: results, count: totalCount, searchParams: '' };
   }
   async reset(records: R[]) {
     this.logger?.info(`Resetting table ${this.tableName} with ${records.length} records`);

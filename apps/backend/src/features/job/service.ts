@@ -38,7 +38,7 @@ export class Service {
     return this.mvJobService.fetchMvJobsByUserAndPreference(query, userId);
   }
 
-  @Cacheable({ key: MvLocationGroupService.name })
+  @Cacheable({ key: MvLocationGroupService.name, backend: 'redis' })
   async getLocationGroups(query: QueryDto) {
     return this.mvLocationGroupService.fetch(query);
   }

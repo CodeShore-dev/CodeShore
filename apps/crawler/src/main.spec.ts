@@ -44,6 +44,16 @@ describe('resolveCliArgs (pure mode-dispatch logic)', () => {
     );
   });
 
+  it('resolves to "export-liked-jobs" when args include the bare "export-liked-jobs" flag', () => {
+    const result = resolveCliArgs([
+      'export-liked-jobs',
+      'user=user-1',
+      'out=/tmp/liked.csv',
+    ]);
+    expect(result.mode).toBe('export-liked-jobs');
+    expect(result.exportLikedJobsArg).toBe('export-liked-jobs');
+  });
+
   it('resolves to "job-salary" when args include a "job-salary" flag', () => {
     const result = resolveCliArgs(['job-salary']);
     expect(result.mode).toBe('job-salary');
@@ -70,6 +80,37 @@ describe('resolveCliArgs (pure mode-dispatch logic)', () => {
   it('prioritizes "re-crawl" over other flags when multiple are present, matching the original if/else-if precedence', () => {
     const result = resolveCliArgs(['re-crawl', 'job-salary', 'crawl']);
     expect(result.mode).toBe('re-crawl');
+  });
+
+  it('resolves to "crawl-from-file" and preserves the raw arg when given "crawl-from-file=<path>"', () => {
+    const result = resolveCliArgs(['crawl-from-file=/tmp/x.json']);
+    expect(result.mode).toBe('crawl-from-file');
+    expect(result.crawlFromFileArg).toBe('crawl-from-file=/tmp/x.json');
+  });
+
+  it('resolves to "re-crawl-from-file" and preserves the raw arg when given "re-crawl-from-file=<path>"', () => {
+    const result = resolveCliArgs(['re-crawl-from-file=/tmp/ids.csv']);
+    expect(result.mode).toBe('re-crawl-from-file');
+    expect(result.reCrawlFromFileArg).toBe(
+      're-crawl-from-file=/tmp/ids.csv',
+    );
+  });
+
+  it('resolves to "re-crawl-from-file" and preserves the bare raw arg when given "re-crawl-from-file" with no path', () => {
+    const result = resolveCliArgs(['re-crawl-from-file']);
+    expect(result.mode).toBe('re-crawl-from-file');
+    expect(result.reCrawlFromFileArg).toBe('re-crawl-from-file');
+  });
+
+  it('does not confuse "re-crawl-from-file=<path>" with bare "re-crawl" mode', () => {
+    const result = resolveCliArgs(['re-crawl-from-file=/tmp/ids.csv']);
+    expect(result.reCrawlJobsArg).toBeUndefined();
+  });
+
+  it('resolves to "crawl-from-file" and preserves the bare raw arg when given "crawl-from-file" with no path', () => {
+    const result = resolveCliArgs(['crawl-from-file']);
+    expect(result.mode).toBe('crawl-from-file');
+    expect(result.crawlFromFileArg).toBe('crawl-from-file');
   });
 });
 
@@ -221,6 +262,41 @@ vi.mock('./staleness-sync', () => ({
   createJobStalenessSyncConfig: createJobStalenessSyncConfigMock,
 }));
 
+// `./re-crawl-from-file` reads real files via `fs`; stub it so the
+// `re-crawl-from-file` mode's CLI wiring can be asserted (path passed
+// through, resulting job ids forwarded into `createJobStalenessSyncConfig`
+// via `buildJobIdWhere`) without touching the filesystem. `buildJobIdWhere`
+// is the real implementation (pure, no I/O) so the exact `where` shape
+// forwarded to `createJobStalenessSyncConfig` is verified end-to-end.
+const { readJobIdsFromCsvFileMock } = vi.hoisted(() => ({
+  readJobIdsFromCsvFileMock: vi.fn(async () => [] as string[]),
+}));
+vi.mock('./re-crawl-from-file', async importOriginal => {
+  const actual =
+    await importOriginal<typeof import('./re-crawl-from-file')>();
+  return {
+    ...actual,
+    readJobIdsFromCsvFile: readJobIdsFromCsvFileMock,
+  };
+});
+
+// `./export-liked-jobs` builds a real `JobPreferenceService` (Supabase) and
+// writes real files; stub it so the `export-liked-jobs` mode's CLI wiring
+// (userId/preference/outputPath forwarding) can be asserted without touching
+// Supabase or the filesystem.
+const { fetchJobIdsByUserPreferenceMock, writeJobIdsCsvMock } = vi.hoisted(
+  () => ({
+    fetchJobIdsByUserPreferenceMock: vi.fn(
+      async () => [] as string[],
+    ),
+    writeJobIdsCsvMock: vi.fn(async () => undefined),
+  }),
+);
+vi.mock('./export-liked-jobs', () => ({
+  fetchJobIdsByUserPreference: fetchJobIdsByUserPreferenceMock,
+  writeJobIdsCsv: writeJobIdsCsvMock,
+}));
+
 // `./104/handler` and `./cake/handler` are DOM-extraction call paths this
 // task must NOT touch. Stub them minimally so `crawl` mode dispatch can be
 // exercised without invoking real `PuppeteerCrawler`/`crawlee`.
@@ -251,6 +327,21 @@ vi.mock('crawlee', () => ({
 }));
 
 vi.mock('dotenv', () => ({ config: vi.fn() }));
+
+// `./handoff/ingest-handoff-file` is task 3.1's already-implemented
+// orchestrator; mock it so this task's CLI wiring tests assert *how* it's
+// called (path + shared `keywords`) without exercising its real file I/O,
+// crawler construction, or Supabase-backed `sourceRegistry` calls.
+const { ingestHandoffFileMock } = vi.hoisted(() => ({
+  ingestHandoffFileMock: vi.fn(async () => ({
+    processedPages: 0,
+    skippedAlreadyCompletedPages: 0,
+    rejectedItemIssues: [] as { pageIndex: number; itemIndex?: number; reason: string }[],
+  })),
+}));
+vi.mock('./handoff/ingest-handoff-file', () => ({
+  ingestHandoffFile: ingestHandoffFileMock,
+}));
 
 describe('main() dispatch wiring (post sync-core migration)', () => {
   const originalArgv = process.argv;
@@ -386,6 +477,168 @@ describe('main() dispatch wiring (post sync-core migration)', () => {
     );
   });
 
+  it('re-crawl-from-file=<path> mode reads job ids from the CSV and forwards an id-in where clause to createJobStalenessSyncConfig, then runs the engine', async () => {
+    readJobIdsFromCsvFileMock.mockResolvedValueOnce(['job-1', 'job-2']);
+
+    await runMainWithArgv(['re-crawl-from-file=/tmp/ids.csv']);
+
+    expect(readJobIdsFromCsvFileMock).toHaveBeenCalledWith(
+      '/tmp/ids.csv',
+    );
+    expect(createJobStalenessSyncConfigMock).toHaveBeenCalledWith(
+      ['Node.js'],
+      { id: { in: '(job-1,job-2)' } },
+    );
+    expect(createStalenessSyncEngineMock).toHaveBeenCalledWith(
+      fakeStalenessConfig,
+    );
+    expect(stalenessRunMock).toHaveBeenCalledWith(
+      { launchContext: 'fake' },
+      { hook: 'fake' },
+    );
+    expect(resolveSourcesToProcessMock).not.toHaveBeenCalled();
+  });
+
+  it('re-crawl-from-file mode (no path given) rejects with a clear, descriptive error before reading any file, and main() reports it via the top-level catch handler', async () => {
+    const exitSpy = vi
+      .spyOn(process, 'exit')
+      .mockImplementation(() => undefined as never);
+    const errorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+
+    await runMainWithArgv(['re-crawl-from-file']);
+
+    expect(readJobIdsFromCsvFileMock).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      'Crawler failed:',
+      expect.objectContaining({
+        message: expect.stringContaining('re-crawl-from-file'),
+      }),
+    );
+    expect(exitSpy).toHaveBeenCalledWith(1);
+
+    exitSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
+  it('re-crawl-from-file mode propagates a descriptive error when the CSV has no job ids, without touching sync-core', async () => {
+    const exitSpy = vi
+      .spyOn(process, 'exit')
+      .mockImplementation(() => undefined as never);
+    const errorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    readJobIdsFromCsvFileMock.mockRejectedValueOnce(
+      new Error('Job id CSV file contains no job ids: /tmp/empty.csv'),
+    );
+
+    await runMainWithArgv(['re-crawl-from-file=/tmp/empty.csv']);
+
+    expect(createJobStalenessSyncConfigMock).not.toHaveBeenCalled();
+    expect(createStalenessSyncEngineMock).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      'Crawler failed:',
+      expect.objectContaining({
+        message: 'Job id CSV file contains no job ids: /tmp/empty.csv',
+      }),
+    );
+    expect(exitSpy).toHaveBeenCalledWith(1);
+
+    exitSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
+  it('export-liked-jobs mode fetches liked job ids for the given user and writes them to the given path, defaulting preference to "like"', async () => {
+    fetchJobIdsByUserPreferenceMock.mockResolvedValueOnce([
+      'job-1',
+      'job-2',
+    ]);
+
+    await runMainWithArgv([
+      'export-liked-jobs',
+      'user=user-1',
+      'out=/tmp/liked.csv',
+    ]);
+
+    expect(fetchJobIdsByUserPreferenceMock).toHaveBeenCalledWith(
+      'user-1',
+      'like',
+    );
+    expect(writeJobIdsCsvMock).toHaveBeenCalledWith(
+      ['job-1', 'job-2'],
+      '/tmp/liked.csv',
+    );
+    expect(createStalenessSyncEngineMock).not.toHaveBeenCalled();
+    expect(resolveSourcesToProcessMock).not.toHaveBeenCalled();
+  });
+
+  it('export-liked-jobs mode forwards an explicit "dislike" preference', async () => {
+    await runMainWithArgv([
+      'export-liked-jobs',
+      'user=user-1',
+      'out=/tmp/disliked.csv',
+      'preference=dislike',
+    ]);
+
+    expect(fetchJobIdsByUserPreferenceMock).toHaveBeenCalledWith(
+      'user-1',
+      'dislike',
+    );
+  });
+
+  it('export-liked-jobs mode rejects with a clear error when user= or out= is missing, without fetching or writing anything', async () => {
+    const exitSpy = vi
+      .spyOn(process, 'exit')
+      .mockImplementation(() => undefined as never);
+    const errorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+
+    await runMainWithArgv(['export-liked-jobs', 'user=user-1']);
+
+    expect(fetchJobIdsByUserPreferenceMock).not.toHaveBeenCalled();
+    expect(writeJobIdsCsvMock).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      'Crawler failed:',
+      expect.objectContaining({
+        message: expect.stringContaining('export-liked-jobs'),
+      }),
+    );
+    expect(exitSpy).toHaveBeenCalledWith(1);
+
+    exitSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
+  it('export-liked-jobs mode rejects an invalid preference value before fetching anything', async () => {
+    const exitSpy = vi
+      .spyOn(process, 'exit')
+      .mockImplementation(() => undefined as never);
+    const errorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+
+    await runMainWithArgv([
+      'export-liked-jobs',
+      'user=user-1',
+      'out=/tmp/liked.csv',
+      'preference=maybe',
+    ]);
+
+    expect(fetchJobIdsByUserPreferenceMock).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      'Crawler failed:',
+      expect.objectContaining({
+        message: expect.stringContaining('invalid preference'),
+      }),
+    );
+    expect(exitSpy).toHaveBeenCalledWith(1);
+
+    exitSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
   it('job-salary mode is untouched: still queries JobService and calls updateMultiple, without touching sync-core at all', async () => {
     jobServiceFetchAllMock.mockResolvedValueOnce({
       result: [
@@ -452,5 +705,41 @@ describe('main() dispatch wiring (post sync-core migration)', () => {
     await runMainWithArgv(['re-crawl']);
 
     expect(resolveSourcesToProcessMock).not.toHaveBeenCalled();
+  });
+
+  it('crawl-from-file=<path> mode calls ingestHandoffFile with the path and the same keywords array used by other modes, without touching any other mode\'s logic (mode-exclusive dispatch)', async () => {
+    await runMainWithArgv(['crawl-from-file=/tmp/handoff.json']);
+
+    expect(ingestHandoffFileMock).toHaveBeenCalledWith(
+      '/tmp/handoff.json',
+      ['Node.js'],
+    );
+    expect(resolveSourcesToProcessMock).not.toHaveBeenCalled();
+    expect(createStalenessSyncEngineMock).not.toHaveBeenCalled();
+    expect(jobServiceFetchAllMock).not.toHaveBeenCalled();
+    expect(generateJobKeywordsFromLinesMock).not.toHaveBeenCalled();
+  });
+
+  it('crawl-from-file mode (no path given) rejects with a clear, descriptive error before calling ingestHandoffFile, and main() reports it via the top-level catch handler', async () => {
+    const exitSpy = vi
+      .spyOn(process, 'exit')
+      .mockImplementation(() => undefined as never);
+    const errorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+
+    await runMainWithArgv(['crawl-from-file']);
+
+    expect(ingestHandoffFileMock).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(
+      'Crawler failed:',
+      expect.objectContaining({
+        message: expect.stringContaining('crawl-from-file'),
+      }),
+    );
+    expect(exitSpy).toHaveBeenCalledWith(1);
+
+    exitSpy.mockRestore();
+    errorSpy.mockRestore();
   });
 });

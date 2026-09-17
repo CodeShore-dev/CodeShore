@@ -1,18 +1,26 @@
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
-import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, OnModuleInit, Optional } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Cache } from 'cache-manager';
 
+import { ServiceLogger } from '@codeshore/service-logger';
+
 import { cacheALS } from './cache-context';
+import { REDIS_CACHE } from './redis-cache.provider';
+
+/** Which underlying store a cache entry is read from / written to. */
+export type CacheBackend = 'memory' | 'redis';
 
 export interface CacheGetOrSetOptions {
   ttl?: number; // seconds; undefined = no expiry
+  backend?: CacheBackend; // default 'memory'
 }
 
 interface CacheEntryMeta {
   createdAt: number; // epoch ms
   ttl?: number; // ms; undefined = no expiry
   size: number; // approximate serialized size in bytes
+  backend: CacheBackend; // which backend this entry was written to
 }
 
 export interface CacheEntryInfo {
@@ -24,6 +32,7 @@ export interface CacheEntryInfo {
   remainingSeconds: number | null; // time until expiry, null = no expiry
   size: number; // approximate size in bytes
   sizeHuman: string; // human readable size, e.g. "1.2 KB"
+  backend: CacheBackend; // which backend this entry is stored on
 }
 
 @Injectable()
@@ -37,10 +46,27 @@ export class CacheService implements OnModuleInit {
     return CacheService._instance;
   }
 
-  constructor(@Inject(CACHE_MANAGER) private readonly cache: Cache) {}
+  constructor(
+    @Inject(CACHE_MANAGER) private readonly memoryCache: Cache,
+    @Optional()
+    @Inject(REDIS_CACHE)
+    private readonly redisCache: Cache | undefined,
+    @Inject(ServiceLogger) private readonly logger: ServiceLogger,
+  ) {}
 
   onModuleInit() {
     CacheService._instance = this;
+  }
+
+  /**
+   * Resolves which `Cache` instance a given backend selection maps to.
+   * `'memory'` always resolves to the always-available memory cache;
+   * `'redis'` resolves to the injected `REDIS_CACHE` instance, which may be
+   * `undefined` when Redis is unconfigured or failed to initialize (handled
+   * by task 2.2's degradation logic, not here).
+   */
+  private resolveCache(backend: CacheBackend): Cache | undefined {
+    return backend === 'redis' ? this.redisCache : this.memoryCache;
   }
 
   async getOrSet<T>(
@@ -48,36 +74,108 @@ export class CacheService implements OnModuleInit {
     fn: () => Promise<T>,
     opts?: CacheGetOrSetOptions,
   ): Promise<T> {
-    const cached = await this.cache.get<T>(key);
+    const backend = opts?.backend ?? 'memory';
+    const cache = this.resolveCache(backend);
+    if (!cache) {
+      // Only reachable for `backend === 'redis'` when Redis is unconfigured
+      // or failed to initialize (`resolveCache` always returns a `Cache` for
+      // 'memory'). Per Req 4.2/5.1/5.2: skip the cache entirely, run the
+      // caller's original logic, and don't treat this as an error.
+      return fn();
+    }
+
+    let cached: T | null | undefined;
+    try {
+      cached = await cache.get<T>(key);
+    } catch (error) {
+      if (backend === 'redis') {
+        // Req 5.1/5.2: a runtime Redis failure degrades to running the
+        // caller's original logic -- never surfaced as a request failure.
+        this.logger.warn('Redis cache backend read failed; skipping cache.', {
+          key,
+          error: error instanceof Error ? error.message : error,
+        });
+        return fn();
+      }
+      // 'memory' never had error handling before this feature and must
+      // not gain any now -- propagate exactly as before.
+      throw error;
+    }
+
     if (cached !== null && cached !== undefined) {
       const store = cacheALS.getStore();
       if (store) store.cacheStatus = 'HIT';
       return cached;
     }
+
     const store = cacheALS.getStore();
     if (store) store.cacheStatus = 'MISS';
+    // `fn()` is intentionally called outside any try/catch guarding the
+    // cache operations: the caller's own logic failing is a completely
+    // different failure mode and must always propagate unchanged, never be
+    // swallowed or reinterpreted as a cache degradation.
     const result = await fn();
-    await this.cache.set(key, result, opts?.ttl);
-    this.meta.set(key, {
-      createdAt: Date.now(),
-      ttl: opts?.ttl,
-      size: byteSize(result),
-    });
+
+    try {
+      await cache.set(key, result, opts?.ttl);
+      this.meta.set(key, {
+        createdAt: Date.now(),
+        ttl: opts?.ttl,
+        size: byteSize(result),
+        backend,
+      });
+    } catch (error) {
+      if (backend === 'redis') {
+        // Req 5.1/5.2: the write failed, but the caller still gets their
+        // correct, already-computed result.
+        this.logger.warn('Redis cache backend write failed; skipping cache.', {
+          key,
+          error: error instanceof Error ? error.message : error,
+        });
+        return result;
+      }
+      throw error;
+    }
+
     return result;
   }
 
   async invalidate(keys: string | string[]): Promise<string[]> {
     const list = Array.isArray(keys) ? keys : [keys];
-    await Promise.all(list.map(k => this.cache.del(k)));
+    await Promise.all(
+      list.map(async k => {
+        const backend = this.meta.get(k)?.backend ?? 'memory';
+        const cache = this.resolveCache(backend);
+        if (!cache) {
+          // Only reachable for `backend === 'redis'` when Redis is
+          // unconfigured or unavailable -- there's nothing to delete, treat
+          // the key as already gone (Req 6.2).
+          return;
+        }
+        try {
+          await cache.del(k);
+        } catch (error) {
+          if (backend === 'redis') {
+            // Req 5.1/5.2-style degradation: don't let one key's Redis
+            // failure abort clearing the rest of the batch.
+            this.logger.warn('Redis cache backend delete failed; skipping.', {
+              key: k,
+              error: error instanceof Error ? error.message : error,
+            });
+            return;
+          }
+          // 'memory' never had error handling before this feature and must
+          // not gain any now -- propagate exactly as before.
+          throw error;
+        }
+      }),
+    );
     list.forEach(k => this.meta.delete(k));
     return list;
   }
 
   async invalidateAll(): Promise<string[]> {
-    const keys = [...this.meta.keys()];
-    await Promise.all(keys.map(k => this.cache.del(k)));
-    this.meta.clear();
-    return keys;
+    return this.invalidate([...this.meta.keys()]);
   }
 
   /**
@@ -103,6 +201,7 @@ export class CacheService implements OnModuleInit {
           expiresAtMs != null ? Math.round((expiresAtMs - now) / 1000) : null,
         size: m.size,
         sizeHuman: humanSize(m.size),
+        backend: m.backend,
       });
     }
     return result;

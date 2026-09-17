@@ -1,7 +1,7 @@
 import dayjs from 'dayjs';
 
 import type { SupabaseTable } from '@codeshore/data-types';
-import { JobKeywordService, JobService } from '@codeshore/data-utils';
+import { JobKeywordService, JobService, MvJobService } from '@codeshore/data-utils';
 import { parseKeywordsOut, parseSalary } from '@codeshore/shared-utils';
 import type { StalenessSyncConfig } from '@codeshore/sync-core';
 
@@ -65,16 +65,30 @@ export function createJobStalenessSyncConfig(
      */
     async fetchStaleEntities(): Promise<SupabaseTable.Job[]> {
       const todayDayjs = dayjs();
-      const yesterday = todayDayjs.subtract(1, 'day').toDate();
-      yesterday.setHours(0, 0, 0, 0);
-      const resolvedWhere = where ?? {
+      const yesterday = todayDayjs.subtract(2, 'day').toDate();
+      const resolvedWhere = {
+        ...where,
         crawled_at: { lt: yesterday.toISOString() },
       };
-      const { result: jobs } = await new JobService().fetchAll({
+      // `mv_job` 只用來篩選/排序(`avg_salary` 是 mv 才有的計算欄位),實際要
+      // 拿去比對/寫回的資料一律回頭向 `JobService` 撈原始 `job` 表資料——
+      // `mv_job.location` 是 `COALESCE(location_group.id, job.location)`,
+      // 直接拿 mv 的列來比對/寫回會把分組後的代表地點誤植回 `job.location`。
+      const { result: mvJobs, searchParams } = await new MvJobService().fetchAll({
         where: resolvedWhere,
-        orders: [{ column: 'min_salary', ascending: false }],
+        orders: [{ column: 'avg_salary', ascending: false }],
+        select: 'id',
       });
-      return jobs;
+      console.log(searchParams, `Fetched ${mvJobs.length} stale jobs for re-crawl.`);
+
+      const staleIds = mvJobs.map(job => job.id);
+      const { result: rawJobs } = await new JobService().findWhereIn('id', staleIds);
+      const rawJobsById = new Map(rawJobs.map(job => [job.id, job]));
+
+      // 保留 mv 查詢決定的順序(avg_salary desc),`findWhereIn` 不保證順序。
+      return staleIds
+        .map(id => rawJobsById.get(id))
+        .filter((job): job is SupabaseTable.Job => job !== undefined);
     },
 
     /** 對應原 `reCrawlJobs` 的 `job.detail_link`(`main.ts` L278-280)。 */
@@ -213,7 +227,10 @@ export function createJobStalenessSyncConfig(
      */
     async onBatchReady(entities: SupabaseTable.Job[]): Promise<void> {
       if (entities.length === 0) return;
-      await new JobService().upsert([...entities]);
+      const { error } = await new JobService().upsert([...entities]);
+      if (error) {
+        throw new Error(`Failed to upsert ${entities.length} job(s): ${error.message}`);
+      }
       const jobKeywords = entities
         .filter(job => entityIdsNeedingKeywordRefresh.has(job.id))
         .map(job => ({

@@ -1,8 +1,9 @@
-import { CacheService } from './cache.service';
+import { CacheBackend, CacheService } from './cache.service';
 
 export interface CacheableOptions {
   key: string;
   ttl?: number; // seconds; undefined = no expiry
+  backend?: CacheBackend; // default 'memory'
 }
 
 export interface CacheEvictOptions {
@@ -24,7 +25,10 @@ export function Cacheable(opts: CacheableOptions) {
       return cs.getOrSet(
         opts.key,
         () => original.apply(this, args),
-        { ttl: typeof opts.ttl === 'number' ? opts.ttl * 1000 : undefined },
+        {
+          ttl: typeof opts.ttl === 'number' ? opts.ttl * 1000 : undefined,
+          backend: opts.backend,
+        },
       );
     };
     return descriptor;

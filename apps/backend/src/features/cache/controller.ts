@@ -14,7 +14,11 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 
-import { CacheEntryInfo, CacheService } from '@codeshore/service-cache';
+import {
+  CacheBackend,
+  CacheEntryInfo,
+  CacheService,
+} from '@codeshore/service-cache';
 
 import { AdminOnly } from '../auth/auth.decorator';
 
@@ -36,6 +40,7 @@ export class Controller {
     count: number;
     totalSize: number;
     totalSizeHuman: string;
+    byBackend: Record<CacheBackend, BackendUsage>;
     memory: MemoryInfo;
     entries: CacheEntryInfo[];
   } {
@@ -45,6 +50,7 @@ export class Controller {
       count: entries.length,
       totalSize,
       totalSizeHuman: humanSize(totalSize),
+      byBackend: byBackendUsage(entries),
       memory: memoryInfo(),
       entries,
     };
@@ -102,6 +108,12 @@ export class Controller {
   }
 }
 
+interface BackendUsage {
+  count: number;
+  totalSize: number;
+  totalSizeHuman: string;
+}
+
 interface MemoryInfo {
   /** Resident Set Size — total memory the process holds in RAM. This is what cloud billing/limits track. */
   rss: number;
@@ -133,6 +145,29 @@ function runGc(): boolean {
 
 function parseBool(value?: string): boolean {
   return value === 'true' || value === '1' || value === '';
+}
+
+/**
+ * Groups entries by their `backend` field and computes a count/totalSize
+ * breakdown per backend. Both `'memory'` and `'redis'` keys are always
+ * present (even with zero entries) so consumers never have to guess whether
+ * a missing key means "zero" or "unsupported".
+ */
+function byBackendUsage(
+  entries: CacheEntryInfo[],
+): Record<CacheBackend, BackendUsage> {
+  const backends: CacheBackend[] = ['memory', 'redis'];
+  const result = {} as Record<CacheBackend, BackendUsage>;
+  for (const backend of backends) {
+    const subset = entries.filter(e => e.backend === backend);
+    const totalSize = subset.reduce((sum, e) => sum + e.size, 0);
+    result[backend] = {
+      count: subset.length,
+      totalSize,
+      totalSizeHuman: humanSize(totalSize),
+    };
+  }
+  return result;
 }
 
 function memoryInfo(): MemoryInfo {

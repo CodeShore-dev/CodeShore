@@ -80,12 +80,23 @@ export function JobCard({ job = {}, loading, crawl }: JobCardProps) {
     [selectedTags, techMapping],
   );
 
+  const crawledAt = useMemo(() => dayjs(job.crawled_at), [job.crawled_at]);
+  const crawledAtInfo = useMemo(
+    () =>
+      formatDateInfo(
+        crawledAt,
+        job.crawled_at ? crawledAt.format('MM/DD HH:mm') : '--/-- --:--',
+      ),
+    [crawledAt, job.crawled_at],
+  );
+
   const updatedAt = useMemo(() => dayjs(job.updated_at), [job.updated_at]);
   const updatedAtInfo = useMemo(
     () =>
       formatDateInfo(
         updatedAt,
         job.updated_at ? updatedAt.format('MM/DD HH:mm') : '--/-- --:--',
+        '更新',
       ),
     [updatedAt, job.updated_at],
   );
@@ -164,6 +175,15 @@ export function JobCard({ job = {}, loading, crawl }: JobCardProps) {
                       update
                     </span>
                     {updatedAtInfo}
+                  </span>
+                  <span
+                    className="flex items-center gap-1.5 font-medium"
+                    title={crawledAt.format('YYYY/MM/DD HH:mm:ss')}
+                  >
+                    <span className="material-symbols-outlined text-lg">
+                      sync
+                    </span>
+                    {crawledAtInfo}
                   </span>
                 </div>
               </div>

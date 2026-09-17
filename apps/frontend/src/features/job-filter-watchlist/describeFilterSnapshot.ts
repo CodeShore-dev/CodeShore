@@ -9,6 +9,12 @@ function resolveTechLabel(id: string, techLabelsById: Map<string, string>): stri
   return techLabelsById.get(id) ?? id;
 }
 
+function describeSearchText(snapshot: JobFilterSnapshot): string | null {
+  const q = snapshot.searchText.trim();
+  if (q === '') return null;
+  return `關鍵字:${q}`;
+}
+
 function describeIncludedTech(snapshot: JobFilterSnapshot, techLabelsById: Map<string, string>): string | null {
   if (snapshot.selectedTags.length === 0) return null;
   const joiner = snapshot.techOperator === 'or' ? ' 或 ' : ', ';
@@ -54,9 +60,10 @@ function describeExcludedCompanies(snapshot: JobFilterSnapshot): string | null {
 
 /**
  * Turns a job filter snapshot into a human-readable summary of its active
- * conditions (tech include/exclude, salary mode + amount, locations,
- * company include/exclude), joined with the app's existing `・` separator.
- * Falls back to a fixed "all jobs" description when no condition is active.
+ * conditions (keyword search, tech include/exclude, salary mode + amount,
+ * locations, company include/exclude), joined with the app's existing `・`
+ * separator. Falls back to a fixed "all jobs" description when no condition
+ * is active.
  *
  * Pure function: does not fetch data. Tech ids are resolved to display
  * labels via the caller-supplied `techLabelsById` map; an id with no
@@ -64,6 +71,7 @@ function describeExcludedCompanies(snapshot: JobFilterSnapshot): string | null {
  */
 function buildFragments(snapshot: JobFilterSnapshot, techLabelsById: Map<string, string>): string[] {
   return [
+    describeSearchText(snapshot),
     describeIncludedTech(snapshot, techLabelsById),
     describeExcludedTech(snapshot, techLabelsById),
     describeSalaryMode(snapshot),
@@ -84,12 +92,10 @@ export function describeFilterSnapshot(snapshot: JobFilterSnapshot, techLabelsBy
  * Whether a snapshot has no active filter condition at all -- i.e. would
  * produce the same (empty) `deriveJobWhere` result as no filter applied.
  *
- * Deliberately NOT based on `buildFragments`: `describeFilterSnapshot`'s
- * label intentionally omits `searchText` (see that function's own comment),
- * but `deriveJobWhere` still turns a non-empty `searchText` (and a
- * `salaryAmount.type` set without an amount) into a real `where` condition,
- * so both must count as "active" here even though neither shows up in the
- * label text.
+ * Deliberately NOT based on `buildFragments`: `deriveJobWhere` turns a
+ * `salaryAmount.type` set without an amount into a real `where` condition
+ * even though it produces no label fragment, so that case must still count
+ * as "active" here.
  */
 export function isFilterSnapshotEmpty(snapshot: JobFilterSnapshot): boolean {
   return (

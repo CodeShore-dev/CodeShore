@@ -62,28 +62,25 @@ function JobFilterWatchlistContent() {
   const unfollowMutation = useUnfollowMutation();
   const markViewedMutation = useMarkViewedMutation();
 
-  // Marks the combination as viewed first (requirement 3.2), then -- only
-  // once that succeeds -- navigates back to /jobs reproducing the same
-  // filter conditions it was created with (requirement 3.3: a plain /jobs
-  // visit that happens to reapply the same filters, not routed through
-  // this "view" action, must not touch last_viewed_at; gating the
-  // navigation on markViewed's onSuccess keeps that ordering intact).
+  // Fires the mark-viewed request (requirement 3.2) as fire-and-forget, then
+  // navigates immediately to /jobs reproducing the same filter conditions the
+  // combination was created with -- the /viewed round-trip must not delay the
+  // page transition. The mutation keeps running after this component unmounts;
+  // its hook-level onSuccess still invalidates the watchlist list query so the
+  // recomputed newCount/lastViewedAt show up on the next visit.
   //
-  // This was a behavioral change to the already-shipped /jobs/watchlist
-  // page (task 4.2's no-op onView/onUnfollow), implemented under the
-  // Feature Flag Protocol: RED was captured against the shipped no-ops
-  // (equivalent to an off-by-default flag) and again with an explicit
-  // `ENABLE_WATCHLIST_ACTIONS = false` local flag gating this wiring;
-  // GREEN was confirmed with the flag flipped on, then the flag was
-  // removed once proven -- this now covers the unconditional wiring below.
+  // Requirement 3.3 (a plain /jobs visit that happens to reapply the same
+  // filters, not routed through this "view" action, must not touch
+  // last_viewed_at) still holds: only this action calls markViewed, so
+  // navigating before it resolves does not change which visits update
+  // last_viewed_at. If markViewed fails, navigation still happens and the
+  // counts simply are not reset -- an accepted trade-off for a non-blocking
+  // transition.
   const handleView = (subscription: SubscriptionWithCounts) => {
-    markViewedMutation.mutate(subscription.id, {
-      onSuccess: () => {
-        const params = buildJobListSearchParams(subscription.filterSnapshot);
-        const qs = params.toString();
-        navigate(qs ? `/jobs?${qs}` : '/jobs');
-      },
-    });
+    markViewedMutation.mutate(subscription.id);
+    const params = buildJobListSearchParams(subscription.filterSnapshot);
+    const qs = params.toString();
+    navigate(qs ? `/jobs?${qs}` : '/jobs');
   };
 
   const handleUnfollow = (id: string) => {

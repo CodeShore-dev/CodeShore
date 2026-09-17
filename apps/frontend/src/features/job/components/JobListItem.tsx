@@ -40,12 +40,23 @@ export const JobListItem = memo(function JobListItem({
   onPreference,
   innerRef,
 }: JobListItemProps) {
+  const crawledAt = useMemo(() => dayjs(job.crawled_at), [job.crawled_at]);
+  const crawledAtInfo = useMemo(
+    () =>
+      formatDateInfo(
+        crawledAt,
+        job.crawled_at ? crawledAt.format('MM/DD HH:mm') : '--/-- --:--',
+      ),
+    [crawledAt, job.crawled_at],
+  );
+
   const updatedAt = useMemo(() => dayjs(job.updated_at), [job.updated_at]);
   const updatedAtInfo = useMemo(
     () =>
       formatDateInfo(
         updatedAt,
         job.updated_at ? updatedAt.format('MM/DD HH:mm') : '--/-- --:--',
+        '更新',
       ),
     [updatedAt, job.updated_at],
   );
@@ -242,14 +253,25 @@ export const JobListItem = memo(function JobListItem({
             </span>
             {job.salary}
           </span>
-          <span className="inline-flex items-center gap-1 ml-auto">
-            <span
-              className="material-symbols-outlined"
-              style={{ fontSize: '14px' }}
-            >
-              update
+          <span className="ml-auto inline-flex items-center gap-3">
+            <span className="inline-flex items-center gap-1">
+              <span
+                className="material-symbols-outlined"
+                style={{ fontSize: '14px' }}
+              >
+                update
+              </span>
+              {updatedAtInfo}
             </span>
-            {updatedAtInfo}
+            <span className="inline-flex items-center gap-1">
+              <span
+                className="material-symbols-outlined"
+                style={{ fontSize: '14px' }}
+              >
+                sync
+              </span>
+              {crawledAtInfo}
+            </span>
           </span>
         </div>
       </div>
