@@ -276,6 +276,13 @@ describe('cake/handler.ts createHandler (post sync-core migration)', () => {
     );
   });
 
+  it('wires prepareListPage and clickToNextPage for UI-driven filter selection and pagination', async () => {
+    const passedConfig = await loadPassedConfig();
+
+    expect(typeof passedConfig.prepareListPage).toBe('function');
+    expect(typeof passedConfig.clickToNextPage).toBe('function');
+  });
+
   it('matchListResponse identifies the Cake list API URL exactly as before', async () => {
     const passedConfig = await loadPassedConfig();
 

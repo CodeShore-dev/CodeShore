@@ -9,9 +9,12 @@ import {
 } from './@types';
 import { buildPersistItem } from './formatter';
 import {
+  applySearchFilters,
+  clickNextPageButton,
   extractJobDetailOnHTML,
   waitFordDetailPageSelector,
 } from './utils';
+
 
 export const parsePagination = (response: JobsAPIResponse) => ({
   currentPage: response.current_page,
@@ -29,6 +32,7 @@ export const createHandler = (
   allGroupKeywords: string[],
   totalSourceCount?: number,
   knownPageFloors?: Map<string, number>,
+  useUiFilters = false,
 ) =>
   createSyncRouter<
     JobsAPIResponse,
@@ -41,6 +45,10 @@ export const createHandler = (
     knownPageFloors,
     matchListResponse: (url: string) =>
       url.includes('/api/client/v1/jobs/search'),
+    ...(useUiFilters ? {
+      prepareListPage: applySearchFilters,
+      clickToNextPage: clickNextPageButton,
+    } : {}),
     parsePagination,
     extractItems,
     transformItem: job => ({

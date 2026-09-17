@@ -295,7 +295,7 @@ export const databaseSchema: DatabaseSchema = {
       detail: {
         role: '薪資範圍倍率',
         usage:
-          '各薪資型態（月／年）的「最高薪 ÷ 最低薪」平均倍率。來源：job。用來推估「面議／以上」職缺薪資，並被 mv_job、mv_salary_type_median_ratio 取用。',
+          '各薪資型態（月／年）的「最高薪 ÷ 最低薪」中位倍率。來源：job。用來推估「面議／以上」職缺薪資，並被 mv_job、mv_salary_type_median_ratio 取用。',
       },
     },
     {

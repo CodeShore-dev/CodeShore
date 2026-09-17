@@ -226,6 +226,7 @@ async function main() {
     case 'crawl': {
       const crawlSubMode = crawlArg?.includes('=') ? crawlArg.slice(crawlArg.indexOf('=') + 1) : undefined;
       const isFresh = crawlSubMode === 'fresh';
+      const useUiFilters = cliArgs.includes('ui-filters');
 
       if (isFresh) {
         console.log('>>> Fresh mode: clearing job_source_url...');
@@ -302,6 +303,7 @@ async function main() {
           keywords,
           totalSourceCountCake,
           knownPageFloors,
+          useUiFilters,
         );
         Configuration.getGlobalConfig().set('purgeOnStart', true);
         const crawler = new PuppeteerCrawler(makeCrawlerOptions(requestHandlerCake, [createCakeHomepageWarmupHook()]));
@@ -321,8 +323,9 @@ async function main() {
       }
       const filePath = crawlFromFileArg!.slice(crawlFromFileArg!.indexOf('=') + 1);
 
-      console.log(`>>> Ingesting handoff file: ${filePath}`);
-      const summary = await ingestHandoffFile(filePath, keywords);
+      const force = cliArgs.includes('force');
+      console.log(`>>> Ingesting handoff file: ${filePath}${force ? ' (force mode)' : ''}`);
+      const summary = await ingestHandoffFile(filePath, keywords, force);
       console.log(
         `>>> Handoff ingestion complete: processed ${summary.processedPages} page(s), ` +
           `skipped ${summary.skippedAlreadyCompletedPages} already-completed page(s)` +

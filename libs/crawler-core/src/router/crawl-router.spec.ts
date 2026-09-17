@@ -1311,7 +1311,7 @@ describe('createCrawlRouter — job source skip after consecutive empty pages', 
   it('skips the remaining pages of a job source once it hits 5 consecutive pages with no new jobs', async () => {
     const onListPageResolved = vi.fn(async () => undefined);
     const { router } = createCrawlRouter(
-      createBaseConfig({ onListPageResolved }),
+      createBaseConfig({ onListPageResolved, maxConsecutiveEmptyListPages: 5 }),
     );
 
     // Pages 1-5 all come back with zero new items (everything already exists)
@@ -1347,6 +1347,7 @@ describe('createCrawlRouter — job source skip after consecutive empty pages', 
     const { router } = createCrawlRouter(
       createBaseConfig({
         onListPageResolved,
+        maxConsecutiveEmptyListPages: 5,
         knownPageFloors: new Map([[sourceKey, 5]]),
       }),
     );

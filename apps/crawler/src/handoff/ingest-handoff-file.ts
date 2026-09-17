@@ -86,6 +86,7 @@ async function ingestPagesForHost<TListResponse, TRawItem extends CrawlItemBase>
   pages: HandoffPage[],
   pendingKeys: ReadonlySet<string>,
   router: CrawlRouterResult<TRawItem>,
+  force: boolean,
   parsePagination: (response: TListResponse) => {
     currentPage: number;
     totalPages: number;
@@ -103,6 +104,7 @@ async function ingestPagesForHost<TListResponse, TRawItem extends CrawlItemBase>
     // against `pendingKeys`, which was built from already-base
     // `SourceLocation.url` values.
     if (
+      !force &&
       !pendingKeys.has(
         buildPendingKey(getSourceKey(page.sourceUrl), page.pageIndex),
       )
@@ -223,6 +225,7 @@ async function runIngestionCrawler<TRawItem extends CrawlItemBase>(
 export async function ingestHandoffFile(
   filePath: string,
   keywords: string[],
+  force = false,
 ): Promise<HandoffIngestionSummary> {
   const { file, validPages, issues } = await loadHandoffFile(filePath);
 
@@ -239,6 +242,7 @@ export async function ingestHandoffFile(
       validPages,
       pendingKeys,
       router,
+      force,
       parsePaginationCake,
       extractItemsCake,
       toRawItemFromMinimalCake,
@@ -250,6 +254,7 @@ export async function ingestHandoffFile(
       validPages,
       pendingKeys,
       router,
+      force,
       parsePagination104,
       extractItems104,
       toRawItemFromMinimal104,

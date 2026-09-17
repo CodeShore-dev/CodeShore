@@ -163,7 +163,7 @@ describe('JobFilterWatchlistPage', () => {
     expect(screen.getByText('地點：台北')).toBeInTheDocument();
   });
 
-  it('clicking a subscription marks it viewed then navigates to /jobs with the reconstructed filter query string (Req 3.2, 3.3)', async () => {
+  it('clicking a subscription fires markViewed and navigates to /jobs with the reconstructed filter query string (Req 3.2, 3.3)', async () => {
     useAuthStore.setState({ user: authedUser, isLoading: false });
     fetchWatchlist.mockResolvedValue(subscriptions);
     markWatchlistViewed.mockResolvedValue({
@@ -197,7 +197,7 @@ describe('JobFilterWatchlistPage', () => {
     expect(params.get('notCompanies')).toBe('A公司');
   });
 
-  it('does not navigate when markViewed fails (Req 3.2 only updates after a confirmed view)', async () => {
+  it('navigates even when markViewed fails (markViewed is fire-and-forget, must not block the transition)', async () => {
     useAuthStore.setState({ user: authedUser, isLoading: false });
     fetchWatchlist.mockResolvedValue(subscriptions);
     markWatchlistViewed.mockRejectedValue(new Error('not found'));
@@ -213,9 +213,9 @@ describe('JobFilterWatchlistPage', () => {
     const viewTrigger = await screen.findByText('技術：React・薪資 60k+');
     await userEvent.click(viewTrigger);
 
+    expect(markWatchlistViewed).toHaveBeenCalledWith('sub-1');
     await waitFor(() => {
-      expect(markWatchlistViewed).toHaveBeenCalledWith('sub-1');
+      expect(lastLocation?.pathname).toBe('/jobs');
     });
-    expect(lastLocation?.pathname).toBe('/jobs/watchlist');
   });
 });

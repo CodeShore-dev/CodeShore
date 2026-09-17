@@ -328,7 +328,7 @@ CREATE MATERIALIZED VIEW public."mv_location_tech" AS
 
 CREATE MATERIALIZED VIEW public."mv_salary_range_multiplier" AS
  SELECT salary_type,
-    round(avg(max_salary::numeric / min_salary::numeric), 2) AS ratio
+    round(percentile_cont(0.5::double precision) WITHIN GROUP (ORDER BY max_salary::numeric / min_salary::numeric)::numeric, 2) AS ratio
    FROM job
   WHERE min_salary > 0 AND max_salary < 9999999 AND max_salary >= min_salary AND (salary_type = ANY (ARRAY['month'::text, 'year'::text]))
   GROUP BY salary_type;

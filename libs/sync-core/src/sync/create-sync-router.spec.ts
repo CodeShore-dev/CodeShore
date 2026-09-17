@@ -207,6 +207,51 @@ describe('createSyncRouter', () => {
     );
   });
 
+  it('skips registerPendingPages when skipPendingPageRegistration is true, even for first page of multi-page source', async () => {
+    const repository = createMockRepository();
+    const sourceRegistry = createMockSourceRegistry();
+
+    createSyncRouter<ListResponse, RawItem, Detail, Entity, ExistingMeta>({
+      matchListResponse: url => url.includes('/api/list'),
+      parsePagination: response => ({
+        currentPage: response.page,
+        totalPages: response.totalPages,
+        totalEntries: response.totalEntries,
+      }),
+      extractItems: response => response.items,
+      detailPageWaitSelector: '.detail-root',
+      extractDetailOnHTML: () => ({ description: 'x' }),
+      buildPersistItem: item => ({ id: item.id, description: 'x' }),
+      repository,
+      sourceRegistry,
+    });
+
+    const passedConfig = createCrawlRouterMock.mock.calls[0][0] as CrawlRouterConfig<
+      ListResponse,
+      RawItem,
+      Detail,
+      Entity,
+      ExistingMeta
+    >;
+
+    const event: ListPageResolvedEvent = {
+      url: 'https://example.test/source-a',
+      page: 1,
+      totalPages: 3,
+      status: 'completed',
+      skipPendingPageRegistration: true,
+    };
+    await passedConfig.onListPageResolved(event);
+
+    expect(sourceRegistry.registerPendingPages).not.toHaveBeenCalled();
+    expect(sourceRegistry.markSourceStatus).toHaveBeenCalledTimes(1);
+    expect(sourceRegistry.markSourceStatus).toHaveBeenCalledWith(
+      'https://example.test/source-a',
+      1,
+      'completed',
+    );
+  });
+
   it('only calls markSourceStatus (not registerPendingPages) when a completed page is not the first page', async () => {
     const repository = createMockRepository();
     const sourceRegistry = createMockSourceRegistry();

@@ -9,6 +9,7 @@ import {
   generateNextUrlToEnqueue,
   getPageIndex,
   getSourceKey,
+  setPageIndex,
 } from '../url';
 import type {
   CapturedListPage,
@@ -88,7 +89,9 @@ async function interceptListResponse<TListResponse>(
     matchListResponse: (url: string) => boolean;
     listResponseTimeoutMs?: number;
     maxListRetries?: number;
+    prepareListPage?: (page: Page) => Promise<void>;
     waitForListPage?: (page: Page) => Promise<void>;
+    triggerAction?: () => Promise<void>;
     logger?: {
       info: (msg: string) => void;
       warning: (msg: string) => void;
@@ -100,6 +103,15 @@ async function interceptListResponse<TListResponse>(
     options.listResponseTimeoutMs ?? DEFAULT_LIST_RESPONSE_TIMEOUT_MS;
   const maxRetries = options.maxListRetries ?? DEFAULT_MAX_LIST_RETRIES;
   const log = options.logger ?? defaultLogger;
+
+  // Run filter/preparation actions once, before setting up the response listener.
+  // These actions trigger intermediate API responses that must NOT be captured
+  // by the listener (which is set up inside the retry loop below). After this
+  // call the page URL has changed to the filtered URL; the retry loop will
+  // reload that URL so the listener can capture a clean API response.
+  if (options.prepareListPage) {
+    await options.prepareListPage(page).catch(() => undefined);
+  }
 
   let lastError: unknown;
 
@@ -133,8 +145,21 @@ async function interceptListResponse<TListResponse>(
     });
 
     try {
-      if (attempt > 1) {
-        log.warning(`Retry ${attempt}/${maxRetries} for list response`);
+      if (options.triggerAction) {
+        // Click-based action (e.g., pagination button) triggers the API call.
+        // The listener is already set up above; the action causes navigation
+        // and the resulting API response is captured by the listener.
+        await options.triggerAction();
+      } else if (attempt > 1 || options.prepareListPage) {
+        // Reload to trigger a fresh API response so the listener (now set up)
+        // can capture it:
+        // - prepareListPage case (attempt 1): filter clicks changed the URL;
+        //   reload from the new filtered URL to get a clean API call.
+        // - retry case (attempt 2+): previous attempt timed out; reload to
+        //   trigger a new API call (existing behaviour).
+        if (attempt > 1) {
+          log.warning(`Retry ${attempt}/${maxRetries} for list response`);
+        }
         await page.reload();
       }
       if (options.waitForListPage) {
@@ -284,7 +309,7 @@ export function createCrawlRouter<
   // 以清單頁 URL 為鍵,記錄還剩幾個 DETAIL 請求待處理。
   const pendingListPageCompletions = new Map<
     string,
-    { page: number; totalPages: number; remaining: number }
+    { page: number; totalPages: number; remaining: number; skipPendingPageRegistration?: boolean }
   >();
 
   const maybeCompleteListPage = async (listPageUrl: string): Promise<void> => {
@@ -296,6 +321,7 @@ export function createCrawlRouter<
       page: pending.page,
       totalPages: pending.totalPages,
       status: 'completed',
+      skipPendingPageRegistration: pending.skipPendingPageRegistration,
     });
   };
 
@@ -353,6 +379,7 @@ export function createCrawlRouter<
     currentPage: number,
     totalPages: number,
     rawItems: TRawItem[],
+    opts?: { skipPendingPageRegistration?: boolean },
   ): Promise<{ hasNoDetailRequestsToEnqueue: boolean }> => {
     const sourceKey = getSourceKey(sourceUrl);
     const sourceProgress = describeSourceProgress(sourceKey);
@@ -387,6 +414,7 @@ export function createCrawlRouter<
         page: currentPage,
         totalPages,
         remaining: requestsToEnqueue.length,
+        skipPendingPageRegistration: opts?.skipPendingPageRegistration,
       });
       const queue = await RequestQueue.open();
       await queue.addRequests(requestsToEnqueue);
@@ -528,6 +556,7 @@ export function createCrawlRouter<
         matchListResponse: config.matchListResponse,
         listResponseTimeoutMs: config.listResponseTimeoutMs,
         maxListRetries: config.maxListRetries,
+        prepareListPage: config.prepareListPage,
         waitForListPage: config.waitForListPage,
         logger: config.logger,
       });
@@ -576,48 +605,134 @@ export function createCrawlRouter<
 
         const rawItems = config.extractItems(listResponse);
 
+        const useClickPagination = !!config.clickToNextPage;
+
         const { hasNoDetailRequestsToEnqueue } = await ingestListPageItems(
           request.url,
           currentPage,
           totalPages,
           rawItems,
+          useClickPagination ? { skipPendingPageRegistration: true } : undefined,
         );
 
-        // 必須排在上方 detail 佇列之後:RequestQueue 依插入順序(FIFO)派工,
-        // 先把本頁的 DETAIL 請求排入,才能確保它們在「下一頁清單」之前被處理
-        // (對應原 `handler.ts` detail `priority: 1` 高於下一頁 `priority: 0` 的意圖)。
-        if (currentPage < totalPages && !skippedSources.has(sourceKey)) {
-          await enqueueLinks({
-            urls: generateNextUrlToEnqueue(request.url),
-            transformRequestFunction: req => ({
-              ...req,
-              priority: 0,
-            }),
-          });
+        if (useClickPagination) {
+          // In-session click-through pagination: click the next-page button in
+          // the same browser session for all remaining pages, instead of
+          // enqueueing separate Crawlee requests per page URL.
+          let loopPage = currentPage;
+          let loopTotalPages = totalPages;
+
+          while (loopPage < loopTotalPages && !skippedSources.has(sourceKey)) {
+            let nextListResponse: TListResponse;
+            try {
+              nextListResponse = await interceptListResponse<TListResponse>(page, {
+                matchListResponse: config.matchListResponse,
+                listResponseTimeoutMs: config.listResponseTimeoutMs,
+                maxListRetries: 1,
+                triggerAction: async () => {
+                  const hasNext = await config.clickToNextPage!(page);
+                  if (!hasNext) throw new Error('Pagination ended: no next-page button found');
+                },
+                logger: config.logger,
+              });
+            } catch (err) {
+              log.warning(`In-session pagination stopped at page ${loopPage}/${loopTotalPages}: ${err}`);
+              break;
+            }
+
+            loopPage++;
+            const loopPagination = config.parsePagination(nextListResponse);
+            loopTotalPages = loopPagination.totalPages;
+            batchSize = config.resolveBatchSize
+              ? config.resolveBatchSize(nextListResponse)
+              : 1;
+
+            log.info(
+              `page ${loopPage} / ${loopTotalPages}, total: ${loopPagination.totalEntries}`,
+            );
+
+            // Use a synthetic URL (source URL with page param set) as the
+            // tracking key for this in-session page. This key never enters the
+            // Crawlee request queue; it exists only for pendingListPageCompletions
+            // to track DETAIL requests per page without key collisions.
+            const loopSourceUrl = setPageIndex(request.url, loopPage);
+            const { hasNoDetailRequestsToEnqueue: loopEmpty } = await ingestListPageItems(
+              loopSourceUrl,
+              loopPage,
+              loopTotalPages,
+              config.extractItems(nextListResponse),
+              { skipPendingPageRegistration: true },
+            );
+
+            if (loopEmpty) {
+              await config.onListPageResolved({
+                url: loopSourceUrl,
+                page: loopPage,
+                totalPages: loopTotalPages,
+                status: 'completed',
+                skipPendingPageRegistration: true,
+              });
+            }
+
+            lastKnownListPage = loopPage;
+            lastKnownTotalListPages = loopTotalPages;
+            const loopElapsed = Date.now() - pageStart;
+            listPageTracker.recordSample(loopElapsed);
+            log.info(
+              `List page ${loopPage}/${loopTotalPages} took ${formatDuration(loopElapsed)}. Est. finish: ${estimateFinishTime()}`,
+            );
+          }
+
+          // For page 1 with no new items, report completion immediately.
+          // Pages with DETAIL requests are reported when those requests finish
+          // (via maybeCompleteListPage), same as the URL-based path.
+          if (hasNoDetailRequestsToEnqueue) {
+            await config.onListPageResolved({
+              url: request.url,
+              page: currentPage,
+              totalPages,
+              status: 'completed',
+              skipPendingPageRegistration: true,
+            });
+          }
+        } else {
+          // URL-based pagination: enqueue the next page URL into the Crawlee
+          // request queue. Must come after DETAIL enqueue so DETAIL requests
+          // are processed first (FIFO queue, DETAIL has higher priority).
+          if (currentPage < totalPages && !skippedSources.has(sourceKey)) {
+            await enqueueLinks({
+              urls: generateNextUrlToEnqueue(request.url),
+              transformRequestFunction: req => ({
+                ...req,
+                priority: 0,
+              }),
+            });
+          }
+
+          // Report completion immediately only when this page has no new items
+          // (no DETAIL requests to wait for). Otherwise maybeCompleteListPage
+          // handles it after all DETAIL requests finish.
+          // Intentionally placed after enqueueLinks to avoid double-reporting
+          // if enqueueLinks throws (withErrorIsolation's failure path would
+          // fire onListPageResolved again with status: 'failed').
+          if (hasNoDetailRequestsToEnqueue) {
+            await config.onListPageResolved({
+              url: request.url,
+              page: currentPage,
+              totalPages,
+              status: 'completed',
+            });
+          }
+
+          lastKnownListPage = currentPage;
+          lastKnownTotalListPages = totalPages;
+          const pageElapsed = Date.now() - pageStart;
+          listPageTracker.recordSample(pageElapsed);
+          log.info(
+            `List page ${currentPage}/${totalPages} took ${formatDuration(pageElapsed)}. Est. finish: ${estimateFinishTime()}`,
+          );
         }
 
-        // 只有這頁沒有新項目(沒有 DETAIL 請求要等)時才立刻標記完成;否則交由
-        // DETAIL handler 在所有本頁 DETAIL 請求都處理完後透過
-        // `maybeCompleteListPage` 標記,詳見 `ingestListPageItems` 宣告處的說明。
-        // 刻意排在上方 `enqueueLinks` 之後,維持與重構前一致的呼叫順序——避免
-        // `enqueueLinks` 拋出例外時,外層 `withErrorIsolation` 失敗路徑又補發一次
-        // `status: 'failed'`,對同一頁重複/衝突回報 completed 與 failed。
-        if (hasNoDetailRequestsToEnqueue) {
-          await config.onListPageResolved({
-            url: request.url,
-            page: currentPage,
-            totalPages,
-            status: 'completed',
-          });
-        }
-
-        lastKnownListPage = currentPage;
-        lastKnownTotalListPages = totalPages;
-        const pageElapsed = Date.now() - pageStart;
-        listPageTracker.recordSample(pageElapsed);
-        log.info(
-          `List page ${currentPage}/${totalPages} took ${formatDuration(pageElapsed)}. Est. finish: ${estimateFinishTime()}`,
-        );
         return LIST_PAGE_SUCCESS;
       },
     );

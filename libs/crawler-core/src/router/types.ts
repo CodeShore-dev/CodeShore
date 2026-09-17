@@ -32,6 +32,13 @@ export interface ListPageResolvedEvent {
   page: number;
   totalPages: number;
   status: ListPageStatus;
+  /**
+   * 設為 `true` 時,`createSyncRouter` 的 `onListPageResolved` 跳過
+   * `registerPendingPages` 的呼叫——用於 `clickToNextPage` 的 in-session 分頁
+   * 模式:後續分頁在同一個瀏覽器 session 內點擊翻頁按鈕取得,不需要 Crawlee
+   * 分別排入各分頁 URL 請求。
+   */
+  skipPendingPageRegistration?: boolean;
 }
 
 /**
@@ -51,8 +58,21 @@ export interface CrawlRouterConfig<
   listResponseTimeoutMs?: number;
   /** 清單 API 回應逾時後的最大重試次數。預設 10。 */
   maxListRetries?: number;
+  /**
+   * 清單頁載入後、設定回應監聽器之前執行的預備動作——例如點選篩選條件。
+   * 這類動作會觸發多次中間 API 回應,必須在監聽器架設之前完成,以免監聽器
+   * 提前捕捉到非最終結果的回應。動作完成後,引擎會立即對目前 URL 執行
+   * `page.reload()`,以觸發乾淨的 API 呼叫供監聽器捕捉。
+   */
+  prepareListPage?: (page: Page) => Promise<void>;
   /** 清單頁載入後、等待清單 API 回應前,可選的額外等待邏輯。 */
   waitForListPage?: (page: Page) => Promise<void>;
+  /**
+   * 當提供此 callback 時,引擎改為 in-session 點擊翻頁:在同一個瀏覽器
+   * session 內點擊「下一頁」按鈕取得後續分頁,而非把分頁 URL 排入 Crawlee
+   * 請求佇列。回傳 `true` 表示已點擊且還有後續分頁,`false` 表示已無下一頁。
+   */
+  clickToNextPage?: (page: Page) => Promise<boolean>;
   /** 將清單 API 回應轉換為分頁中繼資訊,不假設任何特定欄位命名(對應需求 3.3)。 */
   parsePagination: (response: TListResponse) => {
     currentPage: number;

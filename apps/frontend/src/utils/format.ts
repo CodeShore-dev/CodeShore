@@ -28,22 +28,20 @@ export const formatNumber = (
 export const formatDateInfo = (
   date: dayjs.Dayjs,
   formattedDate: string,
+  action = '重爬',
 ) => {
   const now = dayjs();
-  const dayjsObj = date;
-  const diffDays = now.diff(dayjsObj, 'days');
-  const diffHours = now.diff(dayjsObj, 'hours');
-  const diffMinutes = now.diff(dayjsObj, 'minutes');
+  const diffDays = now.diff(date, 'days');
+  const diffHours = now.diff(date, 'hours');
+  const diffMinutes = now.diff(date, 'minutes');
   if (diffDays > 0) {
-    if (diffDays > 10) {
-      return '重爬於 ' + formattedDate;
-    }
-    return diffDays + ' 天前重爬';
+    if (diffDays > 10) return action + '於 ' + formattedDate;
+    return diffDays + ` 天前${action}`;
   } else if (diffHours > 0) {
-    return diffHours + ' 小時前重爬';
+    return diffHours + ` 小時前${action}`;
   } else if (diffMinutes > 60) {
-    return diffMinutes + '分鐘前重爬';
+    return diffMinutes + `分鐘前${action}`;
   }
-  return '幾秒前重爬';
+  return `幾秒前${action}`;
 };
 

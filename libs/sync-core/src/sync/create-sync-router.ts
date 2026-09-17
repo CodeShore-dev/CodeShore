@@ -49,6 +49,7 @@ export function createSyncRouter<
     event: ListPageResolvedEvent,
   ): Promise<void> => {
     if (
+      !event.skipPendingPageRegistration &&
       event.status === 'completed' &&
       event.page === 1 &&
       event.totalPages > 1
