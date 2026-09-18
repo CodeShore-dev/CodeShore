@@ -128,6 +128,7 @@ async function main() {
   const stealthConfig: StealthCrawlConfig = {
     launchContext: createStealthLaunchContext({
       executablePath: process.env['PUPPETEER_EXECUTABLE_PATH'] || undefined,
+      userDataDir: process.env['PUPPETEER_USER_DATA_DIR'] || undefined,
       headless: true,
     }),
     preNavigationHook: createStealthPreNavigationHook(),
