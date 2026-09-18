@@ -9,6 +9,7 @@ import StealthPlugin = require('puppeteer-extra-plugin-stealth');
 export interface StealthLaunchOverrides {
   headless?: boolean;
   executablePath?: string;
+  userDataDir?: string;
   extraArgs?: string[];
   windowSize?: { width: number; height: number };
 }
@@ -24,6 +25,7 @@ export interface StealthLaunchContext {
     headless: boolean;
     args: string[];
     executablePath?: string;
+    userDataDir?: string;
   };
 }
 
@@ -61,6 +63,8 @@ function buildDefaultArgs(windowSize: {
  * 建立防偵測瀏覽器啟動設定,組裝 puppeteer-extra + stealth 外掛。
  * 不讀取任何環境變數或 `.env` 檔案(對應需求 7.2);
  * `executablePath` 僅由 `overrides.executablePath` 決定,呼叫端須自行解析環境變數後傳入。
+ * `userDataDir` 同理;WSL 下呼叫 Windows Chrome 時須傳入 Windows 路徑(如 `C:\\Temp\\profile`),
+ * 否則 Puppeteer 產生的 Linux 暫存路徑會讓 chrome.exe 無法建立 profile。
  */
 export function createStealthLaunchContext(
   overrides?: StealthLaunchOverrides,
@@ -80,6 +84,7 @@ export function createStealthLaunchContext(
       headless: overrides?.headless ?? true,
       args: [...args, ...extraArgs],
       executablePath: overrides?.executablePath,
+      userDataDir: overrides?.userDataDir,
     },
   };
 }
