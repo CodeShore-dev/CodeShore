@@ -7,7 +7,8 @@
     "dev": "cross-env nx run-many --parallel --target serve --projects=frontend,backend",
     "ptr:format": "prettier --write .",
     "ptr:format:check": "prettier --check .",
-    "db:sync": "node scripts/sync-supabase-schema.mjs && node scripts/generate-schema-sql-map.mjs && node scripts/generate-schema-sql-map.mjs"
+    "db:sync": "node scripts/sync-supabase-schema.mjs && node scripts/generate-schema-sql-map.mjs && node scripts/generate-schema-sql-map.mjs",
+    "crawler:kill-chrome": "node scripts/kill-stale-chrome.mjs"
   },
   "private": true,
   "dependencies": {
