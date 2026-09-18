@@ -62,3 +62,6 @@ ds-bundle/
 .design-sync/.cache/
 .design-sync/learnings/
 .design-sync/node_modules
+
+# WSL 下把 Windows 路徑當 userDataDir 時,舊版 launcher 會在 repo 根目錄建出字面上叫 C:\... 的資料夾
+/[A-Za-z]:\\*

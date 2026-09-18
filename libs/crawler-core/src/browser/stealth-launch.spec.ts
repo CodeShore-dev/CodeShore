@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   createStealthLaunchContext,
   createStealthPreNavigationHook,
+  isForeignWindowsPath,
 } from './stealth-launch';
 
 const DEFAULT_ARGS = [
@@ -75,6 +76,26 @@ describe('createStealthLaunchContext', () => {
     }
   });
 
+  it('keeps a native userDataDir in launchOptions (so the stealth user-data-dir plugin can write into it)', () => {
+    const context = createStealthLaunchContext({ userDataDir: '/tmp/profile' });
+
+    expect(context.launchOptions.userDataDir).toBe('/tmp/profile');
+    expect(context.launchOptions.args).toEqual(DEFAULT_ARGS);
+  });
+
+  it.runIf(process.platform !== 'win32')(
+    'moves a Windows userDataDir into --user-data-dir= args on non-Windows, so no plugin touches it with Linux fs',
+    () => {
+      const winPath = 'C:\\Users\\me\\AppData\\Local\\Temp\\puppeteer-wsl-profile';
+      const context = createStealthLaunchContext({ userDataDir: winPath });
+
+      expect(context.launchOptions.userDataDir).toBeUndefined();
+      expect(context.launchOptions.args).toEqual([...DEFAULT_ARGS, `--user-data-dir=${winPath}`]);
+      // Regression guard: the literal "C:\Users\..." folder must not appear in cwd.
+      expect(fs.existsSync(path.join(process.cwd(), winPath))).toBe(false);
+    },
+  );
+
   it('appends extraArgs to the fixed default args instead of replacing them', () => {
     const context = createStealthLaunchContext({
       extraArgs: ['--some-flag'],
@@ -135,5 +156,19 @@ describe('stealth-launch.ts source text', () => {
 
     expect(source).not.toMatch(/process\.env/);
     expect(source).not.toMatch(/dotenv/);
+  });
+});
+
+describe('isForeignWindowsPath', () => {
+  it('is true for a drive-letter path on linux/darwin, false on win32', () => {
+    expect(isForeignWindowsPath('C:\\Temp\\p', 'linux')).toBe(true);
+    expect(isForeignWindowsPath('d:/Temp/p', 'darwin')).toBe(true);
+    expect(isForeignWindowsPath('C:\\Temp\\p', 'win32')).toBe(false);
+  });
+
+  it('is false for POSIX and relative paths on any platform', () => {
+    expect(isForeignWindowsPath('/tmp/profile', 'linux')).toBe(false);
+    expect(isForeignWindowsPath('./profile', 'linux')).toBe(false);
+    expect(isForeignWindowsPath('/mnt/c/Temp/p', 'linux')).toBe(false);
   });
 });

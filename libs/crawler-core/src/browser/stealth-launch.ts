@@ -54,21 +54,40 @@ function buildDefaultArgs(windowSize: { width: number; height: number }): string
   ];
 }
 
+const USER_DATA_DIR_ARG_PREFIX = '--user-data-dir=';
+
 /**
- * 包裝 puppeteer launcher,把 `launchOptions.userDataDir` 改以 `--user-data-dir=` 參數原樣傳給 Chrome。
- * rebrowser-puppeteer-core 會對 `launchOptions.userDataDir` 做 `path.resolve()`,
- * 在 WSL 下會把 Windows 路徑變成 `/home/.../C:\\...`,導致 chrome.exe 啟動失敗。
- * `launchOptions.userDataDir` 仍須保留給 stealth 外掛(user-data-dir 外掛在沒有值時會自行建立 Linux 暫存目錄),
- * 因此只在最底層的 `launch` 呼叫前轉換。
+ * 判斷 `userDataDir` 是不是「在非 Windows 平台上收到的 Windows 路徑」(如 WSL 下
+ * 呼叫 Windows Chrome 時的 `C:\\Users\\...`)。這種路徑對 Linux 端的 Node `fs` 而言
+ * 只是一個含反斜線的相對目錄名,任何以它為基底的 `path.join`/`fs.mkdir` 都會在
+ * cwd 底下建出字面上叫 `C:\Users\...` 的資料夾。
+ */
+export function isForeignWindowsPath(userDataDir: string, platform: NodeJS.Platform = process.platform): boolean {
+  return platform !== 'win32' && /^[A-Za-z]:[\\/]/.test(userDataDir);
+}
+
+/**
+ * 包裝 puppeteer launcher,在最底層 `launch` 前處理 `launchOptions.userDataDir`:
+ *
+ * - `args` 已含 `--user-data-dir=`(`createStealthLaunchContext` 針對 WSL 下的
+ *   Windows 路徑會這樣做):直接移除 `userDataDir`、不再另外加參數——此時的
+ *   `userDataDir` 是 stealth 附帶的 user-data-dir 外掛在沒收到值時自行建立的
+ *   Linux 暫存目錄,不能讓它蓋掉真正要給 chrome.exe 的 Windows 路徑。
+ * - 否則把 `userDataDir` 改以 `--user-data-dir=` 參數原樣傳給 Chrome,避免
+ *   rebrowser-puppeteer-core 對它做 `path.resolve()`。
  */
 function withRawUserDataDir(base: VanillaPuppeteer): VanillaPuppeteer {
   const wrapped: VanillaPuppeteer = Object.create(base);
   wrapped.launch = (options?: Parameters<VanillaPuppeteer['launch']>[0]) => {
     if (!options?.userDataDir) return base.launch(options);
     const { userDataDir, ...rest } = options;
+    const args = rest.args ?? [];
+    if (args.some(arg => arg.startsWith(USER_DATA_DIR_ARG_PREFIX))) {
+      return base.launch({ ...rest, args });
+    }
     return base.launch({
       ...rest,
-      args: [...(rest.args ?? []), `--user-data-dir=${userDataDir}`],
+      args: [...args, `${USER_DATA_DIR_ARG_PREFIX}${userDataDir}`],
     });
   };
   return wrapped;
@@ -80,7 +99,13 @@ function withRawUserDataDir(base: VanillaPuppeteer): VanillaPuppeteer {
  * `executablePath` 僅由 `overrides.executablePath` 決定,呼叫端須自行解析環境變數後傳入。
  * `userDataDir` 同理;WSL 下呼叫 Windows Chrome 時須傳入 Windows 路徑(如 `C:\\Temp\\profile`),
  * 否則 Puppeteer 產生的 Linux 暫存路徑會讓 chrome.exe 無法建立 profile。
- * 底層 launcher 以 `withRawUserDataDir` 包裝,避免 rebrowser-puppeteer-core 對路徑做 `path.resolve()`。
+ *
+ * Windows 路徑在非 Windows 平台上不會放進 `launchOptions.userDataDir`,而是直接以
+ * `--user-data-dir=` 參數放進 `args`:stealth 附帶的 user-data-dir 外掛會在啟動前用
+ * Node `fs` 往 `userDataDir/Default/Preferences` 寫檔,Linux 端拿到 `C:\\...` 只會在
+ * cwd 底下建出一個字面上叫 `C:\Users\...` 的垃圾資料夾。改走 `args` 之後外掛看不到
+ * 這個值,會自行建立(並在關閉時清掉)一個 Linux 暫存目錄,而 chrome.exe 仍拿到
+ * 正確的 Windows 路徑(見 `withRawUserDataDir`)。
  */
 export function createStealthLaunchContext(overrides?: StealthLaunchOverrides): StealthLaunchContext {
   const puppeteer = addExtra(withRawUserDataDir(rebrowserPuppeteer as unknown as VanillaPuppeteer));
@@ -90,13 +115,20 @@ export function createStealthLaunchContext(overrides?: StealthLaunchOverrides): 
   const args = buildDefaultArgs(windowSize);
   const extraArgs = overrides?.extraArgs ?? [];
 
+  const userDataDir = overrides?.userDataDir;
+  const userDataDirIsForeign = userDataDir !== undefined && isForeignWindowsPath(userDataDir);
+
   return {
     launcher: puppeteer,
     launchOptions: {
       headless: overrides?.headless ?? true,
-      args: [...args, ...extraArgs],
+      args: [
+        ...args,
+        ...extraArgs,
+        ...(userDataDirIsForeign ? [`${USER_DATA_DIR_ARG_PREFIX}${userDataDir}`] : []),
+      ],
       executablePath: overrides?.executablePath,
-      userDataDir: overrides?.userDataDir,
+      userDataDir: userDataDirIsForeign ? undefined : userDataDir,
     },
   };
 }
