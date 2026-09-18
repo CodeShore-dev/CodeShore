@@ -4,14 +4,18 @@ import * as path from 'path';
 
 import { DEFAULT_MODEL_FALLBACK, DEFAULT_MODEL_SETTING_KEY, OpenRouterLlmClient } from '@codeshore/ai-client';
 import {
+  createLinearBackoffSchedule,
   createStealthLaunchContext,
   createStealthPreNavigationHook,
   getSourceKey,
   randomDelay,
+  runWithRateLimitBackoff,
   setPageIndex,
 } from '@codeshore/crawler-core';
+import type { CrawlRouterResult, RunWithRateLimitBackoffOptions } from '@codeshore/crawler-core';
 import { AiLlmSettingService, JobService, MvTechService, generateJobKeywordsFromLines } from '@codeshore/data-utils';
 import { parseSalary } from '@codeshore/shared-utils';
+import type { SourceLocation } from '@codeshore/sync-core';
 import { createStalenessSyncEngine, resolveSourcesToProcess } from '@codeshore/sync-core';
 
 import { createHandler as createHandler104 } from './104/handler';
@@ -67,6 +71,68 @@ export function parseWhereExpr(expr: string): Record<string, any> {
     }
   }
   return where;
+}
+
+/**
+ * 被限流(HTTP 429)/ 被 Cloudflare 擋下後的退讓重試設定,預設「5 分鐘起、
+ * 每次再多 5 分鐘、不設重試上限」;可用環境變數覆寫(單位皆為分鐘,可含小數):
+ *
+ * - `CRAWL_BACKOFF_INITIAL_MINUTES`   第 1 次重試前等多久(預設 5)
+ * - `CRAWL_BACKOFF_INCREMENT_MINUTES` 之後每次重試再多等多久(預設 5)
+ * - `CRAWL_BACKOFF_MAX_DELAY_MINUTES` 單次等待上限(預設不設上限)
+ * - `CRAWL_BACKOFF_MAX_RETRIES`       最多重試幾次(預設不設上限,一直重試到成功)
+ *
+ * 等待時程的計算集中在 `createLinearBackoffSchedule`;若之後要改成指數退讓
+ * 等其他策略,換掉這裡的 `delayForRetry` 即可。
+ */
+export const CRAWL_BACKOFF_DEFAULTS = {
+  initialMinutes: 5,
+  incrementMinutes: 5,
+} as const;
+
+const MINUTE_MS = 60_000;
+
+function readMinutesEnv(env: NodeJS.ProcessEnv, key: string): number | undefined {
+  const raw = env[key];
+  if (raw === undefined || raw.trim() === '') return undefined;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error(`${key} must be a non-negative number of minutes, got "${raw}"`);
+  }
+  return value;
+}
+
+export function resolveCrawlBackoffOptions(env: NodeJS.ProcessEnv = process.env): Pick<
+  RunWithRateLimitBackoffOptions,
+  'delayForRetry' | 'maxRetries'
+> & {
+  initialDelayMs: number;
+  incrementMs: number;
+  maxDelayMs: number | undefined;
+} {
+  const initialDelayMs =
+    (readMinutesEnv(env, 'CRAWL_BACKOFF_INITIAL_MINUTES') ?? CRAWL_BACKOFF_DEFAULTS.initialMinutes) * MINUTE_MS;
+  const incrementMs =
+    (readMinutesEnv(env, 'CRAWL_BACKOFF_INCREMENT_MINUTES') ?? CRAWL_BACKOFF_DEFAULTS.incrementMinutes) * MINUTE_MS;
+  const maxDelayMinutes = readMinutesEnv(env, 'CRAWL_BACKOFF_MAX_DELAY_MINUTES');
+  const maxDelayMs = maxDelayMinutes === undefined ? undefined : maxDelayMinutes * MINUTE_MS;
+
+  const rawMaxRetries = env['CRAWL_BACKOFF_MAX_RETRIES'];
+  let maxRetries: number | undefined;
+  if (rawMaxRetries !== undefined && rawMaxRetries.trim() !== '') {
+    maxRetries = Number(rawMaxRetries);
+    if (!Number.isInteger(maxRetries) || maxRetries < 0) {
+      throw new Error(`CRAWL_BACKOFF_MAX_RETRIES must be a non-negative integer, got "${rawMaxRetries}"`);
+    }
+  }
+
+  return {
+    initialDelayMs,
+    incrementMs,
+    maxDelayMs,
+    maxRetries,
+    delayForRetry: createLinearBackoffSchedule({ initialDelayMs, incrementMs, maxDelayMs }),
+  };
 }
 
 interface StealthCrawlConfig {
@@ -270,46 +336,89 @@ async function main() {
         console.log('>>> Resume mode: no pending URL(s) to resume, nothing to do');
       }
 
-      const jobSourceURLs = sourceLocations.map(x => ({
-        host: new URL(x.url).host,
-        url_with_page_index: setPageIndex(x.url, x.pageIndex),
-      }));
+      const backoff = resolveCrawlBackoffOptions();
+      console.log(
+        `>>> Rate-limit backoff: first wait ${backoff.initialDelayMs / MINUTE_MS}m, ` +
+          `+${backoff.incrementMs / MINUTE_MS}m per retry` +
+          (backoff.maxDelayMs !== undefined ? `, capped at ${backoff.maxDelayMs / MINUTE_MS}m` : '') +
+          (backoff.maxRetries !== undefined ? `, max ${backoff.maxRetries} retries` : ', unlimited retries'),
+      );
 
-      const jobSourceURLs104 = jobSourceURLs.filter(x => is104Host(x.host));
+      const toJobSourceURLs = (locations: SourceLocation[]) =>
+        locations.map(x => ({
+          host: new URL(x.url).host,
+          url_with_page_index: setPageIndex(x.url, x.pageIndex),
+        }));
 
-      const jobSourceURLsCake = jobSourceURLs.filter(x => isCakeHost(x.host));
+      // 每個站各跑一個退讓重試迴圈:第一次嘗試沿用上面(fresh 或 resume)算好
+      // 的來源清單;之後每次重試都以 resume 模式重新查一次待爬清單、重建全新的
+      // handler 與 PuppeteerCrawler——與操作者被限流後「手動再跑一次」完全等價,
+      // 因此被中斷的清單頁 / 詳情頁會由既有的續爬機制自然撿回。
+      const runSiteCrawlerWithBackoff = async (
+        label: string,
+        matchHost: (host: string) => boolean,
+        createHandler: (
+          urls: { host: string; url_with_page_index: string }[],
+        ) => Pick<CrawlRouterResult, 'router' | 'flushPending' | 'takeStopReason'>,
+        extraPreNavigationHooks: any[] = [],
+      ) => {
+        const summary = await runWithRateLimitBackoff(
+          async attemptNumber => {
+            const locations =
+              attemptNumber === 1 ? sourceLocations : await resolveSourcesToProcess(sourceRegistry, 'resume');
+            const urls = toJobSourceURLs(locations).filter(x => matchHost(x.host));
+            if (urls.length === 0) {
+              if (attemptNumber > 1) {
+                console.log(`>>> [${label}] No pending URL(s) left to resume on retry #${attemptNumber - 1}.`);
+              }
+              return {};
+            }
 
-      if (jobSourceURLs104.length > 0) {
-        const totalSourceCount104 = new Set(jobSourceURLs104.map(x => getSourceKey(x.url_with_page_index))).size;
-        console.log(
-          `>>> Starting 104 crawler from URL(${jobSourceURLs104.length} URL(s), ${totalSourceCount104} job source(s))...`,
+            const totalSourceCount = new Set(urls.map(x => getSourceKey(x.url_with_page_index))).size;
+            console.log(
+              `>>> Starting ${label} crawler${attemptNumber > 1 ? ` (retry #${attemptNumber - 1}, resume mode)` : ''} ` +
+                `from URL(${urls.length} URL(s), ${totalSourceCount} job source(s))...`,
+            );
+            const { router, flushPending, takeStopReason } = createHandler(urls);
+            Configuration.getGlobalConfig().set('purgeOnStart', true);
+            const crawler = new PuppeteerCrawler(makeCrawlerOptions(router, extraPreNavigationHooks));
+            await crawler.run(urls.map(x => x.url_with_page_index));
+            await flushPending();
+            return { stopReason: takeStopReason() };
+          },
+          { ...backoff, label, logger: { info: console.log, warning: console.warn, error: console.error } },
         );
-        const { router: requestHandler104, flushPending: flushPending104 } = createHandler104(
-          keywords,
-          totalSourceCount104,
-          knownPageFloors,
+
+        if (!summary.succeeded) {
+          throw new Error(
+            `${label} crawler gave up after ${summary.retries} retries ` +
+              `(CRAWL_BACKOFF_MAX_RETRIES=${backoff.maxRetries}): ${summary.lastStopReason?.message}`,
+          );
+        }
+        return summary;
+      };
+
+      const initialJobSourceURLs = toJobSourceURLs(sourceLocations);
+
+      if (initialJobSourceURLs.some(x => is104Host(x.host))) {
+        await runSiteCrawlerWithBackoff('104', is104Host, urls =>
+          createHandler104(keywords, new Set(urls.map(x => getSourceKey(x.url_with_page_index))).size, knownPageFloors),
         );
-        Configuration.getGlobalConfig().set('purgeOnStart', true);
-        const crawler = new PuppeteerCrawler(makeCrawlerOptions(requestHandler104));
-        await crawler.run(jobSourceURLs104.map(x => x.url_with_page_index));
-        await flushPending104();
       }
 
-      if (jobSourceURLsCake.length > 0) {
-        const totalSourceCountCake = new Set(jobSourceURLsCake.map(x => getSourceKey(x.url_with_page_index))).size;
-        console.log(
-          `>>> Starting Cake crawler from URL(${jobSourceURLsCake.length} URL(s), ${totalSourceCountCake} job source(s))...`,
+      if (initialJobSourceURLs.some(x => isCakeHost(x.host))) {
+        await runSiteCrawlerWithBackoff(
+          'Cake',
+          isCakeHost,
+          urls =>
+            createHandlerCake(
+              keywords,
+              new Set(urls.map(x => getSourceKey(x.url_with_page_index))).size,
+              knownPageFloors,
+              useUiFilters,
+            ),
+          [createCakeHomepageWarmupHook()],
         );
-        const { router: requestHandlerCake, flushPending: flushPendingCake } = createHandlerCake(
-          keywords,
-          totalSourceCountCake,
-          knownPageFloors,
-          useUiFilters,
-        );
-        Configuration.getGlobalConfig().set('purgeOnStart', true);
-        const crawler = new PuppeteerCrawler(makeCrawlerOptions(requestHandlerCake, [createCakeHomepageWarmupHook()]));
-        await crawler.run(jobSourceURLsCake.map(x => x.url_with_page_index));
-        await flushPendingCake();
       }
       break;
     }

@@ -27,7 +27,70 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // runs fast with no `beforeAll` warm-up needed because the heavy transitive
 // dependency is never actually imported.
 
-import { parseWhereExpr, resolveCliArgs, splitTopLevel } from './main';
+import {
+  CRAWL_BACKOFF_DEFAULTS,
+  parseWhereExpr,
+  resolveCliArgs,
+  resolveCrawlBackoffOptions,
+  splitTopLevel,
+} from './main';
+
+describe('resolveCrawlBackoffOptions (env → linear backoff schedule)', () => {
+  const MINUTE = 60_000;
+
+  it('defaults to 5m first wait, +5m per retry, no cap, unlimited retries', () => {
+    const options = resolveCrawlBackoffOptions({});
+    expect(CRAWL_BACKOFF_DEFAULTS).toEqual({
+      initialMinutes: 5,
+      incrementMinutes: 5,
+    });
+    expect(options.initialDelayMs).toBe(5 * MINUTE);
+    expect(options.incrementMs).toBe(5 * MINUTE);
+    expect(options.maxDelayMs).toBeUndefined();
+    expect(options.maxRetries).toBeUndefined();
+    expect([1, 2, 3].map(options.delayForRetry)).toEqual([
+      5 * MINUTE,
+      10 * MINUTE,
+      15 * MINUTE,
+    ]);
+  });
+
+  it('reads initial/increment/cap/max-retries from env (minutes, decimals allowed)', () => {
+    const options = resolveCrawlBackoffOptions({
+      CRAWL_BACKOFF_INITIAL_MINUTES: '1.5',
+      CRAWL_BACKOFF_INCREMENT_MINUTES: '2',
+      CRAWL_BACKOFF_MAX_DELAY_MINUTES: '4',
+      CRAWL_BACKOFF_MAX_RETRIES: '3',
+    });
+    expect(options.maxRetries).toBe(3);
+    expect([1, 2, 3].map(options.delayForRetry)).toEqual([
+      1.5 * MINUTE,
+      3.5 * MINUTE,
+      4 * MINUTE,
+    ]);
+  });
+
+  it('treats blank env values as unset', () => {
+    const options = resolveCrawlBackoffOptions({
+      CRAWL_BACKOFF_INITIAL_MINUTES: '',
+      CRAWL_BACKOFF_MAX_RETRIES: '  ',
+    });
+    expect(options.initialDelayMs).toBe(5 * MINUTE);
+    expect(options.maxRetries).toBeUndefined();
+  });
+
+  it('rejects negative, non-numeric, or non-integer-retry values with a clear error', () => {
+    expect(() =>
+      resolveCrawlBackoffOptions({ CRAWL_BACKOFF_INITIAL_MINUTES: '-1' }),
+    ).toThrow('CRAWL_BACKOFF_INITIAL_MINUTES');
+    expect(() =>
+      resolveCrawlBackoffOptions({ CRAWL_BACKOFF_INCREMENT_MINUTES: 'abc' }),
+    ).toThrow('CRAWL_BACKOFF_INCREMENT_MINUTES');
+    expect(() =>
+      resolveCrawlBackoffOptions({ CRAWL_BACKOFF_MAX_RETRIES: '1.5' }),
+    ).toThrow('CRAWL_BACKOFF_MAX_RETRIES');
+  });
+});
 
 describe('resolveCliArgs (pure mode-dispatch logic)', () => {
   it('resolves to "re-crawl" when args include the bare "re-crawl" flag', () => {
@@ -198,16 +261,24 @@ vi.mock('@codeshore/ai-client', () => ({
 // `@codeshore/crawler-core` constructs a real stealth puppeteer launch
 // context; mock it so `main.ts`'s module-level `createStealthLaunchContext`/
 // `createStealthPreNavigationHook` calls stay cheap and inert.
-vi.mock('@codeshore/crawler-core', () => ({
-  createStealthLaunchContext: vi.fn(() => ({ launchContext: 'fake' })),
-  createStealthPreNavigationHook: vi.fn(() => ({ hook: 'fake' })),
-  setPageIndex: (url: string, pageIndex: number) => `${url}?page=${pageIndex}`,
-  getSourceKey: (url: string) => {
-    const urlObj = new URL(url);
-    urlObj.searchParams.delete('page');
-    return urlObj.toString();
-  },
-}));
+vi.mock('@codeshore/crawler-core', async importOriginal => {
+  // The rate-limit backoff runner/schedule are pure (no browser, no I/O);
+  // keep the real implementations so `crawl` mode's retry wiring is exercised
+  // for real, with the wait driven to 0 via env in the relevant tests.
+  const actual = await importOriginal<typeof import('@codeshore/crawler-core')>();
+  return {
+    createLinearBackoffSchedule: actual.createLinearBackoffSchedule,
+    runWithRateLimitBackoff: actual.runWithRateLimitBackoff,
+    createStealthLaunchContext: vi.fn(() => ({ launchContext: 'fake' })),
+    createStealthPreNavigationHook: vi.fn(() => ({ hook: 'fake' })),
+    setPageIndex: (url: string, pageIndex: number) => `${url}?page=${pageIndex}`,
+    getSourceKey: (url: string) => {
+      const urlObj = new URL(url);
+      urlObj.searchParams.delete('page');
+      return urlObj.toString();
+    },
+  };
+});
 
 // This is the seam under test: prove `main.ts`'s `crawl`/`re-crawl` modes
 // call the new `@codeshore/sync-core` entry points with the right arguments,
@@ -300,20 +371,29 @@ vi.mock('./export-liked-jobs', () => ({
 // `./104/handler` and `./cake/handler` are DOM-extraction call paths this
 // task must NOT touch. Stub them minimally so `crawl` mode dispatch can be
 // exercised without invoking real `PuppeteerCrawler`/`crawlee`.
-const { flushPending104Mock, flushPendingCakeMock } = vi.hoisted(() => ({
+const {
+  flushPending104Mock,
+  flushPendingCakeMock,
+  takeStopReason104Mock,
+  takeStopReasonCakeMock,
+} = vi.hoisted(() => ({
   flushPending104Mock: vi.fn(async () => undefined),
   flushPendingCakeMock: vi.fn(async () => undefined),
+  takeStopReason104Mock: vi.fn((): unknown => undefined),
+  takeStopReasonCakeMock: vi.fn((): unknown => undefined),
 }));
 vi.mock('./104/handler', () => ({
   createHandler: vi.fn(() => ({
     router: {},
     flushPending: flushPending104Mock,
+    takeStopReason: takeStopReason104Mock,
   })),
 }));
 vi.mock('./cake/handler', () => ({
   createHandler: vi.fn(() => ({
     router: {},
     flushPending: flushPendingCakeMock,
+    takeStopReason: takeStopReasonCakeMock,
   })),
 }));
 
@@ -450,6 +530,69 @@ describe('main() dispatch wiring (post sync-core migration)', () => {
     await runMainWithArgv(['crawl']);
 
     expect(fetchMaxKnownPageIndexMock).not.toHaveBeenCalled();
+  });
+
+  it('crawl mode retries a rate-limited 104 run in resume mode with a fresh handler + crawler, and continues to Cake once 104 completes', async () => {
+    // Drive the backoff wait to 0 so the retry loop runs instantly.
+    process.env['CRAWL_BACKOFF_INITIAL_MINUTES'] = '0';
+    process.env['CRAWL_BACKOFF_INCREMENT_MINUTES'] = '0';
+    try {
+      const rateLimited = {
+        kind: 'rate-limited',
+        url: 'https://www.104.com.tw/jobs/search/1?page=3',
+        status: 429,
+        message:
+          'Rate limited (HTTP 429) on https://www.104.com.tw/jobs/search/1?page=3',
+      };
+      // Initial resolve (attempt 1) → both hosts; retry resolve → only the
+      // pending 104 page 3 remains.
+      resolveSourcesToProcessMock
+        .mockResolvedValueOnce([
+          { url: 'https://www.104.com.tw/jobs/search/1', pageIndex: 1 },
+          { url: 'https://www.cake.me/companies/x/jobs', pageIndex: 1 },
+        ])
+        .mockResolvedValueOnce([
+          { url: 'https://www.104.com.tw/jobs/search/1', pageIndex: 3 },
+          { url: 'https://www.cake.me/companies/x/jobs', pageIndex: 1 },
+        ]);
+      takeStopReason104Mock
+        .mockReturnValueOnce(rateLimited)
+        .mockReturnValueOnce(undefined);
+
+      await runMainWithArgv(['crawl']);
+      // Let the (zero-length) backoff sleep and the retry attempt settle.
+      await new Promise(resolve => setTimeout(resolve, 20));
+
+      const { PuppeteerCrawler } = await import('crawlee');
+      const handler104 = await import('./104/handler');
+      const handlerCake = await import('./cake/handler');
+
+      // 104: attempt 1 + retry 1 → two fresh handlers and two crawlers.
+      expect(handler104.createHandler).toHaveBeenCalledTimes(2);
+      expect(flushPending104Mock).toHaveBeenCalledTimes(2);
+      expect(takeStopReason104Mock).toHaveBeenCalledTimes(2);
+      // The retry re-queries pending sources in resume mode.
+      expect(resolveSourcesToProcessMock).toHaveBeenCalledTimes(2);
+      expect(resolveSourcesToProcessMock).toHaveBeenNthCalledWith(
+        2,
+        fakeSourceRegistry,
+        'resume',
+      );
+      const crawlerMock = PuppeteerCrawler as unknown as ReturnType<typeof vi.fn>;
+      const runs = crawlerMock.mock.results.map(
+        r => (r.value as { run: ReturnType<typeof vi.fn> }).run,
+      );
+      expect(runs[1]).toHaveBeenCalledWith([
+        'https://www.104.com.tw/jobs/search/1?page=3',
+      ]);
+      // Cake still runs afterwards, exactly once.
+      expect(handlerCake.createHandler).toHaveBeenCalledTimes(1);
+      expect(flushPendingCakeMock).toHaveBeenCalledTimes(1);
+      expect(crawlerMock).toHaveBeenCalledTimes(3);
+    } finally {
+      delete process.env['CRAWL_BACKOFF_INITIAL_MINUTES'];
+      delete process.env['CRAWL_BACKOFF_INCREMENT_MINUTES'];
+    }
   });
 
   it('re-crawl mode (no where override) constructs the Job staleness config with keywords and undefined where, then runs the engine with the stealth launch context/hook', async () => {

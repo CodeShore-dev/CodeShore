@@ -151,6 +151,23 @@ export interface CapturedListPage<TRawItem extends CrawlItemBase> {
 }
 
 /**
+ * 引擎主動呼叫 `crawler.stop()` 提早收工的原因。目前只有兩種:被限流
+ * (HTTP 429)與被 Cloudflare 擋下(帶 Cloudflare 標頭的 403/503)。兩者都
+ * 屬於「退讓一段時間再以 resume 模式重跑」即可撿回的情況。
+ */
+export type CrawlStopReasonKind = 'rate-limited' | 'cloudflare-blocked';
+
+export interface CrawlStopReason {
+  kind: CrawlStopReasonKind;
+  /** 觸發停止的那個請求 URL(清單頁或詳情頁)。 */
+  url: string;
+  /** 觸發停止的 HTTP 狀態碼。 */
+  status: number;
+  /** 傳給 `crawler.stop()` 的訊息,同時作為 log 用的人類可讀描述。 */
+  message: string;
+}
+
+/**
  * `createCrawlRouter` 的回傳結果:可交給 Crawlee 使用的路由處理器,
  * 以及可在爬蟲收尾時呼叫、將尚未達批次大小的殘留項目強制送出的 `flushPending`。
  *
@@ -183,4 +200,11 @@ export interface CrawlRouterResult<
    * 逆變檢查失敗。
    */
   ingestCapturedListPage: (page: CapturedListPage<TRawItem>) => Promise<void>;
+  /**
+   * 取出(並清除)引擎最近一次主動 `crawler.stop()` 的原因。Crawlee 的
+   * `crawler.run()` 被 stop 後仍會正常 resolve,呼叫端必須在 `run()` 結束後
+   * 呼叫此函式才能分辨「爬完了」與「被限流 / 被擋而提早收工」,進而決定是否
+   * 退讓後重試(見 `runWithRateLimitBackoff`)。沒有被 stop 過時回傳 `undefined`。
+   */
+  takeStopReason: () => CrawlStopReason | undefined;
 }

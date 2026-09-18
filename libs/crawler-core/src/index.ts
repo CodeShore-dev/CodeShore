@@ -32,6 +32,8 @@ export type {
   ListPageResolvedEvent,
   CrawlRouterConfig,
   CrawlRouterResult,
+  CrawlStopReason,
+  CrawlStopReasonKind,
   CapturedListPage,
 } from './router/types';
 
@@ -44,4 +46,16 @@ export { createBatchAccumulator } from './progress/batch-accumulator';
 export type { BatchAccumulator } from './progress/batch-accumulator';
 
 export { withErrorIsolation } from './progress/error-isolation';
+
+export {
+  createLinearBackoffSchedule,
+  runWithRateLimitBackoff,
+} from './backoff/rate-limit-backoff';
+export type {
+  BackoffAttemptResult,
+  BackoffRunSummary,
+  BackoffRetryRecord,
+  LinearBackoffScheduleOptions,
+  RunWithRateLimitBackoffOptions,
+} from './backoff/rate-limit-backoff';
 

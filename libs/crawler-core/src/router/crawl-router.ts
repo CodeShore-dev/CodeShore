@@ -16,6 +16,7 @@ import type {
   CrawlItemBase,
   CrawlRouterConfig,
   CrawlRouterResult,
+  CrawlStopReason,
   RequireDetailCrawl,
 } from './types';
 
@@ -49,9 +50,11 @@ class RateLimitedError extends Error {
  * `RateLimitedError` 的方式——停止整個爬蟲、讓該頁維持可續爬狀態。
  */
 class CloudflareBlockedError extends Error {
+  readonly status: number;
   constructor(url: string, status: number) {
     super(`Blocked by Cloudflare (HTTP ${status}) on ${url}`);
     this.name = 'CloudflareBlockedError';
+    this.status = status;
   }
 }
 
@@ -325,6 +328,24 @@ export function createCrawlRouter<
     });
   };
 
+  // 記錄本輪爬蟲是因為「被限流 / 被 Cloudflare 擋下」而主動 `crawler.stop()`
+  // 的原因。Crawlee 的 `crawler.run()` 在被 stop 之後仍會正常 resolve、不會
+  // 拋錯,呼叫端無從得知這次是「爬完了」還是「被擋而提早收工」——因此在此
+  // 記下原因,由 `takeStopReason()` 交給呼叫端決定是否退讓後重試。
+  let stopReason: CrawlStopReason | undefined;
+  const stopCrawler = (
+    crawler: { stop: (message?: string) => void },
+    reason: CrawlStopReason,
+  ): void => {
+    stopReason = reason;
+    crawler.stop(reason.message);
+  };
+  const takeStopReason = (): CrawlStopReason | undefined => {
+    const reason = stopReason;
+    stopReason = undefined;
+    return reason;
+  };
+
   const estimateFinishTime = (): string => {
     const avgList = listPageTracker.getAverage();
     const avgDetail = detailPageTracker.getAverage();
@@ -515,7 +536,12 @@ export function createCrawlRouter<
         `Rate limited (HTTP 429) while loading ${request.url} (${sourceProgress}). ` +
           `Stopping the crawl run to back off — this page stays resumable on the next run.`,
       );
-      crawler.stop(`Rate limited (HTTP 429) on ${request.url}`);
+      stopCrawler(crawler, {
+        kind: 'rate-limited',
+        url: request.url,
+        status: 429,
+        message: `Rate limited (HTTP 429) on ${request.url}`,
+      });
       return;
     }
 
@@ -528,7 +554,12 @@ export function createCrawlRouter<
           `(${sourceProgress}). Stopping the crawl run to back off — this page stays ` +
           `resumable on the next run.`,
       );
-      crawler.stop(`Blocked by Cloudflare on ${request.url}`);
+      stopCrawler(crawler, {
+        kind: 'cloudflare-blocked',
+        url: request.url,
+        status: response.status(),
+        message: `Blocked by Cloudflare on ${request.url}`,
+      });
       return;
     }
 
@@ -567,7 +598,12 @@ export function createCrawlRouter<
             `${request.url} (${sourceProgress}). Stopping the crawl run to back off — ` +
             `this page stays resumable on the next run.`,
         );
-        crawler.stop(`Rate limited (HTTP 429) on ${request.url}`);
+        stopCrawler(crawler, {
+          kind: 'rate-limited',
+          url: request.url,
+          status: 429,
+          message: `Rate limited (HTTP 429) on ${request.url}`,
+        });
         return;
       }
       if (error instanceof CloudflareBlockedError) {
@@ -576,7 +612,12 @@ export function createCrawlRouter<
             `${request.url} (${sourceProgress}). Stopping the crawl run to back off — ` +
             `this page stays resumable on the next run.`,
         );
-        crawler.stop(error.message);
+        stopCrawler(crawler, {
+          kind: 'cloudflare-blocked',
+          url: request.url,
+          status: error.status,
+          message: error.message,
+        });
         return;
       }
       throw error;
@@ -761,7 +802,12 @@ export function createCrawlRouter<
           `Rate limited (HTTP 429) while loading detail page ${request.loadedUrl || request.url}. ` +
             `Stopping the crawl run to back off — this job stays resumable on the next run.`,
         );
-        crawler.stop(`Rate limited (HTTP 429) on ${request.url}`);
+        stopCrawler(crawler, {
+          kind: 'rate-limited',
+          url: request.url,
+          status: 429,
+          message: `Rate limited (HTTP 429) on ${request.url}`,
+        });
         return;
       }
 
@@ -773,7 +819,12 @@ export function createCrawlRouter<
             `${request.loadedUrl || request.url}. Stopping the crawl run to back off — ` +
             `this job stays resumable on the next run.`,
         );
-        crawler.stop(`Blocked by Cloudflare on ${request.url}`);
+        stopCrawler(crawler, {
+          kind: 'cloudflare-blocked',
+          url: request.url,
+          status: response.status(),
+          message: `Blocked by Cloudflare on ${request.url}`,
+        });
         return;
       }
 
@@ -834,5 +885,5 @@ export function createCrawlRouter<
   // reconciliation, not a runtime behavior change.
   const router = puppeteerRouter as unknown as CrawlRouterResult['router'];
 
-  return { router, flushPending, ingestCapturedListPage };
+  return { router, flushPending, ingestCapturedListPage, takeStopReason };
 }

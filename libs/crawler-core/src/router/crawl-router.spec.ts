@@ -1027,9 +1027,10 @@ describe('createCrawlRouter — rate limiting (HTTP 429)', () => {
 
   it('stops the crawler and does not report onListPageResolved when the list page navigation itself returns 429', async () => {
     const onListPageResolved = vi.fn(async () => undefined);
-    const { router } = createCrawlRouter(
+    const { router, takeStopReason } = createCrawlRouter(
       createBaseConfig({ onListPageResolved }),
     );
+    expect(takeStopReason()).toBeUndefined();
     const mock = createMockPage();
     const stop = vi.fn();
     const ctx = createHandlerContext(mock.page, LIST_API_URL, {
@@ -1045,11 +1046,21 @@ describe('createCrawlRouter — rate limiting (HTTP 429)', () => {
     // The list-response interception listener must never even be attached —
     // the 429 short-circuits before `interceptListResponse` is called.
     expect(mock.listenerCount()).toBe(0);
+
+    // The stop reason is exposed once (so the caller can back off and retry),
+    // then cleared.
+    expect(takeStopReason()).toEqual({
+      kind: 'rate-limited',
+      url: LIST_API_URL,
+      status: 429,
+      message: expect.stringContaining('429'),
+    });
+    expect(takeStopReason()).toBeUndefined();
   });
 
   it('stops the crawler without retrying when the intercepted list API response itself is 429', async () => {
     const onListPageResolved = vi.fn(async () => undefined);
-    const { router } = createCrawlRouter(
+    const { router, takeStopReason } = createCrawlRouter(
       createBaseConfig({ onListPageResolved }),
     );
     const mock = createMockPage();
@@ -1072,6 +1083,7 @@ describe('createCrawlRouter — rate limiting (HTTP 429)', () => {
     // Must not retry: reloading would just trigger another 429.
     expect(mock.reload).not.toHaveBeenCalled();
     expect(onListPageResolved).not.toHaveBeenCalled();
+    expect(takeStopReason()?.kind).toBe('rate-limited');
   });
 
   it('stops the crawler when a DETAIL page navigation returns 429, without persisting it and without letting its list page ever complete', async () => {
@@ -1083,7 +1095,7 @@ describe('createCrawlRouter — rate limiting (HTTP 429)', () => {
       }),
     );
     const onListPageResolved = vi.fn(async () => undefined);
-    const { router } = createCrawlRouter(
+    const { router, takeStopReason } = createCrawlRouter(
       createBaseConfig({ resolveExisting, buildPersistItem, onListPageResolved }),
     );
 
@@ -1123,6 +1135,12 @@ describe('createCrawlRouter — rate limiting (HTTP 429)', () => {
 
     expect(stop).toHaveBeenCalledTimes(1);
     expect(buildPersistItem).not.toHaveBeenCalled();
+    expect(takeStopReason()).toEqual({
+      kind: 'rate-limited',
+      url: 'https://example.test/a',
+      status: 429,
+      message: expect.stringContaining('429'),
+    });
 
     // Detail 'b' still processes normally (simulates it having already been
     // in flight when the rate limiting hit) — but because 'a' never counted
@@ -1153,7 +1171,7 @@ describe('createCrawlRouter — Cloudflare blocking (403/503 with Cloudflare mar
 
   it('stops the crawler when the list page navigation itself is a Cloudflare 403 block', async () => {
     const onListPageResolved = vi.fn(async () => undefined);
-    const { router } = createCrawlRouter(
+    const { router, takeStopReason } = createCrawlRouter(
       createBaseConfig({ onListPageResolved }),
     );
     const mock = createMockPage();
@@ -1173,11 +1191,17 @@ describe('createCrawlRouter — Cloudflare blocking (403/503 with Cloudflare mar
     expect(stop).toHaveBeenCalledWith(expect.stringContaining('Cloudflare'));
     expect(onListPageResolved).not.toHaveBeenCalled();
     expect(mock.listenerCount()).toBe(0);
+    expect(takeStopReason()).toEqual({
+      kind: 'cloudflare-blocked',
+      url: LIST_API_URL,
+      status: 403,
+      message: expect.stringContaining('Cloudflare'),
+    });
   });
 
   it('stops the crawler without retrying when the intercepted list API response is a Cloudflare 503 challenge', async () => {
     const onListPageResolved = vi.fn(async () => undefined);
-    const { router } = createCrawlRouter(
+    const { router, takeStopReason } = createCrawlRouter(
       createBaseConfig({ onListPageResolved }),
     );
     const mock = createMockPage();
@@ -1204,6 +1228,7 @@ describe('createCrawlRouter — Cloudflare blocking (403/503 with Cloudflare mar
     // Must not retry: reloading would just trigger another challenge.
     expect(mock.reload).not.toHaveBeenCalled();
     expect(onListPageResolved).not.toHaveBeenCalled();
+    expect(takeStopReason()).toMatchObject({ kind: 'cloudflare-blocked', status: 503 });
   });
 
   it('does not treat a plain (non-Cloudflare) 503 as a Cloudflare block and retries as usual', async () => {
