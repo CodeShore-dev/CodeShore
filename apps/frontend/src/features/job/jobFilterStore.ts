@@ -19,6 +19,9 @@ interface JobFilterState {
   sort: 'salary' | 'recent';
   page: number;
   listViewPreference: 'like' | 'dislike' | null;
+  // Sub-category (reason) filter inside the like/dislike tabs. Deliberately
+  // not synced to the URL (design D6); null means 「全部」.
+  preferenceReason: string | null;
   selectedJobId: string | null;
   setSearchText: (v: string) => void;
   addCompanyFilter: (name: string) => void;
@@ -33,6 +36,7 @@ interface JobFilterState {
   setSort: (v: 'salary' | 'recent') => void;
   setPage: (v: number) => void;
   setListViewPreference: (v: 'like' | 'dislike' | null) => void;
+  setPreferenceReason: (v: string | null) => void;
   setSelectedJobId: (v: string | null) => void;
   reset: () => void;
 }
@@ -49,6 +53,7 @@ export const useJobFilterStore = create<JobFilterState>((set, get) => ({
   sort: 'salary',
   page: 1,
   listViewPreference: null,
+  preferenceReason: null,
   selectedJobId: null,
   setSearchText: v => set({ searchText: v, page: 1 }),
   addCompanyFilter: name => {
@@ -87,7 +92,10 @@ export const useJobFilterStore = create<JobFilterState>((set, get) => ({
   setSelectedLocations: v => set({ selectedLocations: v, page: 1 }),
   setSort: v => set({ sort: v, page: 1 }),
   setPage: v => set({ page: v }),
-  setListViewPreference: v => set({ listViewPreference: v, page: 1 }),
+  // Switching tabs resets the reason filter to 「全部」 (req 7.5).
+  setListViewPreference: v =>
+    set({ listViewPreference: v, preferenceReason: null, page: 1 }),
+  setPreferenceReason: v => set({ preferenceReason: v, page: 1 }),
   setSelectedJobId: v => set({ selectedJobId: v }),
   reset: () =>
     set({
@@ -99,6 +107,7 @@ export const useJobFilterStore = create<JobFilterState>((set, get) => ({
       sort: 'salary',
       page: 1,
       listViewPreference: null,
+      preferenceReason: null,
       selectedJobId: null,
     }),
 }));

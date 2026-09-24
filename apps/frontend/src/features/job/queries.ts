@@ -23,6 +23,8 @@ export function jobListOrders(
 
 export interface JobsQueryParams {
   preference: 'like' | 'dislike' | null;
+  // Only applied when `preference` is set; ignored on the 總數 tab.
+  preferenceReason?: string | null;
   page: number;
   where: Record<string, unknown>;
   orders: string;
@@ -30,13 +32,26 @@ export interface JobsQueryParams {
 
 export function useJobsQuery(params: JobsQueryParams) {
   const { preference, page, where, orders } = params;
+  const preferenceReason = params.preferenceReason ?? null;
   return useQuery({
-    queryKey: ['job', 'list', { preference, page, where, orders }],
+    queryKey: [
+      'job',
+      'list',
+      { preference, preferenceReason, page, where, orders },
+    ],
     queryFn: async () => {
       const from = (page - 1) * JOB_PAGE_SIZE;
       const to = from + JOB_PAGE_SIZE - 1;
+      // The reason filter is merged with every other where condition so it
+      // combines with the existing filters (req 7.2, 7.4).
       const fullWhere = preference
-        ? { preference: { eq: preference }, ...where }
+        ? {
+            preference: { eq: preference },
+            ...(preferenceReason
+              ? { preference_reason: { eq: preferenceReason } }
+              : {}),
+            ...where,
+          }
         : { preference: { is: null }, ...where };
       return fetchJobs(
         { from, to, where: JSON.stringify(fullWhere) },

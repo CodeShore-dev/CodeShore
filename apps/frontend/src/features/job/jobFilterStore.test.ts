@@ -63,4 +63,31 @@ describe('jobFilterStore', () => {
     useJobFilterStore.getState().reset();
     expect(useJobFilterStore.getState().companyFilters).toEqual([]);
   });
+
+  it('setPreferenceReason sets the reason and resets to page 1 (req 7.2)', () => {
+    useJobFilterStore.getState().setPreferenceReason('差一點要補技能經驗');
+    expect(useJobFilterStore.getState().preferenceReason).toBe(
+      '差一點要補技能經驗',
+    );
+    expect(useJobFilterStore.getState().page).toBe(1);
+  });
+
+  it('setPreferenceReason(null) selects 全部 (req 7.3)', () => {
+    useJobFilterStore.getState().setPreferenceReason('A');
+    useJobFilterStore.getState().setPreferenceReason(null);
+    expect(useJobFilterStore.getState().preferenceReason).toBeNull();
+  });
+
+  it('setListViewPreference resets preferenceReason to null (req 7.5)', () => {
+    useJobFilterStore.getState().setListViewPreference('like');
+    useJobFilterStore.getState().setPreferenceReason('A');
+    useJobFilterStore.getState().setListViewPreference('dislike');
+    expect(useJobFilterStore.getState().preferenceReason).toBeNull();
+  });
+
+  it('reset() clears preferenceReason', () => {
+    useJobFilterStore.getState().setPreferenceReason('A');
+    useJobFilterStore.getState().reset();
+    expect(useJobFilterStore.getState().preferenceReason).toBeNull();
+  });
 });
