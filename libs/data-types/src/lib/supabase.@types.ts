@@ -177,6 +177,9 @@ export namespace SupabaseFunction {
     disliked_count: number;
   };
 
+  export type JobPreferenceReasonCount =
+    Database['public']['Functions']['get_job_preference_reason_counts']['Returns'][number];
+
   export type JobCrawlStats = Database['public']['Functions']['get_job_crawl_stats']['Returns'][number];
 
   export type LocationAnomalyJob = Database['public']['Functions']['get_location_anomaly_jobs']['Returns'][number];

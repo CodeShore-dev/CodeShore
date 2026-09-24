@@ -30,6 +30,12 @@ export namespace SupabaseJobView {
        * user marked the job.
        */
       preference_updated_at?: Date;
+      /**
+       * Only present when rows come from get_jobs_by_preference
+       * (the liked / disliked lists); the sub-category (reason) the
+       * current user filed the job under.
+       */
+      preference_reason?: string;
     }
   >;
 

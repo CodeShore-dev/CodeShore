@@ -6,7 +6,10 @@ import { TableService } from '../shared-services/supabase/table.service';
 
 export class JobPreferenceService extends TableService<
   SupabaseTable.JobPreference,
-  Omit<SupabaseTable.JobPreference, 'updated_at'>
+  // reason has a DB default ('未分類'), so writes may omit it.
+  Omit<SupabaseTable.JobPreference, 'updated_at' | 'reason'> & {
+    reason?: string;
+  }
 > {
   constructor(logger?: ServiceLogger) {
     super(getSupabaseClient(), 'job_preference', logger);

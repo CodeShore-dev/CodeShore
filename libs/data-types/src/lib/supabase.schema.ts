@@ -345,18 +345,21 @@ export type Database = {
         Row: {
           job_id: string
           preference: string
+          reason: string
           updated_at: string
           user_id: string
         }
         Insert: {
           job_id: string
           preference: string
+          reason?: string
           updated_at?: string
           user_id: string
         }
         Update: {
           job_id?: string
           preference?: string
+          reason?: string
           updated_at?: string
           user_id?: string
         }
@@ -845,6 +848,13 @@ export type Database = {
         }[]
       }
       get_job_preference_count: { Args: { p_user_id: string }; Returns: Json }
+      get_job_preference_reason_counts: {
+        Args: { p_preference: string; p_user_id: string }
+        Returns: {
+          job_count: number
+          reason: string
+        }[]
+      }
       get_job_update_date_counts: {
         Args: never
         Returns: {
@@ -871,6 +881,7 @@ export type Database = {
           location: string
           max_salary: number
           min_salary: number
+          preference_reason: string
           preference_updated_at: string
           salary: string
           salary_type: string
