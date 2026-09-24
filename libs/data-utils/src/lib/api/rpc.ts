@@ -46,6 +46,21 @@ export async function getJobPreferenceCount(
   return data;
 }
 
+export async function getJobPreferenceReasonCounts(
+  userId: string,
+  preference: 'like' | 'dislike',
+): Promise<SupabaseFunction.JobPreferenceReasonCount[]> {
+  const { data, error } = await getSupabaseClient().rpc(
+    'get_job_preference_reason_counts',
+    {
+      p_user_id: userId,
+      p_preference: preference,
+    },
+  );
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
 /**
  * job_keyword + tech => keyword
  */
