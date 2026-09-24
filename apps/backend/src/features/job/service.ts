@@ -1,4 +1,8 @@
-import { Inject, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+} from '@nestjs/common';
 import { spawn } from 'child_process';
 import { Observable } from 'rxjs';
 
@@ -10,6 +14,11 @@ import {
   MvJobService,
   getJobPreferenceCount,
 } from '@codeshore/data-utils';
+import {
+  DEFAULT_PREFERENCE_REASON,
+  MAX_PREFERENCE_REASON_LENGTH,
+  normalizeReason,
+} from '@codeshore/shared-utils';
 import {
   CacheService,
   Cacheable,
@@ -63,14 +72,37 @@ export class Service {
     jobId: string,
     preference: string,
     userId: string,
+    reason?: string,
   ) {
+    // Always send reason explicitly: upsert does not apply the column
+    // default to an existing row, so omitting it would keep a stale reason.
     const result = await this.jobPreferenceService.upsert([
-      { job_id: jobId, preference, user_id: userId },
+      {
+        job_id: jobId,
+        preference,
+        user_id: userId,
+        reason: this.resolveReason(reason),
+      },
     ]);
     await this.cacheService.invalidate(
       `job-preference-count:${userId}`,
     );
     return result;
+  }
+
+  private resolveReason(reason: string | undefined): string {
+    if (reason === undefined) {
+      return DEFAULT_PREFERENCE_REASON;
+    }
+    const normalized = normalizeReason(reason);
+    if (!normalized.ok) {
+      throw new BadRequestException(
+        normalized.error === 'empty'
+          ? 'reason must not be empty'
+          : `reason must be at most ${MAX_PREFERENCE_REASON_LENGTH} characters`,
+      );
+    }
+    return normalized.value;
   }
 
   async clearJobPreferences(

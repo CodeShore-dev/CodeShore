@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller as ControllerDecorator,
   Delete,
   Get,
@@ -26,6 +27,7 @@ import {
 } from '../auth/auth.decorator';
 import { LimitQuery } from '../query-limit.decorator';
 import { QueryDto } from '../query.dto';
+import { SetJobPreferenceDto } from './dto';
 import { Service } from './service';
 
 const name = 'job';
@@ -118,7 +120,7 @@ export class Controller {
   @ApiOperation({
     summary: 'Set the current user preference for a single job',
     description:
-      'Marks the given job with a preference (like or dislike) for the current user via upsert, and invalidates the related count cache.',
+      'Marks the given job with a preference (like or dislike) for the current user via upsert, and invalidates the related count cache. The body may carry an optional reason (sub-category); it is trimmed and must be 1-20 characters, otherwise 400. When omitted (including an empty body), the reason is reset to the default "未分類". Changing the preference replaces the whole record.',
   })
   @ApiParam({
     name: 'jobId',
@@ -134,9 +136,15 @@ export class Controller {
   async setJobPreference(
     @Param('jobId') jobId: string,
     @Param('preference') preference: string,
+    @Body() body: SetJobPreferenceDto,
     @CurrentUser() user: User,
   ) {
-    return this.service.setJobPreference(jobId, preference, user.id);
+    return this.service.setJobPreference(
+      jobId,
+      preference,
+      user.id,
+      body?.reason,
+    );
   }
 
   @Sse('/crawl/:id')
