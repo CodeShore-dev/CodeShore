@@ -116,6 +116,50 @@ export class Controller {
     return this.service.clearJobPreferences(preference, user.id);
   }
 
+  @Get('/preference/:preference/reasons')
+  @ApiOperation({
+    summary: 'List the current user reasons (sub-categories) under a preference',
+    description:
+      'Returns every reason in use by the current user under the given preference (like or dislike) with its job count, as [{ reason, job_count }]. The default reason "未分類" is included when it has jobs. Not cached. An unknown preference returns 400. The user is inferred from the Bearer token.',
+  })
+  @ApiParam({
+    name: 'preference',
+    description: 'The preference type whose reasons to list',
+    enum: ['like', 'dislike'],
+    example: 'like',
+  })
+  async getPreferenceReasons(
+    @Param('preference') preference: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.service.getPreferenceReasons(preference, user.id);
+  }
+
+  @Delete('/preference/:preference/reasons/:reason')
+  @ApiOperation({
+    summary: 'Delete one of the current user reasons (sub-categories)',
+    description:
+      'Moves every job the current user marked with this reason under the given preference back to the default reason "未分類"; the marks themselves are kept. The reason is URL-encoded in the path and trimmed; it must be 1-20 characters. Deleting the default reason, an empty or too-long name, or an unknown preference returns 400. Invalidates the related count cache and returns { updated } (the number of affected jobs).',
+  })
+  @ApiParam({
+    name: 'preference',
+    description: 'The preference type the reason belongs to',
+    enum: ['like', 'dislike'],
+    example: 'dislike',
+  })
+  @ApiParam({
+    name: 'reason',
+    description: 'The reason name to delete (URL-encoded)',
+    example: '技能已符合',
+  })
+  async deletePreferenceReason(
+    @Param('preference') preference: string,
+    @Param('reason') reason: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.service.deletePreferenceReason(preference, reason, user.id);
+  }
+
   @Patch('/preference/:jobId/:preference')
   @ApiOperation({
     summary: 'Set the current user preference for a single job',

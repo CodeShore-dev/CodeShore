@@ -1,6 +1,13 @@
 import { BadRequestException } from '@nestjs/common';
 
+import { getJobPreferenceReasonCounts } from '@codeshore/data-utils';
+
 import { Service } from './service';
+
+vi.mock('@codeshore/data-utils', async importOriginal => ({
+  ...(await importOriginal<typeof import('@codeshore/data-utils')>()),
+  getJobPreferenceReasonCounts: vi.fn(),
+}));
 
 describe('Service.getLocationTechStats', () => {
   it('calls MvLocationTechService.fetchAll with the given query as-is (tech-scoped where) and returns its result', async () => {
@@ -218,5 +225,134 @@ describe('Service.setJobPreference (task 2.2)', () => {
     expect(jobPreferenceService.upsert).toHaveBeenCalledWith([
       { job_id: 'job-1', preference: 'like', user_id: 'user-1', reason: name },
     ]);
+  });
+});
+
+/**
+ * Task 2.3 (design.md "Backend：Job Controller / Service", GET
+ * `/job/preference/:preference/reasons`): returns the in-use reasons with
+ * their job counts for one preference (1.4, 3.1, 3.2). No backend cache
+ * (D7). An unknown preference is a 400.
+ */
+describe('Service.getPreferenceReasons (task 2.3)', () => {
+  const makeService = () => {
+    const cacheService = {
+      getOrSet: vi.fn(),
+      invalidate: vi.fn().mockResolvedValue(undefined),
+    };
+    const service = new Service(
+      cacheService as any,
+      undefined as any,
+      undefined as any,
+      undefined as any,
+      undefined as any,
+      undefined as any,
+    );
+    return { service, cacheService };
+  };
+
+  it.each(['like', 'dislike'] as const)(
+    'passes userId and preference=%s through and returns the rows as-is, without caching',
+    async preference => {
+      const rows = [
+        { reason: '想投', job_count: 3 },
+        { reason: '未分類', job_count: 1 },
+      ];
+      vi.mocked(getJobPreferenceReasonCounts).mockReset();
+      vi.mocked(getJobPreferenceReasonCounts).mockResolvedValue(rows);
+      const { service, cacheService } = makeService();
+
+      const result = await service.getPreferenceReasons(preference, 'user-1');
+
+      expect(getJobPreferenceReasonCounts).toHaveBeenCalledWith(
+        'user-1',
+        preference,
+      );
+      expect(result).toBe(rows);
+      expect(cacheService.getOrSet).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['favorite', '', 'LIKE'])(
+    'rejects preference=%j with a 400 and does not query',
+    async preference => {
+      vi.mocked(getJobPreferenceReasonCounts).mockReset();
+      const { service } = makeService();
+
+      const promise = service.getPreferenceReasons(preference, 'user-1');
+
+      await expect(promise).rejects.toBeInstanceOf(BadRequestException);
+      expect(getJobPreferenceReasonCounts).not.toHaveBeenCalled();
+    },
+  );
+});
+
+/**
+ * Task 2.3 (design.md "Backend：Job Controller / Service", DELETE
+ * `/job/preference/:preference/reasons/:reason`): the default reason cannot
+ * be deleted (5.6); any other name is batch-reset to the default via
+ * `resetReason` (5.3, 5.4) and the preference-count cache is invalidated.
+ */
+describe('Service.deletePreferenceReason (task 2.3)', () => {
+  const makeService = () => {
+    const cacheService = { invalidate: vi.fn().mockResolvedValue(undefined) };
+    const jobPreferenceService = {
+      resetReason: vi.fn().mockResolvedValue({ updated: 4 }),
+    };
+    const service = new Service(
+      cacheService as any,
+      jobPreferenceService as any,
+      undefined as any,
+      undefined as any,
+      undefined as any,
+      undefined as any,
+    );
+    return { service, cacheService, jobPreferenceService };
+  };
+
+  it('resets the normalized name for this user/preference, invalidates the count cache and returns { updated }', async () => {
+    const { service, cacheService, jobPreferenceService } = makeService();
+
+    const result = await service.deletePreferenceReason(
+      'dislike',
+      '  技能已符合 ',
+      'user-1',
+    );
+
+    expect(jobPreferenceService.resetReason).toHaveBeenCalledWith(
+      'user-1',
+      'dislike',
+      '技能已符合',
+    );
+    expect(cacheService.invalidate).toHaveBeenCalledWith(
+      'job-preference-count:user-1',
+    );
+    expect(result).toEqual({ updated: 4 });
+  });
+
+  it.each([
+    ['the default reason', '未分類'],
+    ['the default reason with surrounding spaces', '  未分類 '],
+    ['an empty string', ''],
+    ['a whitespace-only string', '   '],
+    ['a 21-character name', '字'.repeat(21)],
+  ])('rejects %s with a 400 and does not reset', async (_label, reason) => {
+    const { service, cacheService, jobPreferenceService } = makeService();
+
+    const promise = service.deletePreferenceReason('like', reason, 'user-1');
+
+    await expect(promise).rejects.toBeInstanceOf(BadRequestException);
+    await expect(promise).rejects.toMatchObject({ status: 400 });
+    expect(jobPreferenceService.resetReason).not.toHaveBeenCalled();
+    expect(cacheService.invalidate).not.toHaveBeenCalled();
+  });
+
+  it('rejects an invalid preference with a 400 and does not reset', async () => {
+    const { service, jobPreferenceService } = makeService();
+
+    const promise = service.deletePreferenceReason('love', '想投', 'user-1');
+
+    await expect(promise).rejects.toBeInstanceOf(BadRequestException);
+    expect(jobPreferenceService.resetReason).not.toHaveBeenCalled();
   });
 });

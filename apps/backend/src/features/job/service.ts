@@ -13,10 +13,13 @@ import {
   MvLocationTechService,
   MvJobService,
   getJobPreferenceCount,
+  getJobPreferenceReasonCounts,
 } from '@codeshore/data-utils';
+import type { SupabaseFunction } from '@codeshore/data-types';
 import {
   DEFAULT_PREFERENCE_REASON,
   MAX_PREFERENCE_REASON_LENGTH,
+  isDefaultReason,
   normalizeReason,
 } from '@codeshore/shared-utils';
 import {
@@ -27,6 +30,21 @@ import {
 import { QueryDto } from '../query.dto';
 
 const PREFERENCE_COUNT_TTL = 60 * 1000; // 60 seconds
+
+/** One in-use reason (sub-category) and how many jobs carry it. */
+export type ReasonCount = SupabaseFunction.JobPreferenceReasonCount;
+
+type ReasonPreference = 'like' | 'dislike';
+
+function assertReasonPreference(
+  preference: string,
+): asserts preference is ReasonPreference {
+  if (preference !== 'like' && preference !== 'dislike') {
+    throw new BadRequestException(
+      'preference must be either "like" or "dislike"',
+    );
+  }
+}
 
 @Injectable()
 export class Service {
@@ -90,10 +108,53 @@ export class Service {
     return result;
   }
 
+  /**
+   * Lists the reasons in use under one preference with their job counts.
+   * Not cached (design decision D7): the list must reflect writes at once.
+   */
+  async getPreferenceReasons(
+    preference: string,
+    userId: string,
+  ): Promise<ReasonCount[]> {
+    assertReasonPreference(preference);
+    return getJobPreferenceReasonCounts(userId, preference);
+  }
+
+  /**
+   * Moves every record of this user/preference that uses `reason` back to
+   * the default reason. The default reason itself cannot be deleted (400).
+   */
+  async deletePreferenceReason(
+    preference: string,
+    reason: string,
+    userId: string,
+  ): Promise<{ updated: number }> {
+    assertReasonPreference(preference);
+    const normalized = this.normalizeOrThrow(reason);
+    if (isDefaultReason(normalized)) {
+      throw new BadRequestException(
+        `the default reason "${DEFAULT_PREFERENCE_REASON}" cannot be deleted`,
+      );
+    }
+    const result = await this.jobPreferenceService.resetReason(
+      userId,
+      preference,
+      normalized,
+    );
+    await this.cacheService.invalidate(
+      `job-preference-count:${userId}`,
+    );
+    return result;
+  }
+
   private resolveReason(reason: string | undefined): string {
     if (reason === undefined) {
       return DEFAULT_PREFERENCE_REASON;
     }
+    return this.normalizeOrThrow(reason);
+  }
+
+  private normalizeOrThrow(reason: string): string {
     const normalized = normalizeReason(reason);
     if (!normalized.ok) {
       throw new BadRequestException(

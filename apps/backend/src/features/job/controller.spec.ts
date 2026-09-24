@@ -3,6 +3,7 @@ import {
   ValidationPipe,
   type ExecutionContext,
 } from '@nestjs/common';
+import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import { Reflector } from '@nestjs/core';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -222,5 +223,111 @@ describe('SetJobPreferenceDto (task 2.2)', () => {
     await expect(
       pipe.transform({ reason: 123 }, metadata),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+});
+
+/**
+ * Task 2.3 (design.md "Backend：Job Controller / Service", GET
+ * `/job/preference/:preference/reasons` and DELETE
+ * `/job/preference/:preference/reasons/:reason`): both forward the route
+ * params and take the user id only from `@CurrentUser()` (1.5).
+ */
+describe('Controller.getPreferenceReasons / deletePreferenceReason (task 2.3)', () => {
+  const makeController = () => {
+    const rows = [{ reason: '想投', job_count: 2 }];
+    const service = {
+      getPreferenceReasons: vi.fn().mockResolvedValue(rows),
+      deletePreferenceReason: vi.fn().mockResolvedValue({ updated: 2 }),
+    };
+    const controller = new Controller(service as unknown as Service);
+    return { controller, service, rows };
+  };
+
+  it('GET forwards the preference and the current user id and returns the rows', async () => {
+    const { controller, service, rows } = makeController();
+
+    const result = await controller.getPreferenceReasons('like', {
+      id: 'user-1',
+    } as any);
+
+    expect(service.getPreferenceReasons).toHaveBeenCalledWith('like', 'user-1');
+    expect(result).toBe(rows);
+  });
+
+  it('DELETE forwards the (already URL-decoded) reason, preference and the current user id', async () => {
+    const { controller, service } = makeController();
+
+    const result = await controller.deletePreferenceReason(
+      'dislike',
+      '技能/已符合',
+      { id: 'user-1' } as any,
+    );
+
+    expect(service.deletePreferenceReason).toHaveBeenCalledWith(
+      'dislike',
+      '技能/已符合',
+      'user-1',
+    );
+    expect(result).toEqual({ updated: 2 });
+  });
+
+  it.each(['getPreferenceReasons', 'deletePreferenceReason'] as const)(
+    '%s requires login: AuthGuard rejects a request without a token',
+    async method => {
+      const guard = new AuthGuard(new Reflector());
+      const request = { headers: {}, query: {} };
+      const context = {
+        getHandler: () => Controller.prototype[method],
+        getClass: () => Controller,
+        switchToHttp: () => ({ getRequest: () => request }),
+      } as unknown as ExecutionContext;
+
+      await expect(guard.canActivate(context)).rejects.toMatchObject({
+        status: 401,
+      });
+    },
+  );
+});
+
+/**
+ * Task 2.3: the new routes must not shadow, or be shadowed by, the existing
+ * preference routes. Reads the real route metadata of every Controller
+ * handler and checks that each sample URL matches exactly one route per
+ * HTTP method (Express-style `:param` = one non-empty segment).
+ */
+describe('Controller preference routes coexist (task 2.3)', () => {
+  const methodName = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'];
+  const routes = Object.getOwnPropertyNames(Controller.prototype)
+    .filter(name => name !== 'constructor')
+    .map(name => {
+      const handler = (Controller.prototype as any)[name];
+      const path = Reflect.getMetadata(PATH_METADATA, handler);
+      const method = Reflect.getMetadata(METHOD_METADATA, handler);
+      return { name, path, method: methodName[method] };
+    })
+    .filter(r => typeof r.path === 'string');
+
+  const toRegExp = (path: string) =>
+    new RegExp(
+      '^' +
+        path
+          .replace(/^\/?/, '/')
+          .replace(/:[A-Za-z]+/g, '[^/]+') +
+        '$',
+    );
+
+  const matching = (method: string, url: string) =>
+    routes
+      .filter(r => r.method === method && toRegExp(r.path).test(url))
+      .map(r => r.name);
+
+  it.each([
+    ['GET', '/preference/like/reasons', 'getPreferenceReasons'],
+    ['GET', '/preference/count', 'getJobPreferencedCount'],
+    ['DELETE', '/preference/like/reasons/%E6%83%B3%E6%8A%95', 'deletePreferenceReason'],
+    ['DELETE', '/preference/dislike', 'clearJobPreferences'],
+    ['PATCH', '/preference/job-1/like', 'setJobPreference'],
+  ])('%s %s is handled only by %s', (method, url, name) => {
+    expect(matching(method, url)).toEqual([name]);
   });
 });
