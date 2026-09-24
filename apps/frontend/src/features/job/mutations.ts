@@ -6,7 +6,11 @@ import {
 import { SupabaseView } from '@codeshore/data-types';
 
 import { useJobFilterStore } from './jobFilterStore';
-import { clearJobPreferences, setJobPreference } from './service';
+import {
+  clearJobPreferences,
+  deletePreferenceReason,
+  setJobPreference,
+} from './service';
 
 export interface PreferenceCounts {
   liked_count: number;
@@ -49,10 +53,12 @@ export function usePreferenceMutation() {
     mutationFn: ({
       id,
       preference,
+      reason,
     }: {
       id: string;
       preference: 'like' | 'dislike';
-    }) => setJobPreference(id, preference),
+      reason: string;
+    }) => setJobPreference(id, preference, reason),
     onMutate: async ({ id, preference }) => {
       await queryClient.cancelQueries({ queryKey: ['job'] });
       const prevLists = queryClient.getQueriesData<JobListData>({
@@ -95,6 +101,9 @@ export function usePreferenceMutation() {
       queryClient.invalidateQueries({
         queryKey: ['job', 'preferencedCount'],
       });
+      queryClient.invalidateQueries({
+        queryKey: ['job', 'preferenceReasons'],
+      });
     },
   });
 }
@@ -110,6 +119,30 @@ export function useClearPreferencesMutation() {
       queryClient.invalidateQueries({ queryKey: ['job', 'list'] });
       queryClient.invalidateQueries({
         queryKey: ['job', 'preferencedCount'],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['job', 'preferenceReasons'],
+      });
+    },
+  });
+}
+
+// Deletes a reason (sub-category): its jobs fall back to the default reason
+// on the server, so both the job lists and the reason counts are refreshed.
+export function useDeletePreferenceReasonMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      preference,
+      reason,
+    }: {
+      preference: 'like' | 'dislike';
+      reason: string;
+    }) => deletePreferenceReason(preference, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['job', 'list'] });
+      queryClient.invalidateQueries({
+        queryKey: ['job', 'preferenceReasons'],
       });
     },
   });

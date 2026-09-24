@@ -5,6 +5,7 @@ import {
   fetchJobPreferencedCount,
   fetchJobs,
   fetchLocationGroups,
+  fetchPreferenceReasons,
 } from './service';
 
 export const JOB_PAGE_SIZE = 10;
@@ -49,6 +50,19 @@ export function usePreferencedCountQuery() {
   return useQuery({
     queryKey: ['job', 'preferencedCount'],
     queryFn: fetchJobPreferencedCount,
+  });
+}
+
+// Reason (sub-category) counts for a like/dislike bucket; invalidated by
+// every preference mutation via the ['job', 'preferenceReasons'] prefix.
+export function usePreferenceReasonsQuery(
+  preference: 'like' | 'dislike',
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: ['job', 'preferenceReasons', preference],
+    queryFn: () => fetchPreferenceReasons(preference),
+    enabled,
   });
 }
 

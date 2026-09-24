@@ -1,5 +1,6 @@
 import {
   ListResponse,
+  SupabaseFunction,
   SupabaseView,
 } from '@codeshore/data-types';
 
@@ -35,10 +36,30 @@ export const fetchJobPreferencedCount = async () => {
 export const setJobPreference = async (
   jobId: string,
   preference: string,
+  reason: string,
 ) => {
   const res = await httpClient.patch(
     `/api/job/preference/${jobId}/${preference}`,
-    {},
+    { reason },
+  );
+  return res.data;
+};
+
+export const fetchPreferenceReasons = async (
+  preference: 'like' | 'dislike',
+) => {
+  const res = await httpClient.get<
+    SupabaseFunction.JobPreferenceReasonCount[]
+  >(`/api/job/preference/${preference}/reasons`);
+  return res.data;
+};
+
+export const deletePreferenceReason = async (
+  preference: 'like' | 'dislike',
+  reason: string,
+) => {
+  const res = await httpClient.delete<{ updated: number }>(
+    `/api/job/preference/${preference}/reasons/${encodeURIComponent(reason)}`,
   );
   return res.data;
 };

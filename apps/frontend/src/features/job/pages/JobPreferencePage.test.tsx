@@ -411,7 +411,7 @@ describe('JobPreferencePage guest preference gate (req 2, 3)', () => {
 
     expect(screen.queryByText('需要登入')).not.toBeInTheDocument();
     await waitFor(() => {
-      expect(setJobPreference).toHaveBeenCalledWith('job-1', 'like');
+      expect(setJobPreference).toHaveBeenCalledWith('job-1', 'like', '未分類');
     });
 
     act(() => {

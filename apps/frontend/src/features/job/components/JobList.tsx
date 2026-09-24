@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 
 import { SupabaseView } from '@codeshore/data-types';
+import { DEFAULT_PREFERENCE_REASON } from '@codeshore/shared-utils';
 
 import { Pagination } from '../../../components/Pagination';
 import { usePreferenceMutation } from '../mutations';
@@ -96,14 +97,22 @@ export function JobList({
       jobs[currentIndex + 1] ?? jobs[currentIndex - 1] ?? null;
     onGuardPreference(() => {
       onSelectJob(nextJob?.id ?? null);
-      preferenceMutation.mutate({ id: currentId, preference });
+      preferenceMutation.mutate({
+        id: currentId,
+        preference,
+        reason: DEFAULT_PREFERENCE_REASON,
+      });
     });
   };
 
   const onPreference = useCallback(
     (id: string, preference: 'like' | 'dislike') => {
       onGuardPreference(() => {
-        preferenceMutation.mutate({ id, preference });
+        preferenceMutation.mutate({
+          id,
+          preference,
+          reason: DEFAULT_PREFERENCE_REASON,
+        });
       });
     },
     [onGuardPreference, preferenceMutation.mutate],
