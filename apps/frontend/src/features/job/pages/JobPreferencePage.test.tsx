@@ -48,6 +48,7 @@ vi.mock('../service', () => ({
     .mockResolvedValue({ liked_count: 7, disliked_count: 5 }),
   fetchLocationGroups: vi.fn().mockResolvedValue({ result: [] }),
   setJobPreference: vi.fn().mockResolvedValue({}),
+  fetchPreferenceReasons: vi.fn().mockResolvedValue([]),
   clearJobPreferences: clearJobPreferencesMock,
   createCrawlEventSource: vi.fn(() => ({ close: vi.fn() })),
 }));
@@ -396,7 +397,7 @@ describe('JobPreferencePage guest preference gate (req 2, 3)', () => {
     expect(screen.getByText('5')).toBeInTheDocument();
   });
 
-  it('calls the preference service directly (no prompt) when an authenticated user clicks the like button on a job row (req 2.4)', async () => {
+  it('skips the login prompt for an authenticated user and writes after the reason dialog is confirmed (req 2.4)', async () => {
     useAuthStore.setState({
       user: { id: 'u1', email: 'user@example.com' } as never,
       isLoading: false,
@@ -410,6 +411,11 @@ describe('JobPreferencePage guest preference gate (req 2, 3)', () => {
     await user.click(likeButton);
 
     expect(screen.queryByText('需要登入')).not.toBeInTheDocument();
+    // Marking now goes through the reason dialog: nothing is written until
+    // the user confirms a reason (job-preference-reason-tag 2.1).
+    expect(await screen.findByText('喜歡的原因')).toBeInTheDocument();
+    expect(setJobPreference).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: '確認' }));
     await waitFor(() => {
       expect(setJobPreference).toHaveBeenCalledWith('job-1', 'like', '未分類');
     });

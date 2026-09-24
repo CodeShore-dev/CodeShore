@@ -45,11 +45,15 @@ export function adjustCounts(
 
 // Optimistic preference mutation: removes the job from every cached job list
 // and adjusts the cached counts; rolls back on error; invalidates on settle.
+// Lets callers track only in-flight like/dislike writes (useIsMutating).
+export const PREFERENCE_MUTATION_KEY = ['job', 'preference'] as const;
+
 export function usePreferenceMutation() {
   const queryClient = useQueryClient();
   const listViewPreference = useJobFilterStore(s => s.listViewPreference);
 
   return useMutation({
+    mutationKey: PREFERENCE_MUTATION_KEY,
     mutationFn: ({
       id,
       preference,

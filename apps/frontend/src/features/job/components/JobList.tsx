@@ -1,14 +1,16 @@
+import { useIsMutating } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef } from 'react';
 
 import { SupabaseView } from '@codeshore/data-types';
-import { DEFAULT_PREFERENCE_REASON } from '@codeshore/shared-utils';
 
 import { Pagination } from '../../../components/Pagination';
-import { usePreferenceMutation } from '../mutations';
+import { useReasonPickerFlow } from '../hooks/useReasonPickerFlow';
+import { PREFERENCE_MUTATION_KEY } from '../mutations';
 import { JOB_PAGE_SIZE } from '../queries';
 import { JobDetailDrawer } from './JobDetailDrawer';
 import { JobListItem } from './JobListItem';
 import { JobListSkeleton } from './JobListSkeleton';
+import { JobPreferenceReasonPicker } from './JobPreferenceReasonPicker';
 
 interface JobListProps {
   jobs: SupabaseView.MvJob[];
@@ -31,8 +33,8 @@ interface JobListProps {
 
 // Job list + pagination + detail drawer orchestration (task 7.5),
 // ported from JobList.vue. Server data arrives via props (TanStack Query);
-// the optimistic like/dislike mutation lives here so the list item buttons
-// and the drawer share one instance.
+// every like/dislike entry point (list buttons, drawer, swipe) goes through
+// one reason picker flow, which owns the optimistic mutation (2.1).
 export function JobList({
   jobs,
   count,
@@ -47,7 +49,11 @@ export function JobList({
   onClearAllFilters,
   onGuardPreference,
 }: JobListProps) {
-  const preferenceMutation = usePreferenceMutation();
+  const flow = useReasonPickerFlow();
+  const { request } = flow;
+  // The flow owns the mutation instance, so read "a like/dislike write is in
+  // flight" from the query client; it keeps the drawer buttons locked as before.
+  const preferenceUpdating = useIsMutating({ mutationKey: PREFERENCE_MUTATION_KEY }) > 0;
   const totalPages = Math.ceil(count / JOB_PAGE_SIZE);
 
   const selectedJob = jobs.find(x => x.id === selectedJobId);
@@ -90,32 +96,27 @@ export function JobList({
   };
 
   const updatePreference = (preference: 'like' | 'dislike') => {
-    if (preferenceMutation.isPending || !selectedJob) return;
+    if (preferenceUpdating || !selectedJob) return;
     const currentId = selectedJob.id;
     const currentIndex = selectedJobIndex;
     const nextJob =
       jobs[currentIndex + 1] ?? jobs[currentIndex - 1] ?? null;
-    onGuardPreference(() => {
-      onSelectJob(nextJob?.id ?? null);
-      preferenceMutation.mutate({
-        id: currentId,
+    // Step to the next job only once the reason is confirmed; a cancel
+    // leaves the drawer on this job (2.5).
+    onGuardPreference(() =>
+      request({
+        jobId: currentId,
         preference,
-        reason: DEFAULT_PREFERENCE_REASON,
-      });
-    });
+        beforeCommit: () => onSelectJob(nextJob?.id ?? null),
+      }),
+    );
   };
 
   const onPreference = useCallback(
     (id: string, preference: 'like' | 'dislike') => {
-      onGuardPreference(() => {
-        preferenceMutation.mutate({
-          id,
-          preference,
-          reason: DEFAULT_PREFERENCE_REASON,
-        });
-      });
+      onGuardPreference(() => request({ jobId: id, preference }));
     },
-    [onGuardPreference, preferenceMutation.mutate],
+    [onGuardPreference, request],
   );
 
   // Keep the selected row visible as the drawer steps through jobs.
@@ -147,6 +148,7 @@ export function JobList({
 
   return (
     <>
+      <JobPreferenceReasonPicker flow={flow} />
       <div className="overflow-hidden rounded-xl bg-white shadow-[0_24px_40px_rgba(0,31,42,0.06)]">
         {loading ? (
           <JobListSkeleton />
@@ -209,7 +211,7 @@ export function JobList({
         isFirst={isFirstJobOnFirstPage}
         isLast={isLastJobOnLastPage}
         loading={loading}
-        preferenceUpdating={preferenceMutation.isPending}
+        preferenceUpdating={preferenceUpdating}
         listViewPreference={listViewPreference}
         onClose={() => onSelectJob(null)}
         onPrev={goToPrevJob}
