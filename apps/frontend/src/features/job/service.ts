@@ -64,6 +64,18 @@ export const deletePreferenceReason = async (
   return res.data;
 };
 
+export const renamePreferenceReason = async (
+  preference: 'like' | 'dislike',
+  reason: string,
+  name: string,
+) => {
+  const res = await httpClient.patch<{ updated: number }>(
+    `/api/job/preference/${preference}/reasons/${encodeURIComponent(reason)}`,
+    { name },
+  );
+  return res.data;
+};
+
 export const clearJobPreferences = async (
   preference: string,
 ) => {

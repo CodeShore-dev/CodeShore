@@ -9,6 +9,7 @@ import { useJobFilterStore } from './jobFilterStore';
 import {
   clearJobPreferences,
   deletePreferenceReason,
+  renamePreferenceReason,
   setJobPreference,
 } from './service';
 
@@ -143,6 +144,88 @@ export function useDeletePreferenceReasonMutation() {
       preference: 'like' | 'dislike';
       reason: string;
     }) => deletePreferenceReason(preference, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['job', 'list'] });
+      queryClient.invalidateQueries({
+        queryKey: ['job', 'preferenceReasons'],
+      });
+    },
+  });
+}
+
+// Changes the reason (sub-category) of a job already in the like/dislike
+// list, reusing the existing PATCH (design.md D8). The job keeps its
+// preference and stays in the list -- only its reason is optimistically
+// updated in every cached list; a separate mutationKey from
+// PREFERENCE_MUTATION_KEY keeps the drawer's "writing" lock (useIsMutating)
+// scoped to marking only (task 8.1, requirements 8.3, 8.6, 8.7).
+export const CHANGE_REASON_MUTATION_KEY = ['job', 'changeReason'] as const;
+
+export function useChangeReasonMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationKey: CHANGE_REASON_MUTATION_KEY,
+    mutationFn: ({
+      id,
+      preference,
+      reason,
+    }: {
+      id: string;
+      preference: 'like' | 'dislike';
+      reason: string;
+    }) => setJobPreference(id, preference, reason),
+    onMutate: async ({ id, reason }) => {
+      await queryClient.cancelQueries({ queryKey: ['job'] });
+      const prevLists = queryClient.getQueriesData<JobListData>({
+        queryKey: ['job', 'list'],
+      });
+
+      queryClient.setQueriesData<JobListData>(
+        { queryKey: ['job', 'list'] },
+        old =>
+          old
+            ? {
+                ...old,
+                result: old.result.map(job =>
+                  job.id === id ? { ...job, preference_reason: reason } : job,
+                ),
+              }
+            : old,
+      );
+
+      return { prevLists };
+    },
+    onError: (_error, _vars, context) => {
+      context?.prevLists?.forEach(([key, data]) =>
+        queryClient.setQueryData(key, data),
+      );
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['job', 'list'] });
+      queryClient.invalidateQueries({
+        queryKey: ['job', 'preferenceReasons'],
+      });
+    },
+  });
+}
+
+// Renames a reason (sub-category) for every job that uses it under a
+// preference. Errors (including a 409 on a duplicate name) propagate to the
+// caller unchanged so the dialog can distinguish them (task 8.1,
+// requirements 9.3, 9.8).
+export function useRenamePreferenceReasonMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      preference,
+      reason,
+      name,
+    }: {
+      preference: 'like' | 'dislike';
+      reason: string;
+      name: string;
+    }) => renamePreferenceReason(preference, reason, name),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['job', 'list'] });
       queryClient.invalidateQueries({

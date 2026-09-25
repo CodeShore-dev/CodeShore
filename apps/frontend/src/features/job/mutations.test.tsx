@@ -3,25 +3,33 @@ import { act, renderHook } from '@testing-library/react';
 import { type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { setJobPreference, clearJobPreferences, deletePreferenceReason } =
-  vi.hoisted(() => ({
-    setJobPreference: vi.fn(),
-    clearJobPreferences: vi.fn(),
-    deletePreferenceReason: vi.fn(),
-  }));
+const {
+  setJobPreference,
+  clearJobPreferences,
+  deletePreferenceReason,
+  renamePreferenceReason,
+} = vi.hoisted(() => ({
+  setJobPreference: vi.fn(),
+  clearJobPreferences: vi.fn(),
+  deletePreferenceReason: vi.fn(),
+  renamePreferenceReason: vi.fn(),
+}));
 
 vi.mock('./service', () => ({
   setJobPreference,
   clearJobPreferences,
   deletePreferenceReason,
+  renamePreferenceReason,
 }));
 
 import { useJobFilterStore } from './jobFilterStore';
 import {
   adjustCounts,
+  useChangeReasonMutation,
   useClearPreferencesMutation,
   useDeletePreferenceReasonMutation,
   usePreferenceMutation,
+  useRenamePreferenceReasonMutation,
 } from './mutations';
 
 describe('adjustCounts', () => {
@@ -271,5 +279,197 @@ describe('preference reason wiring (req 2.4, 2.8, 5.3, 7.8)', () => {
     expect(spy).toHaveBeenCalledWith({
       queryKey: ['job', 'preferenceReasons'],
     });
+  });
+});
+
+describe('useChangeReasonMutation (req 8.3, 8.6, 8.7)', () => {
+  let client: QueryClient;
+  const listKey = [
+    'job',
+    'list',
+    { preference: 'like', page: 1, where: {}, orders: 'x' },
+  ];
+
+  beforeEach(() => {
+    setJobPreference.mockReset();
+    setJobPreference.mockResolvedValue({});
+    client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+  });
+
+  function wrapper({ children }: { children: ReactNode }) {
+    return (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+  }
+
+  it('calls setJobPreference with the job id, preference and new reason (req 8.3)', async () => {
+    const { result } = renderHook(() => useChangeReasonMutation(), {
+      wrapper,
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        id: 'j1',
+        preference: 'like',
+        reason: '薪資太低',
+      });
+    });
+
+    expect(setJobPreference).toHaveBeenCalledWith('j1', 'like', '薪資太低');
+  });
+
+  it('keeps the job in the cached list and updates its reason (req 8.3, 8.6)', async () => {
+    client.setQueryData(listKey, {
+      result: [
+        { id: 'j1', preference_reason: '未分類' },
+        { id: 'j2', preference_reason: '未分類' },
+      ],
+      count: 2,
+    });
+
+    const { result } = renderHook(() => useChangeReasonMutation(), {
+      wrapper,
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        id: 'j1',
+        preference: 'like',
+        reason: '薪資太低',
+      });
+    });
+
+    const list = client.getQueryData<{
+      result: { id: string; preference_reason: string }[];
+    }>(listKey);
+    expect(list?.result).toEqual([
+      { id: 'j1', preference_reason: '薪資太低' },
+      { id: 'j2', preference_reason: '未分類' },
+    ]);
+  });
+
+  it('restores the previous reason when the change fails (req 8.7)', async () => {
+    setJobPreference.mockRejectedValue(new Error('boom'));
+    client.setQueryData(listKey, {
+      result: [{ id: 'j1', preference_reason: '未分類' }],
+      count: 1,
+    });
+
+    const { result } = renderHook(() => useChangeReasonMutation(), {
+      wrapper,
+    });
+
+    await act(async () => {
+      await result.current
+        .mutateAsync({ id: 'j1', preference: 'like', reason: '薪資太低' })
+        .catch(() => undefined);
+    });
+
+    const list = client.getQueryData<{
+      result: { id: string; preference_reason: string }[];
+    }>(listKey);
+    expect(list?.result).toEqual([
+      { id: 'j1', preference_reason: '未分類' },
+    ]);
+  });
+
+  it('invalidates the job list and reason counts after settling (req 8.6)', async () => {
+    const spy = vi.spyOn(client, 'invalidateQueries');
+    const { result } = renderHook(() => useChangeReasonMutation(), {
+      wrapper,
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        id: 'j1',
+        preference: 'like',
+        reason: '薪資太低',
+      });
+    });
+
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['job', 'list'] });
+    expect(spy).toHaveBeenCalledWith({
+      queryKey: ['job', 'preferenceReasons'],
+    });
+  });
+});
+
+describe('useRenamePreferenceReasonMutation (req 9.3, 9.8)', () => {
+  let client: QueryClient;
+
+  beforeEach(() => {
+    renamePreferenceReason.mockReset();
+    renamePreferenceReason.mockResolvedValue({ updated: 3 });
+    client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+  });
+
+  function wrapper({ children }: { children: ReactNode }) {
+    return (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+  }
+
+  it('calls renamePreferenceReason with the preference, old reason and new name', async () => {
+    const { result } = renderHook(() => useRenamePreferenceReasonMutation(), {
+      wrapper,
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        preference: 'like',
+        reason: '技能已符合',
+        name: '技能完全符合',
+      });
+    });
+
+    expect(renamePreferenceReason).toHaveBeenCalledWith(
+      'like',
+      '技能已符合',
+      '技能完全符合',
+    );
+  });
+
+  it('invalidates the job list and reason counts on success (req 9.8)', async () => {
+    const spy = vi.spyOn(client, 'invalidateQueries');
+    const { result } = renderHook(() => useRenamePreferenceReasonMutation(), {
+      wrapper,
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        preference: 'like',
+        reason: '技能已符合',
+        name: '技能完全符合',
+      });
+    });
+
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['job', 'list'] });
+    expect(spy).toHaveBeenCalledWith({
+      queryKey: ['job', 'preferenceReasons'],
+    });
+  });
+
+  it('rejects and does not invalidate when the rename fails', async () => {
+    renamePreferenceReason.mockRejectedValue(
+      Object.assign(new Error('conflict'), { response: { status: 409 } }),
+    );
+    const spy = vi.spyOn(client, 'invalidateQueries');
+    const { result } = renderHook(() => useRenamePreferenceReasonMutation(), {
+      wrapper,
+    });
+
+    await expect(
+      result.current.mutateAsync({
+        preference: 'like',
+        reason: '技能已符合',
+        name: '技能完全符合',
+      }),
+    ).rejects.toThrow('conflict');
+
+    expect(spy).not.toHaveBeenCalled();
   });
 });
