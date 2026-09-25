@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { DEFAULT_PREFERENCE_REASON } from '@codeshore/shared-utils';
+import { DEFAULT_PREFERENCE_REASON, normalizeReason } from '@codeshore/shared-utils';
 
 import { ConfirmDialog } from '../../../components/ConfirmDialog';
 import { Modal } from '../../../components/Modal';
@@ -8,7 +8,7 @@ import { type ReasonOption, buildReasonOptions } from '../buildReasonOptions';
 import { useReasonRename } from '../hooks/useReasonRename';
 import { useDeletePreferenceReasonMutation } from '../mutations';
 import { usePreferenceReasonsQuery } from '../queries';
-import { JobPreferenceReasonAddInput } from './JobPreferenceReasonAddInput';
+import { JobPreferenceReasonAddInput, type ReasonAddError } from './JobPreferenceReasonAddInput';
 import { JobPreferenceReasonOptionList } from './JobPreferenceReasonOptionList';
 
 export interface JobPreferenceReasonDialogProps {
@@ -56,6 +56,8 @@ function ReasonDialogBody({
   const [picked, setPicked] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<ReasonOption | null>(null);
   const [deleteFailed, setDeleteFailed] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [addError, setAddError] = useState<ReasonAddError | null>(null);
   const deleteMutation = useDeletePreferenceReasonMutation();
 
   const options = buildReasonOptions(server, []);
@@ -94,7 +96,21 @@ function ReasonDialogBody({
 
   // Adding a name confirms the mark with it right away (4.1). A name that
   // already exists is the same reason, so no duplicate is created (4.5).
-  const handleAdd = (reason: string) => onConfirm(reason);
+  // The name is trimmed and validated with the shared rule (4.2); an invalid
+  // name shows a hint and is not confirmed (4.3, 4.4).
+  const submitAdd = () => {
+    const result = normalizeReason(draft);
+    if (!result.ok) {
+      setAddError(result.error);
+      return;
+    }
+    setAddError(null);
+    onConfirm(result.value);
+  };
+
+  // While the input has text, the footer button adds that name instead of
+  // confirming the selected option.
+  const adding = draft.trim() !== '';
 
   // Functional update: reads the selection at completion time, not at the
   // time the delete started (5.5).
@@ -133,7 +149,12 @@ function ReasonDialogBody({
           onRename={rename.rename}
           onCancelRename={cancelRename}
         />
-        <JobPreferenceReasonAddInput onAdd={handleAdd} />
+        <JobPreferenceReasonAddInput
+          value={draft}
+          error={addError}
+          onChange={setDraft}
+          onSubmit={submitAdd}
+        />
         {deleteFailed && (
           <p role="alert" className="text-xs text-[#ba1a1a]">
             刪除失敗
@@ -149,10 +170,10 @@ function ReasonDialogBody({
           </button>
           <button
             type="button"
-            onClick={() => onConfirm(selected)}
+            onClick={adding ? submitAdd : () => onConfirm(selected)}
             className="cursor-pointer rounded-lg bg-[#003d92] px-5 py-2 text-sm font-bold text-white transition-all hover:bg-[#1654b9] active:scale-95"
           >
-            確認
+            {adding ? '新增' : '確認'}
           </button>
         </div>
       </div>

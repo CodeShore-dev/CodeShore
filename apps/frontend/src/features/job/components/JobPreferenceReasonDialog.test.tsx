@@ -138,9 +138,30 @@ describe('JobPreferenceReasonDialog', () => {
 
   it('does not confirm when the typed name is invalid (4.3)', async () => {
     const { user, onConfirm } = setup();
-    await addReason(user, '   ');
+    await user.type(screen.getByRole('textbox', { name: '新增子分類' }), '   {Enter}');
     expect(onConfirm).not.toHaveBeenCalled();
     expect(screen.getByText('請輸入名稱')).toBeInTheDocument();
+  });
+
+  it('does not confirm a name over 20 characters (4.4)', async () => {
+    const { user, onConfirm } = setup();
+    await addReason(user, '字'.repeat(21));
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(screen.getByText('最多 20 個字')).toBeInTheDocument();
+  });
+
+  it('turns the footer button into 新增 only while the input has text', async () => {
+    const { user } = setup();
+    const input = screen.getByRole('textbox', { name: '新增子分類' });
+    expect(screen.getByRole('button', { name: '確認' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '新增' })).not.toBeInTheDocument();
+    await user.type(input, '  ');
+    expect(screen.getByRole('button', { name: '確認' })).toBeInTheDocument();
+    await user.type(input, '薪');
+    expect(screen.getByRole('button', { name: '新增' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '確認' })).not.toBeInTheDocument();
+    await user.clear(input);
+    expect(screen.getByRole('button', { name: '確認' })).toBeInTheDocument();
   });
 
   it('adding an existing name confirms with that same reason (4.5)', async () => {
