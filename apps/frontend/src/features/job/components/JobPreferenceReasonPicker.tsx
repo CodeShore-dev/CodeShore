@@ -11,7 +11,7 @@ export function JobPreferenceReasonPicker({ flow }: JobPreferenceReasonPickerPro
   const { pending } = flow;
   return (
     <>
-      {flow.mutationError && (
+      {flow.mutationError === 'mark' && (
         <p role="alert" className="mb-2 text-sm font-bold text-[#ba1a1a]">
           標記失敗，請再試一次
         </p>

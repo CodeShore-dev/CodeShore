@@ -8,17 +8,21 @@ const mutate = vi.fn((vars: unknown) => {
   calls.push('mutate');
   return vars;
 });
+const changeMutate = vi.fn((vars: unknown) => {
+  calls.push('changeMutate');
+  return vars;
+});
 const remember = vi.fn((preference: string, reason: string) => {
   calls.push('remember');
   return [preference, reason];
 });
-const read = vi.fn((preference: 'like' | 'dislike') =>
-  preference === 'like' ? '想投遞' : null,
-);
+const read = vi.fn((preference: 'like' | 'dislike') => (preference === 'like' ? '想投遞' : null));
 let isError = false;
+let changeIsError = false;
 
 vi.mock('../mutations', () => ({
   usePreferenceMutation: () => ({ mutate, isError }),
+  useChangeReasonMutation: () => ({ mutate: changeMutate, isError: changeIsError }),
 }));
 
 // The real useLastReasonMemory returns a module-level singleton, so the
@@ -31,16 +35,18 @@ vi.mock('./useLastReasonMemory', () => ({
 beforeEach(() => {
   calls.length = 0;
   mutate.mockClear();
+  changeMutate.mockClear();
   remember.mockClear();
   read.mockClear();
   isError = false;
+  changeIsError = false;
 });
 
 describe('useReasonPickerFlow', () => {
   it('starts closed', () => {
     const { result } = renderHook(() => useReasonPickerFlow());
     expect(result.current.pending).toBeNull();
-    expect(result.current.mutationError).toBe(false);
+    expect(result.current.mutationError).toBeNull();
   });
 
   it('request() opens with the remembered reason for that preference (6.2)', () => {
@@ -50,6 +56,7 @@ describe('useReasonPickerFlow', () => {
     expect(read).toHaveBeenCalledWith('like');
     expect(result.current.pending).toEqual({
       preference: 'like',
+      mode: 'mark',
       initialReason: '想投遞',
     });
   });
@@ -61,6 +68,7 @@ describe('useReasonPickerFlow', () => {
     expect(read).toHaveBeenCalledWith('dislike');
     expect(result.current.pending).toEqual({
       preference: 'dislike',
+      mode: 'mark',
       initialReason: null,
     });
   });
@@ -69,9 +77,7 @@ describe('useReasonPickerFlow', () => {
     const beforeCommit = vi.fn();
     const { result } = renderHook(() => useReasonPickerFlow());
 
-    act(() =>
-      result.current.request({ jobId: 'j1', preference: 'like', beforeCommit }),
-    );
+    act(() => result.current.request({ jobId: 'j1', preference: 'like', beforeCommit }));
     expect(mutate).not.toHaveBeenCalled();
     expect(remember).not.toHaveBeenCalled();
     expect(beforeCommit).not.toHaveBeenCalled();
@@ -81,9 +87,7 @@ describe('useReasonPickerFlow', () => {
     const beforeCommit = vi.fn();
     const { result } = renderHook(() => useReasonPickerFlow());
 
-    act(() =>
-      result.current.request({ jobId: 'j1', preference: 'like', beforeCommit }),
-    );
+    act(() => result.current.request({ jobId: 'j1', preference: 'like', beforeCommit }));
     act(() => result.current.cancel());
 
     expect(result.current.pending).toBeNull();
@@ -161,6 +165,7 @@ describe('useReasonPickerFlow', () => {
     act(() => result.current.request({ jobId: 'j2', preference: 'like' }));
     expect(result.current.pending).toEqual({
       preference: 'like',
+      mode: 'mark',
       initialReason: '想投遞',
     });
 
@@ -173,13 +178,131 @@ describe('useReasonPickerFlow', () => {
     });
   });
 
-  it('mutationError mirrors the preference mutation isError (2.8)', () => {
+  it('mutationError is "mark" when the preference mutation isError (2.8, 8.7)', () => {
     const { result, rerender } = renderHook(() => useReasonPickerFlow());
-    expect(result.current.mutationError).toBe(false);
+    expect(result.current.mutationError).toBeNull();
 
     isError = true;
     rerender();
-    expect(result.current.mutationError).toBe(true);
+    expect(result.current.mutationError).toBe('mark');
+  });
+
+  describe('change mode (8.2, 8.3, 8.5, 8.7, 8.8)', () => {
+    it('preselects the job current reason instead of the remembered one', () => {
+      const { result } = renderHook(() => useReasonPickerFlow());
+
+      act(() =>
+        result.current.request({
+          jobId: 'j1',
+          preference: 'like',
+          mode: 'change',
+          currentReason: '薪資太低',
+        }),
+      );
+
+      // The remembered reason must not be consulted in change mode.
+      expect(read).not.toHaveBeenCalled();
+      expect(result.current.pending).toEqual({
+        preference: 'like',
+        mode: 'change',
+        initialReason: '薪資太低',
+      });
+    });
+
+    it('falls back to null when currentReason is missing', () => {
+      const { result } = renderHook(() => useReasonPickerFlow());
+
+      act(() =>
+        result.current.request({
+          jobId: 'j1',
+          preference: 'dislike',
+          mode: 'change',
+        }),
+      );
+
+      expect(result.current.pending?.initialReason).toBeNull();
+    });
+
+    it('confirm() calls only the change mutation, with no memory write or beforeCommit', () => {
+      const beforeCommit = vi.fn();
+      const { result } = renderHook(() => useReasonPickerFlow());
+
+      act(() =>
+        result.current.request({
+          jobId: 'j1',
+          preference: 'like',
+          mode: 'change',
+          currentReason: '薪資太低',
+          beforeCommit,
+        }),
+      );
+      act(() => result.current.confirm('通勤太遠'));
+
+      expect(calls).toEqual(['changeMutate']);
+      expect(changeMutate).toHaveBeenCalledWith({
+        id: 'j1',
+        preference: 'like',
+        reason: '通勤太遠',
+      });
+      expect(mutate).not.toHaveBeenCalled();
+      expect(remember).not.toHaveBeenCalled();
+      expect(beforeCommit).not.toHaveBeenCalled();
+      expect(result.current.pending).toBeNull();
+    });
+
+    it('cancel() in change mode has no side effects', () => {
+      const { result } = renderHook(() => useReasonPickerFlow());
+
+      act(() =>
+        result.current.request({
+          jobId: 'j1',
+          preference: 'like',
+          mode: 'change',
+          currentReason: '薪資太低',
+        }),
+      );
+      act(() => result.current.cancel());
+
+      expect(result.current.pending).toBeNull();
+      expect(changeMutate).not.toHaveBeenCalled();
+      expect(mutate).not.toHaveBeenCalled();
+      expect(remember).not.toHaveBeenCalled();
+
+      // A later confirm must not resurrect the cancelled request.
+      act(() => result.current.confirm('通勤太遠'));
+      expect(changeMutate).not.toHaveBeenCalled();
+    });
+
+    it('mutationError is "change" when the change mutation isError', () => {
+      const { result, rerender } = renderHook(() => useReasonPickerFlow());
+      expect(result.current.mutationError).toBeNull();
+
+      changeIsError = true;
+      rerender();
+      expect(result.current.mutationError).toBe('change');
+    });
+
+    it('mutationError prefers the most recently run mutation when both are in error', () => {
+      const { result, rerender } = renderHook(() => useReasonPickerFlow());
+
+      // Run a mark confirm first, then a change confirm: change ran last.
+      act(() => result.current.request({ jobId: 'j1', preference: 'like' }));
+      act(() => result.current.confirm('想投遞'));
+      act(() =>
+        result.current.request({
+          jobId: 'j1',
+          preference: 'like',
+          mode: 'change',
+          currentReason: '想投遞',
+        }),
+      );
+      act(() => result.current.confirm('通勤太遠'));
+
+      isError = true;
+      changeIsError = true;
+      rerender();
+      expect(result.current.mutationError).toBe('change');
+    });
   });
 
   it('keeps request/confirm/cancel stable across renders', () => {
