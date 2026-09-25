@@ -243,3 +243,45 @@ describe('JobListItem - tech stack chips pair a language with its present framew
     expect(document.querySelectorAll('[data-testid="tech-chip"]')).toHaveLength(0);
   });
 });
+
+describe('JobListItem sub-category badge (job-preference-reason-tag req 7.7)', () => {
+  it('shows the sub-category badge when viewing the 喜歡 tab and the job has a preference_reason', async () => {
+    renderWithProviders(
+      <ul>
+        <JobListItem
+          {...noopProps}
+          listViewPreference="like"
+          job={{
+            ...baseJob,
+            keyword_groups: [],
+            tech_mappings: [],
+            preference_reason: '技能已符合',
+          }}
+        />
+      </ul>,
+    );
+
+    await waitFor(() => screen.getByText(baseJob.title));
+    expect(screen.getByText('技能已符合')).toBeInTheDocument();
+  });
+
+  it('hides the sub-category badge on the 總數 tab (listViewPreference null)', async () => {
+    renderWithProviders(
+      <ul>
+        <JobListItem
+          {...noopProps}
+          listViewPreference={null}
+          job={{
+            ...baseJob,
+            keyword_groups: [],
+            tech_mappings: [],
+            preference_reason: '技能已符合',
+          }}
+        />
+      </ul>,
+    );
+
+    await waitFor(() => screen.getByText(baseJob.title));
+    expect(screen.queryByText('技能已符合')).not.toBeInTheDocument();
+  });
+});

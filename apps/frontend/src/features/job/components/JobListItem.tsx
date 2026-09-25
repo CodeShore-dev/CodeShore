@@ -6,6 +6,7 @@ import { SupabaseView } from '@codeshore/data-types';
 import { TechIcon } from '../../../components/TechIcon';
 import { formatDateInfo } from '../../../utils/format';
 import { useTechsQuery } from '../../keyword/queries';
+import { JobPreferenceReasonBadge } from './JobPreferenceReasonBadge';
 
 const TECH_STACK_CATEGORIES = ['language', 'framework', 'database'];
 
@@ -193,6 +194,9 @@ export const JobListItem = memo(function JobListItem({
           <span className="text-[13px] font-bold text-[#434653]">
             {job.company_name}
           </span>
+          {listViewPreference !== null && (
+            <JobPreferenceReasonBadge reason={job.preference_reason} />
+          )}
         </div>
 
         <div

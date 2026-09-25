@@ -6,7 +6,7 @@ import { renderWithProviders } from '../../../test/renderWithProviders';
 import { useAuthStore } from '../../auth/authStore';
 import { useJobFilterStore } from '../jobFilterStore';
 import { useKeywordFilterStore } from '../../keyword/keywordFilterStore';
-import { setJobPreference } from '../service';
+import { fetchJobs, fetchPreferenceReasons, setJobPreference } from '../service';
 
 const { clearJobPreferencesMock } = vi.hoisted(() => ({
   clearJobPreferencesMock: vi.fn().mockResolvedValue({}),
@@ -418,6 +418,82 @@ describe('JobPreferencePage guest preference gate (req 2, 3)', () => {
     await user.click(screen.getByRole('button', { name: '確認' }));
     await waitFor(() => {
       expect(setJobPreference).toHaveBeenCalledWith('job-1', 'like', '未分類');
+    });
+
+    act(() => {
+      useAuthStore.setState({ user: null, isLoading: true });
+    });
+  });
+});
+
+describe('JobPreferencePage sub-category filter (job-preference-reason-tag req 7.1, 7.4, 7.6, 7.7)', () => {
+  it('does not show the sub-category filter bar on the 總數 tab (req 7.6)', async () => {
+    renderWithProviders(<JobPreferencePage />, { route: '/jobs' });
+
+    await screen.findByText('React 資深工程師');
+
+    expect(
+      screen.queryByRole('group', { name: '子分類篩選' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows the sub-category filter bar with 全部 on the 喜歡 tab for an authenticated user (req 7.1)', async () => {
+    useAuthStore.setState({
+      user: { id: 'u1', email: 'user@example.com' } as never,
+      isLoading: false,
+    });
+    vi.mocked(fetchPreferenceReasons).mockResolvedValueOnce([
+      { reason: '未分類', job_count: 3 },
+      { reason: '技能已符合', job_count: 4 },
+    ]);
+    const user = userEvent.setup();
+    renderWithProviders(<JobPreferencePage />, { route: '/jobs' });
+
+    await screen.findByText('7');
+    await user.click(screen.getByText('喜歡'));
+
+    const filterBar = await screen.findByRole('group', {
+      name: '子分類篩選',
+    });
+    expect(within(filterBar).getByText('全部')).toBeInTheDocument();
+
+    act(() => {
+      useAuthStore.setState({ user: null, isLoading: true });
+    });
+  });
+
+  it('includes preference_reason in the jobs request when a reason chip is selected, alongside existing filters (req 7.4)', async () => {
+    useAuthStore.setState({
+      user: { id: 'u1', email: 'user@example.com' } as never,
+      isLoading: false,
+    });
+    useJobFilterStore.getState().setSearchText('react');
+    vi.mocked(fetchPreferenceReasons).mockResolvedValue([
+      { reason: '未分類', job_count: 3 },
+      { reason: '技能已符合', job_count: 4 },
+    ]);
+    const user = userEvent.setup();
+    renderWithProviders(<JobPreferencePage />, { route: '/jobs' });
+
+    await screen.findByText('7');
+    await user.click(screen.getByText('喜歡'));
+
+    const filterBar = await screen.findByRole('group', {
+      name: '子分類篩選',
+    });
+    await user.click(within(filterBar).getByText('技能已符合').closest('button')!);
+
+    await waitFor(() => {
+      const lastCall = vi.mocked(fetchJobs).mock.calls.at(-1);
+      expect(lastCall).toBeDefined();
+      const where = JSON.parse(
+        (lastCall?.[0] as { where: string }).where,
+      );
+      expect(where.preference_reason).toEqual({ eq: '技能已符合' });
+      expect(where.preference).toEqual({ eq: 'like' });
+      // The pre-existing search-text filter (req 7.4: combined with the
+      // reason filter, not replaced by it).
+      expect(where.$or).toBeDefined();
     });
 
     act(() => {

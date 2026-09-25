@@ -10,6 +10,7 @@ import { InfoHint } from '../../methodology/components/InfoHint';
 import { JobActiveFilters } from '../components/JobActiveFilters';
 import { JobFilterSidebar } from '../components/JobFilterSidebar';
 import { JobList } from '../components/JobList';
+import { JobPreferenceReasonFilter } from '../components/JobPreferenceReasonFilter';
 import { deriveJobWhere } from '../deriveJobWhere';
 import { useGuestPreferenceGate } from '../hooks/useGuestPreferenceGate';
 import { useJobUrlSync } from '../hooks/useJobUrlSync';
@@ -45,6 +46,7 @@ export function JobPreferencePage() {
   const setSort = useJobFilterStore(s => s.setSort);
   const listViewPreference = useJobFilterStore(s => s.listViewPreference);
   const setListViewPreference = useJobFilterStore(s => s.setListViewPreference);
+  const preferenceReason = useJobFilterStore(s => s.preferenceReason);
   const selectedJobId = useJobFilterStore(s => s.selectedJobId);
   const setSelectedJobId = useJobFilterStore(s => s.setSelectedJobId);
   const searchText = useJobFilterStore(s => s.searchText);
@@ -81,6 +83,7 @@ export function JobPreferencePage() {
 
   const jobsQuery = useJobsQuery({
     preference: listViewPreference,
+    preferenceReason,
     page,
     where,
     orders,
@@ -310,6 +313,10 @@ export function JobPreferencePage() {
             </div>
           ))}
         </section>
+
+        {listViewPreference !== null && (
+          <JobPreferenceReasonFilter preference={listViewPreference} />
+        )}
 
         <JobActiveFilters onClearAll={clearAllFilters} />
 
