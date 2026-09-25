@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Inject,
   Injectable,
 } from '@nestjs/common';
@@ -140,6 +141,47 @@ export class Service {
       userId,
       preference,
       normalized,
+    );
+    await this.cacheService.invalidate(
+      `job-preference-count:${userId}`,
+    );
+    return result;
+  }
+
+  /**
+   * Renames every record of this user/preference that uses `reason` to
+   * `name` (D9: only `reason` changes). The default reason cannot be renamed
+   * (400); renaming onto an existing name, including the default reason, is
+   * a 409 (D10); the same name after trimming is a no-op.
+   */
+  async renamePreferenceReason(
+    preference: string,
+    reason: string,
+    name: string,
+    userId: string,
+  ): Promise<{ updated: number }> {
+    assertReasonPreference(preference);
+    const from = this.normalizeOrThrow(reason);
+    if (isDefaultReason(from)) {
+      throw new BadRequestException(
+        `the default reason "${DEFAULT_PREFERENCE_REASON}" cannot be renamed`,
+      );
+    }
+    const to = this.normalizeOrThrow(name);
+    if (from === to) {
+      return { updated: 0 };
+    }
+    if (
+      isDefaultReason(to) ||
+      (await this.jobPreferenceService.reasonExists(userId, preference, to))
+    ) {
+      throw new ConflictException(`reason "${to}" already exists`);
+    }
+    const result = await this.jobPreferenceService.renameReason(
+      userId,
+      preference,
+      from,
+      to,
     );
     await this.cacheService.invalidate(
       `job-preference-count:${userId}`,

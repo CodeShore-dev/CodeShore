@@ -27,7 +27,7 @@ import {
 } from '../auth/auth.decorator';
 import { LimitQuery } from '../query-limit.decorator';
 import { QueryDto } from '../query.dto';
-import { SetJobPreferenceDto } from './dto';
+import { RenamePreferenceReasonDto, SetJobPreferenceDto } from './dto';
 import { Service } from './service';
 
 const name = 'job';
@@ -158,6 +158,37 @@ export class Controller {
     @CurrentUser() user: User,
   ) {
     return this.service.deletePreferenceReason(preference, reason, user.id);
+  }
+
+  @Patch('/preference/:preference/reasons/:reason')
+  @ApiOperation({
+    summary: 'Rename one of the current user reasons (sub-categories)',
+    description:
+      'Renames every job mark of the current user under the given preference that uses this reason to body.name; only the reason changes, the preference and the mark time are kept. Both names are URL-decoded/trimmed and must be 1-20 characters. Renaming the default reason "未分類", an invalid name or an unknown preference returns 400. A new name that already exists under this preference (including "未分類") returns 409. The same name after trimming returns { updated: 0 } without writing. Otherwise invalidates the related count cache and returns { updated } (the number of affected jobs).',
+  })
+  @ApiParam({
+    name: 'preference',
+    description: 'The preference type the reason belongs to',
+    enum: ['like', 'dislike'],
+    example: 'dislike',
+  })
+  @ApiParam({
+    name: 'reason',
+    description: 'The current reason name (URL-encoded)',
+    example: '技能已符合',
+  })
+  async renamePreferenceReason(
+    @Param('preference') preference: string,
+    @Param('reason') reason: string,
+    @Body() body: RenamePreferenceReasonDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.service.renamePreferenceReason(
+      preference,
+      reason,
+      body.name,
+      user.id,
+    );
   }
 
   @Patch('/preference/:jobId/:preference')

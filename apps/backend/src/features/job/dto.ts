@@ -24,3 +24,19 @@ export class SetJobPreferenceDto {
   @IsString()
   reason?: string;
 }
+
+/**
+ * Body DTO for `PATCH /api/job/preference/:preference/reasons/:reason`
+ * (design.md 追加範圍 → API Contract). Only the type is checked here;
+ * trimming and the 1–20 length rule are applied by
+ * `Service.renamePreferenceReason` via `normalizeReason`, which returns a 400.
+ */
+export class RenamePreferenceReasonDto {
+  @ApiProperty({
+    type: String,
+    description: `New reason (sub-category) name. Leading/trailing whitespace is trimmed; must be 1-${MAX_PREFERENCE_REASON_LENGTH} characters after trimming and must not already exist under the same preference (including "${DEFAULT_PREFERENCE_REASON}").`,
+    example: '薪資太低',
+  })
+  @IsString()
+  name!: string;
+}

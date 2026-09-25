@@ -9,7 +9,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { AuthGuard } from '../auth/auth.guard';
 import { Controller } from './controller';
-import { SetJobPreferenceDto } from './dto';
+import { RenamePreferenceReasonDto, SetJobPreferenceDto } from './dto';
 import { Service } from './service';
 
 /**
@@ -327,7 +327,87 @@ describe('Controller preference routes coexist (task 2.3)', () => {
     ['DELETE', '/preference/like/reasons/%E6%83%B3%E6%8A%95', 'deletePreferenceReason'],
     ['DELETE', '/preference/dislike', 'clearJobPreferences'],
     ['PATCH', '/preference/job-1/like', 'setJobPreference'],
+    ['PATCH', '/preference/x/reasons/y', 'renamePreferenceReason'],
+    ['PATCH', '/preference/like/reasons/%E6%83%B3%E6%8A%95', 'renamePreferenceReason'],
   ])('%s %s is handled only by %s', (method, url, name) => {
     expect(matching(method, url)).toEqual([name]);
+  });
+});
+
+/**
+ * Task 7.2 (design.md 追加範圍 → API Contract): PATCH
+ * `/job/preference/:preference/reasons/:reason` forwards the route params
+ * and body.name; the user id comes only from `@CurrentUser()`.
+ */
+describe('Controller.renamePreferenceReason (task 7.2)', () => {
+  it('forwards preference, the (already URL-decoded) reason, body.name and the current user id', async () => {
+    const service = {
+      renamePreferenceReason: vi.fn().mockResolvedValue({ updated: 3 }),
+    };
+    const controller = new Controller(service as unknown as Service);
+
+    const result = await controller.renamePreferenceReason(
+      'dislike',
+      '技能/已符合',
+      { name: '薪資太低', user_id: 'someone-else' } as any,
+      { id: 'user-1' } as any,
+    );
+
+    expect(service.renamePreferenceReason).toHaveBeenCalledWith(
+      'dislike',
+      '技能/已符合',
+      '薪資太低',
+      'user-1',
+    );
+    expect(result).toEqual({ updated: 3 });
+  });
+
+  it('requires login: AuthGuard rejects a request without a token', async () => {
+    const guard = new AuthGuard(new Reflector());
+    const request = { headers: {}, query: {} };
+    const context = {
+      getHandler: () => Controller.prototype.renamePreferenceReason,
+      getClass: () => Controller,
+      switchToHttp: () => ({ getRequest: () => request }),
+    } as unknown as ExecutionContext;
+
+    await expect(guard.canActivate(context)).rejects.toMatchObject({
+      status: 401,
+    });
+  });
+});
+
+/**
+ * Task 7.2: `RenamePreferenceReasonDto` validated through the app's global
+ * ValidationPipe options (transform + whitelist).
+ */
+describe('RenamePreferenceReasonDto (task 7.2)', () => {
+  const pipe = new ValidationPipe({
+    transform: true,
+    whitelist: true,
+    forbidNonWhitelisted: false,
+  });
+  const metadata = {
+    type: 'body' as const,
+    metatype: RenamePreferenceReasonDto,
+    data: '',
+  };
+
+  it('accepts a string name and strips unknown fields', async () => {
+    const result = await pipe.transform(
+      { name: '薪資太低', user_id: 'someone-else' },
+      metadata,
+    );
+    expect(result).toBeInstanceOf(RenamePreferenceReasonDto);
+    expect(result).toEqual({ name: '薪資太低' });
+  });
+
+  it.each([
+    ['a missing name', {}],
+    ['a non-string name', { name: 123 }],
+  ])('rejects %s with a 400', async (_label, body) => {
+    await expect(pipe.transform(body, metadata)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 });

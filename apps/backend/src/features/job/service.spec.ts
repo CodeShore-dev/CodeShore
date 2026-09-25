@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 
 import { getJobPreferenceReasonCounts } from '@codeshore/data-utils';
 
@@ -354,5 +354,156 @@ describe('Service.deletePreferenceReason (task 2.3)', () => {
 
     await expect(promise).rejects.toBeInstanceOf(BadRequestException);
     expect(jobPreferenceService.resetReason).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Task 7.2 (design.md 追加範圍 → API Contract, D9, D10): PATCH
+ * `/job/preference/:preference/reasons/:reason` renames a reason in bulk.
+ * Both names are normalized (9.4); the default reason cannot be renamed;
+ * the same name after trimming is a no-op (9.6); an existing name, including
+ * the default reason, is a 409 (9.5); otherwise `renameReason` runs (9.3) and
+ * the preference-count cache is invalidated.
+ */
+describe('Service.renamePreferenceReason (task 7.2)', () => {
+  const makeService = (exists = false) => {
+    const cacheService = { invalidate: vi.fn().mockResolvedValue(undefined) };
+    const jobPreferenceService = {
+      renameReason: vi.fn().mockResolvedValue({ updated: 3 }),
+      reasonExists: vi.fn().mockResolvedValue(exists),
+    };
+    const service = new Service(
+      cacheService as any,
+      jobPreferenceService as any,
+      undefined as any,
+      undefined as any,
+      undefined as any,
+      undefined as any,
+    );
+    return { service, cacheService, jobPreferenceService };
+  };
+
+  it('renames the normalized names for this user/preference, invalidates the count cache and returns { updated }', async () => {
+    const { service, cacheService, jobPreferenceService } = makeService();
+
+    const result = await service.renamePreferenceReason(
+      'dislike',
+      '  技能已符合 ',
+      ' 薪資太低  ',
+      'user-1',
+    );
+
+    expect(jobPreferenceService.reasonExists).toHaveBeenCalledWith(
+      'user-1',
+      'dislike',
+      '薪資太低',
+    );
+    expect(jobPreferenceService.renameReason).toHaveBeenCalledWith(
+      'user-1',
+      'dislike',
+      '技能已符合',
+      '薪資太低',
+    );
+    expect(cacheService.invalidate).toHaveBeenCalledWith(
+      'job-preference-count:user-1',
+    );
+    expect(result).toEqual({ updated: 3 });
+  });
+
+  it('returns { updated: 0 } without writing when the new name equals the old one after trimming', async () => {
+    const { service, cacheService, jobPreferenceService } = makeService();
+
+    const result = await service.renamePreferenceReason(
+      'like',
+      '想投',
+      '  想投 ',
+      'user-1',
+    );
+
+    expect(result).toEqual({ updated: 0 });
+    expect(jobPreferenceService.reasonExists).not.toHaveBeenCalled();
+    expect(jobPreferenceService.renameReason).not.toHaveBeenCalled();
+    expect(cacheService.invalidate).not.toHaveBeenCalled();
+  });
+
+  it('rejects an existing name with a 409 and does not rename', async () => {
+    const { service, cacheService, jobPreferenceService } = makeService(true);
+
+    const promise = service.renamePreferenceReason(
+      'like',
+      '想投',
+      '備用',
+      'user-1',
+    );
+
+    await expect(promise).rejects.toBeInstanceOf(ConflictException);
+    await expect(promise).rejects.toMatchObject({ status: 409 });
+    expect(jobPreferenceService.reasonExists).toHaveBeenCalledWith(
+      'user-1',
+      'like',
+      '備用',
+    );
+    expect(jobPreferenceService.renameReason).not.toHaveBeenCalled();
+    expect(cacheService.invalidate).not.toHaveBeenCalled();
+  });
+
+  it.each(['未分類', '  未分類 '])(
+    'rejects renaming to the default reason (%j) with a 409 without querying or renaming',
+    async name => {
+      const { service, cacheService, jobPreferenceService } = makeService();
+
+      const promise = service.renamePreferenceReason(
+        'like',
+        '想投',
+        name,
+        'user-1',
+      );
+
+      await expect(promise).rejects.toBeInstanceOf(ConflictException);
+      await expect(promise).rejects.toMatchObject({ status: 409 });
+      expect(jobPreferenceService.reasonExists).not.toHaveBeenCalled();
+      expect(jobPreferenceService.renameReason).not.toHaveBeenCalled();
+      expect(cacheService.invalidate).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ['the default reason as the old name', '未分類', '新名稱'],
+    ['the default reason with spaces as the old name', '  未分類 ', '新名稱'],
+    ['an empty old name', '', '新名稱'],
+    ['a 21-character old name', '字'.repeat(21), '新名稱'],
+    ['an empty new name', '想投', ''],
+    ['a whitespace-only new name', '想投', '   '],
+    ['a 21-character new name', '想投', '字'.repeat(21)],
+  ])('rejects %s with a 400 and does not rename', async (_label, reason, name) => {
+    const { service, cacheService, jobPreferenceService } = makeService();
+
+    const promise = service.renamePreferenceReason(
+      'like',
+      reason,
+      name,
+      'user-1',
+    );
+
+    await expect(promise).rejects.toBeInstanceOf(BadRequestException);
+    await expect(promise).rejects.toMatchObject({ status: 400 });
+    expect(jobPreferenceService.reasonExists).not.toHaveBeenCalled();
+    expect(jobPreferenceService.renameReason).not.toHaveBeenCalled();
+    expect(cacheService.invalidate).not.toHaveBeenCalled();
+  });
+
+  it('rejects an invalid preference with a 400 and does not rename', async () => {
+    const { service, jobPreferenceService } = makeService();
+
+    const promise = service.renamePreferenceReason(
+      'love',
+      '想投',
+      '備用',
+      'user-1',
+    );
+
+    await expect(promise).rejects.toBeInstanceOf(BadRequestException);
+    expect(jobPreferenceService.reasonExists).not.toHaveBeenCalled();
+    expect(jobPreferenceService.renameReason).not.toHaveBeenCalled();
   });
 });
