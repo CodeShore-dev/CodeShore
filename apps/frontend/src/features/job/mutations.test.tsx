@@ -433,6 +433,71 @@ describe('useRenamePreferenceReasonMutation (req 9.3, 9.8)', () => {
     );
   });
 
+  it('writes the new name into the cached reason list and job lists before the caller callback (req 9.7)', async () => {
+    client.setQueryData(['job', 'preferenceReasons', 'like'], [
+      { reason: '未分類', job_count: 1 },
+      { reason: '技能已符合', job_count: 2 },
+    ]);
+    client.setQueryData(['job', 'list', { page: 1 }], {
+      result: [
+        { id: 'j1', preference_reason: '技能已符合' },
+        { id: 'j2', preference_reason: '未分類' },
+      ],
+      count: 2,
+    });
+    const seen: unknown[] = [];
+    const { result } = renderHook(() => useRenamePreferenceReasonMutation(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync(
+        { preference: 'like', reason: '技能已符合', name: '技能完全符合' },
+        { onSuccess: () => seen.push(client.getQueryData(['job', 'preferenceReasons', 'like'])) },
+      );
+    });
+
+    expect(seen[0]).toEqual([
+      { reason: '未分類', job_count: 1 },
+      { reason: '技能完全符合', job_count: 2 },
+    ]);
+    const list = client.getQueryData<{ result: { id: string; preference_reason: string }[] }>([
+      'job',
+      'list',
+      { page: 1 },
+    ]);
+    expect(list?.result.map(j => j.preference_reason)).toEqual(['技能完全符合', '未分類']);
+  });
+
+  it('lets a later rename reuse a name an earlier rename released (A→B, then C→A)', async () => {
+    client.setQueryData(['job', 'preferenceReasons', 'like'], [
+      { reason: 'A', job_count: 2 },
+      { reason: 'C', job_count: 1 },
+    ]);
+    const { result } = renderHook(() => useRenamePreferenceReasonMutation(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync({ preference: 'like', reason: 'A', name: 'B' });
+      await result.current.mutateAsync({ preference: 'like', reason: 'C', name: 'A' });
+    });
+
+    expect(client.getQueryData(['job', 'preferenceReasons', 'like'])).toEqual([
+      { reason: 'B', job_count: 2 },
+      { reason: 'A', job_count: 1 },
+    ]);
+  });
+
+  it('does not touch the other preference type', async () => {
+    client.setQueryData(['job', 'preferenceReasons', 'dislike'], [{ reason: '技能已符合', job_count: 4 }]);
+    const { result } = renderHook(() => useRenamePreferenceReasonMutation(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync({ preference: 'like', reason: '技能已符合', name: '新名稱' });
+    });
+
+    expect(client.getQueryData(['job', 'preferenceReasons', 'dislike'])).toEqual([
+      { reason: '技能已符合', job_count: 4 },
+    ]);
+  });
+
   it('invalidates the job list and reason counts on success (req 9.8)', async () => {
     const spy = vi.spyOn(client, 'invalidateQueries');
     const { result } = renderHook(() => useRenamePreferenceReasonMutation(), {

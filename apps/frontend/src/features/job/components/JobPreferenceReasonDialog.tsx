@@ -5,6 +5,7 @@ import { DEFAULT_PREFERENCE_REASON } from '@codeshore/shared-utils';
 import { ConfirmDialog } from '../../../components/ConfirmDialog';
 import { Modal } from '../../../components/Modal';
 import { type ReasonOption, buildReasonOptions } from '../buildReasonOptions';
+import { useReasonRename } from '../hooks/useReasonRename';
 import { useDeletePreferenceReasonMutation } from '../mutations';
 import { usePreferenceReasonsQuery } from '../queries';
 import { JobPreferenceReasonAddInput } from './JobPreferenceReasonAddInput';
@@ -13,12 +14,17 @@ import { JobPreferenceReasonOptionList } from './JobPreferenceReasonOptionList';
 export interface JobPreferenceReasonDialogProps {
   open: boolean;
   preference: 'like' | 'dislike';
+  // 'change' re-categorises an already marked job (8.2). Default 'mark'.
+  mode?: 'mark' | 'change';
   initialReason: string | null;
   onConfirm: (reason: string) => void;
   onCancel: () => void;
 }
 
-const TITLE = { like: '喜歡的原因', dislike: '不喜歡的原因' } as const;
+const TITLE = {
+  mark: { like: '喜歡的原因', dislike: '不喜歡的原因' },
+  change: { like: '修改喜歡的原因', dislike: '修改不喜歡的原因' },
+} as const;
 
 // Reason picker dialog shell (task 4.3). The body only mounts while `open`,
 // so typed text, selection and the delete error vanish whenever the dialog
@@ -34,7 +40,14 @@ type BodyProps = JobPreferenceReasonDialogProps & {
   server: { reason: string; job_count: number }[];
 };
 
-function ReasonDialogBody({ preference, initialReason, onConfirm, onCancel, server }: BodyProps) {
+function ReasonDialogBody({
+  preference,
+  mode = 'mark',
+  initialReason,
+  onConfirm,
+  onCancel,
+  server,
+}: BodyProps) {
   // `picked` is null until the user makes an explicit choice. Until then the
   // selection is derived from `initialReason` against the current options, so
   // it re-resolves by itself when the reason list arrives after opening
@@ -51,18 +64,33 @@ function ReasonDialogBody({ preference, initialReason, onConfirm, onCancel, serv
   const listed = (reason: string | null) => (reason !== null && has(reason) ? reason : null);
   const selected = listed(picked) ?? listed(initialReason) ?? DEFAULT_PREFERENCE_REASON;
 
-  // Esc cancels the whole dialog, except while the delete confirm is open,
-  // where it only closes the confirm (2.5).
+  // A renamed selection follows its new name (9.7). The rename mutation has
+  // already written the new name into the cached reason list, so `picked` is
+  // listed at once and wins over `initialReason`, which may still be the
+  // original name. Chained renames work because `picked` holds the previous
+  // name.
+  const rename = useReasonRename({
+    preference,
+    existing: options.map(o => o.reason),
+    onRenamed: (from, to) =>
+      setPicked(prev => ((prev ?? initialReason) === from ? to : prev)),
+  });
+  const { renaming, cancel: cancelRename } = rename;
+
+  // Esc cancels the whole dialog, except while renaming, where it only
+  // cancels the rename (9.10), or while the delete confirm is open, where it
+  // only closes the confirm (2.5).
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       // Esc during IME composition only cancels the composition.
       if (event.key !== 'Escape' || event.isComposing) return;
-      if (pendingDelete) setPendingDelete(null);
+      if (renaming !== null) cancelRename();
+      else if (pendingDelete) setPendingDelete(null);
       else onCancel();
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [pendingDelete, onCancel]);
+  }, [renaming, cancelRename, pendingDelete, onCancel]);
 
   // Adding a name confirms the mark with it right away (4.1). A name that
   // already exists is the same reason, so no duplicate is created (4.5).
@@ -92,13 +120,18 @@ function ReasonDialogBody({ preference, initialReason, onConfirm, onCancel, serv
   };
 
   return (
-    <Modal open size="md" title={TITLE[preference]} onClose={onCancel}>
+    <Modal open size="md" title={TITLE[mode][preference]} onClose={onCancel}>
       <div className="flex flex-col gap-4">
         <JobPreferenceReasonOptionList
           options={options}
           selected={selected}
           onSelect={setPicked}
           onDelete={handleDelete}
+          renaming={renaming}
+          renameError={rename.renameError}
+          onStartRename={rename.start}
+          onRename={rename.rename}
+          onCancelRename={cancelRename}
         />
         <JobPreferenceReasonAddInput onAdd={handleAdd} />
         {deleteFailed && (

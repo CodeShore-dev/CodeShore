@@ -3,7 +3,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 
-import { SupabaseView } from '@codeshore/data-types';
+import { SupabaseFunction, SupabaseView } from '@codeshore/data-types';
 
 import { useJobFilterStore } from './jobFilterStore';
 import {
@@ -19,6 +19,7 @@ export interface PreferenceCounts {
 }
 
 type JobListData = { result: SupabaseView.MvJob[]; count: number };
+type PreferenceReasonCount = SupabaseFunction.JobPreferenceReasonCount;
 
 // Pure count adjustment for an optimistic like/dislike (task 7.2,
 // requirement 3.3), ported from useJobStore.updateListJobPreference:
@@ -226,7 +227,30 @@ export function useRenamePreferenceReasonMutation() {
       reason: string;
       name: string;
     }) => renamePreferenceReason(preference, reason, name),
-    onSuccess: () => {
+    // Writes the new name into the cached reason list and job lists before
+    // any caller callback runs, so the cache stays the single source of truth
+    // for the dialog: a later rename (A→B, then C→A or B→C) always works on
+    // the current names (9.7). An in-flight refetch is cancelled first so its
+    // stale result cannot overwrite the rename; the invalidation then
+    // refetches the server state.
+    onSuccess: async (_data, { preference, reason, name }) => {
+      const reasonsKey = ['job', 'preferenceReasons', preference];
+      await queryClient.cancelQueries({ queryKey: reasonsKey });
+      queryClient.setQueryData<PreferenceReasonCount[]>(reasonsKey, old =>
+        old?.map(r => (r.reason === reason ? { ...r, reason: name } : r)),
+      );
+      queryClient.setQueriesData<JobListData>({ queryKey: ['job', 'list'] }, old =>
+        old
+          ? {
+              ...old,
+              result: old.result.map(job =>
+                job.preference_reason === reason
+                  ? { ...job, preference_reason: name }
+                  : job,
+              ),
+            }
+          : old,
+      );
       queryClient.invalidateQueries({ queryKey: ['job', 'list'] });
       queryClient.invalidateQueries({
         queryKey: ['job', 'preferenceReasons'],

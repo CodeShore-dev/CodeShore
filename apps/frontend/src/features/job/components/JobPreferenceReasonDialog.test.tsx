@@ -1,7 +1,9 @@
+import type { ReactElement } from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { useJobFilterStore } from '../jobFilterStore';
 import { JobPreferenceReasonDialog } from './JobPreferenceReasonDialog';
 
 type QueryState = { data?: { reason: string; job_count: number }[]; isError?: boolean };
@@ -19,8 +21,21 @@ vi.mock('../queries', () => ({
   usePreferenceReasonsQuery: (p: 'like' | 'dislike', e?: boolean) =>
     usePreferenceReasonsQuery(p, e),
 }));
+type RenameOptions = { onSuccess?: () => void; onError?: (error: unknown) => void };
+const renameMutate = vi.fn<
+  (
+    vars: { preference: 'like' | 'dislike'; reason: string; name: string },
+    opts?: RenameOptions,
+  ) => void
+>();
+const memory = { read: vi.fn<(p: 'like' | 'dislike') => string | null>(), remember: vi.fn() };
+
 vi.mock('../mutations', () => ({
   useDeletePreferenceReasonMutation: () => ({ mutate, isPending: false }),
+  useRenamePreferenceReasonMutation: () => ({ mutate: renameMutate, isPending: false }),
+}));
+vi.mock('../hooks/useLastReasonMemory', () => ({
+  useLastReasonMemory: () => memory,
 }));
 
 const SERVER = [
@@ -52,7 +67,19 @@ beforeEach(() => {
   queryState.current = { data: SERVER };
   usePreferenceReasonsQuery.mockClear();
   mutate.mockReset();
+  renameMutate.mockReset();
+  memory.read.mockReset().mockReturnValue(null);
+  memory.remember.mockReset();
+  useJobFilterStore.getState().reset();
 });
+
+async function rename(user: ReturnType<typeof userEvent.setup>, from: string, to: string) {
+  await user.click(screen.getByRole('button', { name: `改名「${from}」` }));
+  const input = screen.getByRole('textbox', { name: '新名稱' });
+  await user.clear(input);
+  if (to) await user.type(input, to);
+  await user.click(screen.getByRole('button', { name: '儲存' }));
+}
 
 describe('JobPreferenceReasonDialog', () => {
   it('shows the title for each preference (2.2)', () => {
@@ -225,5 +252,204 @@ describe('JobPreferenceReasonDialog', () => {
     await user.click(screen.getByText('遠端工作'));
     await user.click(screen.getByRole('button', { name: '確認' }));
     expect(onConfirm).toHaveBeenCalledWith('遠端工作');
+  });
+
+  describe('change mode and rename (8.2, 9.x)', () => {
+    it('shows the change-mode title for each preference (8.2)', () => {
+      const { rerender, all } = setup({ mode: 'change' });
+      expect(screen.getByText('修改喜歡的原因')).toBeInTheDocument();
+      rerender(<JobPreferenceReasonDialog {...all} preference="dislike" />);
+      expect(screen.getByText('修改不喜歡的原因')).toBeInTheDocument();
+    });
+
+    it('✎ turns the chip into a prefilled input (9.2)', async () => {
+      const { user } = setup();
+      await user.click(screen.getByRole('button', { name: '改名「遠端工作」' }));
+      expect(screen.getByRole('textbox', { name: '新名稱' })).toHaveValue('遠端工作');
+    });
+
+    it('saving the same name (after trim) exits without calling the API (9.6)', async () => {
+      const { user } = setup();
+      await rename(user, '遠端工作', ' 遠端工作 ');
+      expect(renameMutate).not.toHaveBeenCalled();
+      expect(screen.queryByRole('textbox', { name: '新名稱' })).not.toBeInTheDocument();
+    });
+
+    it.each(['未分類', '薪水高'])(
+      'rejects an existing name %s with 已有同名分類 (9.5)',
+      async (name) => {
+        queryState.current = { data: [...SERVER, { reason: '薪水高', job_count: 1 }] };
+        const { user } = setup();
+        await rename(user, '遠端工作', name);
+        expect(renameMutate).not.toHaveBeenCalled();
+        expect(screen.getByText('已有同名分類')).toBeInTheDocument();
+      },
+    );
+
+    it('rejects an invalid name with the name-rule error (9.4)', async () => {
+      const { user } = setup();
+      await rename(user, '遠端工作', '');
+      expect(renameMutate).not.toHaveBeenCalled();
+      expect(screen.getByText('請輸入名稱')).toBeInTheDocument();
+    });
+
+    it('calls the mutation and moves the selection to the new name (9.7)', async () => {
+      const { user, rerender, all, onConfirm } = setup();
+      await user.click(screen.getByRole('radio', { name: '遠端工作' }));
+      await rename(user, '遠端工作', ' 在家上班 ');
+      expect(renameMutate).toHaveBeenCalledWith(
+        { preference: 'like', reason: '遠端工作', name: '在家上班' },
+        expect.any(Object),
+      );
+      act(() => renameMutate.mock.calls[0][1]?.onSuccess?.());
+      expect(screen.queryByRole('textbox', { name: '新名稱' })).not.toBeInTheDocument();
+      queryState.current = { data: [SERVER[0], { reason: '在家上班', job_count: 3 }] };
+      rerender(<JobPreferenceReasonDialog {...all} />);
+      expect(screen.getByRole('radio', { name: '在家上班' })).toBeChecked();
+      await user.click(screen.getByRole('button', { name: '確認' }));
+      expect(onConfirm).toHaveBeenCalledWith('在家上班');
+    });
+
+    it('moves the selection when the renamed item was the initialReason (9.7)', async () => {
+      const { user, rerender, all } = setup({ initialReason: '遠端工作', mode: 'change' });
+      await rename(user, '遠端工作', '在家上班');
+      act(() => renameMutate.mock.calls[0][1]?.onSuccess?.());
+      queryState.current = { data: [SERVER[0], { reason: '在家上班', job_count: 3 }] };
+      rerender(<JobPreferenceReasonDialog {...all} />);
+      expect(screen.getByRole('radio', { name: '在家上班' })).toBeChecked();
+    });
+
+    // Mirrors the real rename mutation: the cached reason list is rewritten
+    // (from → to) before the caller's onSuccess runs.
+    function succeedRename(
+      index: number,
+      rerender: (ui: ReactElement) => void,
+      all: Parameters<typeof JobPreferenceReasonDialog>[0],
+    ) {
+      const [{ reason, name }, options] = renameMutate.mock.calls[index];
+      queryState.current = {
+        data: (queryState.current.data ?? []).map(r =>
+          r.reason === reason ? { ...r, reason: name } : r,
+        ),
+      };
+      act(() => options?.onSuccess?.());
+      rerender(<JobPreferenceReasonDialog {...all} />);
+    }
+
+    it.each([
+      ['a user-picked', null],
+      ['the initialReason', '遠端工作'],
+    ] as const)(
+      'follows the same chip renamed twice (%s selection, 9.7)',
+      async (_label, initialReason) => {
+        const { user, rerender, all, onConfirm } = setup({ initialReason });
+        if (initialReason === null) {
+          await user.click(screen.getByRole('radio', { name: '遠端工作' }));
+        }
+        await rename(user, '遠端工作', '在家上班');
+        succeedRename(0, rerender, all);
+        expect(screen.getByRole('radio', { name: '在家上班' })).toBeChecked();
+        await rename(user, '在家上班', '遠距工作');
+        expect(renameMutate.mock.calls[1][0]).toEqual({
+          preference: 'like',
+          reason: '在家上班',
+          name: '遠距工作',
+        });
+        succeedRename(1, rerender, all);
+        expect(screen.queryByRole('radio', { name: '遠端工作' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('radio', { name: '在家上班' })).not.toBeInTheDocument();
+        expect(screen.getByRole('radio', { name: '遠距工作' })).toBeChecked();
+        expect(screen.getByTestId('reason-count-遠距工作')).toHaveTextContent('3');
+        await user.click(screen.getByRole('button', { name: '確認' }));
+        expect(onConfirm).toHaveBeenCalledWith('遠距工作');
+      },
+    );
+
+    it('keeps the selection when two different chips are renamed (9.7)', async () => {
+      queryState.current = { data: [...SERVER, { reason: '薪水高', job_count: 1 }] };
+      const { user, rerender, all, onConfirm } = setup();
+      await user.click(screen.getByRole('radio', { name: '遠端工作' }));
+      await rename(user, '遠端工作', '在家上班');
+      succeedRename(0, rerender, all);
+      await rename(user, '薪水高', '高薪');
+      succeedRename(1, rerender, all);
+      expect(screen.getByRole('radio', { name: '高薪' })).not.toBeChecked();
+      expect(screen.getByRole('radio', { name: '在家上班' })).toBeChecked();
+      await user.click(screen.getByRole('button', { name: '確認' }));
+      expect(onConfirm).toHaveBeenCalledWith('在家上班');
+    });
+
+    it('lets a second chip take the name the first one just released (9.7)', async () => {
+      queryState.current = { data: [...SERVER, { reason: '薪水高', job_count: 1 }] };
+      const { user, rerender, all, onConfirm } = setup();
+      await rename(user, '遠端工作', '在家上班');
+      succeedRename(0, rerender, all);
+      await user.click(screen.getByRole('radio', { name: '薪水高' }));
+      await rename(user, '薪水高', '遠端工作');
+      expect(renameMutate).toHaveBeenCalledTimes(2);
+      succeedRename(1, rerender, all);
+      expect(screen.queryByRole('radio', { name: '薪水高' })).not.toBeInTheDocument();
+      expect(screen.getByRole('radio', { name: '遠端工作' })).toBeChecked();
+      expect(screen.getByTestId('reason-count-遠端工作')).toHaveTextContent('1');
+      await user.click(screen.getByRole('button', { name: '確認' }));
+      expect(onConfirm).toHaveBeenCalledWith('遠端工作');
+    });
+
+    it('keeps another selection when a different item is renamed', async () => {
+      const { user, rerender, all } = setup();
+      await rename(user, '遠端工作', '在家上班');
+      act(() => renameMutate.mock.calls[0][1]?.onSuccess?.());
+      queryState.current = { data: [SERVER[0], { reason: '在家上班', job_count: 3 }] };
+      rerender(<JobPreferenceReasonDialog {...all} />);
+      expect(screen.getByRole('radio', { name: '未分類' })).toBeChecked();
+    });
+
+    it('updates memory and the filter store only when they held the old name (9.8)', async () => {
+      memory.read.mockReturnValue('遠端工作');
+      useJobFilterStore.getState().setPreferenceReason('遠端工作');
+      const { user } = setup({ preference: 'dislike' });
+      await rename(user, '遠端工作', '在家上班');
+      act(() => renameMutate.mock.calls[0][1]?.onSuccess?.());
+      expect(memory.read).toHaveBeenCalledWith('dislike');
+      expect(memory.remember).toHaveBeenCalledWith('dislike', '在家上班');
+      expect(useJobFilterStore.getState().preferenceReason).toBe('在家上班');
+    });
+
+    it('leaves memory and the filter store alone when they held other names (9.8)', async () => {
+      memory.read.mockReturnValue('未分類');
+      useJobFilterStore.getState().setPreferenceReason('未分類');
+      const { user } = setup();
+      await rename(user, '遠端工作', '在家上班');
+      act(() => renameMutate.mock.calls[0][1]?.onSuccess?.());
+      expect(memory.remember).not.toHaveBeenCalled();
+      expect(useJobFilterStore.getState().preferenceReason).toBe('未分類');
+    });
+
+    it('shows 已有同名分類 when the server answers 409 (9.5)', async () => {
+      const { user } = setup();
+      await rename(user, '遠端工作', '在家上班');
+      act(() => renameMutate.mock.calls[0][1]?.onError?.({ response: { status: 409 } }));
+      expect(screen.getByText('已有同名分類')).toBeInTheDocument();
+      expect(screen.getByRole('textbox', { name: '新名稱' })).toBeInTheDocument();
+    });
+
+    it('shows 改名失敗 on other errors and keeps the old name (9.9)', async () => {
+      const { user } = setup();
+      await rename(user, '遠端工作', '在家上班');
+      act(() => renameMutate.mock.calls[0][1]?.onError?.(new Error('boom')));
+      expect(screen.getByText('改名失敗')).toBeInTheDocument();
+      expect(memory.remember).not.toHaveBeenCalled();
+    });
+
+    it('Esc while renaming only cancels the rename (9.10)', async () => {
+      const { user, onCancel } = setup();
+      await user.click(screen.getByRole('button', { name: '改名「遠端工作」' }));
+      await user.keyboard('{Escape}');
+      expect(screen.queryByRole('textbox', { name: '新名稱' })).not.toBeInTheDocument();
+      expect(screen.getByRole('radio', { name: '遠端工作' })).toBeInTheDocument();
+      expect(onCancel).not.toHaveBeenCalled();
+      await user.keyboard('{Escape}');
+      expect(onCancel).toHaveBeenCalledTimes(1);
+    });
   });
 });
