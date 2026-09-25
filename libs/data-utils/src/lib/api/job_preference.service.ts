@@ -42,4 +42,41 @@ export class JobPreferenceService extends TableService<
     if (error) throw new Error(error.message);
     return { updated: count ?? 0 };
   }
+  /**
+   * Batch-renames every record of this user/preference from `from` to `to`.
+   * Only `reason` is written: `preference` stays as-is and `updated_at` is
+   * untouched, so "recently marked" ordering is kept (design.md D9,
+   * requirement 9.3).
+   */
+  async renameReason(
+    userId: string,
+    preference: 'like' | 'dislike',
+    from: string,
+    to: string,
+  ): Promise<{ updated: number }> {
+    const { error, count } = await this.table
+      .update({ reason: to }, { count: 'exact' })
+      .eq('user_id', userId)
+      .eq('preference', preference)
+      .eq('reason', from);
+    if (error) throw new Error(error.message);
+    return { updated: count ?? 0 };
+  }
+  /**
+   * Whether any record already uses `reason` for this user/preference,
+   * used to detect a name collision before a rename (requirement 9.5).
+   */
+  async reasonExists(
+    userId: string,
+    preference: 'like' | 'dislike',
+    reason: string,
+  ): Promise<boolean> {
+    const { error, count } = await this.table
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('preference', preference)
+      .eq('reason', reason);
+    if (error) throw new Error(error.message);
+    return (count ?? 0) > 0;
+  }
 }
