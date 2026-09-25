@@ -21,9 +21,9 @@ export interface JobPreferenceReasonDialogProps {
 const TITLE = { like: '喜歡的原因', dislike: '不喜歡的原因' } as const;
 
 // Reason picker dialog shell (task 4.3). The body only mounts while `open`,
-// so drafts, selection and the delete error vanish whenever the dialog closes
-// and start fresh on the next open (4.6). The reason list query is also only
-// enabled while open.
+// so typed text, selection and the delete error vanish whenever the dialog
+// closes and start fresh on the next open (4.6). The reason list query is
+// also only enabled while open.
 export function JobPreferenceReasonDialog(props: JobPreferenceReasonDialogProps) {
   const { data } = usePreferenceReasonsQuery(props.preference, props.open);
   if (!props.open) return null;
@@ -35,7 +35,6 @@ type BodyProps = JobPreferenceReasonDialogProps & {
 };
 
 function ReasonDialogBody({ preference, initialReason, onConfirm, onCancel, server }: BodyProps) {
-  const [drafts, setDrafts] = useState<string[]>([]);
   // `picked` is null until the user makes an explicit choice. Until then the
   // selection is derived from `initialReason` against the current options, so
   // it re-resolves by itself when the reason list arrives after opening
@@ -46,7 +45,7 @@ function ReasonDialogBody({ preference, initialReason, onConfirm, onCancel, serv
   const [deleteFailed, setDeleteFailed] = useState(false);
   const deleteMutation = useDeletePreferenceReasonMutation();
 
-  const options = buildReasonOptions(server, drafts);
+  const options = buildReasonOptions(server, []);
   const has = (reason: string) => options.some(o => o.reason === reason);
   // A name that is no longer listed (e.g. deleted) never stays selected.
   const listed = (reason: string | null) => (reason !== null && has(reason) ? reason : null);
@@ -65,11 +64,9 @@ function ReasonDialogBody({ preference, initialReason, onConfirm, onCancel, serv
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [pendingDelete, onCancel]);
 
-  const handleAdd = (reason: string) => {
-    // Duplicate names select the existing item instead of adding a row (4.5).
-    if (!has(reason)) setDrafts(prev => [...prev, reason]);
-    setPicked(reason); // 4.1
-  };
+  // Adding a name confirms the mark with it right away (4.1). A name that
+  // already exists is the same reason, so no duplicate is created (4.5).
+  const handleAdd = (reason: string) => onConfirm(reason);
 
   // Functional update: reads the selection at completion time, not at the
   // time the delete started (5.5).
@@ -78,12 +75,6 @@ function ReasonDialogBody({ preference, initialReason, onConfirm, onCancel, serv
 
   const handleDelete = (option: ReasonOption) => {
     setDeleteFailed(false);
-    if (option.isDraft) {
-      // Drafts only live in this dialog, so no API call is needed.
-      setDrafts(prev => prev.filter(d => d !== option.reason));
-      selectDefaultIfSelected(option.reason);
-      return;
-    }
     setPendingDelete(option); // 5.2
   };
 
@@ -101,8 +92,8 @@ function ReasonDialogBody({ preference, initialReason, onConfirm, onCancel, serv
   };
 
   return (
-    <Modal open title={TITLE[preference]} onClose={onCancel}>
-      <div className="flex flex-col gap-3">
+    <Modal open size="md" title={TITLE[preference]} onClose={onCancel}>
+      <div className="flex flex-col gap-4">
         <JobPreferenceReasonOptionList
           options={options}
           selected={selected}
@@ -115,18 +106,18 @@ function ReasonDialogBody({ preference, initialReason, onConfirm, onCancel, serv
             刪除失敗
           </p>
         )}
-        <div className="flex justify-end gap-2 pt-1">
+        <div className="-mx-6 -mb-4 flex justify-end gap-2 border-t border-[#e8eaf0] px-6 py-3">
           <button
             type="button"
             onClick={onCancel}
-            className="cursor-pointer rounded-lg px-3 py-1.5 text-sm font-bold text-[#434653] transition-colors hover:bg-[#f4faff]"
+            className="cursor-pointer rounded-lg px-4 py-2 text-sm font-bold text-[#434653] transition-colors hover:bg-[#f4faff]"
           >
             取消
           </button>
           <button
             type="button"
             onClick={() => onConfirm(selected)}
-            className="cursor-pointer rounded-lg bg-[#003d92] px-3 py-1.5 text-sm font-bold text-white transition-all hover:bg-[#1654b9] active:scale-95"
+            className="cursor-pointer rounded-lg bg-[#003d92] px-5 py-2 text-sm font-bold text-white transition-all hover:bg-[#1654b9] active:scale-95"
           >
             確認
           </button>

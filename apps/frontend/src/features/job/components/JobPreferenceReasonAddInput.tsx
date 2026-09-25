@@ -16,7 +16,7 @@ const ERROR_TEXT = {
 // Text input for adding a new reason in the picker dialog. The name is
 // trimmed and validated with the shared rule (4.2); invalid names show a hint
 // and never reach onAdd (4.3, 4.4). A valid name is handed to the parent,
-// which decides whether it becomes a draft or selects an existing one (4.1).
+// which confirms the mark with it right away (4.1, 4.5).
 export function JobPreferenceReasonAddInput({
   onAdd,
 }: JobPreferenceReasonAddInputProps) {
@@ -54,7 +54,7 @@ export function JobPreferenceReasonAddInput({
           aria-label="新增子分類"
           aria-invalid={error !== null}
           aria-describedby={error ? errorId : undefined}
-          placeholder="新增子分類"
+          placeholder="輸入新的子分類，按 Enter 直接送出"
           onChange={(event) => setValue(event.target.value)}
           onKeyDown={handleKeyDown}
           className="min-w-0 flex-1 rounded-lg border border-[#c3c6d5] bg-white px-3 py-2 text-sm text-[#001f2a] placeholder:text-[#434653]/60 focus:border-[#003d92] focus:outline-none"
@@ -62,7 +62,7 @@ export function JobPreferenceReasonAddInput({
         <button
           type="button"
           onClick={submit}
-          className="shrink-0 rounded-lg bg-[#003d92] px-3 py-2 text-sm font-bold text-white hover:bg-[#1654b9]"
+          className="shrink-0 cursor-pointer rounded-lg border border-[#003d92] bg-white px-3 py-2 text-sm font-bold text-[#003d92] transition-colors hover:bg-[#f4faff]"
         >
           新增
         </button>

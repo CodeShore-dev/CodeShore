@@ -6,14 +6,24 @@ export interface ModalProps {
   title: string;
   onClose: () => void;
   children: ReactNode;
+  // 'lg' (default) fits rich content; 'md' suits short pickers.
+  size?: 'md' | 'lg';
 }
+
+const SIZE_CLASS = { md: 'max-w-md', lg: 'max-w-2xl' } as const;
 
 // Generic overlay shell (task 1.5). Follows the same portal/backdrop
 // convention as ConfirmDialog.tsx (mounts to document.body via createPortal,
 // backdrop mousedown closes only when clicking the backdrop itself), but
 // sized wider (max-w-2xl) with a scrollable content area to fit richer
 // content such as a full technology list.
-export function Modal({ open, title, onClose, children }: ModalProps) {
+export function Modal({
+  open,
+  title,
+  onClose,
+  children,
+  size = 'lg',
+}: ModalProps) {
   if (!open) return null;
 
   return createPortal(
@@ -26,7 +36,7 @@ export function Modal({ open, title, onClose, children }: ModalProps) {
     >
       <div className="fixed inset-0 bg-black/50" />
       <div
-        className="relative z-10 flex max-h-[85vh] w-full max-w-2xl flex-col rounded-xl bg-white shadow-2xl"
+        className={`relative z-10 flex max-h-[85vh] w-full ${SIZE_CLASS[size]} flex-col rounded-xl bg-white shadow-2xl`}
         onMouseDown={event => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3 border-b border-[#e8eaf0] px-6 py-4">

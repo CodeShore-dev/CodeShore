@@ -96,26 +96,31 @@ describe('JobPreferenceReasonDialog', () => {
     expect(onConfirm).toHaveBeenCalledWith('未分類');
   });
 
-  it('adds a new name and selects it (4.1)', async () => {
-    const { user } = setup();
+  it('adding a new name confirms the mark with it right away (4.1)', async () => {
+    const { user, onConfirm } = setup();
     await addReason(user, '  薪水高 ');
-    expect(screen.getByRole('radio', { name: '薪水高' })).toBeChecked();
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(onConfirm).toHaveBeenCalledWith('薪水高');
   });
 
-  it('selects the existing item for a duplicate name (4.5)', async () => {
-    const { user } = setup();
+  it('pressing Enter in the input also confirms right away (4.1)', async () => {
+    const { user, onConfirm } = setup();
+    await user.type(screen.getByRole('textbox', { name: '新增子分類' }), '通勤近{Enter}');
+    expect(onConfirm).toHaveBeenCalledWith('通勤近');
+  });
+
+  it('does not confirm when the typed name is invalid (4.3)', async () => {
+    const { user, onConfirm } = setup();
+    await addReason(user, '   ');
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(screen.getByText('請輸入名稱')).toBeInTheDocument();
+  });
+
+  it('adding an existing name confirms with that same reason (4.5)', async () => {
+    const { user, onConfirm } = setup();
     await addReason(user, '遠端工作');
+    expect(onConfirm).toHaveBeenCalledWith('遠端工作');
     expect(screen.getAllByRole('radio', { name: '遠端工作' })).toHaveLength(1);
-    expect(screen.getByRole('radio', { name: '遠端工作' })).toBeChecked();
-  });
-
-  it('removes a draft locally without calling the API', async () => {
-    const { user } = setup();
-    await addReason(user, '薪水高');
-    await user.click(screen.getByRole('button', { name: '刪除「薪水高」' }));
-    expect(screen.queryByRole('radio', { name: '薪水高' })).not.toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: '未分類' })).toBeChecked();
-    expect(mutate).not.toHaveBeenCalled();
   });
 
   it('confirms a server delete with the job count, then calls the mutation (5.2, 5.3)', async () => {
@@ -203,13 +208,16 @@ describe('JobPreferenceReasonDialog', () => {
     expect(onConfirm).toHaveBeenCalledWith('未分類');
   });
 
-  it('drops drafts and selection after close and reopen (4.6)', async () => {
-    const { user, rerender, all } = setup();
-    await addReason(user, '薪水高');
+  it('drops typed text and selection after close and reopen (4.6)', async () => {
+    const { user, rerender, all, onConfirm } = setup();
+    await user.type(screen.getByRole('textbox', { name: '新增子分類' }), '薪水高');
+    await user.click(screen.getByRole('radio', { name: '遠端工作' }));
     rerender(<JobPreferenceReasonDialog {...all} open={false} />);
     rerender(<JobPreferenceReasonDialog {...all} open />);
+    expect(screen.getByRole('textbox', { name: '新增子分類' })).toHaveValue('');
     expect(screen.queryByRole('radio', { name: '薪水高' })).not.toBeInTheDocument();
     expect(screen.getByRole('radio', { name: '未分類' })).toBeChecked();
+    expect(onConfirm).not.toHaveBeenCalled();
   });
 
   it('confirms with the selected reason', async () => {
