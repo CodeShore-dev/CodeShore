@@ -18,6 +18,8 @@ interface JobDetailDrawerProps {
   onPrev: () => void;
   onNext: () => void;
   onUpdatePreference: (preference: 'like' | 'dislike') => void;
+  // Replaces the same-preference button on the like/dislike tabs (8.1).
+  onChangeReason?: () => void;
 }
 
 // Slide-in job detail drawer (task 7.5), ported from JobDetailDrawer.vue.
@@ -34,6 +36,7 @@ export function JobDetailDrawer({
   onPrev,
   onNext,
   onUpdatePreference,
+  onChangeReason,
 }: JobDetailDrawerProps) {
   const drawerRef = useRef<HTMLDivElement | null>(null);
   const crawl = useCrawlStream();
@@ -57,6 +60,20 @@ export function JobDetailDrawer({
       : listViewPreference === 'dislike'
         ? '● 不喜歡的職缺'
         : '● 職缺';
+  const changeReasonButton = onChangeReason && (
+    <div className="flex flex-col items-center gap-1.5">
+      <button
+        type="button"
+        aria-label="改分類"
+        disabled={preferenceUpdating}
+        className="flex h-16 w-16 cursor-pointer items-center justify-center rounded-full bg-[#c9e7f7] text-[#003d92] shadow-md transition-all duration-300 hover:bg-[#003d92] hover:text-white active:scale-90"
+        onClick={onChangeReason}
+      >
+        <span className="material-symbols-outlined text-3xl">sell</span>
+      </button>
+      <span className="text-xs font-medium text-[#434653]">改分類</span>
+    </div>
+  );
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex">
@@ -131,7 +148,7 @@ export function JobDetailDrawer({
               <span className="material-symbols-outlined">chevron_left</span>
             </button>
 
-            <div className="flex flex-col items-center gap-1.5">
+            {listViewPreference === 'dislike' && changeReasonButton ? changeReasonButton : <div className="flex flex-col items-center gap-1.5">
               <button
                 type="button"
                 disabled={listViewPreference === 'dislike' || preferenceUpdating}
@@ -147,9 +164,9 @@ export function JobDetailDrawer({
                 </span>
               </button>
               <span className="text-xs font-medium text-[#434653]">不喜歡</span>
-            </div>
+            </div>}
 
-            <div className="flex flex-col items-center gap-1.5">
+            {listViewPreference === 'like' && changeReasonButton ? changeReasonButton : <div className="flex flex-col items-center gap-1.5">
               <button
                 type="button"
                 disabled={listViewPreference === 'like' || preferenceUpdating}
@@ -169,7 +186,7 @@ export function JobDetailDrawer({
                 </span>
               </button>
               <span className="text-xs font-medium text-[#001f2a]">喜歡</span>
-            </div>
+            </div>}
 
             <button
               type="button"

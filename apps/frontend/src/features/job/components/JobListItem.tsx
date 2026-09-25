@@ -26,6 +26,8 @@ interface JobListItemProps {
   onSelect: (jobId: string) => void;
   onPreference: (jobId: string, preference: 'like' | 'dislike') => void;
   innerRef?: (el: HTMLLIElement | null) => void;
+  // Replaces the same-preference button on the like/dislike tabs (8.1).
+  onChangeReason?: (jobId: string) => void;
 }
 
 // Single row in the job list (task 7.5), ported from JobListItem.vue.
@@ -40,6 +42,7 @@ export const JobListItem = memo(function JobListItem({
   onSelect,
   onPreference,
   innerRef,
+  onChangeReason,
 }: JobListItemProps) {
   const crawledAt = useMemo(() => dayjs(job.crawled_at), [job.crawled_at]);
   const crawledAtInfo = useMemo(
@@ -171,6 +174,17 @@ export const JobListItem = memo(function JobListItem({
     event.stopPropagation();
     onPreference(job.id, 'dislike');
   };
+  const changeReasonButton = onChangeReason && (
+    <button
+      type="button"
+      aria-label="改分類"
+      disabled={disabled}
+      className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-[#c9e7f7] text-[#003d92] transition-all hover:bg-[#003d92] hover:text-white active:scale-90"
+      onClick={() => onChangeReason(job.id)}
+    >
+      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>sell</span>
+    </button>
+  );
 
   return (
     <li
@@ -284,7 +298,7 @@ export const JobListItem = memo(function JobListItem({
         className="flex shrink-0 flex-col items-center gap-2 pt-1"
         onClick={e => e.stopPropagation()}
       >
-        <button
+        {listViewPreference === 'like' && changeReasonButton ? changeReasonButton : <button
           type="button"
           disabled={listViewPreference === 'like' || disabled}
           className={`group relative flex h-9 w-9 items-center justify-center rounded-full text-white shadow-sm transition-all ${
@@ -303,9 +317,9 @@ export const JobListItem = memo(function JobListItem({
           >
             favorite
           </span>
-        </button>
+        </button>}
 
-        <button
+        {listViewPreference === 'dislike' && changeReasonButton ? changeReasonButton : <button
           type="button"
           disabled={listViewPreference === 'dislike' || disabled}
           className={`group flex h-9 w-9 items-center justify-center rounded-full transition-all ${
@@ -321,7 +335,7 @@ export const JobListItem = memo(function JobListItem({
           >
             close
           </span>
-        </button>
+        </button>}
 
         <a
           href={job.detail_link}

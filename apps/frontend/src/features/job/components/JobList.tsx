@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { SupabaseView } from '@codeshore/data-types';
 
 import { Pagination } from '../../../components/Pagination';
+import { useChangeReasonHandler } from '../hooks/useChangeReasonHandler';
 import { useReasonPickerFlow } from '../hooks/useReasonPickerFlow';
 import { PREFERENCE_MUTATION_KEY } from '../mutations';
 import { JOB_PAGE_SIZE } from '../queries';
@@ -119,6 +120,9 @@ export function JobList({
     [onGuardPreference, request],
   );
 
+  // Edit the reason of a job already on the like/dislike tab (8.2).
+  const onChangeReason = useChangeReasonHandler(jobs, listViewPreference, onGuardPreference, request);
+
   // Keep the selected row visible as the drawer steps through jobs.
   const itemElMap = useRef(new Map<string, HTMLLIElement>());
   // One stable ref-callback per job id, cached across renders, so each
@@ -186,6 +190,7 @@ export function JobList({
                   disabled={fetching}
                   onSelect={onSelectJob}
                   onPreference={onPreference}
+                  onChangeReason={listViewPreference !== null ? onChangeReason : undefined}
                 />
               ))}
             </ul>
@@ -217,6 +222,7 @@ export function JobList({
         onPrev={goToPrevJob}
         onNext={goToNextJob}
         onUpdatePreference={updatePreference}
+        onChangeReason={listViewPreference !== null && selectedJob ? () => onChangeReason(selectedJob.id) : undefined}
       />
     </>
   );

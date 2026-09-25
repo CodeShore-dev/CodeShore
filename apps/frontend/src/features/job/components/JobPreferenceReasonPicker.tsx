@@ -11,9 +11,9 @@ export function JobPreferenceReasonPicker({ flow }: JobPreferenceReasonPickerPro
   const { pending } = flow;
   return (
     <>
-      {flow.mutationError === 'mark' && (
+      {flow.mutationError !== null && (
         <p role="alert" className="mb-2 text-sm font-bold text-[#ba1a1a]">
-          標記失敗，請再試一次
+          {flow.mutationError === 'mark' ? '標記失敗，請再試一次' : '修改失敗，請再試一次'}
         </p>
       )}
       <JobPreferenceReasonDialog
@@ -22,6 +22,7 @@ export function JobPreferenceReasonPicker({ flow }: JobPreferenceReasonPickerPro
         key={pending?.preference}
         open={pending !== null}
         preference={pending?.preference ?? 'like'}
+        mode={pending?.mode ?? 'mark'}
         initialReason={pending?.initialReason ?? null}
         onConfirm={flow.confirm}
         onCancel={flow.cancel}

@@ -285,3 +285,68 @@ describe('JobListItem sub-category badge (job-preference-reason-tag req 7.7)', (
     expect(screen.queryByText('技能已符合')).not.toBeInTheDocument();
   });
 });
+
+describe('JobListItem 改分類 button (job-preference-reason-tag req 8.1)', () => {
+  const job = { ...baseJob, keyword_groups: [], tech_mappings: [], preference_reason: '技能已符合' };
+  const iconButton = (icon: string) => screen.queryByText(icon)?.closest('button') ?? null;
+
+  it('replaces the like button with 改分類 on the 喜歡 tab and keeps dislike enabled', async () => {
+    renderWithProviders(
+      <ul>
+        <JobListItem {...noopProps} listViewPreference="like" job={job} onChangeReason={vi.fn()} />
+      </ul>,
+    );
+
+    await waitFor(() => screen.getByText(baseJob.title));
+    expect(screen.getByRole('button', { name: '改分類' })).toBeEnabled();
+    expect(iconButton('favorite')).toBeNull();
+    expect(iconButton('close')).toBeEnabled();
+  });
+
+  it('replaces the dislike button with 改分類 on the 不喜歡 tab and keeps like enabled', async () => {
+    renderWithProviders(
+      <ul>
+        <JobListItem {...noopProps} listViewPreference="dislike" job={job} onChangeReason={vi.fn()} />
+      </ul>,
+    );
+
+    await waitFor(() => screen.getByText(baseJob.title));
+    expect(screen.getByRole('button', { name: '改分類' })).toBeEnabled();
+    expect(iconButton('close')).toBeNull();
+    expect(iconButton('favorite')).toBeEnabled();
+  });
+
+  it('keeps like and dislike and shows no 改分類 on the 總數 tab', async () => {
+    renderWithProviders(
+      <ul>
+        <JobListItem {...noopProps} listViewPreference={null} job={job} onChangeReason={vi.fn()} />
+      </ul>,
+    );
+
+    await waitFor(() => screen.getByText(baseJob.title));
+    expect(screen.queryByRole('button', { name: '改分類' })).not.toBeInTheDocument();
+    expect(iconButton('favorite')).toBeEnabled();
+    expect(iconButton('close')).toBeEnabled();
+  });
+
+  it('calls onChangeReason with the job id without selecting the row', async () => {
+    const onChangeReason = vi.fn();
+    const onSelect = vi.fn();
+    renderWithProviders(
+      <ul>
+        <JobListItem
+          {...noopProps}
+          listViewPreference="like"
+          job={job}
+          onSelect={onSelect}
+          onChangeReason={onChangeReason}
+        />
+      </ul>,
+    );
+
+    await waitFor(() => screen.getByText(baseJob.title));
+    screen.getByRole('button', { name: '改分類' }).click();
+    expect(onChangeReason).toHaveBeenCalledWith('job-1');
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+});
