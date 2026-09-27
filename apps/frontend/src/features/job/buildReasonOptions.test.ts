@@ -54,15 +54,48 @@ describe('buildReasonOptions', () => {
     expect(options).toHaveLength(2);
   });
 
-  it('sorts non-default items (server + drafts) by localeCompare zh-Hant', () => {
+  it('sorts non-default items by job count, most first (3.3)', () => {
     const options = buildReasonOptions(
-      [{ reason: '技能已符合', job_count: 3 }],
-      ['差一點要補技能經驗', '面試準備'],
+      [
+        { reason: '差一點要補技能經驗', job_count: 1 },
+        { reason: '技能已符合', job_count: 9 },
+        { reason: '面試準備', job_count: 4 },
+      ],
+      [],
     );
 
     expect(options.map((o) => o.reason)).toEqual([
       DEFAULT_PREFERENCE_REASON,
-      ...['差一點要補技能經驗', '面試準備', '技能已符合'].sort((a, b) =>
+      '技能已符合',
+      '面試準備',
+      '差一點要補技能經驗',
+    ]);
+  });
+
+  it('orders equal counts by zh-Hant name (3.3)', () => {
+    const options = buildReasonOptions(
+      [
+        { reason: '面試準備', job_count: 2 },
+        { reason: '技能已符合', job_count: 2 },
+      ],
+      [],
+    );
+
+    expect(options.map((o) => o.reason).slice(1)).toEqual(
+      ['面試準備', '技能已符合'].sort((a, b) => a.localeCompare(b, 'zh-Hant')),
+    );
+  });
+
+  it('puts drafts, which have no jobs yet, after every counted name', () => {
+    const options = buildReasonOptions(
+      [{ reason: '技能已符合', job_count: 3 }],
+      ['面試準備', '差一點要補技能經驗'],
+    );
+
+    expect(options.map((o) => o.reason)).toEqual([
+      DEFAULT_PREFERENCE_REASON,
+      '技能已符合',
+      ...['面試準備', '差一點要補技能經驗'].sort((a, b) =>
         a.localeCompare(b, 'zh-Hant'),
       ),
     ]);

@@ -48,6 +48,24 @@ describe('JobPreferenceReasonFilter (Requirements 7.1, 7.2, 7.3, 7.7)', () => {
     expect(screen.queryByText('沒人用')).not.toBeInTheDocument();
   });
 
+  it('orders the chips by job_count, most first, after 全部', () => {
+    mockedUsePreferenceReasonsQuery.mockReturnValue({
+      data: [
+        { reason: '差一點', job_count: 2 },
+        { reason: '未分類', job_count: 3 },
+        { reason: '技能已符合', job_count: 9 },
+      ],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    render(<JobPreferenceReasonFilter preference="like" />);
+
+    const labels = screen
+      .getAllByRole('button')
+      .map(button => button.textContent?.replace(/\s*\d+$/, ''));
+    expect(labels).toEqual(['全部', '技能已符合', '未分類', '差一點']);
+  });
+
   it('clicking a reason chip selects that reason in the store', async () => {
     const user = userEvent.setup();
     mockedUsePreferenceReasonsQuery.mockReturnValue({

@@ -22,8 +22,19 @@ export function JobPreferenceReasonFilter({ preference }: JobPreferenceReasonFil
   const setPreferenceReason = useJobFilterStore(state => state.setPreferenceReason);
 
   // Zero-count reasons are hidden from the row (they'd be an empty chip a
-  // user could select into an empty list).
-  const visibleReasons = useMemo(() => (data ?? []).filter(item => item.job_count > 0), [data]);
+  // user could select into an empty list). The rest are ordered by job count,
+  // most first, with equal counts ordered by zh-Hant name so the row keeps a
+  // stable order between refetches.
+  const visibleReasons = useMemo(
+    () =>
+      (data ?? [])
+        .filter(item => item.job_count > 0)
+        .sort(
+          (a, b) =>
+            b.job_count - a.job_count || a.reason.localeCompare(b.reason, 'zh-Hant'),
+        ),
+    [data],
+  );
   // 全部's count is the sum of every reason's job_count, matching the tab's
   // own total (task 6.1 cross-check: 全部 === the like/dislike tab total).
   const totalCount = useMemo(() => (data ?? []).reduce((sum, item) => sum + item.job_count, 0), [data]);

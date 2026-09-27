@@ -13,10 +13,12 @@ export interface ReasonOption {
 // Combines the server-known reasons with not-yet-confirmed draft names typed
 // in the dialog into the single option list the picker renders. The default
 // reason always exists and is always first (Requirements 2.3, 3.3); every
-// other name -- server or draft -- is sorted together by zh-Hant name
-// (3.3). A draft that collides with a server name or with the default is
-// dropped in favor of the existing item (4.5), and drafts collapse amongst
-// themselves too. Only the default is non-deletable (5.1, 5.6).
+// other name -- server or draft -- is sorted together by job count, most
+// first, and by zh-Hant name between equal counts (3.3). A draft has no jobs
+// yet, so drafts land last. A draft that collides with a server name or with
+// the default is dropped in favor of the existing item (4.5), and drafts
+// collapse amongst themselves too. Only the default is non-deletable
+// (5.1, 5.6).
 export function buildReasonOptions(
   server: ReasonCount[],
   drafts: string[],
@@ -57,8 +59,9 @@ export function buildReasonOptions(
     });
   }
 
-  const sortedOthers = [...otherOptions.values()].sort((a, b) =>
-    a.reason.localeCompare(b.reason, 'zh-Hant'),
+  const sortedOthers = [...otherOptions.values()].sort(
+    (a, b) =>
+      b.jobCount - a.jobCount || a.reason.localeCompare(b.reason, 'zh-Hant'),
   );
 
   return [defaultOption, ...sortedOthers];
