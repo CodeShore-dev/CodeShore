@@ -12,6 +12,27 @@ argument-hint: [補充說明]
 
 你的產出是**一張 GitHub issue**，不是一次修改。
 
+## 最重要的一條：派 subagent，主 session 不要卡住
+
+使用者會**連續**圈選並送新的要求進來。主 session 必須隨時能接下一張，所以反查原始碼與寫 issue 一律派給 subagent。
+
+收到圈選後，立刻用 Agent 工具派一個 `general-purpose` subagent，把下面這些**原封不動**交給它：
+
+- 圈選的完整瀏覽器 context（URL、selector、文字、React 樹、DOM 路徑、裝置寬度）
+- 使用者的原話
+- 這份 SKILL.md 的路徑：`.claude/skills/orca-issue/SKILL.md`，要它自己讀完並照著做
+
+主 session 只做三件事：
+
+1. 派出 subagent
+2. 回一行告訴使用者「已派 subagent 處理，可以繼續圈下一處」
+3. subagent 回報後，把 issue 連結與派工狀態轉給使用者
+
+**不要**在主 session 裡跑 Grep、Read、`gh issue create`。那些是 subagent 的工作。
+**不要**等 subagent 回來才回應使用者。派完就回話。
+
+同時有多張圈選時，一張一個 subagent，平行跑。
+
 ## 硬規則
 
 1. **不要改程式碼。** 不呼叫 Edit、Write、MultiEdit。不 commit。不建 branch。
@@ -19,6 +40,7 @@ argument-hint: [補充說明]
 3. **一次圈選 = 一張 issue。** 使用者一次圈了多個不相關的問題時，分開開多張，每張自成一個可獨立完成的工作。
 4. **不確定的事寫進「需要的資訊」，不要猜。** 後續的 worker 靠這段判斷要不要回頭問。
 5. issue 內文用**繁體中文**（與 `.kiro/` 文件語言一致）。
+6. **不要等使用者確認草稿。** subagent 查完就直接開 issue。使用者要改再改，不要拿草稿卡住流程。
 
 ## 執行步驟
 
@@ -91,7 +113,9 @@ argument-hint: [補充說明]
 
 標題格式：`[前端] 薪資篩選 slider 拖到上限會歸零`。開頭標區域（`[前端]` / `[後端]` / `[爬蟲]` / `[資料]`），主體是現象而非解法。
 
-印完草稿，問一句「這樣開嗎？」就停下來等回覆。使用者要改就改，不要在草稿階段辯論。
+草稿不必等使用者點頭。subagent 直接進 Step 5 開 issue，草稿內容當成 issue 內文。
+
+**唯一的例外**是 Step 3 的第三類（有多種做法且影響 UX）。那種情況 subagent 要把選項寫進 issue，貼 `question` 而非 `orca-ready`，並在回報裡點明這張要使用者先決定。
 
 ### Step 5：建立 issue
 
@@ -115,14 +139,17 @@ label 規則：
 
 ### Step 6：回報
 
-回三行就好：
+subagent 回三行給主 session：
 
-1. issue 連結
-2. 派工時機：`orca-dispatch` 排程每 15 分鐘抓一次；要立刻派就跑 `bash scripts/orca-dispatch.sh --issue <號碼>`
-3. 下一個動作：請使用者繼續圈下一處
+1. issue 連結與號碼
+2. label（`orca-ready` 已貼好就會自動派工；貼 `question` 的要說明為什麼）
+3. 一句話說這張 issue 要做什麼
+
+派工是事件驅動的：貼上 `orca-ready` 後 webhook 幾秒內就建好 worker worktree，不用手動跑腳本。要手動補派才用 `bash scripts/orca-dispatch.sh --issue <號碼>`。
 
 ## 完成判準
 
 - issue 已建立且有 `orca-ready`（或明確說明為何不加）
 - 內文的「需要的資訊」與「驗收條件」都不是空的
 - 本次沒有動到任何程式碼檔案
+- 主 session 在派出 subagent 後就回話了，沒有等查證跑完
