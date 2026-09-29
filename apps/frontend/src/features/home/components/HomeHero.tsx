@@ -15,7 +15,7 @@ export function HomeHero() {
   useEffect(() => {
     const timer = setInterval(() => {
       setIndex(prev => (prev + 1) % CYCLE_ITEMS.length);
-    }, 3000);
+    }, 10000);
     return () => clearInterval(timer);
   }, []);
 
