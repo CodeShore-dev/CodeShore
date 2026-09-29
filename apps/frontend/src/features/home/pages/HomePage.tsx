@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 
 import { PageSeo } from '../../../components/PageSeo';
 import { env } from '../../../config/env';
+import { CATEGORY_LABEL_MAP } from '../../../utils/constants';
 import { HomeHandoff } from '../components/HomeHandoff';
 import { HomeHero } from '../components/HomeHero';
 import { HomeHighSalaryTech } from '../components/HomeHighSalaryTech';
@@ -10,28 +10,14 @@ import { HomeHotCombos } from '../components/HomeHotCombos';
 import { HomePopularTech } from '../components/HomePopularTech';
 import { HomeSalaryBenchmark } from '../components/HomeSalaryBenchmark';
 import { HomeStatRow } from '../components/HomeStatRow';
+import { useHomeComboTechs } from '../hooks/useHomeComboTechs';
 import { useKeywordTechRanking } from '../hooks/useKeywordTechRanking';
 
 export function HomePage() {
-  // The popular-tech ranking is owned here so its items both feed
-  // HomePopularTech and seed the HomeHotCombos list (parity with the Vue
-  // shared store instance).
+  // 「熱門技術」排行榜自己的資料，只給 HomePopularTech 用。
   const popularRanking = useKeywordTechRanking();
-  const [popularTechs, setPopularTechs] = useState<string[]>([]);
-
-  useEffect(() => {
-    setPopularTechs(prev => {
-      const seen = new Set(prev);
-      const next = [...prev];
-      for (const item of popularRanking.items) {
-        if (!seen.has(item.tech)) {
-          seen.add(item.tech);
-          next.push(item.tech);
-        }
-      }
-      return next.length === prev.length ? prev : next;
-    });
-  }, [popularRanking.items]);
+  // 技術組合的技術來源獨立：四個分類各取 5 個，不受上方分類切換影響。
+  const comboTechs = useHomeComboTechs();
 
   return (
     <div className="w-full">
@@ -82,8 +68,12 @@ export function HomePage() {
         <div className="mb-4 text-lg font-black text-[#001f2a]">
           <span className="text-[#003d92]">職缺裡最常同時出現的技術組合</span>
         </div>
-        {popularTechs.map(tech => (
-          <HomeHotCombos key={tech} tech={tech} />
+        {comboTechs.items.map(item => (
+          <HomeHotCombos
+            key={item.tech}
+            tech={item.tech}
+            categoryLabel={CATEGORY_LABEL_MAP[item.category]}
+          />
         ))}
       </section>
       <HomeHandoff />
