@@ -20,6 +20,12 @@ async function bootstrapHandler(): Promise<Handler> {
 }
 
 export const handler: Handler = async (event, context, callback) => {
+  // NestJS 在 bootstrap 時會註冊常駐 handle（ScheduleModule 的 @Cron timer、
+  // pino、throttler），Node event loop 因此永遠不會淨空。Lambda 預設會「等
+  // event loop 淨空才回傳回應」（callbackWaitsForEmptyEventLoop=true），這會
+  // 讓每次呼叫都卡到 function timeout（30s）才回，CloudFront 端看起來就是逾時。
+  // 設為 false，讓 handler 的 promise 一 resolve 就立即回應。
+  context.callbackWaitsForEmptyEventLoop = false;
   cachedHandler = cachedHandler ?? (await bootstrapHandler());
   return cachedHandler(event, context, callback);
 };

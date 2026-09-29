@@ -8,6 +8,13 @@ on:
     branches: [main]
   workflow_dispatch: {}
 
+# 讓同一時間只跑一個部署。多個 PR 在幾秒內連續 merge 時，兩個 run 會同時呼叫
+# update-function-code，AWS 會擋下後者（ResourceConflictException: an update is
+# in progress）。cancel-in-progress: false 會把後續 run 排隊、依序完成。
+concurrency:
+  group: deploy-aws-lambda
+  cancel-in-progress: false
+
 env:
   FUNCTION_NAME: codeshore
   ECR_REPO: codeshore
@@ -65,6 +72,9 @@ jobs:
           ENV_VARS="Variables={NODE_ENV=production,SUPABASE_URL=${{ secrets.SUPABASE_URL }},SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}}"
           if aws lambda get-function --function-name "$FUNCTION_NAME" >/dev/null 2>&1; then
             echo "更新既有 function ..."
+            # 動手前先確保 function 不在更新中，避免殘留的 in-progress 狀態
+            # 讓 update-function-code 直接吃到 ResourceConflictException。
+            aws lambda wait function-updated --function-name "$FUNCTION_NAME"
             aws lambda update-function-code \
               --function-name "$FUNCTION_NAME" --image-uri "$IMAGE" >/dev/null
             aws lambda wait function-updated --function-name "$FUNCTION_NAME"
