@@ -57,5 +57,32 @@ describe('HomeHero', () => {
 
     expect(clearIntervalSpy).toHaveBeenCalled();
     expect(vi.getTimerCount()).toBe(0);
+    clearIntervalSpy.mockRestore();
+  });
+
+  // 讀秒進度 bar（issue #27）：與 10 秒切換週期同步、每次切換重跑。
+  it('renders a decorative progress bar synced to the cycle interval', () => {
+    vi.useFakeTimers();
+    render(<HomeHero />);
+
+    expect(screen.getByTestId('hero-progress-track')).toHaveAttribute('aria-hidden', 'true');
+    expect(screen.getByTestId('hero-progress-bar')).toHaveStyle({
+      animationDuration: '10000ms',
+    });
+  });
+
+  it('resets the progress bar when the text cycles', () => {
+    vi.useFakeTimers();
+    render(<HomeHero />);
+
+    const firstBar = screen.getByTestId('hero-progress-bar');
+
+    act(() => {
+      vi.advanceTimersByTime(10000);
+    });
+
+    const secondBar = screen.getByTestId('hero-progress-bar');
+    expect(secondBar).not.toBe(firstBar);
+    expect(secondBar).toHaveStyle({ animationDuration: '10000ms' });
   });
 });

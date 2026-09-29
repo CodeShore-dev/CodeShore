@@ -8,6 +8,8 @@ const CYCLE_ITEMS = [
   { is: '偷看大公司的技術清單', isNot: '履歷優化工具' },
 ];
 
+const CYCLE_INTERVAL_MS = 10000;
+
 export function HomeHero() {
   const { jobCountText } = useHomeData();
   const [index, setIndex] = useState(0);
@@ -15,7 +17,7 @@ export function HomeHero() {
   useEffect(() => {
     const timer = setInterval(() => {
       setIndex(prev => (prev + 1) % CYCLE_ITEMS.length);
-    }, 10000);
+    }, CYCLE_INTERVAL_MS);
     return () => clearInterval(timer);
   }, []);
 
@@ -32,17 +34,25 @@ export function HomeHero() {
         <div className="m-0 max-w-140 text-base font-medium text-[#001f2a] md:text-xl">
           <div className="flex items-center gap-2 leading-snug">
             <span>我們可以讓你</span>
-            <strong className="font-black text-[#003d92]">
-              {CYCLE_ITEMS[index].is}
-            </strong>
+            <strong className="font-black text-[#003d92]">{CYCLE_ITEMS[index].is}</strong>
           </div>
           <div className="flex items-center gap-2 leading-snug">
             <span>但不是另一個</span>
             <del className="text-[#fd7700]">{CYCLE_ITEMS[index].isNot}</del>
           </div>
-          <p className="mt-4 mb-0 leading-relaxed">
-            每週同步人力銀行職缺，讓你看清楚市場在要什麼、願意給多少。
-          </p>
+          <div
+            className="mt-3 h-1 w-full overflow-hidden rounded-full bg-[#c3c6d5]"
+            aria-hidden="true"
+            data-testid="hero-progress-track"
+          >
+            <div
+              key={index}
+              className="hero-progress-bar h-full origin-left bg-[#003d92]"
+              style={{ animationDuration: `${CYCLE_INTERVAL_MS}ms` }}
+              data-testid="hero-progress-bar"
+            />
+          </div>
+          <p className="mt-4 mb-0 leading-relaxed">每週同步人力銀行職缺，讓你看清楚市場在要什麼、願意給多少。</p>
         </div>
         <div className="border-l-4 border-[#003d92] pl-5">
           <div
@@ -51,9 +61,7 @@ export function HomeHero() {
           >
             {jobCountText.total}
           </div>
-          <div className="mt-1 text-sm font-bold tracking-widest text-[#434653]">
-            個職缺(含關閉職缺)
-          </div>
+          <div className="mt-1 text-sm font-bold tracking-widest text-[#434653]">個職缺(含關閉職缺)</div>
         </div>
       </div>
     </section>
