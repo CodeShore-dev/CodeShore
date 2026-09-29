@@ -85,9 +85,9 @@ if ! curl -sf -o /dev/null "http://127.0.0.1:$PORT/"; then
   exit 1
 fi
 
-log "開 gh webhook forward → $REPO（events: issues）"
+log "開 gh webhook forward → $REPO（events: issues, pull_request）"
 exec gh webhook forward \
-  --events=issues \
+  --events=issues,pull_request \
   --repo="$REPO" \
   --url="http://127.0.0.1:$PORT/webhooks" \
   --secret="$ORCA_WEBHOOK_SECRET"
