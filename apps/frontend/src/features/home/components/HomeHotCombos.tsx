@@ -9,9 +9,14 @@ import { useTechComboStats } from '../hooks/useTechComboStats';
 
 interface HomeHotCombosProps {
   tech: string;
+  /** 技術所屬分類的中文標籤（語言 / 框架 / 資料庫 / 程式庫）。 */
+  categoryLabel?: string;
 }
 
-export function HomeHotCombos({ tech }: HomeHotCombosProps) {
+export function HomeHotCombos({
+  tech,
+  categoryLabel,
+}: HomeHotCombosProps) {
   const { items, getItems, loading } = useTechComboStats();
   const navigate = useNavigate();
 
@@ -29,6 +34,8 @@ export function HomeHotCombos({ tech }: HomeHotCombosProps) {
   const topCombo = items[0];
   const smallCombos = items.slice(1, 5);
   const techLabel = topCombo?.tech1_label ?? tech;
+  // 標題不寫死「語言」，改用技術自己的分類標籤，技術不是語言時才讀得通。
+  const titleSuffix = `${categoryLabel ?? ''}最常同時出現的技術組合`;
 
   if (!loading && items.length === 0) return null;
 
@@ -36,7 +43,7 @@ export function HomeHotCombos({ tech }: HomeHotCombosProps) {
     <section className="mb-6">
       <div className="mb-2 flex items-center gap-1.5 text-base font-black text-[#001f2a]">
         <span>
-          與 <span className="text-[#003d92]">{techLabel}</span> 語言最常同時出現的技術組合
+          與 <span className="text-[#003d92]">{techLabel}</span> {titleSuffix}
         </span>
         <InfoHint metric="home.hotCombos" />
       </div>

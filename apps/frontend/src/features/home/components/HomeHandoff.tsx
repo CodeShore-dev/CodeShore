@@ -33,9 +33,12 @@ export function HomeHandoff() {
           {CHANNELS.map(ch => {
             const percent = percentFor(ch.hostKey);
             return (
-            <div
+            <a
               key={ch.name}
-              className="flex items-center justify-between rounded-xl bg-white/10 p-4"
+              href={ch.host}
+              target="_blank"
+              rel="noreferrer"
+              className="flex cursor-pointer items-center justify-between rounded-xl bg-white/10 p-4 transition-colors hover:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#fd7700] focus-visible:ring-offset-2 focus-visible:ring-offset-[#003d92]"
             >
               <div>
                 <div className="text-sm font-bold">{ch.name}</div>
@@ -44,15 +47,13 @@ export function HomeHandoff() {
                   {percent != null ? ` · ${percent}%` : ''}
                 </div>
               </div>
-              <a
-                href={ch.host}
-                target="_blank"
-                rel="noreferrer"
+              <span
+                aria-hidden="true"
                 className="flex h-7 w-7 items-center justify-center rounded-full bg-[#fd7700] text-base font-black text-[#001f2a]"
               >
                 ↗
-              </a>
-            </div>
+              </span>
+            </a>
             );
           })}
         </div>

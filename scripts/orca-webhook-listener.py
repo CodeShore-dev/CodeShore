@@ -3,8 +3,9 @@
 
 處理兩種事件：
   issues.labeled（label 是 orca-ready）→ 跑 scripts/orca-dispatch.sh --issue <號碼>
-  pull_request.closed（已 merge 進 main）→ 跑 scripts/orca-sync-main.sh，
-    讓主 worktree 的 dev server 更新到合併後的版本
+  pull_request.closed（已 merge 進 main）→ 依序跑兩件事：
+    1. scripts/orca-sync-main.sh，讓主 worktree 的 dev server 更新到合併後的版本
+    2. scripts/orca-cleanup-worktree.sh --branch <PR 分支>，收掉那個 worker worktree
 
 用法：
   python3 scripts/orca-webhook-listener.py            # 聽 127.0.0.1:9099
@@ -16,6 +17,7 @@
   ORCA_READY_LABEL     觸發派工的 label，預設 orca-ready
   ORCA_MAIN_BRANCH     要同步的分支，預設 main
   ORCA_SYNC_ON_MERGE   設成 0 就不在 merge 後同步主 worktree
+  ORCA_CLEANUP_ON_MERGE 設成 0 就不在 merge 後收掉 worker worktree
 """
 
 from __future__ import annotations
@@ -34,11 +36,13 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DISPATCH = REPO_ROOT / "scripts" / "orca-dispatch.sh"
 SYNC = REPO_ROOT / "scripts" / "orca-sync-main.sh"
+CLEANUP = REPO_ROOT / "scripts" / "orca-cleanup-worktree.sh"
 PORT = int(os.environ.get("ORCA_WEBHOOK_PORT", "9099"))
 SECRET = os.environ.get("ORCA_WEBHOOK_SECRET", "")
 READY_LABEL = os.environ.get("ORCA_READY_LABEL", "orca-ready")
 MAIN_BRANCH = os.environ.get("ORCA_MAIN_BRANCH", "main")
 SYNC_ON_MERGE = os.environ.get("ORCA_SYNC_ON_MERGE", "1") != "0"
+CLEANUP_ON_MERGE = os.environ.get("ORCA_CLEANUP_ON_MERGE", "1") != "0"
 
 _lock = threading.Lock()
 _inflight: set[int] = set()
@@ -114,12 +118,42 @@ def dispatch(number: int) -> None:
             _inflight.discard(number)
 
 
-def sync_main(pr_number: int) -> None:
-    """PR 併進 main 後，把主 worktree 更新到最新的 main。一次只跑一個。"""
+def cleanup_worktree(branch: str, pr_number: int) -> None:
+    """PR 併掉後收掉那個 worker worktree。腳本自己會確認 PR 真的合併了。"""
+    if not CLEANUP.exists():
+        log("找不到清理腳本，跳過收 worktree。")
+        return
+    try:
+        proc = subprocess.run(
+            ["bash", str(CLEANUP), "--branch", branch],
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            text=True,
+            timeout=300,
+            env=wsl_interop_env(),
+        )
+        for line in (proc.stdout or "").splitlines():
+            log(f"cleanup | {line}")
+        for line in (proc.stderr or "").splitlines():
+            log(f"cleanup ! {line}")
+        log(f"收 worktree 結束，exit={proc.returncode}")
+    except subprocess.TimeoutExpired:
+        log(f"PR #{pr_number}：收 worktree 超過 300 秒，放棄這次。")
+    except Exception as exc:  # noqa: BLE001
+        log(f"PR #{pr_number}：收 worktree 丟出例外：{exc}")
+
+
+def sync_main(pr_number: int, branch: str = "") -> None:
+    """PR 併進 main 後，更新主 worktree，然後收掉 worker worktree。一次只跑一個。"""
     if not _sync_lock.acquire(blocking=False):
         log(f"PR #{pr_number}：已經在同步，忽略這次事件。")
         return
     try:
+        if not SYNC_ON_MERGE:
+            log(f"PR #{pr_number} 已 merge → 同步已關閉，只收 worktree。")
+            if branch and CLEANUP_ON_MERGE:
+                cleanup_worktree(branch, pr_number)
+            return
         log(f"PR #{pr_number} 已 merge → 同步主 worktree。")
         proc = subprocess.run(
             ["bash", str(SYNC)],
@@ -133,6 +167,8 @@ def sync_main(pr_number: int) -> None:
         for line in (proc.stderr or "").splitlines():
             log(f"sync ! {line}")
         log(f"同步結束，exit={proc.returncode}")
+        if branch and CLEANUP_ON_MERGE:
+            cleanup_worktree(branch, pr_number)
     except subprocess.TimeoutExpired:
         log("同步超過 300 秒，放棄這次。")
     except Exception as exc:  # noqa: BLE001
@@ -197,7 +233,7 @@ class Handler(BaseHTTPRequestHandler):
         threading.Thread(target=dispatch, args=(number,), daemon=True).start()
 
     def _on_pull_request(self, payload: dict) -> None:
-        if not SYNC_ON_MERGE:
+        if not SYNC_ON_MERGE and not CLEANUP_ON_MERGE:
             return
         if payload.get("action") != "closed":
             return
@@ -212,7 +248,8 @@ class Handler(BaseHTTPRequestHandler):
         number = pr.get("number")
         if not isinstance(number, int):
             return
-        threading.Thread(target=sync_main, args=(number,), daemon=True).start()
+        head = ((pr.get("head") or {}).get("ref")) or ""
+        threading.Thread(target=sync_main, args=(number, head), daemon=True).start()
 
 
 def main() -> int:

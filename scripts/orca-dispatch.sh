@@ -7,6 +7,10 @@
 #   bash scripts/orca-dispatch.sh --limit 1      # 這輪只派 1 個
 #   bash scripts/orca-dispatch.sh --issue 42     # 只派指定 issue（忽略 label 篩選）
 #
+# worker 用的模型由 ORCA_AGENT_MODEL 決定，預設 claude-sonnet-5。
+# 做法是建好 worktree 後用 orca terminal create 起 `claude --model <模型>`。
+# 設成空字串就走舊路徑，用 --agent claude 與 Orca 的預設模型。
+#
 # 前提：Orca app 要開著、gh 要登入、repo 已加入 Orca。
 set -euo pipefail
 
@@ -14,6 +18,7 @@ REPO_SELECTOR="${ORCA_REPO_SELECTOR:-name:CodeShore}"
 READY_LABEL="${ORCA_READY_LABEL:-orca-ready}"
 DISPATCHED_LABEL="${ORCA_DISPATCHED_LABEL:-orca-dispatched}"
 LIMIT="${ORCA_DISPATCH_LIMIT:-3}"
+AGENT_MODEL="${ORCA_AGENT_MODEL-claude-sonnet-5}"
 DRY_RUN=0
 ONLY_ISSUE=""
 
@@ -109,15 +114,21 @@ while IFS=$'\t' read -r num title; do
   fi
 
   log "派工 #$num → worktree $wt_name"
-  if create_out=$("$ORCA" worktree create \
-        --repo "$REPO_SELECTOR" \
-        --name "$wt_name" \
-        --issue "$num" \
-        --no-parent \
-        --agent claude \
-        --prompt "$prompt" \
-        --comment "issue #${num} 自動派工" \
-        --json 2>&1); then
+
+  # 有指定模型時分兩步：先建 worktree（不起 agent），再用 terminal create 起
+  # `claude --model <模型>`。這樣 worker 用便宜的模型，主 session 不受影響。
+  create_args=(worktree create
+    --repo "$REPO_SELECTOR"
+    --name "$wt_name"
+    --issue "$num"
+    --no-parent
+    --comment "issue #${num} 自動派工"
+    --json)
+  if [ -z "$AGENT_MODEL" ]; then
+    create_args+=(--agent claude --prompt "$prompt")
+  fi
+
+  if create_out=$("$ORCA" "${create_args[@]}" 2>&1); then
     wt_id=$(printf '%s' "$create_out" | python3 -c '
 import json,sys
 try:
@@ -127,8 +138,24 @@ except Exception:
 print(((d.get("result") or {}).get("worktree") or {}).get("id") or "")
 ' || printf '')
     log "建立成功：${wt_id:-（未取得 id）}"
+
+    if [ -n "$AGENT_MODEL" ]; then
+      # --model 只影響這個 session，不寫任何檔案。
+      # .claude/settings.local.json 是版控檔案，不能拿它塞模型，
+      # 否則 worker 會把模型設定 commit 進 repo。
+      agent_cmd="claude --model ${AGENT_MODEL} \"用 Skill 工具呼叫 orca-issue-work，args 是 ${num}。不要問我要不要開始，直接開始。資訊不足時在 issue 留言提問並加 orca-needs-info label，不要猜。\""
+      if term_out=$("$ORCA" terminal create \
+            --worktree "issue:$num" \
+            --title "issue #$num" \
+            --command "$agent_cmd" \
+            --json 2>&1); then
+        log "已在 worktree 起 claude（模型 ${AGENT_MODEL}）"
+      else
+        log "起 claude 失敗，worktree 留著，要手動進去跑：$term_out"
+      fi
+    fi
     gh issue edit "$num" --add-label "$DISPATCHED_LABEL" --remove-label "$READY_LABEL" >/dev/null
-    gh issue comment "$num" --body "🐋 Orca 已派工：worktree \`${wt_name}\`，Claude Code 開始處理。完成後會開 PR 連回本 issue。" >/dev/null
+    gh issue comment "$num" --body "🐋 Orca 已派工：worktree \`${wt_name}\`，Claude Code（${AGENT_MODEL:-預設模型}）開始處理。完成後會開 PR 連回本 issue。" >/dev/null
     dispatched=$((dispatched + 1))
   else
     log "#$num 派工失敗，label 保持 $READY_LABEL，下一輪再試。"
