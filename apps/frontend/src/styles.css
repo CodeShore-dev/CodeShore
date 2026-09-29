@@ -85,6 +85,28 @@ mark.kw.is-active {
   color: #ffffff;
 }
 
+/* HomeHero: 讀秒進度 bar，長度由元件用 animationDuration 帶入，
+   與 CYCLE_INTERVAL_MS 對齊（issue #27）。 */
+@keyframes hero-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+.hero-progress-bar {
+  animation-name: hero-progress;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-progress-bar {
+    animation: none;
+    transform: scaleX(1);
+  }
+}
+
 /* TechIcon: size the injected SVG to fill its slot (ported from the Vue
    scoped style). */
 .techicon {
