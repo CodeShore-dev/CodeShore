@@ -56,6 +56,10 @@ Skills are located in `.claude/skills/kiro-*/SKILL.md`
 - Follow the user's instructions precisely, and within that scope act autonomously: gather the necessary context and complete the requested work end-to-end in this run, asking questions only when essential information is missing or the instructions are critically ambiguous.
 
 ## Steering Configuration
-- Load entire `.kiro/steering/` as project memory
-- Default files: `product.md`, `tech.md`, `structure.md`
+@.kiro/steering/product.md
+@.kiro/steering/tech.md
+@.kiro/steering/structure.md
+
+- 以上三個檔每個 session 開場就載入，不分走不走 kiro、走不走 orca
+- `frontend-standards.md` 較大，改前端時由 skill 按需讀（見 `orca-issue-work` Step 1）
 - Custom files are supported (managed via `/kiro-steering-custom`)

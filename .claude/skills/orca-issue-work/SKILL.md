@@ -91,12 +91,15 @@ fix(job): 薪資篩選 slider 拖到上限不再歸零
 補上 useSalaryRange 的邊界測試。
 
 Closes #42
+
+Orca-Worker: issue #42
 ```
 
 - 型別用 `feat` / `fix` / `refactor` / `test` / `docs`
 - scope 是受影響的功能模組名（`job`、`company`、`techs` 之類），不是 issue 號碼
 - 主旨用繁體中文，一行講完做了什麼
 - 結尾加本 session 規定的 Co-Authored-By 署名行
+- 再**另外**加一行 `Orca-Worker: issue #<number>`（放在最後）。這是派工 worker 的產出標記，用來跟使用者自己動手的 commit 區分——`Co-Authored-By` 兩者都有，分不出來。用途見 `docs/pacer-log.md`
 
 PR 內文結構：
 
@@ -113,7 +116,19 @@ Closes #42
 
 ## 未處理 / 待討論
 - （沒有就寫「無」）
+
+## 工廠回饋
+- steering 沒講清楚的：
+- 我試了幾次才對，卡在哪：
+- issue 當初多寫一句什麼，我會更快：
 ```
+
+`## 工廠回饋` 的填法（這節是給使用者改工廠用的，不是檢討）：
+
+- **只寫「如果規範當初多寫一句，我這次就不用猜」的事**，三格都沒有就各寫「無」
+- 規範沒寫、但現場有慣例可跟時（例如資料夾裡既有檔案的命名），**照現場做並在這裡寫下來**，不要停下來問——判準見 Step 2「猜錯會不會做白工」
+- 例：`structure.md` 說測試檔用 `*.spec.tsx`，但 `features/home/` 既有的是 `.test.tsx`，我跟了現場慣例
+- 不要寫「我覺得程式碼可以更好」那類感想，那不是工廠問題
 
 PR 內文結尾加本 session 規定的 `🤖 Generated with Claude Code` 署名行。
 
@@ -145,4 +160,5 @@ $ORCA worktree set --worktree active --workspace-status todo --comment "等使�
 - PR 已開且連回 issue（`Closes #<number>`）
 - 驗收條件逐條有證據，未達成的已在 PR 明白列出
 - issue label 為 `orca-in-pr`
+- PR 的 `## 工廠回饋` 三格都填了（沒有就是「無」，不可留空）
 - 沒有動到 issue 範圍外的檔案

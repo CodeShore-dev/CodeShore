@@ -66,7 +66,7 @@ argument-hint: [補充說明]
 
 前端功能模組現有這些：`about`、`admin`、`ai-suggestion`、`auth`、`company`、`home`、`job`、`job-filter-watchlist`、`keyword`、`keyword-curation`、`location-map`、`methodology`、`not-found`、`techs`。
 
-找到 2-5 個高相關檔案就夠，附上 `路徑:行號`。完全找不到時，在 issue 寫「涉及檔案：待確認」，並在「需要的資訊」說明你搜過什麼關鍵字。
+找到 2-5 個高相關檔案就夠，寫**路徑與為什麼相關**，**不要寫行號**——行號是你現在這一刻的斷言，worker 之後才動手，中間可能有別的 PR 位移它；worker 照過期的行號去看會看到別的東西並自己合理化，而那在 PR 裡很難發現。語意描述不會過期，worker 自己 grep 只要兩秒。完全找不到時，在 issue 寫「涉及檔案：待確認」，並在「需要的資訊」說明你搜過什麼關鍵字。
 
 ### Step 3：判斷這是哪一類工作
 
@@ -95,7 +95,7 @@ argument-hint: [補充說明]
 - 裝置：桌機 / 手機版
 
 ## 涉及檔案
-- `path/to/file.tsx:123` — （這個檔案為什麼相關）
+- `path/to/file.tsx` — （這個檔案為什麼相關，寫語意不寫行號，例如「切換用的 setInterval 在這裡，進度條要跟它同一個常數」）
 
 ## 重現步驟
 1. …
