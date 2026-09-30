@@ -52,7 +52,8 @@ git branch --show-current   # 確認你在派工的 branch，不是 main
 依 `.kiro/steering/` 的規範改。要求：
 
 - 測試先行：先寫會失敗的測試，再寫實作（有測試檔慣例的範圍內）
-- 測試檔與被測檔同層，命名 `*.spec.ts` / `*.spec.tsx`
+- 測試檔與被測檔同層。命名前後端不同：前端（`apps/frontend/src`）用 `*.test.ts` / `*.test.tsx`，
+  後端與 `libs/` 用 `*.spec.ts`。判準見 `.kiro/steering/structure.md` 的命名慣例表
 - 改動範圍控制在 issue 涉及的模組內
 - 不新增依賴，除非 issue 明講
 
@@ -61,8 +62,18 @@ git branch --show-current   # 確認你在派工的 branch，不是 main
 ```bash
 pnpm nx test frontend      # 或 backend，看改到哪
 pnpm nx lint frontend
-pnpm ptr:format:check
+
+# 格式只檢查本次改動的檔案，不檢查全庫
+git diff --name-only --diff-filter=ACMR main...HEAD -- '*.ts' '*.tsx' \
+  | xargs -r npx prettier --check --end-of-line lf
 ```
+
+格式那行**只給改動檔**。全庫 `pnpm ptr:format:check` 在 `main` 上就是紅的（578 個檔有 552 個
+不符 `.prettierrc`），拿它當關卡量不出退化。也不要跑 `pnpm ptr:format`，那會重排數百個無關檔案。
+細節見 `.kiro/steering/tech.md` 的「已知落差」。
+
+`pnpm nx lint` 同理：`main` 上既有 62 個 error。判準是**數量與基準線相同、且改動檔本身零 finding**，
+不是全綠。
 
 接著呼叫 `kiro-verify-completion` skill，用新鮮證據逐條核對 issue 的驗收條件。這一步不可跳過。
 
@@ -112,7 +123,7 @@ Closes #42
 
 ## 驗收條件核對
 - [x] （issue 的條件）— 證據：`useSalaryRange.spec.ts:88` 通過
-- [x] 既有測試不退化 — `pnpm nx test frontend` 全綠
+- [x] 既有測試不退化 — `pnpm nx test frontend`：基準線 1006 passed / 2 failed，本 PR 1009 passed / 2 failed，失敗集合相同
 
 ## 未處理 / 待討論
 - （沒有就寫「無」）
@@ -127,7 +138,7 @@ Closes #42
 
 - **只寫「如果規範當初多寫一句，我這次就不用猜」的事**，三格都沒有就各寫「無」
 - 規範沒寫、但現場有慣例可跟時（例如資料夾裡既有檔案的命名），**照現場做並在這裡寫下來**，不要停下來問——判準見 Step 2「猜錯會不會做白工」
-- 例：`structure.md` 說測試檔用 `*.spec.tsx`，但 `features/home/` 既有的是 `.test.tsx`，我跟了現場慣例
+- 例：`structure.md` 沒講這個 feature 的 store 該不該拆檔，我照隔壁 feature 的單檔寫法做
 - 不要寫「我覺得程式碼可以更好」那類感想，那不是工廠問題
 
 PR 內文結尾加本 session 規定的 `🤖 Generated with Claude Code` 署名行。

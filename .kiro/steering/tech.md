@@ -45,6 +45,19 @@
 - **Prettier 3.x**：自動格式化（含 import 排序 `@trivago/prettier-plugin-sort-imports`）
 - **ESLint 8.x**：`@typescript-eslint` 規則
 
+### 已知落差：`.prettierrc` 與現存檔案不符
+
+`apps/` 底下 578 個 `.ts` / `.tsx` 檔，用現行 `.prettierrc` 檢查有 552 個不符。主因是
+`printWidth: 120`，但現有程式碼排在約 80 欄；`endOfLine: "crlf"` 也與多數 LF 檔案相反
+（改用 `lf` 檢查仍有 457 個不符）。
+
+因此：
+
+- 全庫 `pnpm ptr:format:check` 在 `main` 上就是紅的，**不是退化判準**，不要拿它當關卡
+- 不要跑 `pnpm ptr:format` 或 `prettier --write .`。那會重排數百個無關檔案
+- 只檢查自己這次改動的檔案。寫新程式碼時跟周邊檔案的排版，不跟 `.prettierrc` 的 `printWidth`
+- 要真正解掉這個落差是獨立決定（全庫重排，或改設定遷就現況），不在任一張 issue 的範圍內
+
 ## 開發慣例
 
 - Frontend dev server：port 4200

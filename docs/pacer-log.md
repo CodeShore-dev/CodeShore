@@ -61,9 +61,11 @@ git log --no-merges --invert-grep --grep='Orca-Worker' --oneline | wc -l
 | 2026-09-30 | P14 | 訊號只在 worker 喊卡或我出手時才響。「它做完了、能用、但跟鄰居不一致」完全沒有訊號——`.spec` / `.test` 分裂（PR#25 用 spec、PR#28 用 test）就是這樣溜過去的 | `orca-issue-work/SKILL.md` 的 PR 內文結構加 `## 工廠回饋` 三格，填法寫進說明，並列入完成判準 | 每個 PR 都說得出「我猜過什麼」，猜了要留單但不必停下來問 |
 | 2026-09-30 | P14 | 有訊號也沒人固定回頭看。靠記性每週回顧＝不會發生 | 新增 `/orca-retro` skill：撈三種訊號 → 一句話過濾 → 三問分類 → 提案等點頭 → 改零件＋記帳一個 commit | 每週一個指令，`git log -- .kiro/steering .claude/skills` 每週有 1–2 筆 |
 | 2026-09-30 | P14 | agent 與我的 commit 混在一起（都掛 chaol，`Co-Authored-By: Claude` 兩者都有），量不出「這個月我出手幾次」 | `orca-issue-work/SKILL.md` 的 commit 規則與範例加 `Orca-Worker: issue #<N>` trailer | `git log --invert-grep --grep='Orca-Worker'` 只剩我自己的 commit，鉛筆率可算 |
+| 2026-09-30 | P14 | 測試檔命名分裂：PR#25 建 `.spec.tsx`（跟 skill），PR#28 建 `.test.tsx`（跟鄰居）。skill 無條件要求 `.spec`，但前端現有 `.test` 153 / `.spec` 13，後端 `.spec` 71 / `.test` 0 | `structure.md` 前端 feature 結構補測試檔一行、命名慣例表加前後端兩列並附現況數字；`orca-issue-work` Step 4 改成前後端分開講；同檔「工廠回饋」原本拿這件事當例子，換掉以免打架 | worker 不必猜命名；前端進 `.test`、後端進 `.spec`，不再一週出兩種 |
+| 2026-09-30 | P14 | `ptr:format:check` 是假關卡。PR#25、#26、#28 各花一段字解釋它為何紅，三次內容幾乎一樣。`.prettierrc` 與現場落差 552/578（`printWidth: 120` vs 現場約 80 欄；`endOfLine: crlf` vs 多數 LF） | `tech.md` Code Quality 加「已知落差」節，明寫不是關卡、不要跑 `--write`；`orca-issue-work` Step 5 的格式檢查改成只檢 `git diff` 的改動檔，並把 lint / test 判準從「全綠」改成「與基準線相同」（PR 模板那列一起改） | worker 不再重寫同一段解釋；「不退化」判準是對基準線，不是對全綠 |
 
 ## 還沒做（排隊中）
 
 - **P32 CLI**：`apps/cli` + `tech-trend` 子命令（`job.created_at` 按月分桶算職缺數與 PR50），之後包 MCP。約 1 小時。
-- **前端測試檔命名**：`structure.md` 的前端 feature 結構沒提測試檔（後端那份有寫 `*.spec.ts`），實際是 spec 101／test 153。要決定統一成哪一種或明訂前後端不同，然後同步 `orca-issue-work` Step 4。這是第一次 `/orca-retro` 該處理的第一筆。
+- **`.prettierrc` 全庫落差**：這輪只把它記進 `tech.md` 並從關卡移掉，沒有真的解掉。要解就兩條路選一條：全庫重排（500+ 檔無關 diff，要獨立一個 commit），或改設定遷就現況（`printWidth` 降到 80、`endOfLine` 改 `lf`，再加 `.gitattributes`）。不要夾在功能 issue 裡做。
 - **P24 對照實驗**：下一個 issue 出 B 版——整段砍掉「涉及檔案」，只留驗收條件，跟 A 版比 PR。要做 3–5 次才有結論。

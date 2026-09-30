@@ -62,6 +62,7 @@ features/{feature}/
   queries.ts      ← TanStack Query 查詢（server-state；queryKey 含篩選）
   mutations.ts    ← TanStack Query mutation（樂觀更新 + 失效）
   service.ts      ← API 呼叫（async functions，框架無關，直接 import）
+  *.test.tsx      ← 與被測檔案同層（如 HomeHero.test.tsx）
 ```
 
 **現有 frontend features**：`admin`、`ai-suggestion`、`auth`、`company`、`home`、`job`、`job-filter-watchlist`、`keyword`、`keyword-curation`、`methodology`、`not-found`、`techs`
@@ -75,6 +76,11 @@ features/{feature}/
 | Stores | `{feature}FilterStore.ts`（Zustand） | `jobFilterStore.ts` |
 | Hooks | `use{Purpose}.ts` | `useJobUrlSync.ts` |
 | Services | 固定 `service.ts` | `features/job/service.ts` |
+| 測試檔（前端） | `{被測檔名}.test.ts` / `.test.tsx` | `HomeHero.test.tsx`、`useHomeComboTechs.test.ts` |
+| 測試檔（後端 / libs） | `{被測檔名}.spec.ts` | `service.spec.ts` |
+
+前後端故意不同：`apps/frontend/src` 現有 `.test.*` 153 個、`.spec.*` 13 個；`apps/backend/src` 與
+`libs/` 現有 `.spec.ts` 71 個、`.test.ts` 0 個。兩邊各自跟自己的多數，不要跨邊套用。
 
 ## Import 慣例
 
