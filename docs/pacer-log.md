@@ -63,6 +63,8 @@ git log --no-merges --invert-grep --grep='Orca-Worker' --oneline | wc -l
 | 2026-09-30 | P14 | agent 與我的 commit 混在一起（都掛 chaol，`Co-Authored-By: Claude` 兩者都有），量不出「這個月我出手幾次」 | `orca-issue-work/SKILL.md` 的 commit 規則與範例加 `Orca-Worker: issue #<N>` trailer | `git log --invert-grep --grep='Orca-Worker'` 只剩我自己的 commit，鉛筆率可算 |
 | 2026-09-30 | P14 | 測試檔命名分裂：PR#25 建 `.spec.tsx`（跟 skill），PR#28 建 `.test.tsx`（跟鄰居）。skill 無條件要求 `.spec`，但前端現有 `.test` 153 / `.spec` 13，後端 `.spec` 71 / `.test` 0 | `structure.md` 前端 feature 結構補測試檔一行、命名慣例表加前後端兩列並附現況數字；`orca-issue-work` Step 4 改成前後端分開講；同檔「工廠回饋」原本拿這件事當例子，換掉以免打架 | worker 不必猜命名；前端進 `.test`、後端進 `.spec`，不再一週出兩種 |
 | 2026-09-30 | P14 | `ptr:format:check` 是假關卡。PR#25、#26、#28 各花一段字解釋它為何紅，三次內容幾乎一樣。`.prettierrc` 與現場落差 552/578（`printWidth: 120` vs 現場約 80 欄；`endOfLine: crlf` vs 多數 LF） | `tech.md` Code Quality 加「已知落差」節，明寫不是關卡、不要跑 `--write`；`orca-issue-work` Step 5 的格式檢查改成只檢 `git diff` 的改動檔，並把 lint / test 判準從「全綠」改成「與基準線相同」（PR 模板那列一起改） | worker 不再重寫同一段解釋；「不退化」判準是對基準線，不是對全綠 |
+| 2026-10-02 | P22 | 停在等人的 issue 有兩種（`question`、`orca-needs-info`），但 `question` 是 GitHub 內建 label、不在 `orca-*` 家族裡。看板上看不出它為什麼沒被派工，要翻 skill 才知道 | 新增 `orca-needs-decision` label（取代 `question`）；`orca-issue/SKILL.md` 四處引用一起改 | 所有「停下來等人」的狀態都叫 `orca-needs-*`，看 label 名就知道卡在哪、該做什麼 |
+| 2026-10-02 | P24 | `orca-issue` Step 3 只判類型（bug／enhancement／需要決策），不判大小。只要不是「需要決策」一律貼 `orca-ready` 直接派——即使那張要動 migration ＋前後端。worker 只能硬做完或中途卡住 | Step 3 拆成 3a 類型／3b 大小「這張一個 PR 做得完嗎」；新增 `orca-needs-spec` label；派工 label 改成三選一；完成判準加一條 | 做不完的不會進 worktree；不確定時判小，因為人的時間比 token 貴 |
 
 ## 還沒做（排隊中）
 

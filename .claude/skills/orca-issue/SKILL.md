@@ -68,7 +68,11 @@ argument-hint: [補充說明]
 
 找到 2-5 個高相關檔案就夠，寫**路徑與為什麼相關**，**不要寫行號**——行號是你現在這一刻的斷言，worker 之後才動手，中間可能有別的 PR 位移它；worker 照過期的行號去看會看到別的東西並自己合理化，而那在 PR 裡很難發現。語意描述不會過期，worker 自己 grep 只要兩秒。完全找不到時，在 issue 寫「涉及檔案：待確認」，並在「需要的資訊」說明你搜過什麼關鍵字。
 
-### Step 3：判斷這是哪一類工作
+### Step 3：判斷類型與大小
+
+兩個維度要分開判，缺一個都會派錯。
+
+**3a　類型**
 
 | 類型 | 判斷 | 對 issue 的影響 |
 |---|---|---|
@@ -76,7 +80,23 @@ argument-hint: [補充說明]
 | enhancement | 現況正常，使用者想要更好 | 要寫目前行為與期望行為的差異 |
 | 需要決策 | 有多種做法且影響 UX | 列出選項，標明要使用者先決定 |
 
-第三類**不要**加 `orca-ready`，改加 `question`，並在最後告訴使用者這張要先討論。
+第三類**不要**加 `orca-ready`，改加 `orca-needs-decision`，並在最後告訴使用者這張要先討論。
+
+**3b　大小：這張一個 PR 做得完嗎？**
+
+派工的形狀是 1 issue = 1 worktree = 1 PR，所以判準就這一句，不是複雜度、不是工時。
+
+| 答案 | 徵兆 | label |
+|---|---|---|
+| 做得完 | 改動集中在一個模組；驗收條件列得出來；不動 schema | `orca-ready` |
+| 做不完 | 要動 migration ＋前後端；要先決定架構；驗收條件寫不出來只能寫「做好」 | `orca-needs-spec`（**不加** `orca-ready`） |
+
+**不確定時判「做得完」。** 兩個方向的代價不對稱：
+
+- 判小判錯 → worker 撞牆、回貼 `orca-needs-spec`，花掉的是 token
+- 判大判錯 → 你審一份不該存在的規格，花掉的是你的時間
+
+貼 `orca-needs-spec` 的要在回報裡說明為什麼做不完，使用者才知道要不要跑 kiro。
 
 ### Step 4：寫草稿給使用者看
 
@@ -115,7 +135,7 @@ argument-hint: [補充說明]
 
 草稿不必等使用者點頭。subagent 直接進 Step 5 開 issue，草稿內容當成 issue 內文。
 
-**唯一的例外**是 Step 3 的第三類（有多種做法且影響 UX）。那種情況 subagent 要把選項寫進 issue，貼 `question` 而非 `orca-ready`，並在回報裡點明這張要使用者先決定。
+**例外**是 Step 3 判出「不派工」的兩種：需要決策（3a 第三類）與一個 PR 做不完（3b）。那兩種 subagent 一樣直接開 issue，但貼 `orca-needs-decision` / `orca-needs-spec` 而非 `orca-ready`，並在回報裡點明這張在等使用者什麼。
 
 ### Step 5：建立 issue
 
@@ -133,23 +153,26 @@ EOF
 ```
 
 label 規則：
-- 一定加 `orca-ready`（這是派工腳本的觸發條件）
-- 依類型加 `bug` 或 `enhancement`
-- 需要先決策的加 `question`，**並且不加** `orca-ready`
+- 依類型加 `bug` 或 `enhancement`（一定要有一個）
+- 派工用的 label **三選一**，不可同時貼兩個：
+  - `orca-ready` — 小任務，貼上去 webhook 幾秒內就派工（預設）
+  - `orca-needs-decision` — 要使用者先選方向（3a 第三類）
+  - `orca-needs-spec` — 一個 PR 做不完，要先跑 kiro（3b）
 
 ### Step 6：回報
 
 subagent 回三行給主 session：
 
 1. issue 連結與號碼
-2. label（`orca-ready` 已貼好就會自動派工；貼 `question` 的要說明為什麼）
+2. label（`orca-ready` 已貼好就會自動派工；貼 `orca-needs-*` 的要說明在等使用者什麼）
 3. 一句話說這張 issue 要做什麼
 
 派工是事件驅動的：貼上 `orca-ready` 後 webhook 幾秒內就建好 worker worktree，不用手動跑腳本。要手動補派才用 `bash scripts/orca-dispatch.sh --issue <號碼>`。
 
 ## 完成判準
 
-- issue 已建立且有 `orca-ready`（或明確說明為何不加）
+- issue 已建立，且 `orca-ready` / `orca-needs-decision` / `orca-needs-spec` 恰好有一個
+- Step 3 的兩個維度都判過了（類型 + 一個 PR 做得完嗎）
 - 內文的「需要的資訊」與「驗收條件」都不是空的
 - 本次沒有動到任何程式碼檔案
 - 主 session 在派出 subagent 後就回話了，沒有等查證跑完
