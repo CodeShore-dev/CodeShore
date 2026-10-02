@@ -76,7 +76,11 @@ flowchart TD
     MON -.有了之後才需要.-> TRI
     TRI -.-> S3
 
+    %% 配色規則：每個節點都自己帶 fill ＋ color，所以不管底是白是黑都讀得到。
+    %% 刻意不寫 %%{init}%% 指定 theme——寫了就會蓋掉 GitHub / VS Code 依亮暗模式
+    %% 自動切換的那一套，連帶讓連線與邊標籤在其中一個模式下看不見。
+    %% 避開接近純白的 fill（暗色模式下刺眼）與接近純黑的 fill（亮色模式下太重）。
     classDef human fill:#1f6feb,stroke:#0b3d91,color:#ffffff,stroke-width:2px
-    classDef auto fill:#f6f8fa,stroke:#8b949e,color:#1f2328
-    classDef label fill:#fff8c5,stroke:#9a6700,color:#1f2328
-    classDef todo fill:#ffffff,stroke:#cf222e,color:#cf222e,stroke-dasharray:4
+    classDef auto fill:#c9d1d9,stroke:#57606a,color:#0d1117,stroke-width:1.5px
+    classDef label fill:#e3b341,stroke:#7d4e00,color:#1f2328,stroke-width:1.5px
+    classDef todo fill:#ffb3b8,stroke:#cf222e,color:#1f2328,stroke-width:1.5px,stroke-dasharray:4
