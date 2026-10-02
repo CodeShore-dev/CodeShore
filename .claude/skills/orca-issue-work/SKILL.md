@@ -14,9 +14,10 @@ argument-hint: <issue-number>
 
 1. **只做 issue 寫明的事。** 「不在範圍內」那段是禁區。順手看到的其他問題，另開 issue 記錄，不要一起改。
 2. **資訊不足就問，不要猜。** 見下方「卡住時」。
-3. **驗收條件沒全綠不准開 PR。** 未通過的項目要在 PR 內文明白列出。
-4. **不要 push 到 main。** 只 push 你自己的 branch。
-5. 文件、commit、PR 內文用**繁體中文**。
+3. **一個 PR 做不完就退回，不要硬做完。** 見下方「太大時」。把它拆成好幾個 commit 硬塞進一個 PR 也算硬做完。
+4. **驗收條件沒全綠不准開 PR。** 未通過的項目要在 PR 內文明白列出。
+5. **不要 push 到 main。** 只 push 你自己的 branch。
+6. 文件、commit、PR 內文用**繁體中文**。
 
 ## 執行步驟
 
@@ -46,6 +47,8 @@ git branch --show-current   # 確認你在派工的 branch，不是 main
 
 - bug：從 issue 的重現步驟找到出錯的那幾行，確認你看到的行為與 issue 描述一致。描述對不上時，以程式碼為準，並在 issue 留言指出差異。
 - enhancement：確認目前行為，並確認你的改法沒有跟既有設計衝突。
+
+確認完現況，動手前最後問一次：**這張一個 PR 做得完嗎？** 做不完就走「太大時」。這是你唯一一次用真實範圍（而不是畫面）回頭驗證 `orca-issue` 判斷的機會，過了這裡就只剩硬做完。
 
 ### Step 4：實作
 
@@ -165,6 +168,28 @@ $ORCA worktree set --worktree active --workspace-status todo --comment "等使�
 ```
 
 把已經完成的部分 commit 在 branch 上，不要丟掉。然後停下來，不要猜著往下做。
+
+## 太大時
+
+`orca-issue` Step 3b 判過「一個 PR 做得完」才派給你，但它是從畫面判的，看不到程式碼。你是第一個看到真實範圍的人，判錯由你修正。
+
+Step 3 確認現況之後，看到下面任何一項就退回，**不要先做再說**：
+
+- 要動 migration，而且前後端都得跟著改
+- 驗收條件只寫得出「做好」，寫不出可觀察的結果
+- 要先決定架構（拆不拆檔、放哪一層）才動得了手
+- 改動會跨出 issue 列的模組，而且跨得理直氣壯
+
+```bash
+gh issue comment <number> --body "這張一個 PR 做不完：…（講清楚哪幾塊、為什麼綁在一起、建議怎麼拆）"
+gh issue edit <number> --add-label orca-needs-spec --remove-label orca-ready
+ORCA=${ORCA_CLI_COMMAND:-orca-ide}
+$ORCA worktree set --worktree active --workspace-status todo --comment "太大，等 spec：issue #<number>" --json
+```
+
+查到的東西都寫進那則留言——使用者跑 `/kiro-discovery` 時那就是現成的材料，不要讓它跟著 worktree 一起被收掉。已經寫的 code 照樣 commit 在 branch 上。
+
+退回不是失敗，是把判斷送回成本比較低的那一站。
 
 ## 完成判準
 
