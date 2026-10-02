@@ -18,7 +18,7 @@ argument-hint: <issue-number>
 4. **驗收條件沒全綠不准開 PR。** 未通過的項目要在 PR 內文明白列出。
 5. **不要 push 到 main。** 只 push 你自己的 branch。
 6. 文件、commit、PR 內文用**繁體中文**。
-7. **不要照 `CLAUDE.md` 的「1% chance」規則載 skill。** 那條是寫給主 session 的。你在 worktree 裡只做一張 issue，只准用 `kiro-debug`（找不到 root cause 時）與 `kiro-verify-completion`（宣稱做完之前）。`kiro-*` 的其他 skill 一律不載——spec 階段早就過了。
+7. **不要照 `CLAUDE.md` 的「1% chance」規則載 skill。** 那條是寫給主 session 的。你在 worktree 裡只做一張 issue，只准用這三個：`kiro-review`（Step 6 一定要跑）、`kiro-verify-completion`（宣稱做完之前）、`kiro-debug`（找不到 root cause 時）。`kiro-*` 的其他 skill 一律不載——spec 階段早就過了。
 
 ## 執行步驟
 
