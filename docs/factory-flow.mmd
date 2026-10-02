@@ -39,17 +39,18 @@ flowchart TD
     W4 --> W6 --> PR --> H4 --> WH2 --> DONE
 
     %% ========== B 線：大任務（人全程在線上） ==========
-    H5["🧑 kiro-discovery<br/>把 issue 內容餵進去"]:::human
+    B0["orca-issue-to-brief.mjs<br/>七節 → brief.md ＋ issue.md"]:::auto
+    H5["🧑 kiro-discovery<br/>把「未決」那幾欄問出來"]:::human
     B1["brief.md → spec.json<br/>requirements.md"]:::auto
     H6["🧑 審 requirements<br/>approved"]:::human
     B2["design.md"]:::auto
     H7["🧑 審 design<br/>approved"]:::human
     B3["tasks.md<br/>帶 P / Depends / Boundary"]:::auto
     H8["🧑 審 tasks<br/>approved"]:::human
-    H9["🧑 回填 issue、拆子 issue<br/>一張 = 一個 Boundary，仍是手動"]:::human
+    B4["orca-tasks-to-issues.mjs<br/>依 Boundary 拆子 issue、更新母 issue<br/>擋住有前置與需授權的"]:::auto
 
-    SPEC --> H5 --> B1 --> H6 --> B2 --> H7 --> B3 --> H8 --> H9
-    H9 -->|每張子 issue 貼 orca-ready| READY
+    SPEC --> B0 --> H5 --> B1 --> H6 --> B2 --> H7 --> B3 --> H8 --> B4
+    B4 -->|每張子 issue 貼 orca-ready| READY
 
     %% ========== 外圈：自我改善 ==========
     R1["/orca-retro 每週一次<br/>A 鉛筆 commit · B 工廠回饋<br/>C needs-info · D orca-cost-audit.py"]:::auto
