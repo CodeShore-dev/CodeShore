@@ -4,20 +4,6 @@
 %% 來源：Zach Lloyd「Software Engineering Is Becoming Factory Engineering」的十站迴圈，
 %% 對照本 repo 實際的 orca / kiro 流程。維護方式見 docs/pacer-log.md。
 
-%%{init: {"theme": "base", "themeVariables": {
-  "background": "#0d1117",
-  "primaryColor": "#161b22",
-  "primaryTextColor": "#e6edf3",
-  "primaryBorderColor": "#30363d",
-  "secondaryColor": "#161b22",
-  "tertiaryColor": "#161b22",
-  "lineColor": "#8b949e",
-  "textColor": "#e6edf3",
-  "edgeLabelBackground": "#161b22",
-  "clusterBkg": "#161b22",
-  "clusterBorder": "#30363d",
-  "fontSize": "15px"
-}}}%%
 
 flowchart TD
     %% ========== 入口 ==========
@@ -96,5 +82,5 @@ flowchart TD
     %% renderer 不吃 themeVariables.background（GitHub 有時會忽略），框內仍然讀得到。
     classDef human fill:#1f6feb,stroke:#0b3d91,color:#ffffff,stroke-width:2px
     classDef auto fill:#c9d1d9,stroke:#57606a,color:#0d1117,stroke-width:1.5px
-    classDef label fill:#e3b341,stroke:#7d4e00,color:#1f2328,stroke-width:1.5px
+    classDef label fill:#e3b341,stroke:#7d4e00,color:#ffffff,stroke-width:1.5px
     classDef todo fill:#ffb3b8,stroke:#cf222e,color:#1f2328,stroke-width:1.5px,stroke-dasharray:4
