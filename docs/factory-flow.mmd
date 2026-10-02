@@ -4,6 +4,21 @@
 %% 來源：Zach Lloyd「Software Engineering Is Becoming Factory Engineering」的十站迴圈，
 %% 對照本 repo 實際的 orca / kiro 流程。維護方式見 docs/pacer-log.md。
 
+%%{init: {"theme": "base", "themeVariables": {
+  "background": "#0d1117",
+  "primaryColor": "#161b22",
+  "primaryTextColor": "#e6edf3",
+  "primaryBorderColor": "#30363d",
+  "secondaryColor": "#161b22",
+  "tertiaryColor": "#161b22",
+  "lineColor": "#8b949e",
+  "textColor": "#e6edf3",
+  "edgeLabelBackground": "#161b22",
+  "clusterBkg": "#161b22",
+  "clusterBorder": "#30363d",
+  "fontSize": "15px"
+}}}%%
+
 flowchart TD
     %% ========== 入口 ==========
     H1["🧑 在 Orca 圈選畫面<br/>附上一段想法"]:::human
@@ -76,10 +91,9 @@ flowchart TD
     MON -.有了之後才需要.-> TRI
     TRI -.-> S3
 
-    %% 配色規則：每個節點都自己帶 fill ＋ color，所以不管底是白是黑都讀得到。
-    %% 刻意不寫 %%{init}%% 指定 theme——寫了就會蓋掉 GitHub / VS Code 依亮暗模式
-    %% 自動切換的那一套，連帶讓連線與邊標籤在其中一個模式下看不見。
-    %% 避開接近純白的 fill（暗色模式下刺眼）與接近純黑的 fill（亮色模式下太重）。
+    %% 固定暗色：上面的 init 自己帶一張深色畫布與線條／文字顏色，所以不跟著
+    %% 瀏覽器或編輯器的亮暗模式走。節點另外各自帶 fill ＋ color，就算某個
+    %% renderer 不吃 themeVariables.background（GitHub 有時會忽略），框內仍然讀得到。
     classDef human fill:#1f6feb,stroke:#0b3d91,color:#ffffff,stroke-width:2px
     classDef auto fill:#c9d1d9,stroke:#57606a,color:#0d1117,stroke-width:1.5px
     classDef label fill:#e3b341,stroke:#7d4e00,color:#1f2328,stroke-width:1.5px
