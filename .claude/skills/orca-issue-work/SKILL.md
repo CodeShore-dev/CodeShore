@@ -87,6 +87,10 @@ pnpm ptr:format:check      # 只檢本次改動的檔，乾淨的 main 上是綠
 
 呼叫 `kiro-review` skill，對照 issue 的驗收條件與「不在範圍內」做對抗式檢查。reviewer 指出的問題修掉後再重跑 Step 5。
 
+這一關是**自審**——它跟你在同一個 session，共用你寫 code 時的假設。PR 開出去之後還有一個
+`orca-pr-review` 在乾淨 session 裡看一次（看不到你的推理）。所以**不要為了讓自審過關而把
+不確定的地方寫得很肯定**，不確定就照實寫進 PR 的「未處理 / 待討論」，第二雙眼睛會接。
+
 ### Step 7：Commit 與 PR
 
 ```bash

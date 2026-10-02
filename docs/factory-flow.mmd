@@ -28,7 +28,9 @@ flowchart TD
     H3["🧑 補資料"]:::human
     W6["Step 6-7 kiro-review<br/>kiro-verify-completion → 開 PR"]:::auto
     PR["orca-in-pr"]:::label
-    H4["🧑 review PR 並 merge"]:::human
+    RV["webhook pull_request.opened<br/>orca-review-dispatch.sh<br/>乾淨 session，看不到 worker 的推理"]:::auto
+    RVL["orca-review-clean<br/>或 orca-review-flagged ≤5 點"]:::label
+    H4["🧑 只看被標出的那幾點<br/>然後 merge"]:::human
     WH2["webhook pull_request.closed<br/>sync-main + cleanup-worktree"]:::auto
     DONE(["合併完成"]):::auto
 
@@ -36,7 +38,7 @@ flowchart TD
     W3 -->|做得完| W4
     W3 -->|太大，退回| SPEC
     W4 -->|資訊不足| INFO --> H3 --> W4
-    W4 --> W6 --> PR --> H4 --> WH2 --> DONE
+    W4 --> W6 --> PR --> RV --> RVL --> H4 --> WH2 --> DONE
 
     %% ========== B 線：大任務（人全程在線上） ==========
     B0["orca-issue-to-brief.mjs<br/>七節 → brief.md ＋ issue.md"]:::auto
@@ -53,7 +55,7 @@ flowchart TD
     B4 -->|每張子 issue 貼 orca-ready| READY
 
     %% ========== 外圈：自我改善 ==========
-    R1["/orca-retro 每週一次<br/>A 鉛筆 commit · B 工廠回饋<br/>C needs-info · D orca-cost-audit.py"]:::auto
+    R1["/orca-retro 每週一次<br/>A 鉛筆 commit · B 工廠回饋 · C needs-info<br/>D orca-cost-audit.py · E 你改掉的預審評論"]:::auto
     H10["🧑 一次最多選兩條"]:::human
     R2["改 steering / skill / scripts<br/>+ pacer-log 同一個 commit"]:::auto
 
@@ -61,6 +63,8 @@ flowchart TD
     R1 --> H10 --> R2
     R2 -.改進.-> ISSUE
     R2 -.改進.-> W1
+    R2 -.改進.-> RV
+    H4 -.你改掉它的評論＝它判錯了.-> R1
 
     %% ========== 還沒有的站 ==========
     MON["monitor：crawler 退化自動開 issue<br/>還沒做，手動跑所以你就是 monitor"]:::todo

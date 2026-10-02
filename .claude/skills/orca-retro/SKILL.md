@@ -44,6 +44,11 @@ gh issue list --label orca-needs-info --state all --limit 20 --json number,title
 
 # 訊號 D：成本離群與沒照 SOP 的 worker
 python3 scripts/orca-cost-audit.py
+
+# 訊號 E：你改掉了 agent 預審的哪幾點
+gh pr list --state merged --limit 20 --json number,title,comments,mergedAt \
+  -q '.[] | select(.mergedAt > "'"$(date -d "$SINCE" +%Y-%m-%d)"'") | "PR#\(.number)\n\(.comments[].body)"' \
+  | grep -A40 'agent 預審'
 ```
 
 訊號 B 只讀 `## 工廠回饋` 那一節，三格都是「無」的跳過。
@@ -55,6 +60,15 @@ python3 scripts/orca-cost-audit.py
 - **✗ 沒照 SOP**（漏跑 `kiro-review` / `kiro-verify-completion`）→ 這是 skill 或 steering 沒把那一步寫成硬性的訊號，不是那個 worker 的錯
 
 只有五六個樣本時中位數不穩，**別拿單一一次離群就改工廠**；要看它是不是同一類原因連續出現兩次。
+
+訊號 E 是 `orca-pr-review` 的回流。把它列的點跟你實際的處置對起來，分三類：
+
+- **它標了、你也覺得要改** → 預審有效，不用動
+- **它標了、你看完覺得不用管** → 它在湊點數或判準太寬，改 `orca-pr-review` 的 Step 3 砍除規則
+- **它沒標、但你自己抓到了** → 最有價值的一類。它 Step 2 的四個問題漏了你真正在乎的那一項，補進去
+
+這就是 Zach 那場演講 skill loop 的原話例子：review agent 留評論、人修正那些評論、observer
+看這個差異讓下一輪變好。差別只在這裡的 observer 是你每週跑一次的這個 skill。
 
 ### Step 2：過濾
 
@@ -90,6 +104,8 @@ python3 scripts/orca-cost-audit.py
 | 測試全綠但實際不合用 | 測試要求不足 | `orca-issue-work` Step 4 / 5 |
 | 某張 issue 的 tok/行 離群 | 有個關卡或規範讓 worker 原地打轉 | 先 `--dive` 找出打轉的那一段，再改那一段對應的規範 |
 | worker 漏跑 `kiro-review` 之類 | SOP 寫在步驟裡但沒寫進完成判準 | `orca-issue-work` 的「完成判準」 |
+| 預審標的點你都覺得不用管 | 預審判準太寬，在湊點數 | `orca-pr-review` Step 3 的砍除規則 |
+| 預審沒標但你自己抓到 | 預審的四個問題漏了一項 | `orca-pr-review` Step 2 |
 
 改規範時**先查現場多數**（例如 `find apps libs -name "*.test.ts*" | wc -l`），不要照規範原文硬推，
 否則會把多數檔案變成違規。

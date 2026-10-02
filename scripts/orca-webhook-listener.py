@@ -3,6 +3,8 @@
 
 處理兩種事件：
   issues.labeled（label 是 orca-ready）→ 跑 scripts/orca-dispatch.sh --issue <號碼>
+  pull_request.opened / ready_for_review → 跑 scripts/orca-review-dispatch.sh --pr <號碼>，
+    用一個乾淨 session 預審並貼 orca-review-clean / orca-review-flagged
   pull_request.closed（已 merge 進 main）→ 依序跑兩件事：
     1. scripts/orca-sync-main.sh，讓主 worktree 的 dev server 更新到合併後的版本
     2. scripts/orca-cleanup-worktree.sh --branch <PR 分支>，收掉那個 worker worktree
@@ -18,6 +20,7 @@
   ORCA_MAIN_BRANCH     要同步的分支，預設 main
   ORCA_SYNC_ON_MERGE   設成 0 就不在 merge 後同步主 worktree
   ORCA_CLEANUP_ON_MERGE 設成 0 就不在 merge 後收掉 worker worktree
+  ORCA_REVIEW_ON_OPEN  設成 0 就不在 PR 開啟時派預審
 """
 
 from __future__ import annotations
@@ -37,12 +40,14 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DISPATCH = REPO_ROOT / "scripts" / "orca-dispatch.sh"
 SYNC = REPO_ROOT / "scripts" / "orca-sync-main.sh"
 CLEANUP = REPO_ROOT / "scripts" / "orca-cleanup-worktree.sh"
+REVIEW = REPO_ROOT / "scripts" / "orca-review-dispatch.sh"
 PORT = int(os.environ.get("ORCA_WEBHOOK_PORT", "9099"))
 SECRET = os.environ.get("ORCA_WEBHOOK_SECRET", "")
 READY_LABEL = os.environ.get("ORCA_READY_LABEL", "orca-ready")
 MAIN_BRANCH = os.environ.get("ORCA_MAIN_BRANCH", "main")
 SYNC_ON_MERGE = os.environ.get("ORCA_SYNC_ON_MERGE", "1") != "0"
 CLEANUP_ON_MERGE = os.environ.get("ORCA_CLEANUP_ON_MERGE", "1") != "0"
+REVIEW_ON_OPEN = os.environ.get("ORCA_REVIEW_ON_OPEN", "1") != "0"
 
 _lock = threading.Lock()
 _inflight: set[int] = set()
@@ -116,6 +121,30 @@ def dispatch(number: int) -> None:
     finally:
         with _lock:
             _inflight.discard(number)
+
+
+def review_pr(number: int) -> None:
+    """PR 一開就派一個乾淨 session 預審。失敗不影響 PR，使用者照常自己 review。"""
+    if not REVIEW.exists():
+        log("找不到預審腳本，跳過。")
+        return
+    try:
+        proc = subprocess.run(
+            ["bash", str(REVIEW), "--pr", str(number)],
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            text=True,
+            timeout=900,
+        )
+        for line in (proc.stdout or "").splitlines():
+            log(f"PR #{number} | {line}")
+        for line in (proc.stderr or "").splitlines():
+            log(f"PR #{number} ! {line}")
+        log(f"PR #{number} 預審結束，exit={proc.returncode}")
+    except subprocess.TimeoutExpired:
+        log(f"PR #{number} 預審超過 900 秒，放棄這次。")
+    except Exception as exc:  # noqa: BLE001
+        log(f"PR #{number} 預審丟出例外：{exc}")
 
 
 def cleanup_worktree(branch: str, pr_number: int) -> None:
@@ -233,9 +262,19 @@ class Handler(BaseHTTPRequestHandler):
         threading.Thread(target=dispatch, args=(number,), daemon=True).start()
 
     def _on_pull_request(self, payload: dict) -> None:
+        action = payload.get("action")
+        number = (payload.get("pull_request") or {}).get("number")
+
+        # PR 一開（或 draft 轉正）就派一個乾淨 session 預審。worker 自己跑的 kiro-review
+        # 在它自己的 context 裡，篩不掉自己的盲點，所以這裡要換一雙眼睛。
+        if action in ("opened", "ready_for_review") and REVIEW_ON_OPEN and isinstance(number, int):
+            log(f"收到 pull_request.{action} → #{number}，派預審。")
+            threading.Thread(target=review_pr, args=(number,), daemon=True).start()
+            return
+
         if not SYNC_ON_MERGE and not CLEANUP_ON_MERGE:
             return
-        if payload.get("action") != "closed":
+        if action != "closed":
             return
         pr = payload.get("pull_request") or {}
         if not pr.get("merged"):
