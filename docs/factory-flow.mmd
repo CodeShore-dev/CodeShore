@@ -1,5 +1,6 @@
 %% CodeShore 軟體工廠流程圖
-%% 藍色 = 人介入的關卡。灰色 = 自動。黃色 = GitHub label（狀態機）。
+%% 藍色 = 人介入的關卡，目前 9 個。灰色 = 自動。黃色 = GitHub label（狀態機）。
+%% 紅色虛線 = 還沒做的部分，以及為什麼現在不該做。
 %% 來源：Zach Lloyd「Software Engineering Is Becoming Factory Engineering」的十站迴圈，
 %% 對照本 repo 實際的 orca / kiro 流程。維護方式見 docs/pacer-log.md。
 
@@ -40,7 +41,7 @@ flowchart TD
     W4 -->|資訊不足| INFO --> H3 --> W4
     W4 --> W6 --> PR --> RV --> RVL --> H4 --> WH2 --> DONE
 
-    %% ========== B 線：大任務（人全程在線上） ==========
+    %% ========== B 線：大任務（人只剩判斷：discovery 對話 ＋ 三道 approved） ==========
     B0["orca-issue-to-brief.mjs<br/>七節 → brief.md ＋ issue.md"]:::auto
     H5["🧑 kiro-discovery<br/>把「未決」那幾欄問出來"]:::human
     B1["brief.md → spec.json<br/>requirements.md"]:::auto
@@ -67,6 +68,9 @@ flowchart TD
     H4 -.你改掉它的評論＝它判錯了.-> R1
 
     %% ========== 還沒有的站 ==========
+    FIX["PR 要修改時沒有定義好的路<br/>worker 已經回報完、worktree 還在<br/>目前只能自己改或手動補派"]:::todo
+    H4 -.要改的時候.-> FIX
+
     MON["monitor：crawler 退化自動開 issue<br/>還沒做，手動跑所以你就是 monitor"]:::todo
     TRI["triage agent<br/>還不用做，入口只有圈選"]:::todo
     MON -.有了之後才需要.-> TRI

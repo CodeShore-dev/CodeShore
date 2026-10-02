@@ -73,6 +73,7 @@ git log --no-merges --invert-grep --grep='Orca-Worker' --oneline | wc -l
 | 2026-10-03 | P14 | review 那一格一直是整份 diff 自己看。worker 在 Step 6 已經跑過 `kiro-review`，但那在它自己的 session 裡、共用它寫 code 時的全部假設，自審篩不掉自己的盲點，所以那一關過了也不減少我要讀的量（PR#26 是 463 行、6 個檔） | 新增 `.claude/skills/orca-pr-review/SKILL.md`（第二雙眼睛：只拿 diff ＋ issue 的驗收條件與邊界 ＋ steering，**刻意看不到** worker 的推理；產出最多 5 點而不是一份 review）、`scripts/orca-review-dispatch.sh`（`claude -p` 唯讀 session，不占 worktree 名額）；webhook 接 `pull_request.opened` / `ready_for_review`；新增 `orca-review-clean` / `orca-review-flagged` 兩個 label；`orca-retro` 加訊號 E | 看 label 就知道要不要讀 diff；flagged 就只讀那幾點。我改掉它哪幾點＝它判錯了，每週由訊號 E 回頭改 `orca-pr-review` |
 
 ## 還沒做（排隊中）
+- **PR 被標 flagged 之後要改，沒有定義好的路**：worker 已經回報完但 worktree 還在（merge 才收）。目前只能自己改或 `orca-dispatch.sh --issue <N>` 手動補派，兩條都沒寫進任何 skill。等預審真的跑過幾次、看清楚「要改」的比例再決定要不要做。
 
 - **P32 CLI**：`apps/cli` + `tech-trend` 子命令（`job.created_at` 按月分桶算職缺數與 PR50），之後包 MCP。約 1 小時。
 - **P24 對照實驗**：下一個 issue 出 B 版——整段砍掉「涉及檔案」，只留驗收條件，跟 A 版比 PR。要做 3–5 次才有結論。
