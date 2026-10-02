@@ -41,10 +41,20 @@ gh pr list --state merged --limit 20 --json number,title,body,mergedAt \
 
 # 訊號 C：worker 卡住問過什麼
 gh issue list --label orca-needs-info --state all --limit 20 --json number,title,comments
+
+# 訊號 D：成本離群與沒照 SOP 的 worker
+python3 scripts/orca-cost-audit.py
 ```
 
 訊號 B 只讀 `## 工廠回饋` 那一節，三格都是「無」的跳過。
 訊號 A 要看 diff 判斷他改了什麼，不要只看 commit 標題。
+
+訊號 D 跟另外三種不一樣：**A／B／C 都要「人出手了」或「worker 卡住了」才會響，但「東西能動、只是在燒錢」不會讓任何人出手。** 那種問題只有數字看得到，所以每輪一定要跑一次。它印兩種東西：
+
+- **⚠ 成本離群**（tok/行 超過中位數 × 2.5）→ 跑 `--dive <issue>` 看是回合太多還是單次讀太大，必要時再 `--timeline <issue>` 逐筆看。拿它去跟那張 issue 的 PR 對照，找出哪一段在原地打轉
+- **✗ 沒照 SOP**（漏跑 `kiro-review` / `kiro-verify-completion`）→ 這是 skill 或 steering 沒把那一步寫成硬性的訊號，不是那個 worker 的錯
+
+只有五六個樣本時中位數不穩，**別拿單一一次離群就改工廠**；要看它是不是同一類原因連續出現兩次。
 
 ### Step 2：過濾
 
@@ -78,6 +88,8 @@ gh issue list --label orca-needs-info --state all --limit 20 --json number,title
 | worker 貼 `orca-needs-info` 問 | issue 輸入格式不足 | `.claude/skills/orca-issue/SKILL.md` |
 | worker 猜了、猜對了、但跟鄰居不一致 | 規範與現場矛盾 | 先解矛盾，再同步寫進 skill |
 | 測試全綠但實際不合用 | 測試要求不足 | `orca-issue-work` Step 4 / 5 |
+| 某張 issue 的 tok/行 離群 | 有個關卡或規範讓 worker 原地打轉 | 先 `--dive` 找出打轉的那一段，再改那一段對應的規範 |
+| worker 漏跑 `kiro-review` 之類 | SOP 寫在步驟裡但沒寫進完成判準 | `orca-issue-work` 的「完成判準」 |
 
 改規範時**先查現場多數**（例如 `find apps libs -name "*.test.ts*" | wc -l`），不要照規範原文硬推，
 否則會把多數檔案變成違規。

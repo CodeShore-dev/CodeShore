@@ -22,7 +22,7 @@
 ## 漏記查核
 
 ```bash
-git log --oneline -- .kiro/steering .claude/skills | wc -l   # 修工廠的次數
+git log --oneline -- .kiro/steering .claude/skills scripts/orca-* CLAUDE.md | wc -l   # 修工廠的次數
 grep -c '^| 20' docs/pacer-log.md                            # 記下來的次數
 ```
 
@@ -67,6 +67,7 @@ git log --no-merges --invert-grep --grep='Orca-Worker' --oneline | wc -l
 | 2026-10-02 | P24 | `orca-issue` Step 3 只判類型（bug／enhancement／需要決策），不判大小。只要不是「需要決策」一律貼 `orca-ready` 直接派——即使那張要動 migration ＋前後端。worker 只能硬做完或中途卡住 | Step 3 拆成 3a 類型／3b 大小「這張一個 PR 做得完嗎」；新增 `orca-needs-spec` label；派工 label 改成三選一；完成判準加一條 | 做不完的不會進 worktree；不確定時判小，因為人的時間比 token 貴 |
 | 2026-10-02 | P14 | 3b 的大小判斷只在 `orca-issue` 做，而它是從畫面判的、看不到程式碼。判錯時 worker 沒有退路——硬規則 1 要它只做 issue 寫明的事，硬規則 3（原）要它驗收全綠才能開 PR，兩條夾住只剩硬做完 | `orca-issue-work` 加硬規則「一個 PR 做不完就退回」、「太大時」一節（四個徵兆＋回貼 `orca-needs-spec` 的指令），Step 3 確認現況後加一次大小複驗 | 真實範圍比畫面大的時候退得回去；退回的留言留在 issue 上，是跑 kiro 時的現成材料 |
 | 2026-10-02 | P14 | 每個 worker 都在白付 context：Step 1 叫它讀 `product/tech/structure.md`，但 `CLAUDE.md` 的 `@import` 開場就載過了（同一份進兩次，第二次還帶行號）；`CLAUDE.md:50` 的「1% chance 就載 skill」是寫給主 session 的，worker 照做會去載 `kiro-impl`（16 KB）這種 spec 階段才用得到的東西 | Step 1 改成「已在 context，不要再 Read」，只留 `frontend-standards.md` 按需讀；硬規則加第 7 條，worker 只准用 `kiro-debug` 與 `kiro-verify-completion` | 一個 worker 的 preamble 省約 2,500 tokens 且不再載無關 skill；真正的大戶仍是重試次數，看 `## 工廠回饋` |
+| 2026-10-02 | P14 | 訊號 A／B／C 都要「人出手了」或「worker 卡住了」才會響。PR#28 有 48% 的工具呼叫困在 `ptr:format:check`、中途 `git checkout --` 把改好的全丟掉重做一遍、燒掉約 1M token——沒有人出手、worker 也沒卡住，所以 9/30 那輪只從 PR 內文看到「解釋了三次」，排在最後一條 | 新增 `scripts/orca-cost-audit.py`（從 worker transcript 算 tok/行、回合數、漏跑的 skill，`--dive` / `--timeline` 下鑽），接進 `orca-retro` Step 1 當訊號 D，對照表加兩列；漏記查核的 `git log` 範圍補上 `scripts/orca-*` 與 `CLAUDE.md` | 每輪看得到成本離群與 SOP 漏跑；離群要同一類原因連兩次才改工廠，單次不算 |
 
 ## 還沒做（排隊中）
 
