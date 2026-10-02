@@ -68,9 +68,9 @@ git log --no-merges --invert-grep --grep='Orca-Worker' --oneline | wc -l
 | 2026-10-02 | P14 | 3b 的大小判斷只在 `orca-issue` 做，而它是從畫面判的、看不到程式碼。判錯時 worker 沒有退路——硬規則 1 要它只做 issue 寫明的事，硬規則 3（原）要它驗收全綠才能開 PR，兩條夾住只剩硬做完 | `orca-issue-work` 加硬規則「一個 PR 做不完就退回」、「太大時」一節（四個徵兆＋回貼 `orca-needs-spec` 的指令），Step 3 確認現況後加一次大小複驗 | 真實範圍比畫面大的時候退得回去；退回的留言留在 issue 上，是跑 kiro 時的現成材料 |
 | 2026-10-02 | P14 | 每個 worker 都在白付 context：Step 1 叫它讀 `product/tech/structure.md`，但 `CLAUDE.md` 的 `@import` 開場就載過了（同一份進兩次，第二次還帶行號）；`CLAUDE.md:50` 的「1% chance 就載 skill」是寫給主 session 的，worker 照做會去載 `kiro-impl`（16 KB）這種 spec 階段才用得到的東西 | Step 1 改成「已在 context，不要再 Read」，只留 `frontend-standards.md` 按需讀；硬規則加第 7 條，worker 只准用 `kiro-debug` 與 `kiro-verify-completion` | 一個 worker 的 preamble 省約 2,500 tokens 且不再載無關 skill；真正的大戶仍是重試次數，看 `## 工廠回饋` |
 | 2026-10-02 | P14 | 訊號 A／B／C 都要「人出手了」或「worker 卡住了」才會響。PR#28 有 48% 的工具呼叫困在 `ptr:format:check`、中途 `git checkout --` 把改好的全丟掉重做一遍、燒掉約 1M token——沒有人出手、worker 也沒卡住，所以 9/30 那輪只從 PR 內文看到「解釋了三次」，排在最後一條 | 新增 `scripts/orca-cost-audit.py`（從 worker transcript 算 tok/行、回合數、漏跑的 skill，`--dive` / `--timeline` 下鑽），接進 `orca-retro` Step 1 當訊號 D，對照表加兩列；漏記查核的 `git log` 範圍補上 `scripts/orca-*` 與 `CLAUDE.md` | 每輪看得到成本離群與 SOP 漏跑；離群要同一類原因連兩次才改工廠，單次不算 |
+| 2026-10-02 | P14 | `.prettierrc` 的全庫落差只被移出關卡、沒有解掉，所以下一個 worker 碰到格式問題還是會掉進 PR#28 那個洞（48% 工具呼叫、約 1M token）。量過之後發現原本記的兩條路都不通：改設定遷就現況只讓不符數 552→420；全庫重排是 700 檔、+77,409/−84,448 行，而且有一個檔 prettier parse 不過 | 第三條路——把關卡縮到改動檔。`scripts/format-changed.mjs`（main...HEAD ＋ staged ＋ unstaged ＋ untracked，只收程式碼副檔名，`.md` / `.yml` 刻意排除），`pnpm ptr:format(:check)` 改指向它，全庫版改名 `:all` 並標明不要在 issue 裡跑；`.prettierrc` 的 `endOfLine` 改 `lf`；`tech.md` 已知落差與 `orca-issue-work` Step 5 一起改 | `pnpm ptr:format:check` 在乾淨的 main 上是綠的，紅了就是這次改出來的——假關卡變成真關卡，而且沒動到 700 個檔 |
 
 ## 還沒做（排隊中）
 
 - **P32 CLI**：`apps/cli` + `tech-trend` 子命令（`job.created_at` 按月分桶算職缺數與 PR50），之後包 MCP。約 1 小時。
-- **`.prettierrc` 全庫落差**：這輪只把它記進 `tech.md` 並從關卡移掉，沒有真的解掉。要解就兩條路選一條：全庫重排（500+ 檔無關 diff，要獨立一個 commit），或改設定遷就現況（`printWidth` 降到 80、`endOfLine` 改 `lf`，再加 `.gitattributes`）。不要夾在功能 issue 裡做。
 - **P24 對照實驗**：下一個 issue 出 B 版——整段砍掉「涉及檔案」，只留驗收條件，跟 A 版比 PR。要做 3–5 次才有結論。

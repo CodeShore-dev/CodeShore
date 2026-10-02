@@ -6,12 +6,15 @@
   "trailingComma": "all",
   "bracketSpacing": true,
   "arrowParens": "avoid",
-  "endOfLine": "crlf",
+  "endOfLine": "lf",
   "plugins": [
     "@trivago/prettier-plugin-sort-imports",
     "prettier-plugin-tailwindcss"
   ],
-  "importOrder": ["^@codeshore/(.*)$", "^[./]"],
+  "importOrder": [
+    "^@codeshore/(.*)$",
+    "^[./]"
+  ],
   "importOrderSeparation": true,
   "importOrderSortSpecifiers": true,
   "importOrderParserPlugins": [
@@ -21,7 +24,10 @@
   ],
   "overrides": [
     {
-      "files": ["*.ts", "*.tsx"],
+      "files": [
+        "*.ts",
+        "*.tsx"
+      ],
       "options": {
         "parser": "typescript"
       }

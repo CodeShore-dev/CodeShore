@@ -66,15 +66,15 @@ git branch --show-current   # 確認你在派工的 branch，不是 main
 ```bash
 pnpm nx test frontend      # 或 backend，看改到哪
 pnpm nx lint frontend
-
-# 格式只檢查本次改動的檔案，不檢查全庫
-git diff --name-only --diff-filter=ACMR main...HEAD -- '*.ts' '*.tsx' \
-  | xargs -r npx prettier --check --end-of-line lf
+pnpm ptr:format:check      # 只檢本次改動的檔，乾淨的 main 上是綠的
 ```
 
-格式那行**只給改動檔**。全庫 `pnpm ptr:format:check` 在 `main` 上就是紅的（578 個檔有 552 個
-不符 `.prettierrc`），拿它當關卡量不出退化。也不要跑 `pnpm ptr:format`，那會重排數百個無關檔案。
-細節見 `.kiro/steering/tech.md` 的「已知落差」。
+`ptr:format:check` 已經只檢查這個 branch 改動過的檔（含還沒 `git add` 的新檔），所以它是
+**真關卡**：紅了就是你這次改出來的，修掉。不符時跑 `pnpm ptr:format` 就地修正。
+
+**不要跑 `pnpm ptr:format:check:all` 或 `ptr:format:all`。** 那是全庫版，在 `main` 上永遠紅
+（578 個檔有 552 個不符），而 `--write` 會重排 700 個無關檔案。細節見
+`.kiro/steering/tech.md` 的「已知落差」。
 
 `pnpm nx lint` 同理：`main` 上既有 62 個 error。判準是**數量與基準線相同、且改動檔本身零 finding**，
 不是全綠。

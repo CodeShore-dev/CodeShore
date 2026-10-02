@@ -47,16 +47,22 @@
 
 ### 已知落差：`.prettierrc` 與現存檔案不符
 
-`apps/` 底下 578 個 `.ts` / `.tsx` 檔，用現行 `.prettierrc` 檢查有 552 個不符。主因是
-`printWidth: 120`，但現有程式碼排在約 80 欄；`endOfLine: "crlf"` 也與多數 LF 檔案相反
-（改用 `lf` 檢查仍有 457 個不符）。
+`apps/` 底下 578 個 `.ts` / `.tsx` 檔，用現行 `.prettierrc` 檢查有 552 個不符。這個落差
+**不打算解**，兩條路都量過了：
 
-因此：
+- 改設定遷就現況：`printWidth` 降到 80 只讓不符數從 552 掉到 420，沒有解決
+- 全庫重排：700 個檔、+77,409 / −84,448 行，而且 `httpClient/lifecycle/beforeCreate.ts`
+  prettier 根本 parse 不過
 
-- 全庫 `pnpm ptr:format:check` 在 `main` 上就是紅的，**不是退化判準**，不要拿它當關卡
-- 不要跑 `pnpm ptr:format` 或 `prettier --write .`。那會重排數百個無關檔案
-- 只檢查自己這次改動的檔案。寫新程式碼時跟周邊檔案的排版，不跟 `.prettierrc` 的 `printWidth`
-- 要真正解掉這個落差是獨立決定（全庫重排，或改設定遷就現況），不在任一張 issue 的範圍內
+所以改成**把關卡縮到改動檔**，全庫維持現狀：
+
+- `pnpm ptr:format:check` 現在只檢查這個 branch 改動過的檔（`scripts/format-changed.mjs`，
+  含還沒 `git add` 的新檔）。**它在乾淨的 main 上是綠的，是真關卡，可以當退化判準**
+- `pnpm ptr:format` 同樣只寫改動檔
+- `pnpm ptr:format:check:all` / `ptr:format:all` 才是全庫版。**不要在任何 issue 裡跑**，
+  它永遠紅，而 `--write` 會重排 700 個無關檔案
+- 寫新程式碼時跟周邊檔案的排版，不跟 `.prettierrc` 的 `printWidth`
+- `endOfLine` 已從 `crlf` 改成 `lf`（現場多數是 LF），不必再帶 `--end-of-line lf`
 
 ## 開發慣例
 

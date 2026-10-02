@@ -5,8 +5,10 @@
   "scripts": {
     "dev:help": "node -e \"console.log(Object.keys(JSON.parse(require('fs').readFileSync('package.json', 'utf-8')).scripts).join('\\n'))\"",
     "dev": "cross-env nx run-many --parallel --target serve --projects=frontend,backend",
-    "ptr:format": "prettier --write .",
-    "ptr:format:check": "prettier --check .",
+    "ptr:format": "node scripts/format-changed.mjs --write",
+    "ptr:format:check": "node scripts/format-changed.mjs --check",
+    "ptr:format:all": "prettier --write .",
+    "ptr:format:check:all": "prettier --check .",
     "db:sync": "node scripts/sync-supabase-schema.mjs && node scripts/generate-schema-sql-map.mjs && node scripts/generate-schema-sql-map.mjs",
     "crawler:kill-chrome": "node scripts/kill-stale-chrome.mjs"
   },
