@@ -20,6 +20,7 @@
  * `backend`-tagged `meta`/`list()`/`invalidate` (2.3), and the `@Cacheable`
  * decorator's `backend` option (2.4).
  */
+import { cacheALS, CacheRequestStore } from './cache-context';
 import { CacheService } from './cache.service';
 
 /** Minimal `cache-manager`-shaped fake store with real TTL semantics. */
@@ -185,16 +186,25 @@ describe('CacheService.getOrSet backend routing', () => {
 });
 
 /**
- * Task 2.2: graceful degradation when the Redis backend is unavailable
+ * Task 2.2 (revised per issue #29): graceful degradation to the *memory*
+ * cache -- not a full skip -- when the Redis backend is unavailable
  * (missing configuration) or a runtime operation on it fails.
  *
- * Per design.md's getOrSet flow:
- * - `resolveCache('redis')` returning `undefined` -> run `fn()` directly,
- *   return its result, no meta write, not an error.
- * - `cache.get` throwing with `backend === 'redis'` -> log a warning, run
- *   `fn()` directly, return its result.
- * - `cache.set` throwing with `backend === 'redis'` -> log a warning,
- *   swallow the error, still return the already-computed result.
+ * `.env.template`'s documented contract is the resolved source of truth
+ * (see issue #29): any `backend: 'redis'` failure degrades to running the
+ * exact same get-or-set flow against the memory cache, so a later call for
+ * the same key is a genuine `HIT`, not a second skip.
+ *
+ * - `resolveCache('redis')` returning `undefined` -> run the full
+ *   get-or-set flow against `memoryCache` (MISS + write-through, then HIT).
+ * - `cache.get` throwing with `backend === 'redis'` -> log a warning, then
+ *   run the full get-or-set flow against `memoryCache`.
+ * - `cache.set` throwing with `backend === 'redis'` -> log a warning, then
+ *   write the already-computed result into `memoryCache` directly.
+ * - Every degraded entry's recorded `backend` (`meta`/`list()`/
+ *   `invalidate()`) reflects where it actually landed ('memory'), not the
+ *   caller's declared 'redis', so `invalidate()` can still find and delete
+ *   it.
  * - None of the above applies to `backend === 'memory'`: exceptions there
  *   must propagate exactly as they did before this task.
  * - The caller's own `fn()` throwing is a completely different failure mode
@@ -210,19 +220,31 @@ describe('CacheService.getOrSet graceful degradation (redis unavailable)', () =>
     vi.useRealTimers();
   });
 
-  it('backend "redis" with no Redis cache configured (redisCache undefined) still returns fn()\'s result without throwing', async () => {
+  it('backend "redis" with no Redis cache configured (redisCache undefined) degrades to the memory cache: MISS + write-through on the first call, HIT (no recompute) on the second', async () => {
     const memoryCache = new FakeCache();
     const logger = makeLogger();
     const service = new CacheService(memoryCache as never, undefined, logger as never);
     const fn = vi.fn().mockResolvedValue('computed-value');
 
-    const result = await service.getOrSet('k1', fn, { backend: 'redis' });
+    const firstStore: CacheRequestStore = {};
+    const first = await cacheALS.run(firstStore, () =>
+      service.getOrSet('k1', fn, { backend: 'redis' }),
+    );
+    const secondStore: CacheRequestStore = {};
+    const second = await cacheALS.run(secondStore, () =>
+      service.getOrSet('k1', fn, { backend: 'redis' }),
+    );
 
-    expect(result).toBe('computed-value');
+    expect(first).toBe('computed-value');
+    expect(second).toBe('computed-value');
     expect(fn).toHaveBeenCalledTimes(1);
+    expect(firstStore.cacheStatus).toBe('MISS');
+    expect(secondStore.cacheStatus).toBe('HIT');
+    await expect(memoryCache.get('k1')).resolves.toBe('computed-value');
+    expect(logger.warn).toHaveBeenCalled();
   });
 
-  it('backend "redis" whose cache.get rejects still returns fn()\'s result without throwing, and logs a warning', async () => {
+  it('backend "redis" whose cache.get rejects degrades to the memory cache, still returns a correct result, and tags the entry as backend "memory"', async () => {
     const memoryCache = new FakeCache();
     const logger = makeLogger();
     const redisCache = {
@@ -241,9 +263,11 @@ describe('CacheService.getOrSet graceful degradation (redis unavailable)', () =>
     expect(result).toBe('computed-value');
     expect(fn).toHaveBeenCalledTimes(1);
     expect(logger.warn).toHaveBeenCalled();
+    await expect(memoryCache.get('k1')).resolves.toBe('computed-value');
+    expect(service.list().find(e => e.key === 'k1')?.backend).toBe('memory');
   });
 
-  it('backend "redis" whose cache.set rejects (get resolves as a miss) still returns the freshly-computed result without throwing, and logs a warning', async () => {
+  it('backend "redis" whose cache.set rejects (get resolves as a miss) still writes the freshly-computed result into the memory cache, tagged as backend "memory"', async () => {
     const memoryCache = new FakeCache();
     const logger = makeLogger();
     const redisCache = {
@@ -263,6 +287,25 @@ describe('CacheService.getOrSet graceful degradation (redis unavailable)', () =>
     expect(fn).toHaveBeenCalledTimes(1);
     expect(redisCache.set).toHaveBeenCalledTimes(1);
     expect(logger.warn).toHaveBeenCalled();
+    await expect(memoryCache.get('k1')).resolves.toBe('fresh-value');
+    expect(service.list().find(e => e.key === 'k1')?.backend).toBe('memory');
+  });
+
+  it('invalidate() deletes a key that was degraded into the memory cache (declared backend "redis", actually stored on "memory")', async () => {
+    const memoryCache = new FakeCache();
+    const logger = makeLogger();
+    const service = new CacheService(memoryCache as never, undefined, logger as never);
+    await service.getOrSet('k1', () => Promise.resolve('value'), { backend: 'redis' });
+    // Confirm the degraded write actually landed before asserting it can be
+    // invalidated -- otherwise this test would also pass against code that
+    // never cached anything at all.
+    await expect(memoryCache.get('k1')).resolves.toBe('value');
+    expect(service.list().find(e => e.key === 'k1')?.backend).toBe('memory');
+
+    await expect(service.invalidate('k1')).resolves.toEqual(['k1']);
+
+    await expect(memoryCache.get('k1')).resolves.toBeUndefined();
+    expect(service.list().find(e => e.key === 'k1')).toBeUndefined();
   });
 
   it('the caller\'s own fn() throwing propagates unchanged, even for backend "redis" with a fully working Redis cache (not treated as a cache degradation)', async () => {
@@ -276,7 +319,7 @@ describe('CacheService.getOrSet graceful degradation (redis unavailable)', () =>
     expect(fn).toHaveBeenCalledTimes(1);
   });
 
-  it('a failing redis backend does not affect a parallel memory-backed operation in the same run', async () => {
+  it('a redis-backend getOrSet that degrades to memory does not affect a concurrent memory-backend getOrSet under a different key', async () => {
     const memoryCache = new FakeCache();
     const logger = makeLogger();
     const redisCache = {
@@ -292,15 +335,14 @@ describe('CacheService.getOrSet graceful degradation (redis unavailable)', () =>
     const memoryFn = vi.fn().mockResolvedValue('memory-value');
 
     const [redisResult, memoryResult] = await Promise.all([
-      service.getOrSet('shared-key', redisFn, { backend: 'redis' }),
-      service.getOrSet('shared-key', memoryFn, { backend: 'memory' }),
+      service.getOrSet('redis-key', redisFn, { backend: 'redis' }),
+      service.getOrSet('memory-key', memoryFn, { backend: 'memory' }),
     ]);
 
     expect(redisResult).toBe('redis-value');
     expect(memoryResult).toBe('memory-value');
-    // The memory-backed write actually landed in the memory store, proving
-    // the redis degradation path never touched it.
-    await expect(memoryCache.get('shared-key')).resolves.toBe('memory-value');
+    await expect(memoryCache.get('redis-key')).resolves.toBe('redis-value');
+    await expect(memoryCache.get('memory-key')).resolves.toBe('memory-value');
   });
 
   it('backend "memory" gains zero new error-handling behavior: a cache.get failure still propagates unchanged (regression, pre-existing behavior)', async () => {
