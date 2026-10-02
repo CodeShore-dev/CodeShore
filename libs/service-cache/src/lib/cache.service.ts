@@ -75,31 +75,34 @@ export class CacheService implements OnModuleInit {
     opts?: CacheGetOrSetOptions,
   ): Promise<T> {
     const backend = opts?.backend ?? 'memory';
-    const cache = this.resolveCache(backend);
-    if (!cache) {
-      // Only reachable for `backend === 'redis'` when Redis is unconfigured
-      // or failed to initialize (`resolveCache` always returns a `Cache` for
-      // 'memory'). Per Req 4.2/5.1/5.2: skip the cache entirely, run the
-      // caller's original logic, and don't treat this as an error.
-      return fn();
+
+    if (backend === 'memory') {
+      return this.getOrSetOnCache(key, fn, opts, this.memoryCache, 'memory');
+    }
+
+    const redisCache = this.resolveCache('redis');
+    if (!redisCache) {
+      // Redis is unconfigured or failed to initialize. Per `.env.template`'s
+      // documented contract (Req 4.2/5.1/5.2): degrade to the memory cache
+      // instead of skipping the cache entirely.
+      this.logger.warn(
+        'Redis cache backend unavailable; degrading to memory cache.',
+        { key },
+      );
+      return this.getOrSetOnCache(key, fn, opts, this.memoryCache, 'memory');
     }
 
     let cached: T | null | undefined;
     try {
-      cached = await cache.get<T>(key);
+      cached = await redisCache.get<T>(key);
     } catch (error) {
-      if (backend === 'redis') {
-        // Req 5.1/5.2: a runtime Redis failure degrades to running the
-        // caller's original logic -- never surfaced as a request failure.
-        this.logger.warn('Redis cache backend read failed; skipping cache.', {
-          key,
-          error: error instanceof Error ? error.message : error,
-        });
-        return fn();
-      }
-      // 'memory' never had error handling before this feature and must
-      // not gain any now -- propagate exactly as before.
-      throw error;
+      // Req 5.1/5.2: a runtime Redis failure degrades to the memory cache
+      // rather than skipping the cache entirely.
+      this.logger.warn(
+        'Redis cache backend read failed; degrading to memory cache.',
+        { key, error: error instanceof Error ? error.message : error },
+      );
+      return this.getOrSetOnCache(key, fn, opts, this.memoryCache, 'memory');
     }
 
     if (cached !== null && cached !== undefined) {
@@ -117,25 +120,67 @@ export class CacheService implements OnModuleInit {
     const result = await fn();
 
     try {
-      await cache.set(key, result, opts?.ttl);
+      await redisCache.set(key, result, opts?.ttl);
       this.meta.set(key, {
         createdAt: Date.now(),
         ttl: opts?.ttl,
         size: byteSize(result),
-        backend,
+        backend: 'redis',
       });
     } catch (error) {
-      if (backend === 'redis') {
-        // Req 5.1/5.2: the write failed, but the caller still gets their
-        // correct, already-computed result.
-        this.logger.warn('Redis cache backend write failed; skipping cache.', {
-          key,
-          error: error instanceof Error ? error.message : error,
-        });
-        return result;
-      }
-      throw error;
+      // Req 5.1/5.2: the write failed, so the already-computed result is
+      // written into the memory cache instead -- the caller still gets
+      // their correct result, and the next read can still be a hit.
+      this.logger.warn(
+        'Redis cache backend write failed; degrading to memory cache.',
+        { key, error: error instanceof Error ? error.message : error },
+      );
+      await this.memoryCache.set(key, result, opts?.ttl);
+      this.meta.set(key, {
+        createdAt: Date.now(),
+        ttl: opts?.ttl,
+        size: byteSize(result),
+        backend: 'memory',
+      });
     }
+
+    return result;
+  }
+
+  /**
+   * Runs the get-or-set flow against a single, already-resolved `Cache`
+   * instance, with no error handling of its own. Used directly for
+   * `backend: 'memory'` (which never had error handling and must not gain
+   * any), and reused as the Redis degradation target so a degraded entry
+   * goes through the exact same hit/miss/write logic -- including being a
+   * genuine `HIT` on a later call -- as a normal memory-backed entry.
+   */
+  private async getOrSetOnCache<T>(
+    key: string,
+    fn: () => Promise<T>,
+    opts: CacheGetOrSetOptions | undefined,
+    cache: Cache,
+    backend: CacheBackend,
+  ): Promise<T> {
+    const cached = await cache.get<T>(key);
+
+    if (cached !== null && cached !== undefined) {
+      const store = cacheALS.getStore();
+      if (store) store.cacheStatus = 'HIT';
+      return cached;
+    }
+
+    const store = cacheALS.getStore();
+    if (store) store.cacheStatus = 'MISS';
+    const result = await fn();
+
+    await cache.set(key, result, opts?.ttl);
+    this.meta.set(key, {
+      createdAt: Date.now(),
+      ttl: opts?.ttl,
+      size: byteSize(result),
+      backend,
+    });
 
     return result;
   }
