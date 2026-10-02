@@ -1,0 +1,73 @@
+%% CodeShore 軟體工廠流程圖
+%% 藍色 = 人介入的關卡。灰色 = 自動。黃色 = GitHub label（狀態機）。
+%% 來源：Zach Lloyd「Software Engineering Is Becoming Factory Engineering」的十站迴圈，
+%% 對照本 repo 實際的 orca / kiro 流程。維護方式見 docs/pacer-log.md。
+
+flowchart TD
+    %% ========== 入口 ==========
+    H1["🧑 在 Orca 圈選畫面<br/>附上一段想法"]:::human
+    ISSUE["orca-issue subagent<br/>反查原始碼、寫七節 issue"]:::auto
+    S3{"Step 3<br/>3a 類型 × 3b 一個 PR 做得完嗎"}:::auto
+
+    H1 --> ISSUE --> S3
+
+    S3 -->|小任務| READY["orca-ready"]:::label
+    S3 -->|多種做法且影響 UX| DEC["orca-needs-decision"]:::label
+    S3 -->|一個 PR 做不完| SPEC["orca-needs-spec"]:::label
+
+    H2["🧑 選一個方向<br/>留言 + 改成 orca-ready"]:::human
+    DEC --> H2 --> READY
+
+    %% ========== A 線：小任務（全自動到 PR 為止） ==========
+    WH1["webhook issues.labeled<br/>orca-dispatch.sh"]:::auto
+    WT["git worktree + claude worker<br/>最多 3 個平行"]:::auto
+    W1["orca-issue-work Step 1-2<br/>讀 issue；steering 已由 @import 載好"]:::auto
+    W3{"Step 3 確認現況<br/>真實範圍還是做得完嗎"}:::auto
+    W4["Step 4-5 TDD 實作 + 驗證<br/>ptr:format:check 只檢改動檔"]:::auto
+    INFO["orca-needs-info"]:::label
+    H3["🧑 補資料"]:::human
+    W6["Step 6-7 kiro-review<br/>kiro-verify-completion → 開 PR"]:::auto
+    PR["orca-in-pr"]:::label
+    H4["🧑 review PR 並 merge"]:::human
+    WH2["webhook pull_request.closed<br/>sync-main + cleanup-worktree"]:::auto
+    DONE(["合併完成"]):::auto
+
+    READY --> WH1 --> WT --> W1 --> W3
+    W3 -->|做得完| W4
+    W3 -->|太大，退回| SPEC
+    W4 -->|資訊不足| INFO --> H3 --> W4
+    W4 --> W6 --> PR --> H4 --> WH2 --> DONE
+
+    %% ========== B 線：大任務（人全程在線上） ==========
+    H5["🧑 kiro-discovery<br/>把 issue 內容餵進去"]:::human
+    B1["brief.md → spec.json<br/>requirements.md"]:::auto
+    H6["🧑 審 requirements<br/>approved"]:::human
+    B2["design.md"]:::auto
+    H7["🧑 審 design<br/>approved"]:::human
+    B3["tasks.md<br/>帶 P / Depends / Boundary"]:::auto
+    H8["🧑 審 tasks<br/>approved"]:::human
+    H9["🧑 回填 issue、拆子 issue<br/>一張 = 一個 Boundary，仍是手動"]:::human
+
+    SPEC --> H5 --> B1 --> H6 --> B2 --> H7 --> B3 --> H8 --> H9
+    H9 -->|每張子 issue 貼 orca-ready| READY
+
+    %% ========== 外圈：自我改善 ==========
+    R1["/orca-retro 每週一次<br/>A 鉛筆 commit · B 工廠回饋<br/>C needs-info · D orca-cost-audit.py"]:::auto
+    H10["🧑 一次最多選兩條"]:::human
+    R2["改 steering / skill / scripts<br/>+ pacer-log 同一個 commit"]:::auto
+
+    DONE -.訊號.-> R1
+    R1 --> H10 --> R2
+    R2 -.改進.-> ISSUE
+    R2 -.改進.-> W1
+
+    %% ========== 還沒有的站 ==========
+    MON["monitor：crawler 退化自動開 issue<br/>還沒做，手動跑所以你就是 monitor"]:::todo
+    TRI["triage agent<br/>還不用做，入口只有圈選"]:::todo
+    MON -.有了之後才需要.-> TRI
+    TRI -.-> S3
+
+    classDef human fill:#1f6feb,stroke:#0b3d91,color:#ffffff,stroke-width:2px
+    classDef auto fill:#f6f8fa,stroke:#8b949e,color:#1f2328
+    classDef label fill:#fff8c5,stroke:#9a6700,color:#1f2328
+    classDef todo fill:#ffffff,stroke:#cf222e,color:#cf222e,stroke-dasharray:4
