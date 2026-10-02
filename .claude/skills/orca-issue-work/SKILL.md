@@ -18,6 +18,7 @@ argument-hint: <issue-number>
 4. **驗收條件沒全綠不准開 PR。** 未通過的項目要在 PR 內文明白列出。
 5. **不要 push 到 main。** 只 push 你自己的 branch。
 6. 文件、commit、PR 內文用**繁體中文**。
+7. **不要照 `CLAUDE.md` 的「1% chance」規則載 skill。** 那條是寫給主 session 的。你在 worktree 裡只做一張 issue，只准用 `kiro-debug`（找不到 root cause 時）與 `kiro-verify-completion`（宣稱做完之前）。`kiro-*` 的其他 skill 一律不載——spec 階段早就過了。
 
 ## 執行步驟
 
@@ -28,9 +29,9 @@ gh issue view <number> --json number,title,body,labels,comments
 git branch --show-current   # 確認你在派工的 branch，不是 main
 ```
 
-同時讀：
-- `.kiro/steering/product.md`、`tech.md`、`structure.md`
-- 改到前端時加讀 `.kiro/steering/frontend-standards.md`
+`product.md` / `tech.md` / `structure.md` 由 `CLAUDE.md` 的 `@import` 開場就載好了，**不要再 Read 一次**。
+
+只有改到前端時才加讀 `.kiro/steering/frontend-standards.md`（它沒被 @import，較大，按需載）。
 
 在 branch 是 `main` 時，**停手**並回報。派工腳本應該給你獨立 branch。
 
