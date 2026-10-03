@@ -1,0 +1,54 @@
+name: PR check
+
+# 這是工廠的「硬層」關卡。在這之前，PR 上沒有任何機器檢查：四個 workflow 全是
+# push:[main] 或 workflow_dispatch，所以 `nx test` / `ptr:format:check` 只在
+# orca-issue-work 的 Step 5 叫 worker 自己跑時才生效——worker 跳過、或自稱跑過了，
+# 沒有東西會發現。
+#
+# 刻意只接「在乾淨的 main 上已經是綠的」兩個檢查：
+#   - nx affected -t test
+#   - ptr:format:check（只檢改動檔，見 scripts/format-changed.mjs）
+#
+# 刻意不接 `nx lint`：main 上有 62 個既有 error，接上來永遠紅，又是一個假關卡。
+# 判準見 .kiro/steering/tech.md 的「已知落差」。lint 要先收斂到 0 才能進這裡。
+on:
+  pull_request:
+    branches: [main]
+
+env:
+  # 這個 repo 的 crawler 帶 puppeteer / rebrowser-puppeteer。PR 檢查不跑爬蟲，
+  # 跳過 Chrome 下載省掉大半安裝時間。
+  PUPPETEER_SKIP_DOWNLOAD: 'true'
+  # scripts/format-changed.mjs 預設拿本機的 `main` 當基準。CI 上 checkout 之後
+  # 本機沒有 main 這個 branch，只有 remote-tracking ref，所以明確指過去。
+  FORMAT_BASE: origin/main
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # nx affected 與 format-changed.mjs 都要比到 main 的共同祖先，
+          # 淺 clone 會比不到。
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Enable pnpm via corepack
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.7.1 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Format check (changed files only)
+        run: pnpm ptr:format:check
+
+      # nx.json 的 defaultBase 曾經指向不存在的 `master`，`nx affected` 會比不到基準。
+      # 這裡仍然明確帶 --base/--head，不依賴 defaultBase，避免設定漂移時關卡悄悄失效。
+      - name: Test (affected projects)
+        run: pnpm nx affected -t test --base=origin/main --head=HEAD --parallel=2

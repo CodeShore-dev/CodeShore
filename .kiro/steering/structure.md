@@ -65,7 +65,10 @@ features/{feature}/
   *.test.tsx      ← 與被測檔案同層（如 HomeHero.test.tsx）
 ```
 
-**現有 frontend features**：`admin`、`ai-suggestion`、`auth`、`company`、`home`、`job`、`job-filter-watchlist`、`keyword`、`keyword-curation`、`methodology`、`not-found`、`techs`
+**現有 frontend features**（15 個）：`about`、`admin`、`ai-suggestion`、`auth`、`company`、`home`、`job`、`job-filter-watchlist`、`keyword`、`keyword-curation`、`location-map`、`methodology`、`not-found`、`techs`
+
+每個功能**使用者叫它什麼、怎麼操作、驗收看什麼**寫在 `.kiro/steering/feature-map.md`，
+那份檔案刻意不寫實作位置。改前端或分流 issue 前按需讀它。
 
 ## 命名慣例
 
@@ -88,6 +91,13 @@ features/{feature}/
 - **跨 feature**：相對路徑向上（`../keyword/queries`）
 - **共用元件**：相對路徑（`../../../components/Pagination`）
 - **monorepo 套件**：package name（`@codeshore/data-types`）
+
+這些慣例現在有東西在擋：`project.json` 的 `tags` ＋ `.eslintrc.json` 的 `depConstraints`，
+違規就 lint error。細節見 `tech.md` 的「硬層」。**frontend 不要 import `@codeshore/data-utils`**
+（它是 `scope:be`，會拖進 NestJS logger 與 LangChain）。
+
+frontend 的 feature **之間**還沒有邊界——「跨 feature 用相對路徑向上」等於互相開放。
+要擋得先決定允許什麼，排在 `docs/pacer-log.md` 的隊伍裡。
 
 ## 共用元件 (`src/components/`)
 

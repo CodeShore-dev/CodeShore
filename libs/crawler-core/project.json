@@ -3,7 +3,7 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "libs/crawler-core/src",
   "projectType": "library",
-  "tags": [],
+  "tags": ["scope:be", "type:util"],
   "targets": {
     "build": {
       "executor": "@nx/js:tsc",

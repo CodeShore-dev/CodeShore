@@ -3,6 +3,8 @@
 
 處理兩種事件：
   issues.labeled（label 是 orca-ready）→ 跑 scripts/orca-dispatch.sh --issue <號碼>
+  issues.labeled（label 是 orca-intake）→ 跑 scripts/orca-intake-dispatch.sh --issue <號碼>，
+    把手機回報的四格改寫成七節 issue 並換成 orca-ready / needs-* 三選一
   pull_request.opened / ready_for_review → 跑 scripts/orca-review-dispatch.sh --pr <號碼>，
     用一個乾淨 session 預審並貼 orca-review-clean / orca-review-flagged
   pull_request.closed（已 merge 進 main）→ 依序跑兩件事：
@@ -41,6 +43,7 @@ DISPATCH = REPO_ROOT / "scripts" / "orca-dispatch.sh"
 SYNC = REPO_ROOT / "scripts" / "orca-sync-main.sh"
 CLEANUP = REPO_ROOT / "scripts" / "orca-cleanup-worktree.sh"
 REVIEW = REPO_ROOT / "scripts" / "orca-review-dispatch.sh"
+INTAKE = REPO_ROOT / "scripts" / "orca-intake-dispatch.sh"
 PORT = int(os.environ.get("ORCA_WEBHOOK_PORT", "9099"))
 SECRET = os.environ.get("ORCA_WEBHOOK_SECRET", "")
 READY_LABEL = os.environ.get("ORCA_READY_LABEL", "orca-ready")
@@ -48,6 +51,11 @@ MAIN_BRANCH = os.environ.get("ORCA_MAIN_BRANCH", "main")
 SYNC_ON_MERGE = os.environ.get("ORCA_SYNC_ON_MERGE", "1") != "0"
 CLEANUP_ON_MERGE = os.environ.get("ORCA_CLEANUP_ON_MERGE", "1") != "0"
 REVIEW_ON_OPEN = os.environ.get("ORCA_REVIEW_ON_OPEN", "1") != "0"
+INTAKE_LABEL = os.environ.get("ORCA_INTAKE_LABEL", "orca-intake")
+INTAKE_ON_LABEL = os.environ.get("ORCA_INTAKE_ON_LABEL", "1") != "0"
+# 開機／重啟時補跑一次。`gh webhook forward` 是臨時 webhook，電腦睡著時的事件直接消失，
+# 手機入口送進來的 issue 沒有這一步就永遠不會動。
+SCAN_ON_START = os.environ.get("ORCA_SCAN_ON_START", "1") != "0"
 
 _lock = threading.Lock()
 _inflight: set[int] = set()
@@ -121,6 +129,61 @@ def dispatch(number: int) -> None:
     finally:
         with _lock:
             _inflight.discard(number)
+
+
+def intake_issue(number: int) -> None:
+    """手機回報進來，派一個 session 改寫成七節 issue。失敗時 issue 還掛著 orca-intake，
+    下一輪 --scan 會再試。"""
+    if not INTAKE.exists():
+        log("找不到 intake 腳本，跳過。")
+        return
+    try:
+        log(f"#{number} 開始分流（intake）。")
+        proc = subprocess.run(
+            ["bash", str(INTAKE), "--issue", str(number)],
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            text=True,
+            timeout=900,
+            env=wsl_interop_env(),
+        )
+        for line in (proc.stdout or "").splitlines():
+            log(f"#{number} | {line}")
+        for line in (proc.stderr or "").splitlines():
+            log(f"#{number} ! {line}")
+        log(f"#{number} 分流結束，exit={proc.returncode}")
+    except subprocess.TimeoutExpired:
+        log(f"#{number} 分流超過 900 秒，放棄這次。issue 還掛著 {INTAKE_LABEL}。")
+    except Exception as exc:  # noqa: BLE001
+        log(f"#{number} 分流丟出例外：{exc}")
+
+
+def scan_on_start() -> None:
+    """補跑睡著期間漏掉的事件：先分流 orca-intake，再派 orca-ready。
+
+    順序不能顛倒——分流完才會有新的 orca-ready。
+    """
+    for name, script, args in (
+        ("intake", INTAKE, ["--scan"]),
+        ("dispatch", DISPATCH, []),
+    ):
+        if not script.exists():
+            continue
+        try:
+            log(f"開機補跑 {name}。")
+            proc = subprocess.run(
+                ["bash", str(script), *args],
+                cwd=str(REPO_ROOT),
+                capture_output=True,
+                text=True,
+                timeout=1800,
+                env=wsl_interop_env(),
+            )
+            for line in (proc.stdout or "").splitlines():
+                log(f"scan | {line}")
+            log(f"開機補跑 {name} 結束，exit={proc.returncode}")
+        except Exception as exc:  # noqa: BLE001
+            log(f"開機補跑 {name} 失敗：{exc}")
 
 
 def review_pr(number: int) -> None:
@@ -250,7 +313,7 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         label = (payload.get("label") or {}).get("name")
-        if label != READY_LABEL:
+        if label not in (READY_LABEL, INTAKE_LABEL):
             return
 
         number = (payload.get("issue") or {}).get("number")
@@ -259,6 +322,12 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         log(f"收到 issues.labeled（{label}）→ #{number}")
+        if label == INTAKE_LABEL:
+            if not INTAKE_ON_LABEL:
+                log("ORCA_INTAKE_ON_LABEL=0，不分流。")
+                return
+            threading.Thread(target=intake_issue, args=(number,), daemon=True).start()
+            return
         threading.Thread(target=dispatch, args=(number,), daemon=True).start()
 
     def _on_pull_request(self, payload: dict) -> None:
@@ -296,8 +365,10 @@ def main() -> int:
         log(f"找不到派工腳本：{DISPATCH}")
         return 1
     server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
-    log(f"聽 http://127.0.0.1:{PORT}/ ，觸發 label：{READY_LABEL}")
+    log(f"聽 http://127.0.0.1:{PORT}/ ，觸發 label：{READY_LABEL}、{INTAKE_LABEL}")
     log("簽章驗證：" + ("開啟" if SECRET else "關閉（沒設 ORCA_WEBHOOK_SECRET）"))
+    if SCAN_ON_START:
+        threading.Thread(target=scan_on_start, daemon=True).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:

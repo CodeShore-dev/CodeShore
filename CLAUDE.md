@@ -62,4 +62,6 @@ Skills are located in `.claude/skills/kiro-*/SKILL.md`
 
 - 以上三個檔每個 session 開場就載入，不分走不走 kiro、走不走 orca
 - `frontend-standards.md` 較大，改前端時由 skill 按需讀（見 `orca-issue-work` Step 1）
+- `feature-map.md` 同樣按需讀：分流 issue（`orca-intake` / `orca-issue`）與預審（`orca-pr-review`）
+  都要先讀它，用來把使用者那句話對上一個確定的功能
 - Custom files are supported (managed via `/kiro-steering-custom`)

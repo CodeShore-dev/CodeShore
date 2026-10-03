@@ -80,18 +80,41 @@ gh pr list --state merged --limit 20 --json number,title,comments,mergedAt \
 
 ### Step 3：分類
 
-留下來的每一筆，照這三問決定改哪個檔：
+防線分四層，**強度從上往下遞減**：
+
+| 層 | 強度 | 這個 repo 的零件 |
+|---|---|---|
+| 架構 | 最強，違規就 CI 紅 | `.eslintrc.json` 的 `depConstraints`、各 `project.json` 的 `tags` |
+| CI / 靜態分析 | 次強，違規就 CI 紅 | `.github/workflows/pr-check.yml`、`scripts/format-changed.mjs` |
+| rules | 軟，agent 會忘 | `.kiro/steering/*.md`、`CLAUDE.md` |
+| skill | 軟，agent 會忘 | `.claude/skills/*/SKILL.md` |
+
+**所以第一問不是「steering 有寫嗎」，是「這條能不能變成 CI 紅」。** 照層級由強到弱問：
 
 ```
-① steering 有寫嗎？
-   沒寫  → 補 .kiro/steering/<相關檔>.md
-   有寫  → 往下
-② skill 有要求讀那個檔嗎？
-   沒有  → 改對應 skill（frontend-standards.md 是按需讀的，注意這類）
-   有    → 往下
-③ 規範自己矛盾嗎？（規範說 A、現場是 B）
-   會    → 解掉矛盾，不要兩邊都留
+⓪ 能不能從架構讓它根本不可能發生？
+   能 → 改 project.json 的 tags 或 .eslintrc.json 的 depConstraints
+   不能 → 往下
+① 能不能變成一個會讓 CI 紅的檢查？
+   能 → 加進 pr-check.yml（但只接「在乾淨的 main 上已經綠」的檢查，見下）
+   不能 → 往下
+② steering 有寫嗎？
+   沒寫 → 補 .kiro/steering/<相關檔>.md
+   有寫 → 往下
+③ skill 有要求讀那個檔嗎？
+   沒有 → 改對應 skill（frontend-standards.md、feature-map.md 都是按需讀的，注意這類）
+   有   → 往下
+④ 規範自己矛盾嗎？（規範說 A、現場是 B）
+   會 → 解掉矛盾，不要兩邊都留
 ```
+
+**⓪ 與 ① 的硬規則：不要接一個在乾淨的 `main` 上就是紅的檢查。** 那會變成假關卡，而假關卡
+比沒有關卡更糟——worker 會花整段時間解釋它為何紅（`ptr:format:check` 與 `nx lint` 都發生過，
+見 `docs/pacer-log.md` 2026-10-02 那兩列）。接之前先在乾淨的 `main` 上跑一次。紅的就先收斂，
+收斂不了就留在軟層並記成已知落差。
+
+為什麼要排這個順序：靠人 review 維持的不變量，成本正比於 PR 數量。平行派工往上加的時候，
+軟層是最先崩的那一層。
 
 對照表：
 
@@ -106,6 +129,8 @@ gh pr list --state merged --limit 20 --json number,title,comments,mergedAt \
 | worker 漏跑 `kiro-review` 之類 | SOP 寫在步驟裡但沒寫進完成判準 | `orca-issue-work` 的「完成判準」 |
 | 預審標的點你都覺得不用管 | 預審判準太寬，在湊點數 | `orca-pr-review` Step 3 的砍除規則 |
 | 預審沒標但你自己抓到 | 預審的四個問題漏了一項 | `orca-pr-review` Step 2 |
+| 同一類違規連續出現在 2 張以上 PR | **這條本來就該是硬層** | 先問 ⓪ 再問 ①，不要直接改 skill |
+| 使用者說不出某個功能叫什麼 | feature-map 缺那一格 | `.kiro/steering/feature-map.md` |
 
 改規範時**先查現場多數**（例如 `find apps libs -name "*.test.ts*" | wc -l`），不要照規範原文硬推，
 否則會把多數檔案變成違規。
@@ -121,6 +146,8 @@ gh pr list --state merged --limit 20 --json number,title,comments,mergedAt \
    證據：<PR#／commit hash／issue#>
    現況：<查到的數字或矛盾>
    建議：<檔案:行> 改成 <內容>
+   這條落在哪一層：架構 / CI / rules / skill
+   （不是架構或 CI 的，要寫一句為什麼上不去）
    要改嗎？
 
 ② …
@@ -136,7 +163,11 @@ gh pr list --state merged --limit 20 --json number,title,comments,mergedAt \
 1. 改零件（`.kiro/steering/*.md` 或 `.claude/skills/*/SKILL.md`）
 2. 檢查**有沒有第二處也在講同一條規則**（例如 `structure.md` 與 `orca-issue-work` Step 4 都講測試檔），
    有就一起改，不然規則跟範例會打架
-3. `docs/pacer-log.md` 的「紀錄」表加一列：`| 日期 | 格 | 我出手的症狀 | 改了什麼 | 下次的判準 |`
+3. `docs/pacer-log.md` 的「紀錄」表加一列：
+   `| 日期 | 格 | 層 | 我出手的症狀 | 改了什麼 | 下次的判準 |`
+
+   「層」欄填 `架構` / `CI` / `rules` / `skill` / `工具`。這一欄是給你自己看的訊號：
+   如果連續幾列都是 `skill`，表示工廠在往最弱那層堆，該回頭問 ⓪ 與 ①。
 
 然後開一個 commit：
 

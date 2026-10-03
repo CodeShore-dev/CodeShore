@@ -15,9 +15,7 @@
         "bundle": false,
         "main": "apps/crawler/src/main.ts",
         "tsConfig": "apps/crawler/tsconfig.app.json",
-        "assets": [
-          "apps/crawler/src/assets"
-        ],
+        "assets": ["apps/crawler/src/assets"],
         "generatePackageJson": true,
         "esbuildOptions": {
           "sourcemap": true,
@@ -49,10 +47,7 @@
       "dependsOn": ["build"],
       "cache": true,
       "executor": "@nx/js:prune-lockfile",
-      "outputs": [
-        "{workspaceRoot}/dist/apps/crawler/package.json",
-        "{workspaceRoot}/dist/apps/crawler/pnpm-lock.yaml"
-      ],
+      "outputs": ["{workspaceRoot}/dist/apps/crawler/package.json", "{workspaceRoot}/dist/apps/crawler/pnpm-lock.yaml"],
       "options": {
         "buildTarget": "build"
       }
@@ -60,19 +55,14 @@
     "copy-workspace-modules": {
       "dependsOn": ["build"],
       "cache": true,
-      "outputs": [
-        "{workspaceRoot}/dist/apps/crawler/workspace_modules"
-      ],
+      "outputs": ["{workspaceRoot}/dist/apps/crawler/workspace_modules"],
       "executor": "@nx/js:copy-workspace-modules",
       "options": {
         "buildTarget": "build"
       }
     },
     "prune": {
-      "dependsOn": [
-        "prune-lockfile",
-        "copy-workspace-modules"
-      ],
+      "dependsOn": ["prune-lockfile", "copy-workspace-modules"],
       "executor": "nx:noop"
     },
     "serve": {
@@ -94,5 +84,5 @@
       }
     }
   },
-  "tags": []
+  "tags": ["scope:be", "type:app"]
 }

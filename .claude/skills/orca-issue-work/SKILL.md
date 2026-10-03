@@ -163,10 +163,31 @@ $ORCA worktree set --worktree active --comment "PR 已開，等 review" --json
 
 ## 卡住時
 
-資訊不足或需要使用者決策時：
+資訊不足或需要使用者決策時。
+
+**問法是封閉式的，不是開放式的。** 這則留言的讀者多半在手機上——開放式問題在手機上
+打不完，等於把流程停住。所以每個問題都要能用**一個數字或一個是/否**回完：
+
+```markdown
+## 要你決定
+
+### 1. 篩選條件重整後要保留嗎
+1. 要保留（我猜是這個）
+2. 不用保留，每次重整回預設
+
+### 2. 手機上四個分類要怎麼放
+1. 橫向可滑
+2. 收成下拉選單
+
+回「1-1、2-2」這樣就行。
+```
+
+每一題都要**標出你猜哪一個**，這樣使用者連數字都不必打，回「照你猜的」即可。
+真的需要自由文字時，問題要縮到「一個詞」的程度（例如「欄位叫什麼」），不要問「你覺得
+應該怎麼設計」。
 
 ```bash
-gh issue comment <number> --body "需要確認：…（一次問完，列點，附上你已經查到的部分）"
+gh issue comment <number> --body "<上面那個格式，附上你已經查到的部分>"
 gh issue edit <number> --add-label orca-needs-info
 ORCA=${ORCA_CLI_COMMAND:-orca-ide}
 $ORCA worktree set --worktree active --workspace-status todo --comment "等使用者回覆 issue #<number>" --json
@@ -202,4 +223,5 @@ $ORCA worktree set --worktree active --workspace-status todo --comment "太大�
 - 驗收條件逐條有證據，未達成的已在 PR 明白列出
 - issue label 為 `orca-in-pr`
 - PR 的 `## 工廠回饋` 三格都填了（沒有就是「無」，不可留空）
+- 貼 `orca-needs-info` 時，問題是封閉式的（可以用一個數字或是/否回完），而且標了你猜哪一個
 - 沒有動到 issue 範圍外的檔案

@@ -13,8 +13,36 @@
             "allow": [],
             "depConstraints": [
               {
-                "sourceTag": "*",
-                "onlyDependOnLibsWithTags": ["*"]
+                "sourceTag": "type:app",
+                "onlyDependOnLibsWithTags": ["type:service", "type:data", "type:util", "type:types"]
+              },
+              {
+                "sourceTag": "type:service",
+                "onlyDependOnLibsWithTags": ["type:service", "type:data", "type:util", "type:types"]
+              },
+              {
+                "sourceTag": "type:data",
+                "onlyDependOnLibsWithTags": ["type:data", "type:util", "type:types", "type:service"]
+              },
+              {
+                "sourceTag": "type:util",
+                "onlyDependOnLibsWithTags": ["type:util", "type:types"]
+              },
+              {
+                "sourceTag": "type:types",
+                "onlyDependOnLibsWithTags": []
+              },
+              {
+                "sourceTag": "scope:fe",
+                "onlyDependOnLibsWithTags": ["scope:fe", "scope:shared"]
+              },
+              {
+                "sourceTag": "scope:be",
+                "onlyDependOnLibsWithTags": ["scope:be", "scope:shared"]
+              },
+              {
+                "sourceTag": "scope:shared",
+                "onlyDependOnLibsWithTags": ["scope:shared"]
               }
             ]
           }
