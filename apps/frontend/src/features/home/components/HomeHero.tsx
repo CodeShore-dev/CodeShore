@@ -40,17 +40,27 @@ export function HomeHero() {
             <span>但不是另一個</span>
             <del className="text-[#fd7700]">{CYCLE_ITEMS[index].isNot}</del>
           </div>
-          <div
-            className="mt-3 h-1 w-full overflow-hidden rounded-full bg-[#c3c6d5]"
-            aria-hidden="true"
-            data-testid="hero-progress-track"
-          >
-            <div
-              key={index}
-              className="hero-progress-bar h-full origin-left bg-[#003d92]"
-              style={{ animationDuration: `${CYCLE_INTERVAL_MS}ms` }}
-              data-testid="hero-progress-bar"
-            />
+          <div className="mt-3 flex w-full gap-1.5" aria-hidden="true" data-testid="hero-progress-track">
+            {CYCLE_ITEMS.map((_, segment) => {
+              const state = segment < index ? 'done' : segment === index ? 'active' : 'pending';
+              return (
+                <div
+                  key={segment}
+                  className={`h-1 flex-1 overflow-hidden rounded-full ${state === 'done' ? 'bg-[#003d92]' : 'bg-[#c3c6d5]'}`}
+                  data-state={state}
+                  data-testid={`hero-progress-segment-${segment}`}
+                >
+                  {state === 'active' && (
+                    <div
+                      key={index}
+                      className="hero-progress-bar h-full origin-left bg-[#003d92]"
+                      style={{ animationDuration: `${CYCLE_INTERVAL_MS}ms` }}
+                      data-testid="hero-progress-bar"
+                    />
+                  )}
+                </div>
+              );
+            })}
           </div>
           <p className="mt-4 mb-0 leading-relaxed">每週同步人力銀行職缺，讓你看清楚市場在要什麼、願意給多少。</p>
         </div>

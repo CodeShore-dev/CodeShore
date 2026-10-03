@@ -60,18 +60,21 @@ describe('HomeHero', () => {
     clearIntervalSpy.mockRestore();
   });
 
-  // 讀秒進度 bar（issue #27）：與 10 秒切換週期同步、每次切換重跑。
-  it('renders a decorative progress bar synced to the cycle interval', () => {
+  // 分段進度（issue #32）：每則文案一段，目前段倒數填滿，已播段維持填滿，未播段保持空白。
+  it('renders one decorative segment per cycle item with a timed fill on the active one', () => {
     vi.useFakeTimers();
     render(<HomeHero />);
 
     expect(screen.getByTestId('hero-progress-track')).toHaveAttribute('aria-hidden', 'true');
+    expect(screen.getByTestId('hero-progress-segment-0')).toHaveAttribute('data-state', 'active');
+    expect(screen.getByTestId('hero-progress-segment-1')).toHaveAttribute('data-state', 'pending');
+    expect(screen.getByTestId('hero-progress-segment-2')).toHaveAttribute('data-state', 'pending');
     expect(screen.getByTestId('hero-progress-bar')).toHaveStyle({
       animationDuration: '10000ms',
     });
   });
 
-  it('resets the progress bar when the text cycles', () => {
+  it('fills played segments and advances the active fill when the text cycles', () => {
     vi.useFakeTimers();
     render(<HomeHero />);
 
@@ -81,8 +84,25 @@ describe('HomeHero', () => {
       vi.advanceTimersByTime(10000);
     });
 
+    expect(screen.getByTestId('hero-progress-segment-0')).toHaveAttribute('data-state', 'done');
+    expect(screen.getByTestId('hero-progress-segment-1')).toHaveAttribute('data-state', 'active');
+    expect(screen.getByTestId('hero-progress-segment-2')).toHaveAttribute('data-state', 'pending');
+
     const secondBar = screen.getByTestId('hero-progress-bar');
     expect(secondBar).not.toBe(firstBar);
     expect(secondBar).toHaveStyle({ animationDuration: '10000ms' });
+  });
+
+  it('empties the segments again when the cycle wraps to the first item', () => {
+    vi.useFakeTimers();
+    render(<HomeHero />);
+
+    act(() => {
+      vi.advanceTimersByTime(30000);
+    });
+
+    expect(screen.getByTestId('hero-progress-segment-0')).toHaveAttribute('data-state', 'active');
+    expect(screen.getByTestId('hero-progress-segment-1')).toHaveAttribute('data-state', 'pending');
+    expect(screen.getByTestId('hero-progress-segment-2')).toHaveAttribute('data-state', 'pending');
   });
 });
