@@ -45,6 +45,12 @@
 防線分四層，強度遞減：**架構 > CI/靜態分析 > rules > skill**。前兩層違規就 CI 紅；
 `.kiro/steering/*.md` 與 `.claude/skills/` 是後兩層，agent 會忘，只能疊加不能當唯一防線。
 
+**關卡只擋 PR，不擋直推 `main`。** `main` 刻意不設 branch protection（2026-10-03 決定）。
+這不是漏洞，是分工：worker 的產出一律走 PR（`orca-issue-work` Step 7 固定開 PR），所以
+**派工路徑全程被擋住**；繞得過去的只有你自己手動 push。鉛筆路徑刻意留著不設限。
+
+所以下面每一句「違規就 CI 紅」都是指走 PR 的時候。
+
 ### `.github/workflows/pr-check.yml`（`on: pull_request`）
 
 只接**在乾淨的 `main` 上已經是綠的**檢查：
