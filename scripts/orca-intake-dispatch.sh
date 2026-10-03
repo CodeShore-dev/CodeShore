@@ -100,11 +100,17 @@ dispatch_one() {
 
   log "分流 #$num（model: $MODEL）"
 
-  # 唯讀程式碼 + 可寫 issue。不給 Edit/Write：分流不改程式碼。
+  # 唯讀程式碼 + 只能動 issue。不給 Edit/Write：分流不改程式碼。
+  #
+  # gh 刻意不給 `gh:*`：這個 session 讀的是手機送來的原話，而那是不可信資料。
+  # 給了 `gh:*` 就等於「issue 內文裡夾帶的指令可以執行任何 gh 子命令」，包含
+  # `gh api`、`gh repo`、`gh secret`。收到這四個就夠 skill 用。
   CLAUDE_BIN="$(resolve_claude)" || return 1
   if "$CLAUDE_BIN" -p "$prompt" \
       --model "$MODEL" \
-      --allowedTools "Read" "Grep" "Glob" "Skill" "Bash(gh:*)" "Bash(git log:*)" "Bash(orca-ide:*)" \
+      --allowedTools "Read" "Grep" "Glob" "Skill" \
+      "Bash(gh issue view:*)" "Bash(gh issue edit:*)" "Bash(gh issue comment:*)" "Bash(gh issue list:*)" \
+      "Bash(git log:*)" "Bash(orca-ide:*)" \
       2>&1 | sed 's/^/[orca-intake] /'; then
     log "#$num 分流結束。"
   else

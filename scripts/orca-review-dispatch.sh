@@ -94,10 +94,15 @@ fi
 log "派預審 PR #$PR（model: $MODEL）"
 
 # 唯讀 + gh。不用 --dangerously-skip-permissions：這個 session 不該有寫檔能力。
+#
+# gh 刻意不給 `gh:*`：這個 session 讀的是 worker 產出的 diff 與 issue 內文，兩者都不是
+# 使用者親手寫的。收到用得到的那幾個子命令，`gh api` / `gh repo` / `gh secret` 都排除。
 CLAUDE_BIN="$(resolve_claude)" || exit 1
 if "$CLAUDE_BIN" -p "$prompt" \
     --model "$MODEL" \
-    --allowedTools "Read" "Grep" "Glob" "Skill" "Bash(gh:*)" "Bash(git diff:*)" "Bash(git log:*)" \
+    --allowedTools "Read" "Grep" "Glob" "Skill" \
+    "Bash(gh pr view:*)" "Bash(gh pr diff:*)" "Bash(gh pr comment:*)" "Bash(gh pr edit:*)" "Bash(gh issue view:*)" \
+    "Bash(git diff:*)" "Bash(git log:*)" \
     2>&1 | sed 's/^/[orca-review] /'; then
   log "PR #$PR 預審結束。"
 else

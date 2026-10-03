@@ -6,8 +6,10 @@ name: PR check
 # 沒有東西會發現。
 #
 # 刻意只接「在乾淨的 main 上已經是綠的」兩個檢查：
-#   - nx affected -t test
 #   - ptr:format:check（只檢改動檔，見 scripts/format-changed.mjs）
+#   - check-boundaries.mjs（只數 @nx/enforce-module-boundaries，main 上是 0）
+#   - check-tests.mjs（跑 nx affected -t test，但判準是「今天綠的不准變紅」，
+#     基準線在 scripts/test-baseline.json——直接當關卡會是假關卡，4/9 在 main 上就紅）
 #
 # 刻意不接 `nx lint`：main 上有 62 個既有 error，接上來永遠紅，又是一個假關卡。
 # 判準見 .kiro/steering/tech.md 的「已知落差」。lint 要先收斂到 0 才能進這裡。
@@ -48,7 +50,14 @@ jobs:
       - name: Format check (changed files only)
         run: pnpm ptr:format:check
 
-      # nx.json 的 defaultBase 曾經指向不存在的 `master`，`nx affected` 會比不到基準。
-      # 這裡仍然明確帶 --base/--head，不依賴 defaultBase，避免設定漂移時關卡悄悄失效。
-      - name: Test (affected projects)
-        run: pnpm nx affected -t test --base=origin/main --head=HEAD --parallel=2
+      # 架構層的關卡。只數 @nx/enforce-module-boundaries，不看 eslint 的 exit code——
+      # main 上有 62 個既有 error 會讓它永遠非零。boundary 違規在 main 上是 0，
+      # 所以它符合「只接已經綠的檢查」。
+      - name: Project boundaries
+        run: node scripts/check-boundaries.mjs
+
+      # 判準是「今天綠的專案不准變紅」，不是「全綠」。9 個帶 test target 的專案裡有 4 個
+      # 在乾淨的 main 上就紅，基準線記在 scripts/test-baseline.json。
+      # 直接跑 `nx affected -t test` 會是假關卡（CI run 37115122838 證過）。
+      - name: Test (no new failures)
+        run: node scripts/check-tests.mjs

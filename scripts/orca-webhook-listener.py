@@ -3,7 +3,8 @@
 
 處理兩種事件：
   issues.labeled（label 是 orca-ready）→ 跑 scripts/orca-dispatch.sh --issue <號碼>
-  issues.labeled（label 是 orca-intake）→ 跑 scripts/orca-intake-dispatch.sh --issue <號碼>，
+  issues.opened / issues.labeled（label 是 orca-intake）→ 跑 scripts/orca-intake-dispatch.sh
+    --issue <號碼>，
     把手機回報的四格改寫成七節 issue 並換成 orca-ready / needs-* 三選一
   pull_request.opened / ready_for_review → 跑 scripts/orca-review-dispatch.sh --pr <號碼>，
     用一個乾淨 session 預審並貼 orca-review-clean / orca-review-flagged
@@ -59,6 +60,7 @@ SCAN_ON_START = os.environ.get("ORCA_SCAN_ON_START", "1") != "0"
 
 _lock = threading.Lock()
 _inflight: set[int] = set()
+_intake_inflight: set[int] = set()
 _sync_lock = threading.Lock()
 
 
@@ -133,10 +135,18 @@ def dispatch(number: int) -> None:
 
 def intake_issue(number: int) -> None:
     """手機回報進來，派一個 session 改寫成七節 issue。失敗時 issue 還掛著 orca-intake，
-    下一輪 --scan 會再試。"""
+    下一輪 --scan 會再試。
+
+    會防重複：一張 issue 可能同時觸發 opened（模板自帶 label）與 labeled（手動補貼）。
+    """
     if not INTAKE.exists():
         log("找不到 intake 腳本，跳過。")
         return
+    with _lock:
+        if number in _intake_inflight:
+            log(f"#{number} 已在分流中，忽略這次事件。")
+            return
+        _intake_inflight.add(number)
     try:
         log(f"#{number} 開始分流（intake）。")
         proc = subprocess.run(
@@ -156,6 +166,9 @@ def intake_issue(number: int) -> None:
         log(f"#{number} 分流超過 900 秒，放棄這次。issue 還掛著 {INTAKE_LABEL}。")
     except Exception as exc:  # noqa: BLE001
         log(f"#{number} 分流丟出例外：{exc}")
+    finally:
+        with _lock:
+            _intake_inflight.discard(number)
 
 
 def scan_on_start() -> None:
@@ -309,16 +322,35 @@ class Handler(BaseHTTPRequestHandler):
             return
         if event != "issues":
             return
-        if payload.get("action") != "labeled":
+
+        action = payload.get("action")
+        number = ((payload.get("issue") or {}).get("number"))
+        if action not in ("labeled", "opened"):
+            return
+        if not isinstance(number, int):
+            log("事件裡沒有 issue 號碼，忽略。")
+            return
+
+        if action == "opened":
+            # GitHub 對「建立 issue 時就帶的 label」**不另發 labeled 事件**——那些 label
+            # 在 opened 的 payload 裡。`.github/ISSUE_TEMPLATE/intake.yml` 的
+            # `labels: [orca-intake]` 正是這種情況，只聽 labeled 會把手機送進來的全部漏掉，
+            # 要等 listener 重啟跑 --scan 才動。
+            names = {(lb or {}).get("name") for lb in (payload.get("issue") or {}).get("labels") or []}
+            if INTAKE_LABEL in names:
+                log(f"收到 issues.opened（自帶 {INTAKE_LABEL}）→ #{number}")
+                if not INTAKE_ON_LABEL:
+                    log("ORCA_INTAKE_ON_LABEL=0，不分流。")
+                    return
+                threading.Thread(target=intake_issue, args=(number,), daemon=True).start()
+                return
+            if READY_LABEL in names:
+                log(f"收到 issues.opened（自帶 {READY_LABEL}）→ #{number}")
+                threading.Thread(target=dispatch, args=(number,), daemon=True).start()
             return
 
         label = (payload.get("label") or {}).get("name")
         if label not in (READY_LABEL, INTAKE_LABEL):
-            return
-
-        number = (payload.get("issue") or {}).get("number")
-        if not isinstance(number, int):
-            log("事件裡沒有 issue 號碼，忽略。")
             return
 
         log(f"收到 issues.labeled（{label}）→ #{number}")
