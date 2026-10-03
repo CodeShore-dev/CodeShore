@@ -91,6 +91,7 @@ git log --no-merges --invert-grep --grep='Orca-Worker' --oneline | wc -l
 | 2026-10-03 | P22 | 工具 | 捕捉與分流綁在同一個 subagent 裡，而分流需要 repo，所以入口綁死在電腦前 | 拆開：手機只捕捉（`.github/ISSUE_TEMPLATE/intake.yml` 四格 ＋ `orca-intake` label），桌機分流（`scripts/orca-intake-dispatch.sh` ＋ `.claude/skills/orca-intake/SKILL.md`，原地改寫成七節並換三選一 label）。listener 接 `issues.labeled(orca-intake)`，並在啟動時跑 `--scan` 補跑睡著期間漏掉的事件 | 手機送四格就能推動工廠。`gh webhook forward` 是臨時 webhook，沒有 `--scan` 的話「手機當入口」是假的 |
 | 2026-10-03 | P24 | skill | 停下來等人的 issue 問的是開放式問題，而下一個讀者在手機上——開放式問題在手機上打不完，等於把流程停住。預審的 5 點也用檔案路徑當標題，手機上讀 diff 等於讀不了 | `orca-issue`（needs-decision）與 `orca-issue-work`（needs-info）的問法改成封閉式：選項編號、標出 agent 建議哪一個、可以回一個數字或是/否。`orca-pr-review` 的每一點改成用 `feature-map` 的功能名開頭，檔案路徑降成那一點的最後一行 | 關卡 2、3、4 在手機上可完成。回「1」或「照你猜的」就夠 |
 | 2026-10-03 | P14 | skill | retro 的三問最強的出口只到 `steering`，所以 15 列紀錄裡 skill 8、rules 3、工具 4，**架構與 CI 各 0**。訊號有在收，但出口漏了最硬的兩格 | `orca-retro` Step 3 改成四層由強到弱問，ⓠ「能不能從架構擋掉」與 ①「能不能變成 CI 紅」排在最前面，並寫明「不要接一個在乾淨 main 上就是紅的檢查」；對照表加兩列；Step 4 提案要標層；Step 5 的紀錄表加「層」欄並回填 15 列 | 連續幾列都是 `skill` 就看得出工廠在往最弱那層堆，不必逐列重判 |
+| 2026-10-03 | P14 | 工具 | 預審線加上去（同日）之後第一次真的被 webhook 觸發，就 `claude: command not found` exit 127。listener 是 systemd user service，PATH 只有 `/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`，而 `claude` 在 `~/.local/bin`。**而且這個失敗只在 `~/.local/state/orca-webhook.log` 裡看得到，PR 上完全沒有訊號**——如果不是剛好開了一張 PR 去看 log，它可以靜音壞好幾週 | 新增 `scripts/orca-lib.sh` 的 `resolve_claude()`（`ORCA_CLAUDE_BIN` → `command -v` → `~/.local/bin/claude` → `~/.claude/local/claude`，走 symlink 不寫死版號目錄），`orca-review-dispatch.sh` 與 `orca-intake-dispatch.sh` 都 source 它；`orca-webhook.service` 的 `Environment=PATH` 前面補 `%h/.local/bin` | 用 `env -i PATH=<systemd 那份>` 跑得起來才算修好。下一條排隊的是「工廠失敗要推播」——這次的教訓是靜音失敗比失敗本身貴 |
 
 ## 還沒做（排隊中）
 - **`main` 的 branch protection**：`pr-check.yml` 要先在一張真 PR 上跑過一次，GitHub 才認得那個 check 名稱，才設得起 required status check。**沒設 protection 的話 pr-check 可以繞過，等於沒做**——這兩條是一組的。
@@ -98,7 +99,7 @@ git log --no-merges --invert-grep --grep='Orca-Worker' --oneline | wc -l
 - **`nx lint` 的 62 個既有 error**：收斂到 0 才能進 `pr-check.yml`。現在它留在軟層，判準是「數量與基準線相同」。
 - **frontend feature 之間的邊界**：`structure.md` 現在寫「跨 feature 用相對路徑向上」，等於沒有邊界。要擋要先決定允許什麼，而且會動到現有程式碼。
 - **clean 自動 merge**：要等 `pr-check.yml` ＋ branch protection 成立（硬層），再累積約 10 張 PR 的訊號 E（預審準度）。順序不能顛倒——現在量預審準不準，量到的是「一個軟層對另一個軟層的意見」。
-- **工廠失敗推播到手機**：Orca app 沒開、三個名額滿了、listener 掛了、worker 卡住，現在全是靜音失敗。最省的做法是失敗時開一張 issue 指派給自己，GitHub app 自己會推播。
+- **工廠失敗推播到手機**（優先度升高）：Orca app 沒開、三個名額滿了、listener 掛了、worker 卡住、派出去的 `claude` 不存在——現在全是靜音失敗，只在 log 裡看得到。PR #31 的預審就是這樣靜音壞掉的。最省的做法是失敗時開一張 issue 指派給自己，GitHub app 自己會推播。
 - **手機端的分享選單捷徑**：iOS 用 Shortcut 的「在網頁上執行 JavaScript」拿 `location.href` 與 `innerWidth`；Android 用分享目標。沒有它就要手打網址。
 - **PR 被標 flagged 之後要改，沒有定義好的路**：worker 已經回報完但 worktree 還在（merge 才收）。目前只能自己改或 `orca-dispatch.sh --issue <N>` 手動補派，兩條都沒寫進任何 skill。等預審真的跑過幾次、看清楚「要改」的比例再決定要不要做。
 

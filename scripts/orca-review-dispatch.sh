@@ -18,6 +18,9 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=scripts/orca-lib.sh
+. "$(dirname "${BASH_SOURCE[0]}")/orca-lib.sh"
+
 MODEL="${ORCA_REVIEW_MODEL:-claude-sonnet-5}"
 PR=""
 DRY_RUN=0
@@ -91,7 +94,8 @@ fi
 log "派預審 PR #$PR（model: $MODEL）"
 
 # 唯讀 + gh。不用 --dangerously-skip-permissions：這個 session 不該有寫檔能力。
-if claude -p "$prompt" \
+CLAUDE_BIN="$(resolve_claude)" || exit 1
+if "$CLAUDE_BIN" -p "$prompt" \
     --model "$MODEL" \
     --allowedTools "Read" "Grep" "Glob" "Skill" "Bash(gh:*)" "Bash(git diff:*)" "Bash(git log:*)" \
     2>&1 | sed 's/^/[orca-review] /'; then

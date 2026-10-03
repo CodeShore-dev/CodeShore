@@ -22,6 +22,9 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=scripts/orca-lib.sh
+. "$(dirname "${BASH_SOURCE[0]}")/orca-lib.sh"
+
 MODEL="${ORCA_INTAKE_MODEL:-claude-sonnet-5}"
 LIMIT="${ORCA_INTAKE_LIMIT:-5}"
 INTAKE_LABEL="orca-intake"
@@ -98,7 +101,8 @@ dispatch_one() {
   log "分流 #$num（model: $MODEL）"
 
   # 唯讀程式碼 + 可寫 issue。不給 Edit/Write：分流不改程式碼。
-  if claude -p "$prompt" \
+  CLAUDE_BIN="$(resolve_claude)" || return 1
+  if "$CLAUDE_BIN" -p "$prompt" \
       --model "$MODEL" \
       --allowedTools "Read" "Grep" "Glob" "Skill" "Bash(gh:*)" "Bash(git log:*)" "Bash(orca-ide:*)" \
       2>&1 | sed 's/^/[orca-intake] /'; then
