@@ -3,7 +3,7 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "libs/sync-core/src",
   "projectType": "library",
-  "tags": [],
+  "tags": ["scope:be", "type:data"],
   "targets": {
     "build": {
       "executor": "@nx/js:tsc",

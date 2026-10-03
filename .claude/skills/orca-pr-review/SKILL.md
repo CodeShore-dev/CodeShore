@@ -57,6 +57,12 @@ gh issue view <N> --json body -q .body
 `.kiro/steering/product.md` / `tech.md` / `structure.md` 已由 `@import` 載好，不要再 Read。
 改到前端時才讀 `frontend-standards.md`。
 
+**一定要讀 `.kiro/steering/feature-map.md`。** 兩個用途：
+
+1. 那張 PR 動到的是哪個功能，以及該功能的「驗收重點」有沒有被這次改動破壞——那幾條是
+   已合併 issue 累積出來的，issue 自己的驗收條件常常漏掉它們
+2. 你的留言要用**功能名**講，不要用檔案路徑講（見 Step 4）
+
 是 draft 就停手，回報「draft，不審」。
 
 ### Step 2：四個問題，照順序問
@@ -92,6 +98,16 @@ gh pr edit <pr> --add-label orca-review-flagged    # 或 orca-review-clean
 有 N 點就 `orca-review-flagged`，零點就 `orca-review-clean`。兩個 label 互斥，貼一個要
 `--remove-label` 另一個。
 
+**每一點的標題用 `feature-map.md` 的功能名開頭，不要用檔案路徑開頭。**
+
+| 寫法 | 手機上可讀 |
+|---|---|
+| ❌ `useJobUrlSync.ts` 的 `setSearchParams` 沒帶 `replace` | 要開 diff 才懂 |
+| ✅ 職缺：篩選條件重整後會掉回預設 | 一眼看懂 |
+
+理由：這則留言的讀者多半在手機上，而手機上讀 diff 等於讀不了。功能名讀得懂，檔案路徑
+讀不懂。檔案路徑仍然要寫，但放在那一點的最後一行當附註。
+
 **flagged 的格式**（最多 5 點，最重要的在最上面）：
 
 ```markdown
@@ -99,9 +115,10 @@ gh pr edit <pr> --add-label orca-review-flagged    # 或 orca-review-clean
 
 **要看的 N 點**，其餘我看過了。
 
-### 1. <一句話講清楚是什麼>
-`path/to/file.ts` — <為什麼要你看，以及不看會怎樣>
+### 1. <功能名>：<一句話講清楚是什麼>
+<為什麼要你看，以及不看會怎樣。用功能與行為描述，不要用函式名描述>
 <不確定的話寫成問句>
+<涉及檔案放最後一行，當附註：`path/to/file.ts`>
 
 ### 2. …
 
@@ -132,5 +149,7 @@ gh pr edit <pr> --add-label orca-review-flagged    # 或 orca-review-clean
 - PR 上有且只有一則 `## 🔍 agent 預審` 留言
 - `orca-review-clean` 與 `orca-review-flagged` 恰好有一個
 - flagged 的點 ≤ 5，每一點都說得出「不看會怎樣」
+- 每一點的標題以 `feature-map.md` 的功能名開頭，檔案路徑在那一點的最後一行
+- 已對照過該功能在 `feature-map.md` 的「驗收重點」，不只對照 issue 自己寫的驗收條件
 - 沒有動到任何程式碼檔案
 - 沒有 approve 或 request changes

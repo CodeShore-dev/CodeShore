@@ -1,0 +1,13 @@
+{
+  "//": "在乾淨的 main 上就失敗的測試專案。scripts/check-tests.mjs 拿它當基準線。",
+  "//why": "直接把 `nx affected -t test` 當 CI 關卡會是假關卡——這 4 個專案在 main 上就紅，跟 ptr:format:check 當初一樣。假關卡比沒有關卡更糟：worker 會花整段時間解釋它為何紅。所以關卡改成『今天綠的專案不准變紅』。",
+  "//shrink": "修好一個就從這裡刪掉。check-tests.mjs 會在某個列在這裡的專案變綠時提醒你刪，清單不會爛掉。",
+  "measuredOn": "2026-10-03",
+  "measuredAt": "CI run 37115122838（Node 22）＋ 本機 main 上的 nx test data-utils",
+  "knownFailing": {
+    "frontend": "待查",
+    "backend": "Missing Supabase credentials（測試需要 env，CI 沒有）",
+    "crawler": "待查",
+    "data-utils": "resetJobKeywords is not a function / (intermediate value).fetchAll is not a function —— mock 與實作已經不同步"
+  }
+}

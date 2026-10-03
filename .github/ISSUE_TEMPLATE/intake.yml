@@ -1,0 +1,53 @@
+name: 手機回報（orca-intake）
+description: 在手機上看到問題時用這張。只填四格，剩下的由桌機的 agent 補完。
+title: "[intake] "
+labels: ["orca-intake"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        這張單**不是**最終的 issue。貼上 `orca-intake` 之後，桌機的 intake agent 會反查
+        原始碼、對照 `feature-map.md`、改寫成七節 issue，再判要不要派工。
+
+        所以這裡只要填你在手機上給得出的東西。不要試圖描述實作。
+
+  - type: input
+    id: url
+    attributes:
+      label: 來源網址
+      description: 含 query string。篩選條件常在裡面，不要刪掉。
+      placeholder: https://codeshore.dev/jobs?tech=react&salary=80
+    validations:
+      required: true
+
+  - type: textarea
+    id: thought
+    attributes:
+      label: 我的想法
+      description: 你原本想說的話就好，不要修飾成需求規格。agent 會保留原話。
+      placeholder: 這個卡片的字在手機上擠在一起，看不出哪個是標題
+    validations:
+      required: true
+
+  - type: input
+    id: width
+    attributes:
+      label: 畫面寬度（px）
+      description: >
+        手機瀏覽器網址列輸入 `javascript:alert(innerWidth)` 可以看到，或用分享選單的
+        Shortcut 自動帶。不確定就留空，agent 會當成未知而不是當成桌機。
+      placeholder: "390"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: 你覺得這是
+      options:
+        - 不確定
+        - 壞了（跟預期不一樣）
+        - 想改進（沒壞，但可以更好）
+        - 想加新東西
+    validations:
+      required: true
