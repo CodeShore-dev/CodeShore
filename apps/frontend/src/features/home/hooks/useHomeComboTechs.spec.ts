@@ -1,15 +1,16 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook, waitFor } from '@testing-library/react';
+import { type ReactNode, createElement } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ListQuery } from '../../../@types';
+import { useHomeComboTechs } from './useHomeComboTechs';
 
 const { fetchMvTechRanking } = vi.hoisted(() => ({
   fetchMvTechRanking: vi.fn(),
 }));
 
 vi.mock('../service', () => ({ fetchMvTechRanking }));
-
-import { useHomeComboTechs } from './useHomeComboTechs';
 
 interface RankingRow {
   tech: string;
@@ -36,6 +37,16 @@ function mockRanking(countByCategory: Record<string, number>) {
   });
 }
 
+// 每個測試用新的 QueryClient，避免測試之間共用快取。
+function createWrapper() {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return function Wrapper({ children }: { children: ReactNode }) {
+    return createElement(QueryClientProvider, { client }, children);
+  };
+}
+
 describe('useHomeComboTechs', () => {
   beforeEach(() => {
     fetchMvTechRanking.mockReset();
@@ -44,7 +55,7 @@ describe('useHomeComboTechs', () => {
   it('四個分類各取 5 個技術，順序依 CATEGORY_PRIORITY', async () => {
     mockRanking({ language: 8, framework: 8, database: 8, library: 8 });
 
-    const { result } = renderHook(() => useHomeComboTechs());
+    const { result } = renderHook(() => useHomeComboTechs(), { wrapper: createWrapper() });
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current.items).toHaveLength(20);
@@ -61,7 +72,7 @@ describe('useHomeComboTechs', () => {
   it('某類技術不足 5 個時，有幾個就幾個，不補其他類', async () => {
     mockRanking({ language: 5, framework: 2, database: 1, library: 0 });
 
-    const { result } = renderHook(() => useHomeComboTechs());
+    const { result } = renderHook(() => useHomeComboTechs(), { wrapper: createWrapper() });
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current.items.map(item => item.tech)).toEqual([
@@ -79,19 +90,12 @@ describe('useHomeComboTechs', () => {
   it('每個分類各發一次請求，帶 job_count >= 8 門檻與 top 5 範圍', async () => {
     mockRanking({ language: 5, framework: 5, database: 5, library: 5 });
 
-    const { result } = renderHook(() => useHomeComboTechs());
+    const { result } = renderHook(() => useHomeComboTechs(), { wrapper: createWrapper() });
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(fetchMvTechRanking).toHaveBeenCalledTimes(4);
-    const queries = fetchMvTechRanking.mock.calls.map(
-      ([query]: [ListQuery]) => query,
-    );
-    expect(queries.map(categoryOf)).toEqual([
-      'language',
-      'framework',
-      'database',
-      'library',
-    ]);
+    const queries = fetchMvTechRanking.mock.calls.map(([query]: [ListQuery]) => query);
+    expect(queries.map(categoryOf)).toEqual(['language', 'framework', 'database', 'library']);
     for (const query of queries) {
       expect(query.from).toBe(0);
       expect(query.to).toBe(4);
@@ -103,7 +107,7 @@ describe('useHomeComboTechs', () => {
   it('請求失敗時回空清單並結束載入', async () => {
     fetchMvTechRanking.mockRejectedValue(new Error('boom'));
 
-    const { result } = renderHook(() => useHomeComboTechs());
+    const { result } = renderHook(() => useHomeComboTechs(), { wrapper: createWrapper() });
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current.items).toEqual([]);

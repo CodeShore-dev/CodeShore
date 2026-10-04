@@ -79,6 +79,8 @@ pnpm ptr:format:check      # 只檢本次改動的檔，乾淨的 main 上是綠
 `pnpm nx lint` 同理：`main` 上既有 62 個 error。判準是**數量與基準線相同、且改動檔本身零 finding**，
 不是全綠。
 
+需要量請求數或效能時，用 `vite build` 後的 production preview 量，不要用 dev server：dev 模式有 StrictMode 的雙重 effect，請求數會偏高一倍，數字會誤導判斷。
+
 接著呼叫 `kiro-verify-completion` skill，用新鮮證據逐條核對 issue 的驗收條件。這一步不可跳過。
 
 測試失敗且連續三次修不好時，呼叫 `kiro-debug` skill 從根因查，不要繼續亂試。
@@ -225,3 +227,4 @@ $ORCA worktree set --worktree active --workspace-status todo --comment "太大�
 - PR 的 `## 工廠回饋` 三格都填了（沒有就是「無」，不可留空）
 - 貼 `orca-needs-info` 時，問題是封閉式的（可以用一個數字或是/否回完），而且標了你猜哪一個
 - 沒有動到 issue 範圍外的檔案
+- 行為變更有 RED 證據：實作前測試失敗的輸出貼進 PR；沒有就在 PR 明寫「測試在實作後補寫」，不可留白

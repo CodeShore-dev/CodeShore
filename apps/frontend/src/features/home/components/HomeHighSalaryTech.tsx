@@ -13,15 +13,15 @@ const TITLE_MAP = {
   year: '高薪技術(年薪)',
 };
 
-const numField = (
-  item: object,
-  key: string,
-): number => (item as Record<string, number>)[key] ?? 0;
+const numField = (item: object, key: string): number => (item as Record<string, number>)[key] ?? 0;
 
 export function HomeHighSalaryTech({ type }: HomeHighSalaryTechProps) {
-  const { salaryBenchmarks } = useHomeData();
+  const { salaryBenchmarks, loading: homeLoading } = useHomeData();
 
-  const { items, getItems, loading } = useKeywordTechRanking({
+  // The `where` depends on the salary median, which is 0 until the home data
+  // loads. Wait for it so each (category, median) pair is requested once,
+  // instead of once with `gte: 0` and again after the median arrives.
+  const { items, loading, selectedCategory, setSelectedCategory } = useKeywordTechRanking({
     where: {
       $or: {
         [`${type}_median_avg`]: {
@@ -30,24 +30,18 @@ export function HomeHighSalaryTech({ type }: HomeHighSalaryTechProps) {
       },
     },
     orders: `${type}_median_avg:desc`,
+    enabled: !homeLoading,
   });
 
   return (
     <KeywordTechRankingCardList
       title={TITLE_MAP[type]}
       items={items}
-      loading={loading}
-      getItems={getItems}
+      loading={loading || homeLoading}
+      selectedCategory={selectedCategory}
+      onCategoryChange={setSelectedCategory}
       moreTo={`/techs?mode=salary-${type}`}
-      titleHint={
-        <InfoHint
-          metric={
-            type === 'year'
-              ? 'home.highSalaryTech.year'
-              : 'home.highSalaryTech.month'
-          }
-        />
-      }
+      titleHint={<InfoHint metric={type === 'year' ? 'home.highSalaryTech.year' : 'home.highSalaryTech.month'} />}
       renderMetric={item => (
         <div className="flex flex-col gap-1.5">
           {[
@@ -55,20 +49,13 @@ export function HomeHighSalaryTech({ type }: HomeHighSalaryTechProps) {
             { suffix: 'pr75_avg', tag: 'PR75', size: 'text-sm' },
             { suffix: 'pr88_avg', tag: 'PR88', size: 'text-xs' },
           ].map(row => (
-            <div
-              key={row.tag}
-              className={`flex items-center justify-between gap-1 ${row.size}`}
-            >
+            <div key={row.tag} className={`flex items-center justify-between gap-1 ${row.size}`}>
               <span className="leading-none font-black tracking-[-0.02em] text-[#003d92] tabular-nums">
                 {toWanInt(numField(item, `${type}_${row.suffix}`))}
-                <span className="text-[0.875rem] font-black text-[#434653]">
-                  萬
-                </span>
+                <span className="text-[0.875rem] font-black text-[#434653]">萬</span>
               </span>
               <span className="flex items-baseline gap-1 text-[11px] font-bold text-[#434653]">
-                <span className="font-mono text-[10px] tracking-widest">
-                  {row.tag}
-                </span>
+                <span className="font-mono text-[10px] tracking-widest">{row.tag}</span>
               </span>
             </div>
           ))}

@@ -5,9 +5,10 @@
   "measuredOn": "2026-10-03",
   "measuredAt": "CI run 37115122838（Node 22）＋ 本機 main 上的 nx test data-utils",
   "knownFailing": {
-    "frontend": "待查",
-    "backend": "Missing Supabase credentials（測試需要 env，CI 沒有）",
+    "frontend": "RegionChoropleth.mobile.test.tsx 2 個測試失敗，main 既有；需 apps/frontend/.env 才能跑到底（缺 env 時 11 檔載入失敗）",
+    "backend": "keyword/service.spec.ts 與 tech-dictionary.generator.spec.ts 的 mock 與實作不同步，main 既有；需根目錄 .env（CI 沒有 env 時整個 suite 會 Missing Supabase credentials）",
     "crawler": "待查",
     "data-utils": "resetJobKeywords is not a function / (intermediate value).fetchAll is not a function —— mock 與實作已經不同步"
-  }
+  },
+  "measuredNote": "2026-10-04 在本機連結根目錄與 apps/frontend 的 .env 後重新確認理由；專案清單未變"
 }

@@ -15,7 +15,8 @@ export function HomePopularTech({ ranking }: HomePopularTechProps) {
       title="熱門技術"
       items={ranking.items}
       loading={ranking.loading}
-      getItems={ranking.getItems}
+      selectedCategory={ranking.selectedCategory}
+      onCategoryChange={ranking.setSelectedCategory}
       moreTo="/techs?mode=popular"
       titleHint={<InfoHint metric="home.popularTech" />}
     />
