@@ -3,17 +3,14 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { SupabaseFunction } from '@codeshore/data-types';
 import { SCHEMA_SQL } from '@codeshore/data-types';
 import {
-  MvTechRankingService,
-  MvSalaryTypeMedianRatioService,
   MvSalaryRangeMultiplierService,
+  MvSalaryTypeMedianRatioService,
   MvTechComboStatsService,
+  MvTechRankingService,
   getJobCount,
   getJobHostStatistics,
 } from '@codeshore/data-utils';
-import {
-  CacheService,
-  Cacheable,
-} from '@codeshore/service-cache';
+import { CacheService, Cacheable } from '@codeshore/service-cache';
 
 import type { WorkflowInfo } from '../features/ai-suggestion/workflow-info';
 import { getWorkflowInfo } from '../features/ai-suggestion/workflow-info';
@@ -53,9 +50,7 @@ export class AppService {
   }
 
   @Cacheable({ key: getJobHostStatistics.name, ttl: 300, backend: 'redis' })
-  async getJobHostStatistics(): Promise<
-    SupabaseFunction.JobHostStatistic[]
-  > {
+  async getJobHostStatistics(): Promise<SupabaseFunction.JobHostStatistic[]> {
     return getJobHostStatistics();
   }
 
@@ -96,24 +91,26 @@ export class AppService {
   }
 
   async getMvTechRanking(query: QueryDto) {
-    const isTheRequestFromHomePage =
-      query.from === 0 && query.to === 9;
+    // 首頁兩種請求：熱門技術排行（top 10，to=9）與技術組合來源（top 5，to=4）。
+    const isTheRequestFromHomePage = query.from === 0 && (query.to === 9 || query.to === 4);
     if (isTheRequestFromHomePage) {
+      // 同一個 where 只差 to / orders 時結果不同，所以全部併進 key。
       return this.cacheService.getOrSet(
-        `${MvTechRankingService.name}:${JSON.stringify(query.where)}`,
-        () =>
-          this.mvTechRankingService.fetchAll(query),
+        `${MvTechRankingService.name}:${JSON.stringify({
+          from: query.from,
+          to: query.to,
+          orders: query.orders,
+          where: query.where,
+        })}`,
+        () => this.mvTechRankingService.fetchAll(query),
         { backend: 'redis' },
       );
     }
-    return this.mvTechRankingService.fetchAll(
-      query,
-    );
+    return this.mvTechRankingService.fetchAll(query);
   }
 
   async getMvTechComboStatsService(query: QueryDto) {
-    const isTheRequestFromHomePage =
-      query.from === 0 && query.to === 4;
+    const isTheRequestFromHomePage = query.from === 0 && query.to === 4;
     if (isTheRequestFromHomePage) {
       return this.cacheService.getOrSet(
         `${MvTechComboStatsService.name}:${JSON.stringify(query.where)}`,

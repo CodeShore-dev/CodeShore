@@ -18,33 +18,31 @@ const items = [
   },
 ] as unknown as SupabaseView.MvTechRanking[];
 
-function renderList(getItems = vi.fn()) {
+function renderList(onCategoryChange = vi.fn()) {
   render(
     <MemoryRouter>
       <KeywordTechRankingCardList
         title="熱門語言"
         items={items}
         loading={false}
-        getItems={getItems}
+        selectedCategory="language"
+        onCategoryChange={onCategoryChange}
       />
     </MemoryRouter>,
   );
-  return getItems;
+  return onCategoryChange;
 }
 
 describe('KeywordTechRankingCardList', () => {
-  it('fetches the initial language category and renders items (req 5.1)', () => {
-    const getItems = renderList();
-    expect(getItems).toHaveBeenCalledWith('language');
+  it('renders the items it is given (req 5.1)', () => {
+    renderList();
     expect(screen.getByText('React')).toBeInTheDocument();
     expect(screen.getByText('1,234')).toBeInTheDocument();
   });
 
-  it('refetches when the category changes', async () => {
-    const getItems = vi.fn();
+  it('reports the category when a different category is clicked', async () => {
     const user = userEvent.setup();
-    renderList(getItems);
-    getItems.mockClear();
+    const onCategoryChange = renderList();
 
     const other = Object.entries(CATEGORY_LABEL_MAP)
       .slice(0, 4)
@@ -53,6 +51,6 @@ describe('KeywordTechRankingCardList', () => {
 
     await user.click(screen.getByText(other![1]));
 
-    expect(getItems).toHaveBeenCalledWith(other![0]);
+    expect(onCategoryChange).toHaveBeenCalledWith(other![0]);
   });
 });
