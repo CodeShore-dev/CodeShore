@@ -107,14 +107,14 @@ describe('resolveCliArgs (pure mode-dispatch logic)', () => {
     );
   });
 
-  it('resolves to "export-liked-jobs" when args include the bare "export-liked-jobs" flag', () => {
+  it('resolves to "export-preferenced-jobs" when args include the bare "export-preferenced-jobs" flag', () => {
     const result = resolveCliArgs([
-      'export-liked-jobs',
+      'export-preferenced-jobs',
       'user=user-1',
       'out=/tmp/liked.csv',
     ]);
-    expect(result.mode).toBe('export-liked-jobs');
-    expect(result.exportLikedJobsArg).toBe('export-liked-jobs');
+    expect(result.mode).toBe('export-preferenced-jobs');
+    expect(result.exportLikedJobsArg).toBe('export-preferenced-jobs');
   });
 
   it('resolves to "job-salary" when args include a "job-salary" flag', () => {
@@ -351,8 +351,8 @@ vi.mock('./re-crawl-from-file', async importOriginal => {
   };
 });
 
-// `./export-liked-jobs` builds a real `JobPreferenceService` (Supabase) and
-// writes real files; stub it so the `export-liked-jobs` mode's CLI wiring
+// `./export-preferenced-jobs` builds a real `JobPreferenceService` (Supabase) and
+// writes real files; stub it so the `export-preferenced-jobs` mode's CLI wiring
 // (userId/preference/outputPath forwarding) can be asserted without touching
 // Supabase or the filesystem.
 const { fetchJobIdsByUserPreferenceMock, writeJobIdsCsvMock } = vi.hoisted(
@@ -363,7 +363,7 @@ const { fetchJobIdsByUserPreferenceMock, writeJobIdsCsvMock } = vi.hoisted(
     writeJobIdsCsvMock: vi.fn(async () => undefined),
   }),
 );
-vi.mock('./export-liked-jobs', () => ({
+vi.mock('./export-preferenced-jobs', () => ({
   fetchJobIdsByUserPreference: fetchJobIdsByUserPreferenceMock,
   writeJobIdsCsv: writeJobIdsCsvMock,
 }));
@@ -502,6 +502,7 @@ describe('main() dispatch wiring (post sync-core migration)', () => {
       ['Node.js'],
       1,
       undefined,
+      false,
     );
     expect(flushPendingCakeMock).toHaveBeenCalledTimes(1);
   });
@@ -642,27 +643,23 @@ describe('main() dispatch wiring (post sync-core migration)', () => {
     expect(resolveSourcesToProcessMock).not.toHaveBeenCalled();
   });
 
-  it('re-crawl-from-file mode (no path given) rejects with a clear, descriptive error before reading any file, and main() reports it via the top-level catch handler', async () => {
-    const exitSpy = vi
-      .spyOn(process, 'exit')
-      .mockImplementation(() => undefined as never);
-    const errorSpy = vi
-      .spyOn(console, 'error')
-      .mockImplementation(() => undefined);
+  // Unlike `crawl-from-file`, which demands an explicit path (Requirement
+  // 1.1), the bare `re-crawl-from-file` flag falls back to `./liked-jobs.csv`
+  // -- the same default path the `export-preferenced-jobs` mode writes to for
+  // the default `like` preference, so the two steps chain with no argument.
+  it('re-crawl-from-file mode (no path given) falls back to the ./liked-jobs.csv default that export-preferenced-jobs writes', async () => {
+    readJobIdsFromCsvFileMock.mockResolvedValueOnce(['job-1']);
 
     await runMainWithArgv(['re-crawl-from-file']);
 
-    expect(readJobIdsFromCsvFileMock).not.toHaveBeenCalled();
-    expect(errorSpy).toHaveBeenCalledWith(
-      'Crawler failed:',
-      expect.objectContaining({
-        message: expect.stringContaining('re-crawl-from-file'),
-      }),
+    expect(readJobIdsFromCsvFileMock).toHaveBeenCalledWith(
+      './liked-jobs.csv',
     );
-    expect(exitSpy).toHaveBeenCalledWith(1);
-
-    exitSpy.mockRestore();
-    errorSpy.mockRestore();
+    expect(createJobStalenessSyncConfigMock).toHaveBeenCalledWith(
+      ['Node.js'],
+      { id: { in: '(job-1)' } },
+    );
+    expect(stalenessRunMock).toHaveBeenCalledTimes(1);
   });
 
   it('re-crawl-from-file mode propagates a descriptive error when the CSV has no job ids, without touching sync-core', async () => {
@@ -692,14 +689,14 @@ describe('main() dispatch wiring (post sync-core migration)', () => {
     errorSpy.mockRestore();
   });
 
-  it('export-liked-jobs mode fetches liked job ids for the given user and writes them to the given path, defaulting preference to "like"', async () => {
+  it('export-preferenced-jobs mode fetches liked job ids for the given user and writes them to the given path, defaulting preference to "like"', async () => {
     fetchJobIdsByUserPreferenceMock.mockResolvedValueOnce([
       'job-1',
       'job-2',
     ]);
 
     await runMainWithArgv([
-      'export-liked-jobs',
+      'export-preferenced-jobs',
       'user=user-1',
       'out=/tmp/liked.csv',
     ]);
@@ -716,9 +713,9 @@ describe('main() dispatch wiring (post sync-core migration)', () => {
     expect(resolveSourcesToProcessMock).not.toHaveBeenCalled();
   });
 
-  it('export-liked-jobs mode forwards an explicit "dislike" preference', async () => {
+  it('export-preferenced-jobs mode forwards an explicit "dislike" preference', async () => {
     await runMainWithArgv([
-      'export-liked-jobs',
+      'export-preferenced-jobs',
       'user=user-1',
       'out=/tmp/disliked.csv',
       'preference=dislike',
@@ -730,7 +727,40 @@ describe('main() dispatch wiring (post sync-core migration)', () => {
     );
   });
 
-  it('export-liked-jobs mode rejects with a clear error when user= or out= is missing, without fetching or writing anything', async () => {
+  // `out=` is optional: it defaults to `./<preference>d-jobs.csv`, which is
+  // the path the bare `re-crawl-from-file` flag then reads for the default
+  // `like` preference. Only `user=` has no default.
+  it('export-preferenced-jobs mode defaults out= to ./liked-jobs.csv for the default "like" preference', async () => {
+    fetchJobIdsByUserPreferenceMock.mockResolvedValueOnce(['job-1']);
+
+    await runMainWithArgv(['export-preferenced-jobs', 'user=user-1']);
+
+    expect(fetchJobIdsByUserPreferenceMock).toHaveBeenCalledWith(
+      'user-1',
+      'like',
+    );
+    expect(writeJobIdsCsvMock).toHaveBeenCalledWith(
+      ['job-1'],
+      './liked-jobs.csv',
+    );
+  });
+
+  it('export-preferenced-jobs mode defaults out= to ./disliked-jobs.csv for an explicit "dislike" preference', async () => {
+    fetchJobIdsByUserPreferenceMock.mockResolvedValueOnce(['job-1']);
+
+    await runMainWithArgv([
+      'export-preferenced-jobs',
+      'user=user-1',
+      'preference=dislike',
+    ]);
+
+    expect(writeJobIdsCsvMock).toHaveBeenCalledWith(
+      ['job-1'],
+      './disliked-jobs.csv',
+    );
+  });
+
+  it('export-preferenced-jobs mode rejects with a clear error when user= is missing, without fetching or writing anything', async () => {
     const exitSpy = vi
       .spyOn(process, 'exit')
       .mockImplementation(() => undefined as never);
@@ -738,14 +768,14 @@ describe('main() dispatch wiring (post sync-core migration)', () => {
       .spyOn(console, 'error')
       .mockImplementation(() => undefined);
 
-    await runMainWithArgv(['export-liked-jobs', 'user=user-1']);
+    await runMainWithArgv(['export-preferenced-jobs', 'out=/tmp/liked.csv']);
 
     expect(fetchJobIdsByUserPreferenceMock).not.toHaveBeenCalled();
     expect(writeJobIdsCsvMock).not.toHaveBeenCalled();
     expect(errorSpy).toHaveBeenCalledWith(
       'Crawler failed:',
       expect.objectContaining({
-        message: expect.stringContaining('export-liked-jobs'),
+        message: expect.stringContaining('export-preferenced-jobs'),
       }),
     );
     expect(exitSpy).toHaveBeenCalledWith(1);
@@ -754,7 +784,7 @@ describe('main() dispatch wiring (post sync-core migration)', () => {
     errorSpy.mockRestore();
   });
 
-  it('export-liked-jobs mode rejects an invalid preference value before fetching anything', async () => {
+  it('export-preferenced-jobs mode rejects an invalid preference value before fetching anything', async () => {
     const exitSpy = vi
       .spyOn(process, 'exit')
       .mockImplementation(() => undefined as never);
@@ -763,7 +793,7 @@ describe('main() dispatch wiring (post sync-core migration)', () => {
       .mockImplementation(() => undefined);
 
     await runMainWithArgv([
-      'export-liked-jobs',
+      'export-preferenced-jobs',
       'user=user-1',
       'out=/tmp/liked.csv',
       'preference=maybe',
@@ -856,6 +886,7 @@ describe('main() dispatch wiring (post sync-core migration)', () => {
     expect(ingestHandoffFileMock).toHaveBeenCalledWith(
       '/tmp/handoff.json',
       ['Node.js'],
+      false,
     );
     expect(resolveSourcesToProcessMock).not.toHaveBeenCalled();
     expect(createStalenessSyncEngineMock).not.toHaveBeenCalled();

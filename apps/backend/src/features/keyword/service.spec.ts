@@ -39,7 +39,10 @@ import { Service } from './service';
 
 /**
  * Constructor-injected-fake convention per `company/service.spec.ts` and
- * `ai-suggestion/service.spec.ts`. Only `techService`/`techKeywordService`/
+ * `ai-suggestion/service.spec.ts`. The first constructor arg is the
+ * `ServiceLogger` that `resetJobKeywords_Keywords_JobTech` forwards to
+ * `@codeshore/data-utils`; it stays an empty stub here because none of the
+ * methods under test read it. Only `techService`/`techKeywordService`/
  * `techParentService`/`keywordService` are exercised by task 4.1's new
  * methods (`createTech`/`updateTech`/`deleteTech`/`deleteKeyword`); the
  * remaining constructor args default to empty stubs since the pre-existing
@@ -48,6 +51,7 @@ import { Service } from './service';
  */
 function createService(
   overrides: {
+    logger?: any;
     cacheService?: any;
     techService?: any;
     techKeywordService?: any;
@@ -58,6 +62,7 @@ function createService(
   } = {},
 ): Service {
   return new Service(
+    overrides.logger ?? {},
     overrides.cacheService ?? {},
     overrides.techService ?? {},
     overrides.techKeywordService ?? {},

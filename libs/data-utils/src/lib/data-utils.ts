@@ -9,7 +9,7 @@ import { JobDescriptionBinService } from './api/job_description_bin.service';
 import { parseKeywordsOut } from '@codeshore/shared-utils';
 import { SupabaseTable } from '@codeshore/data-types';
 import { JobService } from './api/job.service';
-import { JobKeywordService } from '..';
+import { JobKeywordService } from './api/job_keyword.service';
 import { ServiceLogger } from '@codeshore/service-logger';
 
 /**

@@ -42,13 +42,13 @@ describe('RegionChoropleth (mobile zoom)', () => {
 
     const container = screen.getByTestId('region-map-mobile-scroll');
     const svg = container.querySelector('svg');
-    // 放大 3 倍（viewBox 800x600 -> 實際 2400x1800），其餘靠拖曳捲動。
-    expect(svg?.getAttribute('width')).toBe('2400');
-    expect(svg?.getAttribute('height')).toBe('1800');
+    // 放大 2 倍（viewBox 800x600 -> 實際 1600x1200），其餘靠拖曳捲動。
+    expect(svg?.getAttribute('width')).toBe('1600');
+    expect(svg?.getAttribute('height')).toBe('1200');
     // 初始捲動置中聚焦地區（甲縣在地圖左半，中心點 x 必然小於整張地圖的
-    // 中心 400）；jsdom 的 clientWidth 為 0，scrollLeft = 中心點 x * 3。
+    // 中心 400）；jsdom 的 clientWidth 為 0，scrollLeft = 中心點 x * 2。
     expect(container.scrollLeft).toBeGreaterThan(0);
-    expect(container.scrollLeft).toBeLessThan(400 * 3);
+    expect(container.scrollLeft).toBeLessThan(400 * 2);
   });
 
   it('still zooms after drilling down (no mobileInitialFocusIds), scrolled to the whole-map center', () => {
@@ -66,11 +66,11 @@ describe('RegionChoropleth (mobile zoom)', () => {
     // 的大小，初始視角退回整張地圖的中心。
     const container = screen.getByTestId('region-map-mobile-scroll');
     const svg = container.querySelector('svg');
-    expect(svg?.getAttribute('width')).toBe('2400');
+    expect(svg?.getAttribute('width')).toBe('1600');
     // 單一形狀經 fitSize 置中，整張地圖中心約在 (400, 300) -> 捲動位置約
-    // (1200, 900)；Mercator 投影的非線性讓實際值略有偏差，容忍 ±50。
-    expect(container.scrollLeft).toBeCloseTo(1200, -2);
-    expect(container.scrollTop).toBeCloseTo(900, -2);
+    // (800, 600)；Mercator 投影的非線性讓實際值略有偏差，容忍 ±50。
+    expect(container.scrollLeft).toBeCloseTo(800, -2);
+    expect(container.scrollTop).toBeCloseTo(600, -2);
   });
 
   it('renders no scroll container when there are no features (nothing to zoom into)', () => {

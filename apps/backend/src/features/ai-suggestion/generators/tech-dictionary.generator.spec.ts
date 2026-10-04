@@ -29,6 +29,13 @@ function makeTechService(rows = techRows) {
   return { fetchAll: vi.fn().mockResolvedValue({ result: rows, count: rows.length, searchParams: '' }) };
 }
 
+// `selectCandidates` also subtracts the `keyword_bin` rows (keywords an admin
+// already rejected) from the candidate pool, so every construction below has
+// to pass this service. Defaults to "nothing binned".
+function makeKeywordBinService(rows: Array<{ id: string }> = []) {
+  return { fetchAll: vi.fn().mockResolvedValue({ result: rows, count: rows.length, searchParams: '' }) };
+}
+
 function makeSuggestionCreator(
   outcomes: Array<'created' | 'duplicate' | 'error'> | 'created' | 'duplicate' | 'error' = 'created',
 ) {
@@ -84,6 +91,7 @@ describe('TechDictionaryGenerator.generate', () => {
       keywordService as any,
       techKeywordService as any,
       techService as any,
+      makeKeywordBinService() as any,
       suggestionCreator as any,
       findSimilarTechFn,
     );
@@ -137,6 +145,7 @@ describe('TechDictionaryGenerator.generate', () => {
       keywordService as any,
       techKeywordService as any,
       techService as any,
+      makeKeywordBinService() as any,
       suggestionCreator as any,
       findSimilarTechFn,
     );
@@ -182,6 +191,7 @@ describe('TechDictionaryGenerator.generate', () => {
       keywordService as any,
       techKeywordService as any,
       techService as any,
+      makeKeywordBinService() as any,
       suggestionCreator as any,
       findSimilarTechFn,
     );
@@ -233,6 +243,7 @@ describe('TechDictionaryGenerator.generate', () => {
       keywordService as any,
       techKeywordService as any,
       techService as any,
+      makeKeywordBinService() as any,
       suggestionCreator as any,
       vi.fn(),
     );
@@ -269,6 +280,7 @@ describe('TechDictionaryGenerator.generate', () => {
       keywordService as any,
       techKeywordService as any,
       techService as any,
+      makeKeywordBinService() as any,
       suggestionCreator as any,
       findSimilarTechFn,
     );
@@ -296,6 +308,7 @@ describe('TechDictionaryGenerator.generate', () => {
       keywordService as any,
       techKeywordService as any,
       techService as any,
+      makeKeywordBinService() as any,
       suggestionCreator as any,
       findSimilarTechFn,
     );
@@ -330,12 +343,40 @@ describe('TechDictionaryGenerator.generate', () => {
       keywordService as any,
       techKeywordService as any,
       techService as any,
+      makeKeywordBinService() as any,
       suggestionCreator as any,
       vi.fn(),
     );
 
     const result = await drainGenerator(generator.generate());
 
+    expect(llmClient.completeStructured).not.toHaveBeenCalled();
+    expect(result).toEqual({ created: 0, skippedDuplicates: 0, skippedNoMatch: 0, skippedConflict: 0, errors: [] });
+  });
+
+  it('excludes keywords already binned in keyword_bin, even at/above the count threshold', async () => {
+    const keywordService = makeKeywordService([
+      { id: 'binned-keyword', count: KEYWORD_COUNT_THRESHOLD },
+    ]);
+    const techKeywordService = makeTechKeywordService([]);
+    const techService = makeTechService();
+    const keywordBinService = makeKeywordBinService([{ id: 'binned-keyword' }]);
+    const suggestionCreator = makeSuggestionCreator('created');
+    const llmClient = { completeStructured: vi.fn() };
+
+    const generator = new TechDictionaryGenerator(
+      llmClient as any,
+      keywordService as any,
+      techKeywordService as any,
+      techService as any,
+      keywordBinService as any,
+      suggestionCreator as any,
+      vi.fn(),
+    );
+
+    const result = await drainGenerator(generator.generate());
+
+    expect(keywordBinService.fetchAll).toHaveBeenCalled();
     expect(llmClient.completeStructured).not.toHaveBeenCalled();
     expect(result).toEqual({ created: 0, skippedDuplicates: 0, skippedNoMatch: 0, skippedConflict: 0, errors: [] });
   });
@@ -354,6 +395,7 @@ describe('TechDictionaryGenerator.generate', () => {
       keywordService as any,
       techKeywordService as any,
       techService as any,
+      makeKeywordBinService() as any,
       suggestionCreator as any,
       vi.fn(),
     );

@@ -58,17 +58,18 @@ export function createJobStalenessSyncConfig(
   return {
     /**
      * 對應原 `reCrawlJobs`(`main.ts` L100-109)的 stale 項目查詢:預設條件為
-     * `crawled_at` 早於「昨天午夜」,呼叫端可透過 `where` 覆寫查詢條件
+     * `crawled_at` 早於「此刻往前推 24 小時」(滾動視窗,不對齊午夜),
+     * 呼叫端可透過 `where` 覆寫查詢條件
      * (對應 `main.ts` 的 `re-crawl=<whereExpr>` CLI 參數)。改用
      * `crawled_at`(而非 `updated_at`)是因為 admin 重新爬取的選取邏輯須
      * 反映真實的爬取活動,不受「內容是否真的改變」影響(需求 4.1)。
      */
     async fetchStaleEntities(): Promise<SupabaseTable.Job[]> {
       const todayDayjs = dayjs();
-      const yesterday = todayDayjs.subtract(2, 'day').toDate();
+      const oneDayAgo = todayDayjs.subtract(1, 'day').toDate();
       const resolvedWhere = {
         ...where,
-        crawled_at: { lt: yesterday.toISOString() },
+        crawled_at: { lt: oneDayAgo.toISOString() },
       };
       // `mv_job` 只用來篩選/排序(`avg_salary` 是 mv 才有的計算欄位),實際要
       // 拿去比對/寫回的資料一律回頭向 `JobService` 撈原始 `job` 表資料——

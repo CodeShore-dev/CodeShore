@@ -198,9 +198,12 @@ describe('cake/handler.ts createHandler (post sync-core migration)', () => {
     createCrawlRouterMock.mockReturnValue(FAKE_CRAWL_ROUTER_RESULT);
   });
 
-  async function loadPassedConfig(allGroupKeywords: string[] = []) {
+  async function loadPassedConfig(
+    allGroupKeywords: string[] = [],
+    useUiFilters = false,
+  ) {
     const { createHandler } = await import('./handler');
-    createHandler(allGroupKeywords);
+    createHandler(allGroupKeywords, undefined, undefined, useUiFilters);
 
     expect(createCrawlRouterMock).toHaveBeenCalledTimes(1);
     return createCrawlRouterMock.mock.calls[0][0] as CrawlRouterConfig<
@@ -276,11 +279,18 @@ describe('cake/handler.ts createHandler (post sync-core migration)', () => {
     );
   });
 
-  it('wires prepareListPage and clickToNextPage for UI-driven filter selection and pagination', async () => {
-    const passedConfig = await loadPassedConfig();
+  it('wires prepareListPage and clickToNextPage for UI-driven filter selection and pagination when useUiFilters is on', async () => {
+    const passedConfig = await loadPassedConfig([], true);
 
     expect(typeof passedConfig.prepareListPage).toBe('function');
     expect(typeof passedConfig.clickToNextPage).toBe('function');
+  });
+
+  it('omits prepareListPage and clickToNextPage by default, leaving the crawl API-driven', async () => {
+    const passedConfig = await loadPassedConfig();
+
+    expect(passedConfig.prepareListPage).toBeUndefined();
+    expect(passedConfig.clickToNextPage).toBeUndefined();
   });
 
   it('matchListResponse identifies the Cake list API URL exactly as before', async () => {

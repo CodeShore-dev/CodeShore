@@ -44,7 +44,7 @@ export interface RegionChoroplethProps {
 // 行動裝置初始聚焦視角：把整張地圖放大到容器寬度的幾倍，讓 `mobileInitialFocusIds`
 // 指定的地區（例如北北基）在初次進入時已大致填滿螢幕，其餘地區則需使用者
 // 自行拖曳/滑動捲動容器才看得到——放大倍率越高，聚焦區域越大、可捲動範圍
-// 也越大，3 倍是在「北北基夠大看得清楚」與「捲動範圍不會大到難以找到其他
+// 也越大，2 倍是在「北北基夠大看得清楚」與「捲動範圍不會大到難以找到其他
 // 縣市」之間取的折衷值。
 const MOBILE_ZOOM_FACTOR = 2;
 const MOBILE_MAP_MAX_HEIGHT = 480;
