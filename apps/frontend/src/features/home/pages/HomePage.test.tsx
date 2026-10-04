@@ -2,7 +2,11 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ListQuery } from '../../../@types';
 import { renderWithProviders } from '../../../test/renderWithProviders';
+import { HomeSalaryBenchmark } from '../components/HomeSalaryBenchmark';
+import { fetchHomeTechComboStats, fetchMvTechRanking } from '../service';
+import { HomePage } from './HomePage';
 
 vi.mock('../service', () => ({
   fetchMvSalaryTypeMedianRatio: vi.fn().mockResolvedValue({
@@ -36,17 +40,12 @@ vi.mock('../service', () => ({
     },
   ]),
   fetchMvTechRanking: vi.fn().mockResolvedValue({ result: [] }),
-  fetchMvTechComboStats: vi.fn().mockResolvedValue({ result: [] }),
+  fetchHomeTechComboStats: vi.fn().mockResolvedValue({ result: [] }),
   fetchJobHostStatistics: vi.fn().mockResolvedValue([
     { host: 'www.104.com.tw', host_count: 9325, percentage: 83.83 },
     { host: 'www.cake.me', host_count: 1799, percentage: 16.17 },
   ]),
 }));
-
-import { ListQuery } from '../../../@types';
-import { HomeSalaryBenchmark } from '../components/HomeSalaryBenchmark';
-import { fetchMvTechComboStats, fetchMvTechRanking } from '../service';
-import { HomePage } from './HomePage';
 
 // issue #24：技術組合區塊改成四個分類各取 5 個，不再跟著「熱門技術」的
 // 分類按鈕走。以 `to` 區分兩種請求：組合來源取 top 5（to: 4），排行榜取
@@ -90,29 +89,25 @@ function mockComboSources(): void {
     } as never;
   });
 
-  vi.mocked(fetchMvTechComboStats).mockImplementation(
-    async (query?: ListQuery) => {
-      const tech1 = whereOf(query).tech1?.eq ?? '';
-      return {
-        result: [
-          {
-            tech1,
-            tech2: 'docker',
-            tech1_label: TECH_LABEL[tech1] ?? tech1,
-            tech2_label: 'Docker',
-            tech1_icons: [],
-            tech2_icons: [],
-            tech2_tags: [],
-            job_count: 120,
-            median_min_year: 1000000,
-            median_max_year: 1400000,
-            median_min_month: 70000,
-            median_max_month: 90000,
-          },
-        ],
-      } as never;
-    },
-  );
+  // 後端回傳所有組合的平 list；這裡每個技術各給一筆組合。
+  vi.mocked(fetchHomeTechComboStats).mockResolvedValue({
+    result: Object.values(COMBO_RANKING)
+      .flat()
+      .map(tech1 => ({
+        tech1,
+        tech2: 'docker',
+        tech1_label: TECH_LABEL[tech1] ?? tech1,
+        tech2_label: 'Docker',
+        tech1_icons: [],
+        tech2_icons: [],
+        tech2_tags: [],
+        job_count: 120,
+        median_min_year: 1000000,
+        median_max_year: 1400000,
+        median_min_month: 70000,
+        median_max_month: 90000,
+      })),
+  } as never);
 }
 
 function combosSection(): HTMLElement {
@@ -124,16 +119,14 @@ describe('HomePage', () => {
   beforeEach(() => {
     vi.mocked(fetchMvTechRanking).mockReset();
     vi.mocked(fetchMvTechRanking).mockResolvedValue({ result: [] } as never);
-    vi.mocked(fetchMvTechComboStats).mockReset();
-    vi.mocked(fetchMvTechComboStats).mockResolvedValue({ result: [] } as never);
+    vi.mocked(fetchHomeTechComboStats).mockReset();
+    vi.mocked(fetchHomeTechComboStats).mockResolvedValue({ result: [] } as never);
   });
 
   it('renders the hero and the hot-combos section heading (req 8.1)', async () => {
     renderWithProviders(<HomePage />);
     expect(screen.getByText('個職缺(含關閉職缺)')).toBeInTheDocument();
-    expect(
-      screen.getByText('職缺裡最常同時出現的技術組合'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('職缺裡最常同時出現的技術組合')).toBeInTheDocument();
     // Flush async query updates so they are wrapped in act().
     expect(await screen.findByText('5,000')).toBeInTheDocument();
   });
@@ -142,11 +135,7 @@ describe('HomePage', () => {
     mockComboSources();
     renderWithProviders(<HomePage />);
 
-    await waitFor(() =>
-      expect(combosSection().textContent).toContain(
-        '與 Lodash 程式庫最常同時出現的技術組合',
-      ),
-    );
+    await waitFor(() => expect(combosSection().textContent).toContain('與 Lodash 程式庫最常同時出現的技術組合'));
 
     const text = combosSection().textContent ?? '';
     expect(text).toContain('與 Java 語言最常同時出現的技術組合');
@@ -155,12 +144,8 @@ describe('HomePage', () => {
 
     // 語言 → 框架 → 資料庫 → 程式庫
     expect(text.indexOf('與 Java')).toBeLessThan(text.indexOf('與 React'));
-    expect(text.indexOf('與 React')).toBeLessThan(
-      text.indexOf('與 PostgreSQL'),
-    );
-    expect(text.indexOf('與 PostgreSQL')).toBeLessThan(
-      text.indexOf('與 Lodash'),
-    );
+    expect(text.indexOf('與 React')).toBeLessThan(text.indexOf('與 PostgreSQL'));
+    expect(text.indexOf('與 PostgreSQL')).toBeLessThan(text.indexOf('與 Lodash'));
 
     // 每類最多 5 個；某類不足 5 個時不補其他類（5 + 2 + 1 + 1 = 9）。
     expect(combosSection().querySelectorAll('section')).toHaveLength(9);
@@ -170,9 +155,7 @@ describe('HomePage', () => {
     mockComboSources();
     renderWithProviders(<HomePage />);
 
-    await waitFor(() =>
-      expect(combosSection().textContent).toContain('與 Lodash'),
-    );
+    await waitFor(() => expect(combosSection().textContent).toContain('與 Lodash'));
 
     const comboQueries = vi
       .mocked(fetchMvTechRanking)
@@ -189,19 +172,53 @@ describe('HomePage', () => {
     }
   });
 
+  it('每個技術最多顯示 5 筆組合，且只拿自己 tech1 的組合 (issue #34)', async () => {
+    const rows = Array.from({ length: 7 }, (_, i) => ({
+      tech1: 'java',
+      tech2: `lib${i}`,
+      tech1_label: 'Java',
+      tech2_label: `Lib${i}`,
+      tech1_icons: [],
+      tech2_icons: [],
+      tech2_tags: [],
+      job_count: 100 - i,
+      median_min_year: 1000000,
+      median_max_year: 1400000,
+      median_min_month: 70000,
+      median_max_month: 90000,
+    }));
+    vi.mocked(fetchMvTechRanking).mockImplementation(async (query: ListQuery) => {
+      if (query.to !== 4) return { result: [] } as never;
+      const category = whereOf(query).category?.eq ?? '';
+      return {
+        result:
+          category === 'language'
+            ? [{ tech: 'java', label: 'Java', category, job_count: 100, icon_slugs: [], tags: [] }]
+            : [],
+      } as never;
+    });
+    vi.mocked(fetchHomeTechComboStats).mockResolvedValue({
+      result: rows,
+    } as never);
+
+    renderWithProviders(<HomePage />);
+
+    await waitFor(() => expect(combosSection().textContent).toContain('與 Java 語言'));
+    const javaText = combosSection().textContent ?? '';
+    // 1 筆排頭 + 4 筆小卡 = 5 筆，第 6、7 筆（Lib5、Lib6）不顯示。
+    expect(javaText).toContain('Lib4');
+    expect(javaText).not.toContain('Lib5');
+  });
+
   it('切換「熱門技術」分類時，技術組合區塊不變 (issue #24)', async () => {
     const user = userEvent.setup();
     mockComboSources();
     renderWithProviders(<HomePage />);
 
-    await waitFor(() =>
-      expect(combosSection().textContent).toContain('與 Lodash'),
-    );
+    await waitFor(() => expect(combosSection().textContent).toContain('與 Lodash'));
     const before = combosSection().textContent;
 
-    const popularSection = screen
-      .getByText('熱門技術')
-      .closest('section') as HTMLElement;
+    const popularSection = screen.getByText('熱門技術').closest('section') as HTMLElement;
     const frameworkButton = within(popularSection)
       .getAllByRole('button')
       .find(button => button.textContent === '框架');

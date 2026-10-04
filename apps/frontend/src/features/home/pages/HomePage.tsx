@@ -1,8 +1,11 @@
+import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import { Link } from 'react-router';
 
 import { PageSeo } from '../../../components/PageSeo';
 import { env } from '../../../config/env';
 import { CATEGORY_LABEL_MAP } from '../../../utils/constants';
+import { groupTopCombosByTech } from '../comboGroups';
 import { HomeHandoff } from '../components/HomeHandoff';
 import { HomeHero } from '../components/HomeHero';
 import { HomeHighSalaryTech } from '../components/HomeHighSalaryTech';
@@ -12,12 +15,19 @@ import { HomeSalaryBenchmark } from '../components/HomeSalaryBenchmark';
 import { HomeStatRow } from '../components/HomeStatRow';
 import { useHomeComboTechs } from '../hooks/useHomeComboTechs';
 import { useKeywordTechRanking } from '../hooks/useKeywordTechRanking';
+import { fetchHomeTechComboStats } from '../service';
 
 export function HomePage() {
   // 「熱門技術」排行榜自己的資料，只給 HomePopularTech 用。
   const popularRanking = useKeywordTechRanking();
   // 技術組合的技術來源獨立：四個分類各取 5 個，不受上方分類切換影響。
   const comboTechs = useHomeComboTechs();
+  // 所有技術組合一次取回，整頁只打一次 API。
+  const comboStats = useQuery({
+    queryKey: ['home', 'techComboStats'],
+    queryFn: async () => (await fetchHomeTechComboStats()).result,
+  });
+  const combosByTech = useMemo(() => groupTopCombosByTech(comboStats.data ?? []), [comboStats.data]);
 
   return (
     <div className="w-full">
@@ -73,6 +83,8 @@ export function HomePage() {
             key={item.tech}
             tech={item.tech}
             categoryLabel={CATEGORY_LABEL_MAP[item.category]}
+            items={combosByTech.get(item.tech) ?? []}
+            loading={comboStats.isLoading}
           />
         ))}
       </section>

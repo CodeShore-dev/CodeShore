@@ -1,11 +1,4 @@
-import { waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-const { fetchMvTechComboStats } = vi.hoisted(() => ({
-  fetchMvTechComboStats: vi.fn(),
-}));
-
-vi.mock('../service', () => ({ fetchMvTechComboStats }));
+import { describe, expect, it } from 'vitest';
 
 import { renderWithProviders } from '../../../test/renderWithProviders';
 import { HomeHotCombos } from './HomeHotCombos';
@@ -28,40 +21,26 @@ function comboRow(tech1: string, tech1Label: string) {
 }
 
 describe('HomeHotCombos', () => {
-  beforeEach(() => {
-    fetchMvTechComboStats.mockReset();
-  });
-
-  it('標題用傳入的分類標籤，不再寫死「語言」', async () => {
-    fetchMvTechComboStats.mockResolvedValue({
-      result: [comboRow('react', 'React')],
-    });
-
+  it('標題用傳入的分類標籤，不再寫死「語言」', () => {
     const { container } = renderWithProviders(
-      <HomeHotCombos tech="react" categoryLabel="框架" />,
+      <HomeHotCombos tech="react" categoryLabel="框架" items={[comboRow('react', 'React')]} />,
     );
 
-    await waitFor(() =>
-      expect(container.textContent).toContain(
-        '與 React 框架最常同時出現的技術組合',
-      ),
-    );
+    expect(container.textContent).toContain('與 React 框架最常同時出現的技術組合');
     expect(container.textContent).not.toContain('語言最常同時出現');
   });
 
-  it('沒有分類標籤時標題不插入任何分類字樣', async () => {
-    fetchMvTechComboStats.mockResolvedValue({
-      result: [comboRow('postgresql', 'PostgreSQL')],
-    });
-
+  it('沒有分類標籤時標題不插入任何分類字樣', () => {
     const { container } = renderWithProviders(
-      <HomeHotCombos tech="postgresql" />,
+      <HomeHotCombos tech="postgresql" items={[comboRow('postgresql', 'PostgreSQL')]} />,
     );
 
-    await waitFor(() =>
-      expect(container.textContent).toContain(
-        '與 PostgreSQL 最常同時出現的技術組合',
-      ),
-    );
+    expect(container.textContent).toContain('與 PostgreSQL 最常同時出現的技術組合');
+  });
+
+  it('沒有組合且不在載入中時不渲染任何內容', () => {
+    const { container } = renderWithProviders(<HomeHotCombos tech="go" categoryLabel="語言" items={[]} />);
+
+    expect(container.querySelector('section')).toBeNull();
   });
 });
