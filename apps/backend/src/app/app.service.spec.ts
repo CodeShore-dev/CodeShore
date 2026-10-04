@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { getWorkflowInfo } from '../features/ai-suggestion/workflow-info';
 import { getKeywordCurationWorkflowInfo } from '../features/keyword-curation/workflow-info';
+import { QueryDto } from '../features/query.dto';
 import { AppService } from './app.service';
 
 /**
@@ -26,13 +27,7 @@ import { AppService } from './app.service';
  */
 describe('AppService.getAiWorkflows', () => {
   function createService(): AppService {
-    return new AppService(
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-    );
+    return new AppService({} as any, {} as any, {} as any, {} as any, {} as any);
   }
 
   it('aiSuggestion equals the real getWorkflowInfo() output (requirements 2.1-2.3)', () => {
@@ -60,5 +55,92 @@ describe('AppService.getAiWorkflows', () => {
       aiSuggestion: getWorkflowInfo(),
       keywordCuration: getKeywordCurationWorkflowInfo(),
     });
+  });
+});
+
+/**
+ * `getMvTechRanking` 的首頁快取：`to=9`（熱門技術）與 `to=4`（技術組合來源）
+ * 都要進快取；快取 key 必須含 from / to / orders，否則同一個 where、不同 to
+ * 的請求會拿到彼此的結果。
+ */
+describe('AppService.getMvTechRanking cache', () => {
+  const where = { category: { eq: 'language' }, job_count: { gte: 8 } };
+
+  function createService() {
+    const cacheService = {
+      getOrSet: vi.fn((_key: string, fn: () => Promise<unknown>) => fn()),
+    };
+    const mvTechRankingService = {
+      fetchAll: vi.fn().mockResolvedValue([]),
+    };
+    const service = new AppService(
+      cacheService as never,
+      {} as never,
+      {} as never,
+      mvTechRankingService as never,
+      {} as never,
+    );
+    return { service, cacheService, mvTechRankingService };
+  }
+
+  function queryOf(overrides: Partial<QueryDto>): QueryDto {
+    return {
+      from: 0,
+      to: 9,
+      orders: [{ column: 'job_count', ascending: false }],
+      where,
+      ...overrides,
+    } as QueryDto;
+  }
+
+  it('to=4（技術組合來源）走快取', async () => {
+    const { service, cacheService } = createService();
+
+    await service.getMvTechRanking(queryOf({ to: 4 }));
+
+    expect(cacheService.getOrSet).toHaveBeenCalledTimes(1);
+  });
+
+  it('to=9（熱門技術）仍走快取', async () => {
+    const { service, cacheService } = createService();
+
+    await service.getMvTechRanking(queryOf({ to: 9 }));
+
+    expect(cacheService.getOrSet).toHaveBeenCalledTimes(1);
+  });
+
+  it('非首頁請求（如 to=19）不走快取', async () => {
+    const { service, cacheService, mvTechRankingService } = createService();
+
+    await service.getMvTechRanking(queryOf({ to: 19 }));
+
+    expect(cacheService.getOrSet).not.toHaveBeenCalled();
+    expect(mvTechRankingService.fetchAll).toHaveBeenCalledTimes(1);
+  });
+
+  it('相同 where、只差 to 時，快取 key 不同', async () => {
+    const { service, cacheService } = createService();
+
+    await service.getMvTechRanking(queryOf({ to: 9 }));
+    await service.getMvTechRanking(queryOf({ to: 4 }));
+
+    const keys = cacheService.getOrSet.mock.calls.map(([key]) => key);
+    expect(keys).toHaveLength(2);
+    expect(new Set(keys).size).toBe(2);
+  });
+
+  it('相同 where、只差 orders 時，快取 key 不同', async () => {
+    const { service, cacheService } = createService();
+
+    await service.getMvTechRanking(queryOf({ to: 9 }));
+    await service.getMvTechRanking(
+      queryOf({
+        to: 9,
+        orders: [{ column: 'median_avg', ascending: false }],
+      }),
+    );
+
+    const keys = cacheService.getOrSet.mock.calls.map(([key]) => key);
+    expect(new Set(keys).size).toBe(2);
   });
 });

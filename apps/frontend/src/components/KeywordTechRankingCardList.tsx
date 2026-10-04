@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router';
 
 import { SupabaseView } from '@codeshore/data-types';
@@ -10,12 +10,11 @@ interface KeywordTechRankingCardListProps {
   title: string;
   items: SupabaseView.MvTechRanking[];
   loading: boolean;
-  getItems: (category: string) => void;
+  selectedCategory: string;
+  onCategoryChange: (category: string) => void;
   moreTo?: string;
   titleHint?: ReactNode;
-  renderMetric?: (
-    item: SupabaseView.MvTechRanking,
-  ) => ReactNode;
+  renderMetric?: (item: SupabaseView.MvTechRanking) => ReactNode;
 }
 
 const CARD_VISIBILITY = [
@@ -47,27 +46,20 @@ const CATEGORY_OPTIONS = Object.entries(CATEGORY_LABEL_MAP)
   .map(([value, label]) => ({ value, label }))
   .slice(0, 4);
 
-// Keyword/tech ranking card list (task 4.3). Vue slots are mapped to
+// Keyword/tech ranking card list (task 4.3). Controlled view: the caller owns
+// the selected category and the data fetch. Vue slots are mapped to
 // render-prop props: `titleHint` and `renderMetric` (with a default metric).
 export function KeywordTechRankingCardList({
   title,
   items,
   loading,
-  getItems,
+  selectedCategory,
+  onCategoryChange,
   moreTo,
   titleHint,
   renderMetric,
 }: KeywordTechRankingCardListProps) {
   const navigate = useNavigate();
-  const [selectedCategory, setSelectedCategory] = useState('language');
-
-  // Fetch on mount and whenever the category changes (parity with the Vue
-  // immediate watch). A ref keeps getItems current without re-triggering.
-  const getItemsRef = useRef(getItems);
-  getItemsRef.current = getItems;
-  useEffect(() => {
-    getItemsRef.current(selectedCategory);
-  }, [selectedCategory]);
 
   const goJobs = (query: Record<string, string> = {}): void => {
     const qs = new URLSearchParams(query).toString();
@@ -79,9 +71,7 @@ export function KeywordTechRankingCardList({
       <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
         <div className="flex items-baseline gap-3">
           <div className="flex items-center gap-1.5">
-            <div className="text-xs font-bold tracking-[0.18em] text-[#434653]">
-              {title}
-            </div>
+            <div className="text-xs font-bold tracking-[0.18em] text-[#434653]">{title}</div>
             {titleHint}
           </div>
           {moreTo && (
@@ -90,10 +80,7 @@ export function KeywordTechRankingCardList({
               className="flex items-center gap-0.5 text-xs font-bold text-[#003d92] transition-colors hover:text-[#001f2a]"
             >
               更多
-              <span
-                className="material-symbols-outlined"
-                style={{ fontSize: '14px' }}
-              >
+              <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
                 arrow_forward
               </span>
             </Link>
@@ -109,7 +96,7 @@ export function KeywordTechRankingCardList({
                   ? 'bg-[#003d92] text-white'
                   : 'bg-[#d9f2ff] text-[#434653] hover:bg-[#ceedfd]'
               }`}
-              onClick={() => setSelectedCategory(opt.value)}
+              onClick={() => onCategoryChange(opt.value)}
             >
               {opt.label}
             </button>
@@ -120,10 +107,7 @@ export function KeywordTechRankingCardList({
       {loading ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
           {SKELETON_VISIBILITY.map((visibility, i) => (
-            <div
-              key={i}
-              className={`h-28 animate-pulse rounded-xl bg-[#d9f2ff] ${visibility}`}
-            />
+            <div key={i} className={`h-28 animate-pulse rounded-xl bg-[#d9f2ff] ${visibility}`} />
           ))}
         </div>
       ) : (
@@ -138,14 +122,10 @@ export function KeywordTechRankingCardList({
               onClick={() => goJobs({ tags: item.tech })}
             >
               <div className="mb-2 flex flex-col items-start gap-1">
-                <div className="font-mono text-[10px] tracking-[0.15em] text-[#434653]">
-                  #{i + 1}
-                </div>
+                <div className="font-mono text-[10px] tracking-[0.15em] text-[#434653]">#{i + 1}</div>
                 <div className="flex items-center gap-2">
                   <TechIcon slugs={item.icon_slugs} label={item.label} />
-                  <span className="text-lg leading-tight font-black tracking-tight text-[#001f2a]">
-                    {item.label}
-                  </span>
+                  <span className="text-lg leading-tight font-black tracking-tight text-[#001f2a]">{item.label}</span>
                 </div>
                 <div className="flex gap-1">
                   {(item.tags ?? []).map(tag => (
@@ -169,18 +149,13 @@ export function KeywordTechRankingCardList({
                     >
                       {item.job_count.toLocaleString()}
                     </div>
-                    <div className="mt-0.5 text-[11px] text-[#434653]">
-                      個職缺
-                    </div>
+                    <div className="mt-0.5 text-[11px] text-[#434653]">個職缺</div>
                   </>
                 )}
               </div>
               <span className="mt-1 flex items-end justify-end gap-1 text-xs font-bold text-[#003d92]">
                 前往職缺
-                <span
-                  className="material-symbols-outlined"
-                  style={{ fontSize: '14px' }}
-                >
+                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
                   arrow_forward
                 </span>
               </span>
