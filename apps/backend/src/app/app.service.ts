@@ -109,6 +109,18 @@ export class AppService {
     return this.mvTechRankingService.fetchAll(query);
   }
 
+  /**
+   * 首頁「熱門技術組合」的資料來源：一次撈出所有非語言分類的組合，
+   * 回傳平的 list。分組與每組取前幾名由前端決定，後端不知道版面。
+   */
+  @Cacheable({ key: `${MvTechComboStatsService.name}:home`, backend: 'redis' })
+  async getHomeTechComboStats() {
+    return this.mvTechComboStatsService.fetchAll({
+      where: { cat2: { neq: 'language' } },
+      orders: [{ column: 'job_count', ascending: false }],
+    });
+  }
+
   async getMvTechComboStatsService(query: QueryDto) {
     const isTheRequestFromHomePage = query.from === 0 && query.to === 4;
     if (isTheRequestFromHomePage) {

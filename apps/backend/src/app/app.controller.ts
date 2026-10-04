@@ -1,10 +1,4 @@
-import {
-  Controller,
-  Get,
-  Inject,
-  Query,
-  Sse,
-} from '@nestjs/common';
+import { Controller, Get, Inject, Query, Sse } from '@nestjs/common';
 import { ApiOperation } from '@nestjs/swagger';
 import { Observable, Subject, map } from 'rxjs';
 
@@ -41,8 +35,7 @@ export class AppController {
 
   @Get('/salary/type/median/ratio')
   @ApiOperation({
-    summary:
-      'Get the median salary ratio distribution by salary type',
+    summary: 'Get the median salary ratio distribution by salary type',
     description:
       'Returns the materialized-view result of median salary ratios aggregated by salary type (e.g. monthly, yearly, hourly). Cached. This endpoint is public (no authentication required).',
   })
@@ -52,8 +45,7 @@ export class AppController {
 
   @Get('/salary/range/multiplier')
   @ApiOperation({
-    summary:
-      'Get the salary range multiplier distribution',
+    summary: 'Get the salary range multiplier distribution',
     description:
       'Returns the materialized-view result of salary range multipliers (avg max/min salary) per salary type. Cached. This endpoint is public (no authentication required).',
   })
@@ -75,12 +67,20 @@ export class AppController {
   @ApiOperation({
     summary: 'Query technology combination statistics',
     description:
-      'Reads from the mv_tech_combo_stats materialized view. Each row is a technology pair (tech1 paired with tech2) with its co-occurrence job_count and salary benchmarks (median/PR75/PR88, both monthly and yearly). Not cached. Uses the shared QueryDto for from/to pagination, orders sorting and where filtering. Example: /keyword/group/combo?from=0&to=20&orders=job_count:desc filters/sorts the top 20 pairs by job count.',
+      'Reads from the mv_tech_combo_stats materialized view. Each row is a technology pair (tech1 paired with tech2) with its co-occurrence job_count and salary benchmarks (median/PR75/PR88, both monthly and yearly). Only the exact from=0&to=4 query is cached (legacy home-page shape); every other query is read from the database. Uses the shared QueryDto for from/to pagination, orders sorting and where filtering. Example: /keyword/group/combo?from=0&to=20&orders=job_count:desc filters/sorts the top 20 pairs by job count.',
   })
-  async getTechTechComboStats(
-    @Query() query: QueryDto,
-  ) {
+  async getTechTechComboStats(@Query() query: QueryDto) {
     return this.service.getMvTechComboStatsService(query);
+  }
+
+  @Get('/keyword/group/tech-combo-stats/home')
+  @ApiOperation({
+    summary: 'Query all non-language technology combination statistics for the home page',
+    description:
+      'Returns every mv_tech_combo_stats row whose cat2 is not "language", ordered by job_count desc, as one flat list. The home page groups it by tech1 on the client. Cached (redis, no expiry). This endpoint is public (no authentication required).',
+  })
+  getHomeTechComboStats() {
+    return this.service.getHomeTechComboStats();
   }
 
   @Get('/methodology/sql')
@@ -105,8 +105,6 @@ export class AppController {
 
   @Sse('/sse')
   sse(): Observable<MessageEvent> {
-    return this.messageQueue.pipe(
-      map(data => ({ data }) as MessageEvent),
-    );
+    return this.messageQueue.pipe(map(data => ({ data }) as MessageEvent));
   }
 }

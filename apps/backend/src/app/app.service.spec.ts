@@ -144,3 +144,22 @@ describe('AppService.getMvTechRanking cache', () => {
     expect(new Set(keys).size).toBe(2);
   });
 });
+
+describe('AppService.getHomeTechComboStats (issue #34)', () => {
+  it('fetches all non-language combos in one call, ordered by job_count desc, through the cache', async () => {
+    const rows = [{ tech1: 'react', tech2: 'docker', job_count: 120 }];
+    const fetchAll = vi.fn().mockResolvedValue({ result: rows });
+    const getOrSet = vi.fn((_key: string, fn: () => Promise<unknown>) => fn());
+    const service = new AppService({ getOrSet } as never, {} as never, {} as never, {} as never, { fetchAll } as never);
+
+    const result = await service.getHomeTechComboStats();
+
+    expect(fetchAll).toHaveBeenCalledTimes(1);
+    expect(fetchAll).toHaveBeenCalledWith({
+      where: { cat2: { neq: 'language' } },
+      orders: [{ column: 'job_count', ascending: false }],
+    });
+    expect(getOrSet).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ result: rows });
+  });
+});

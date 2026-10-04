@@ -1,30 +1,23 @@
-import { useEffect } from 'react';
 import { useNavigate } from 'react-router';
+
+import { SupabaseView } from '@codeshore/data-types';
 
 import { TechIcon } from '../../../components/TechIcon';
 import { TAG_LABEL_MAP } from '../../../utils/constants';
 import { toWan } from '../../../utils/format';
 import { InfoHint } from '../../methodology/components/InfoHint';
-import { useTechComboStats } from '../hooks/useTechComboStats';
 
 interface HomeHotCombosProps {
   tech: string;
   /** 技術所屬分類的中文標籤（語言 / 框架 / 資料庫 / 程式庫）。 */
   categoryLabel?: string;
+  /** 已依 job_count 排序、只屬於此 tech 的組合（由 HomePage 分組好）。 */
+  items: SupabaseView.MvTechComboStats[];
+  loading?: boolean;
 }
 
-export function HomeHotCombos({
-  tech,
-  categoryLabel,
-}: HomeHotCombosProps) {
-  const { items, getItems, loading } = useTechComboStats();
+export function HomeHotCombos({ tech, categoryLabel, items, loading = false }: HomeHotCombosProps) {
   const navigate = useNavigate();
-
-  useEffect(() => {
-    getItems({
-      where: { tech1: { eq: tech }, cat2: { neq: 'language' } },
-    });
-  }, [tech, getItems]);
 
   const goJobs = (query: Record<string, string> = {}): void => {
     const qs = new URLSearchParams(query).toString();
@@ -52,10 +45,7 @@ export function HomeHotCombos({
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-[1.4fr_1fr_1fr]">
           <div className="col-span-1 h-60 animate-pulse rounded-xl bg-[#d9f2ff] sm:col-span-2 md:col-span-1 md:row-span-2 md:h-72" />
           {[0, 1, 2, 3].map(i => (
-            <div
-              key={i}
-              className="h-32 animate-pulse rounded-xl bg-[#d9f2ff]"
-            />
+            <div key={i} className="h-32 animate-pulse rounded-xl bg-[#d9f2ff]" />
           ))}
         </div>
       ) : topCombo ? (
@@ -64,9 +54,7 @@ export function HomeHotCombos({
             type="button"
             className="group col-span-1 flex min-w-0 cursor-pointer flex-col justify-between rounded-xl bg-[#001f2a] p-6 text-left text-white transition-all hover:opacity-95 active:scale-[0.98] sm:col-span-2 md:col-span-1 md:row-span-2"
             style={{ minHeight: 'clamp(200px, 50vw, 280px)' }}
-            onClick={() =>
-              goJobs({ tags: `${topCombo.tech1},${topCombo.tech2}` })
-            }
+            onClick={() => goJobs({ tags: `${topCombo.tech1},${topCombo.tech2}` })}
           >
             <div>
               <div className="mb-4 flex items-center justify-between font-mono text-[11px] tracking-[0.15em] text-white/50">
@@ -86,23 +74,13 @@ export function HomeHotCombos({
                 style={{ fontSize: 'clamp(1.75rem, 7vw, 3.25rem)' }}
               >
                 <div className="flex min-w-0 items-center gap-2">
-                  <TechIcon
-                    slugs={topCombo.tech1_icons}
-                    label={topCombo.tech1_label}
-                  />
-                  <span className="min-w-0 wrap-break-word">
-                    {topCombo.tech1_label}
-                  </span>
+                  <TechIcon slugs={topCombo.tech1_icons} label={topCombo.tech1_label} />
+                  <span className="min-w-0 wrap-break-word">{topCombo.tech1_label}</span>
                 </div>
                 <span className="text-[#fd7700]">+</span>
                 <div className="flex min-w-0 items-center gap-2">
-                  <TechIcon
-                    slugs={topCombo.tech2_icons}
-                    label={topCombo.tech2_label}
-                  />
-                  <span className="min-w-0 wrap-break-word">
-                    {topCombo.tech2_label}
-                  </span>
+                  <TechIcon slugs={topCombo.tech2_icons} label={topCombo.tech2_label} />
+                  <span className="min-w-0 wrap-break-word">{topCombo.tech2_label}</span>
                 </div>
               </div>
               <div className="flex flex-wrap gap-1">
@@ -129,15 +107,13 @@ export function HomeHotCombos({
               <div>
                 <div className="text-right">
                   <div className="text-xl font-black tabular-nums">
-                    {toWan(topCombo.median_min_year)}–
-                    {toWan(topCombo.median_max_year)}
+                    {toWan(topCombo.median_min_year)}–{toWan(topCombo.median_max_year)}
                   </div>
                   <div className="text-[11px] text-white/50">年薪</div>
                 </div>
                 <div className="text-right">
                   <div className="text-xl font-black tabular-nums">
-                    {toWan(topCombo.median_min_month)}–
-                    {toWan(topCombo.median_max_month)}
+                    {toWan(topCombo.median_min_month)}–{toWan(topCombo.median_max_month)}
                   </div>
                   <div className="text-[11px] text-white/50">月薪</div>
                 </div>
@@ -151,9 +127,7 @@ export function HomeHotCombos({
               type="button"
               className="group flex min-w-0 cursor-pointer flex-col justify-between rounded-xl bg-white p-4 text-left shadow-[0_24px_40px_rgba(0,31,42,0.06)] transition-all hover:-translate-y-0.5 active:scale-[0.98]"
               style={{ minHeight: '130px' }}
-              onClick={() =>
-                goJobs({ tags: `${combo.tech1},${combo.tech2}` })
-              }
+              onClick={() => goJobs({ tags: `${combo.tech1},${combo.tech2}` })}
             >
               <div className="flex items-center justify-between font-mono text-[10px] tracking-[0.15em] text-[#434653]">
                 <span>#{i + 2}</span>
@@ -172,23 +146,13 @@ export function HomeHotCombos({
                 style={{ fontSize: '1.375rem' }}
               >
                 <div className="flex min-w-0 items-center gap-1.5">
-                  <TechIcon
-                    slugs={combo.tech1_icons}
-                    label={combo.tech1_label}
-                  />
-                  <span className="min-w-0 wrap-break-word">
-                    {combo.tech1_label}
-                  </span>
+                  <TechIcon slugs={combo.tech1_icons} label={combo.tech1_label} />
+                  <span className="min-w-0 wrap-break-word">{combo.tech1_label}</span>
                 </div>
                 <span className="px-2 text-[#fd7700]">+</span>
                 <div className="flex min-w-0 items-center gap-1.5">
-                  <TechIcon
-                    slugs={combo.tech2_icons}
-                    label={combo.tech2_label}
-                  />
-                  <span className="min-w-0 wrap-break-word">
-                    {combo.tech2_label}
-                  </span>
+                  <TechIcon slugs={combo.tech2_icons} label={combo.tech2_label} />
+                  <span className="min-w-0 wrap-break-word">{combo.tech2_label}</span>
                 </div>
               </div>
               <div className="mt-1.5 flex flex-wrap gap-1">
@@ -203,10 +167,7 @@ export function HomeHotCombos({
               </div>
               <div className="mt-2 flex items-end justify-between">
                 <div>
-                  <div
-                    className="leading-none font-black text-[#003d92] tabular-nums"
-                    style={{ fontSize: '1.375rem' }}
-                  >
+                  <div className="leading-none font-black text-[#003d92] tabular-nums" style={{ fontSize: '1.375rem' }}>
                     {combo.job_count.toLocaleString()}
                   </div>
                   <div className="text-[10px] text-[#434653]">個職缺</div>
@@ -214,15 +175,13 @@ export function HomeHotCombos({
                 <div className="text-[11px]">
                   <div className="text-right">
                     <div className="font-bold text-[#434653] tabular-nums">
-                      {toWan(combo.median_min_year)}–
-                      {toWan(combo.median_max_year)}
+                      {toWan(combo.median_min_year)}–{toWan(combo.median_max_year)}
                     </div>
                     <div className="text-[11px]">年薪</div>
                   </div>
                   <div className="text-right">
                     <div className="font-bold text-[#434653] tabular-nums">
-                      {toWan(combo.median_min_month)}–
-                      {toWan(combo.median_max_month)}
+                      {toWan(combo.median_min_month)}–{toWan(combo.median_max_month)}
                     </div>
                     <div className="text-[11px]">月薪</div>
                   </div>
